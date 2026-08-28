@@ -368,7 +368,7 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 
 P3 不影響 P0～P2 的 Manifest、下載來源與 Runtime Catalog 設計，可在產品公開需求成熟後再導入。
 
-## 12. 第一、二階段執行結果
+## 12. 第一至第三階段執行結果
 
 ### 已完成
 
@@ -380,12 +380,15 @@ P3 不影響 P0～P2 的 Manifest、下載來源與 Runtime Catalog 設計，可
 - 確認全新 Proxy Manager 使用空清單，不預載、下載或自動匯入 Connection。
 - 補上 `LICENSE-MIT`、`LICENSE-APACHE`、`SECURITY.md` 與 README 的 License／Security 說明。
 - 完成前端、Rust workspace、macOS Helper 測試、TypeScript、rustfmt、Clippy、Swift lint 與 `git diff --check`。
+- 建立不會上傳的本機 Git bundle 復原檔，保留歷史清理前的 Private Repository 狀態。
+- 從已清理且驗證通過的工作樹建立全新公開根 Commit，作者使用 GitHub noreply Email。
+- 以 `--force-with-lease` 將 Private Repository 的 `main` 替換為乾淨歷史，並刪除仍指向舊歷史的遠端功能分支。
+- 本機 `main` 已同步至乾淨歷史；一般本機與遠端 branch refs 不再指向舊 Commit。
 
 ### 尚未執行
 
-- 尚未 Commit 或 Push 第二階段變更。
 - 尚未修改 GitHub Repository Visibility。
-- 尚未重寫含客戶資料的既有 Git 歷史，也尚未移除已存在的遠端分支。
 - 尚未使用專用 secret scanner；目前僅完成規則式檔案與 Git 歷史掃描。
+- 尚未由 GitHub Support 確認清除伺服器端不可達 Git objects、cached views 或其他歷史快取。
 
-在 Git 歷史完成清理並再次人工審核之前，不得把現有 Repository 改為 Public，也不得把含客戶資料的 Commit 推送到任何公開 Repository。
+Force push 與刪除 branch refs 不保證 GitHub 伺服器立刻清除所有不可達物件或快取。在 GitHub 完成伺服器端清除確認，或改用重新建立的乾淨 Repository 之前，不得把現有 Repository 改為 Public。
