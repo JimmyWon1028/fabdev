@@ -379,7 +379,11 @@ jobs:
         run: |
           set -euo pipefail
           tag="v$VERSION"
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          existing_release_id="$(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"$tag\") | .id"
+          )"
+          if [[ -n "$existing_release_id" ]]; then
             echo "A GitHub Release already exists for $tag" >&2
             exit 1
           fi
@@ -391,5 +395,6 @@ jobs:
             --title "fabDev $VERSION" \
             --notes-file "$RUNNER_TEMP/release-notes.md"
           test "$(
-            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --jq '.draft'
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"$tag\") | .draft"
           )" = "true"

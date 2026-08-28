@@ -87,11 +87,12 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 
 - [x] 完成 Public Repository、Release Asset 命名、Stable Channel、App Manifest v1、Draft／Publish 與回復契約；見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 - [x] 建立 Release Asset／Manifest／Checksum 產生器；驗證四個版本來源與 Agent Protocol，不覆蓋既有輸出，也不執行打包或發布。
-- [x] 建立只接受手動雙重確認、既有 Tag 且只會建立 Draft 的 GitHub Actions Release workflow；只有最後 Job 具寫入權限，目前尚未執行。
+- [x] 建立只接受手動雙重確認、既有 Tag 且只會建立 Draft 的 GitHub Actions Release workflow；只有最後 Job 具寫入權限，已用 `v0.1.0` 完成兩平台建置與 Draft 建立。
 - [ ] 在乾淨 Mac 驗證安裝 → 自動啟動 → `demo.test` → 更新 → 完整移除。
 - [ ] 驗證 Gatekeeper、quarantine、管理員授權及 53／80／443 衝突錯誤訊息。
 - [ ] 修正 release stripping 工具鏈警告。
-- [ ] 建立第一個 Draft Release，重新下載驗證後由 Repository Owner 人工核准 Publish。
+- [x] 建立第一個 `v0.1.0` Draft Release，重新下載 9 個 Assets，核對實際大小、Manifest 與 SHA-256；目前仍未 Publish。
+- [ ] 由 Repository Owner 在乾淨 Mac／Windows 驗收完成後人工核准 Publish。
 
 ### P1：核心開發體驗
 

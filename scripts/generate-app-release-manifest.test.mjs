@@ -155,6 +155,8 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.match(workflow, /--draft/)
   assert.match(workflow, /--verify-tag/)
   assert.match(workflow, /--latest=false/)
+  assert.match(workflow, /releases\?per_page=100/)
+  assert.doesNotMatch(workflow, /releases\/tags\//)
   assert.doesNotMatch(workflow, /gh release edit|--draft=false|make_latest/)
   assert.doesNotMatch(workflow, /secrets\./)
 

@@ -56,7 +56,7 @@ pnpm run build:community:macos
 
 Community 安裝程式會驗證 DMG 內的 `SHA256SUMS`，再要求一次管理員權限安裝 `/Applications/fabDev.app` 與固定功能的 LaunchDaemon。更新會保留 Sites、Runtime 與 `php.ini`；移除程序預設保留資料，只有使用者再次確認才會把資料移到垃圾桶。完整操作說明在 [`distribution/macos/community/INSTALL.zh-TW.md`](distribution/macos/community/INSTALL.zh-TW.md)。
 
-公開下載使用 GitHub Releases；Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish 與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的安裝包並產生 Manifest／Checksum，不會觸發打包或發布。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立 Draft。目前尚未建立正式 Stable Release，且未因 P0 規格重新打包安裝程式。
+公開下載使用 GitHub Releases；Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish 與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的安裝包並產生 Manifest／Checksum，不會觸發打包或發布。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立 Draft。`v0.1.0` Unsigned Community Draft 已重新打包並完成下載完整性驗證，但尚未完成乾淨機驗收或 Publish，因此目前仍沒有正式 Stable Release。
 
 Windows x64 使用 Current User NSIS 單檔安裝程式；完整的建置環境、Runtime／sidecar 準備、Windows 11 驗收及除錯經驗整理在 [`docs/WINDOWS_X64_PACKAGING.md`](docs/WINDOWS_X64_PACKAGING.md)。
 
