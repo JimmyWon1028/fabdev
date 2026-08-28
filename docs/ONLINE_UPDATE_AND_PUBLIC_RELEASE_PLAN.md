@@ -384,6 +384,8 @@ P3 不影響 P0～P2 的 Manifest、下載來源與 Runtime Catalog 設計，可
 - 從已清理且驗證通過的工作樹建立全新公開根 Commit，作者使用 GitHub noreply Email。
 - 以 `--force-with-lease` 將 Private Repository 的 `main` 替換為乾淨歷史，並刪除仍指向舊歷史的遠端功能分支。
 - 本機 `main` 已同步至乾淨歷史；一般本機與遠端 branch refs 不再指向舊 Commit。
+- GitHub 目前只剩乾淨的 `main`；沒有其他 Branch、Tag、Pull Request 或 Release。
+- 已刪除 9 次清理前的 GitHub Actions workflow run、相關 Log 與 3 個 Windows artifacts。
 
 ### 尚未執行
 
@@ -391,4 +393,4 @@ P3 不影響 P0～P2 的 Manifest、下載來源與 Runtime Catalog 設計，可
 - 尚未使用專用 secret scanner；目前僅完成規則式檔案與 Git 歷史掃描。
 - 尚未由 GitHub Support 確認清除伺服器端不可達 Git objects、cached views 或其他歷史快取。
 
-Force push 與刪除 branch refs 不保證 GitHub 伺服器立刻清除所有不可達物件或快取。在 GitHub 完成伺服器端清除確認，或改用重新建立的乾淨 Repository 之前，不得把現有 Repository 改為 Public。
+實際以已知舊 SHA 查詢 GitHub Commit API 時，仍可讀取已經無 Branch 指向的舊 Commit。Force push、刪除 branch refs 與 Actions runs 不會立刻清除這些伺服器端物件。在 GitHub 完成伺服器端清除確認，或刪除並重新建立同名的乾淨 Repository 之前，不得把現有 Repository 改為 Public。
