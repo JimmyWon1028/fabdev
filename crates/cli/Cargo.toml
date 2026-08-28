@@ -1,0 +1,19 @@
+[package]
+name = "fabdev-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "fabdev"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+fabdev-core = { path = "../core" }
+fabdev-runtime = { path = "../runtime" }
+serde_json.workspace = true
+tokio.workspace = true
+uuid.workspace = true

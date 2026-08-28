@@ -1,0 +1,87 @@
+--- a/imagick.c
++++ b/imagick.c
+@@ -23,6 +23,13 @@
+ #include "php_imagick_helpers.h"
+ #include "php_imagick_shared.h"
+ 
++#ifdef __APPLE__
++#include <dlfcn.h>
++#include <limits.h>
++#include <stdlib.h>
++#include <string.h>
++#endif
++
+ #if PHP_VERSION_ID >= 70200
+ #include "Zend/zend_smart_string.h"
+ #elif PHP_VERSION_ID >= 70000
+@@ -968,6 +975,59 @@ static void checkImagickVersion()
+ 	);
+ }
+ 
++#ifdef __APPLE__
++static void php_imagick_configure_fabdev_runtime_paths(void)
++{
++  Dl_info info;
++  char runtime_root[PATH_MAX];
++  char configure_path[PATH_MAX * 2];
++  char module_path[PATH_MAX];
++  char filter_path[PATH_MAX];
++  char *separator;
++  size_t index;
++
++  if (dladdr((void *)&php_imagick_configure_fabdev_runtime_paths, &info) == 0 ||
++      info.dli_fname == NULL ||
++      realpath(info.dli_fname, runtime_root) == NULL) {
++    return;
++  }
++
++  for (index = 0; index < 5; index++) {
++    separator = strrchr(runtime_root, '/');
++    if (separator == NULL) {
++      return;
++    }
++    *separator = '\0';
++  }
++
++  if (snprintf(
++        configure_path,
++        sizeof(configure_path),
++        "%s/etc/ImageMagick-7:%s/share/ImageMagick-7",
++        runtime_root,
++        runtime_root
++      ) >= (int)sizeof(configure_path) ||
++      snprintf(
++        module_path,
++        sizeof(module_path),
++        "%s/lib/ImageMagick/modules-Q16HDRI/coders",
++        runtime_root
++      ) >= (int)sizeof(module_path) ||
++      snprintf(
++        filter_path,
++        sizeof(filter_path),
++        "%s/lib/ImageMagick/modules-Q16HDRI/filters",
++        runtime_root
++      ) >= (int)sizeof(filter_path)) {
++    return;
++  }
++
++  setenv("MAGICK_CONFIGURE_PATH", configure_path, 0);
++  setenv("MAGICK_CODER_MODULE_PATH", module_path, 0);
++  setenv("MAGICK_FILTER_MODULE_PATH", filter_path, 0);
++}
++#endif
++
+ PHP_MINIT_FUNCTION(imagick)
+ {
+ 	zend_class_entry ce;
+@@ -990,6 +1043,10 @@ PHP_MINIT_FUNCTION(imagick)
+ 	memcpy(&imagickkernel_object_handlers, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
+ #endif
+ 
++#ifdef __APPLE__
++  php_imagick_configure_fabdev_runtime_paths();
++#endif
++
+ 	/* Set custom allocators */
+ 	MagickWandGenesis();
+ 

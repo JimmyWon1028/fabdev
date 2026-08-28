@@ -1,0 +1,13 @@
+[package]
+name = "fabdev-sites"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+fabdev-core = { path = "../core" }
+thiserror.workspace = true
+
+[dev-dependencies]
+uuid.workspace = true

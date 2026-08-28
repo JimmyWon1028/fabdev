@@ -1,0 +1,46 @@
+[workspace]
+members = [
+  "apps/connect",
+  "apps/desktop/src-tauri",
+  "crates/agent",
+  "crates/cli",
+  "crates/core",
+  "crates/platform",
+  "crates/proxy",
+  "crates/runtime",
+  "crates/share",
+  "crates/services",
+  "crates/sites",
+  "crates/updater",
+  "helpers/windows"
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+rust-version = "1.82"
+
+[workspace.dependencies]
+anyhow = "1"
+async-trait = "0.1"
+bytes = "1"
+clap = { version = "4", features = ["derive"] }
+directories = "6"
+flate2 = "1"
+hex = "0.4"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["client", "client-legacy", "http1", "tokio"] }
+nix = { version = "0.30", features = ["signal"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+rcgen = "0.13"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tar = "0.4"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+windows-sys = "0.61"

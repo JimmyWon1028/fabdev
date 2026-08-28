@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "fabDev",
+  "version": "0.1.0",
+  "identifier": "com.fabdev.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "node ../../scripts/build-desktop-bundle-assets.mjs",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "fabDev",
+        "width": 1120,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 640,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "externalBin": [
+      "binaries/fabdev-agent"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "DeveloperTool",
+    "shortDescription": "Local ERP web development environment",
+    "macOS": {
+      "minimumSystemVersion": "13.0",
+      "files": {
+        "Resources/fabdev-system-helper": "../../../helpers/macos/.build/release/fabdev-system-helper",
+        "Library/LaunchDaemons/com.fabdev.system-helper.plist": "macos/com.fabdev.system-helper.plist"
+      }
+    }
+  }
+}

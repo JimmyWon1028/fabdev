@@ -1,0 +1,107 @@
+diff --git a/configure b/configure
+index 5d16bf0..76bb285 100755
+--- a/configure
++++ b/configure
+@@ -33267,7 +33267,7 @@ else
+   cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+ /* end confdefs.h.  */
+ 
+-    char foobar () {}
++    char foobar () { return 1; }
+     char foobar();
+     int main() {
+       foobar();
+diff --git a/build/php.m4 b/build/php.m4
+index 82ea094..8c3388f 100644
+--- a/build/php.m4
++++ b/build/php.m4
+@@ -1597,7 +1597,7 @@ AC_DEFUN([PHP_CHECK_FUNC_LIB],[
+   if test "$found" = "yes"; then
+     ac_libs=$LIBS
+     LIBS="$LIBS -l$2"
+-    AC_RUN_IFELSE([AC_LANG_SOURCE([[main() { return (0); }]])],[found=yes],[found=no],[found=no])
++    AC_RUN_IFELSE([AC_LANG_SOURCE([[int main() { return (0); }]])],[found=yes],[found=no],[found=no])
+     LIBS=$ac_libs
+   fi
+ 
+diff --git a/ext/gd/config.m4 b/ext/gd/config.m4
+index 4d02fcc..f4fb92e 100644
+--- a/ext/gd/config.m4
++++ b/ext/gd/config.m4
+@@ -173,6 +173,6 @@ dnl Various checks for GD features
+     PHP_TEST_BUILD(foobar, [], [
+       AC_MSG_ERROR([GD build test failed. Please check the config.log for details.])
+-    ], [ $GD_SHARED_LIBADD ], [char foobar () {}])
++    ], [ $GD_SHARED_LIBADD ], [char foobar () { return 1; }])
+ 
+   else
+     extra_sources="gd_compat.c"
+diff --git a/ext/intl/config.m4 b/ext/intl/config.m4
+index 02f18c1..8cc1fa7 100644
+--- a/ext/intl/config.m4
++++ b/ext/intl/config.m4
+@@ -83,7 +83,7 @@ if test "$PHP_INTL" != "no"; then
+     breakiterator/codepointiterator_methods.cpp"
+ 
+   PHP_REQUIRE_CXX()
+-  PHP_CXX_COMPILE_STDCXX(11, mandatory, PHP_INTL_STDCXX)
++  PHP_CXX_COMPILE_STDCXX(17, mandatory, PHP_INTL_STDCXX)
+   PHP_INTL_CXX_FLAGS="$INTL_COMMON_FLAGS $PHP_INTL_STDCXX $ICU_CXXFLAGS"
+   if test "$ext_shared" = "no"; then
+     PHP_ADD_SOURCES(PHP_EXT_DIR(intl), $PHP_INTL_CXX_SOURCES, $PHP_INTL_CXX_FLAGS)
+diff --git a/ext/libxml/libxml.c b/ext/libxml/libxml.c
+index 8f2f52a..0d497cd 100644
+--- a/ext/libxml/libxml.c
++++ b/ext/libxml/libxml.c
+@@ -475,7 +475,7 @@ php_libxml_input_buffer_create_filename(const char *URI, xmlCharEncoding enc)
+ static xmlOutputBufferPtr
+ php_libxml_output_buffer_create_filename(const char *URI,
+                               xmlCharEncodingHandlerPtr encoder,
+-                              int compression ATTRIBUTE_UNUSED)
++                              int compression)
+ {
+ 	xmlOutputBufferPtr ret;
+ 	xmlURIPtr puri;
+@@ -530,7 +530,7 @@ static int _php_libxml_free_error(xmlErrorPtr error)
+ 	return 1;
+ }
+ 
+-static void _php_list_set_error_structure(xmlErrorPtr error, const char *msg)
++static void _php_list_set_error_structure(const xmlError *error, const char *msg)
+ {
+ 	xmlError error_copy;
+ 	int ret;
+@@ -782,7 +782,11 @@ PHP_LIBXML_API void php_libxml_ctx_warning(void *ctx, const char *msg, ...)
+ 	va_end(args);
+ }
+ 
++#if LIBXML_VERSION >= 21200
++PHP_LIBXML_API void php_libxml_structured_error_handler(void *userData, const xmlError *error)
++#else
+ PHP_LIBXML_API void php_libxml_structured_error_handler(void *userData, xmlErrorPtr error)
++#endif
+ {
+ 	_php_list_set_error_structure(error, NULL);
+ 
+@@ -1061,6 +1065,6 @@ static PHP_FUNCTION(libxml_use_internal_errors)
+ static PHP_FUNCTION(libxml_get_last_error)
+ {
+-	xmlErrorPtr error;
++	const xmlError *error;
+ 
+ 	error = xmlGetLastError();
+ 
+diff --git a/ext/openssl/openssl.c b/ext/openssl/openssl.c
+index 673f48c..7e01fb2 100644
+--- a/ext/openssl/openssl.c
++++ b/ext/openssl/openssl.c
+@@ -1517,7 +1517,9 @@ PHP_MINIT_FUNCTION(openssl)
+ 	REGISTER_LONG_CONSTANT("PKCS7_NOSIGS", PKCS7_NOSIGS, CONST_CS|CONST_PERSISTENT);
+ 
+ 	REGISTER_LONG_CONSTANT("OPENSSL_PKCS1_PADDING", RSA_PKCS1_PADDING, CONST_CS|CONST_PERSISTENT);
++#ifdef RSA_SSLV23_PADDING
+ 	REGISTER_LONG_CONSTANT("OPENSSL_SSLV23_PADDING", RSA_SSLV23_PADDING, CONST_CS|CONST_PERSISTENT);
++#endif
+ 	REGISTER_LONG_CONSTANT("OPENSSL_NO_PADDING", RSA_NO_PADDING, CONST_CS|CONST_PERSISTENT);
+ 	REGISTER_LONG_CONSTANT("OPENSSL_PKCS1_OAEP_PADDING", RSA_PKCS1_OAEP_PADDING, CONST_CS|CONST_PERSISTENT);
+ 

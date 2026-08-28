@@ -1,0 +1,53 @@
+# Repository Guidelines
+
+## 專案結構與模組配置
+
+fabDev 是 macOS 優先、最終支援 Windows 的 ERP Web 本機開發工具。Tauri／Vue Desktop 位於 `apps/desktop/`；Rust Core、Agent、CLI、Runtime 與服務管理位於 `crates/`；共用 TypeScript 契約及 UI 位於 `packages/`。Nginx、dnsmasq、PHP 設定模板放在 `resources/`，可重現的 Runtime 建置腳本放在 `scripts/`，端到端 PHP fixture 放在 `tests/fixtures/`。架構決策以 `docs/FABDEV_ARCHITECTURE.md` 為準；目前進度與優先 TODO 以 `docs/FABDEV_PROGRESS.md` 為準。不要提交 `target/`、`.build/`、`artifacts/`、`dist/` 或 Runtime binary。
+
+## 建置、測試與本機開發
+
+- `pnpm dev`：啟動 Tauri Desktop 開發模式。
+- `pnpm build`：建置 Vue、Tauri 及完整 Cargo workspace。
+- `pnpm test`：執行 Vue/Vitest 與 Rust 測試。
+- `pnpm lint`：執行前端 lint、`cargo fmt --check` 與 Clippy。
+- `cargo run -p fabdev-agent -- --dns-port 53535 --http-port 8080`：以非特權埠執行 Agent。
+- `FABDEV_DATA_DIR=/tmp/fabdev-local-test pnpm dev`：讓 Desktop 與 Agent 共用隔離的本機測試資料。
+- `sudo ./scripts/install-local-test-helper.sh`：本機測試固定的 53／80 入口；使用後以對應的 `uninstall-local-test-helper.sh` 移除。
+- `./scripts/build-php-runtime.sh`、`build-nginx-runtime.sh`、`build-dnsmasq-runtime.sh`：從已固定雜湊及簽署金鑰的官方原始碼建立 macOS ARM64 開發封裝。
+
+開發工具使用獨立的 Node.js 24、pnpm 11 與 Rust stable；不得依賴 Herd 的 NVM 或 binary。
+只有使用者明確說「重新打包」時，才能執行 `pnpm run build:community:macos` 或覆蓋 Community DMG；開始、繼續、測試或完成細節都不構成打包授權。
+
+## 架構與設定原則
+
+Desktop 只透過明確定義的 Tauri Command 呼叫 Core Agent。Agent 使用版本化 JSON Protocol 與 Unix Socket；變更 request 或 response 時，必須同步修改 `crates/core/src/protocol.rs` 與 `packages/contracts/src/index.ts`。本機狀態使用 SQLite，可進版控的 Site 設定預留 `fabdev.yml`。平台差異應收斂在 `crates/platform/` 或 `helpers/`，不得散落於共用 Domain Logic。Runtime 安裝到 fabDev Application Support，使用版本目錄與 `current` 連結；封裝內的 Mach-O 不得保留 `/opt/homebrew` 執行期依賴。
+
+fabDev Managed MariaDB 必須同時支援本機 PHP 專案以 `127.0.0.1` TCP 與 `localhost` Unix Socket 登入；兩種連線的 `root` 密碼必須同步，PHP-FPM 的 `mysqli`／`PDO MySQL` 預設 Socket 必須指向 fabDev 管理的 MariaDB Socket，不得依賴或覆蓋系統的 `/tmp/mysql.sock`。App 啟動時必須恢復使用者上次明確選擇的 MariaDB 啟動／停止狀態；Quit 或 Agent 升級為了清理程序而暫時停止 MariaDB 時，不得把偏好覆寫為停止。
+
+MariaDB 連線來源不提供手動選項。fabDev Managed MariaDB 實際啟動時，PHP-FPM 的 `mysqli`／`PDO MySQL` 預設 Socket 必須自動指向 fabDev 管理的 MariaDB Socket；未安裝或已安裝但停止時，自動使用 System／Homebrew MariaDB Socket，並確保 PHP 專案與 Adminer 可直接以 `localhost` 登入。Managed MariaDB 啟動或停止後必須立即重新產生並套用 PHP-FPM 設定，不得依賴使用者開啟 MariaDB 頁面或手動儲存設定。
+
+不得因重新產生 `www.conf`、Runtime 更新或 App 重啟而破壞 `localhost` 登入。修改 MariaDB 設定契約、Runtime 安裝／移除流程、PHP-FPM 模板或設定產生器時，必須加入 Managed 與 System Socket 自動切換的回歸測試。
+
+System／Homebrew MariaDB Socket 屬於內部連線細節，不顯示於一般 MariaDB 設定畫面；Unix 平台依序偵測已保存的有效 Socket、`/tmp/mysql.sock`、Apple Silicon Homebrew 與 Intel Homebrew 的常見 Socket 路徑，Windows 使用保存的 Named Pipe／TCP 設定。Managed 運行狀態在 Unix 由實際 Socket 判定，在 Windows 由 fabDev PID 檔與 TCP readiness 共同判定。
+
+## 程式風格與命名規範
+
+所有程式碼使用兩格空白縮排，不使用 Tab；程式碼注釋一律使用英文。Rust 遵循 `rustfmt.toml`，TypeScript／Vue 檔名使用 `kebab-case`，變數與函式使用 `camelCase`，型別與元件使用 `PascalCase`，常數使用 `UPPER_SNAKE_CASE`。避免在功能提交中混入無關的全檔格式化。
+
+## 測試規範
+
+新功能至少測試成功路徑與一個錯誤或邊界案例；缺陷修正需加入回歸測試。前端測試命名為 `*.test.ts`，Rust 測試放在所屬模組的 `#[cfg(test)]`。提交前執行 `pnpm test`、`pnpm lint` 及 `git diff --check`；服務改動還需驗證 Start → HTTP/PHP → Stop，並確認沒有殘留 Port、PID 或 Socket。macOS Helper 位於 `helpers/macos/`，以 `pnpm run test:helper:macos` 測試；所有 Proxy listener 必須只綁 loopback，不得新增可由 XPC 傳入的 Port、路徑或任意命令。
+
+## HTTPS、Helper 與 MCP 開發經驗
+
+- 修改 macOS Helper 的固定 Proxy、plist、簽章或 bundle identifier 後，只重啟 App／Agent 不會更新已安裝的 LaunchDaemon；必須先重新建置，再使用專案安裝程序替換 Helper，並驗證實際載入版本與 53／80／443 listener。
+- HTTPS 驗證需逐層確認 DNS、HTTP 301、443 listener、Nginx SNI、leaf certificate SAN、CA chain 與 Login Keychain 信任；瀏覽器錯誤不能取代 `curl`／TLS 與憑證檢查。正式驗收至少包含 `demo.test` 的 HTTP redirect 與 HTTPS 200。
+- fabDev CA 應由互動中的目前使用者信任至 Login Keychain；root Helper 不負責產生、信任或搬移憑證。Site 私鑰只能保存在 fabDev Application Support，leaf certificate SAN 只能包含正規化後的目標 `.test` 網域。
+- MCP 應是既有版本化 Agent Protocol 的薄型轉接層，不可另建一套服務管理邏輯。預設唯讀並限制在明確 Site；輸出必須遮罩密碼、Token、私鑰與敏感 `.env`，所有變更工具採白名單及明確確認，且不得暴露任意 Shell、路徑、Port 或提升 Helper 權限。
+- Laravel 專用的 Query、Job、Dump 與 outgoing request tracing 不可直接假設適用一般 ERP／Legacy PHP；先完成 DNS → HTTP／HTTPS → Nginx → PHP-FPM → MariaDB 的通用診斷，再以選用 instrumentation 擴充框架層追蹤。
+- 專案用 Node.js 是預設未安裝的獨立選裝 Runtime，必須與 fabDev 建置用 Node、Homebrew、nvm、Herd、系統 Node.js 及使用者 PATH 分離。第一階段只接受 `STABLE_NODE_VERSION` 指定的單一 LTS；Site 可啟用或停用，仍有 Site 使用時不得移除 Runtime。
+- Node.js Runtime 建置必須同時驗證固定的官方 Archive SHA-256、Node.js 發布者簽署的 `SHASUMS256.txt.asc` 與允許的完整 Key Fingerprint，再封裝成以版本為單一根目錄的 fabDev Runtime Package。未明確要求「重新打包」時，不得因此把 Node.js 納入 Community DMG。
+
+## Commit、PR 與安全邊界
+
+採用 Conventional Commits，例如 `feat: add runtime installer`。PR 應說明目的、驗證方式、相關 issue，UI 變更需附截圖。Desktop 與 Agent 維持一般使用者權限；53／80／443、固定的 `/etc/resolver/test` 及 LaunchDaemon 只能經白名單 System Helper 操作，CA 信任則由目前使用者的互動 Session 經固定路徑與內容驗證後執行。不得覆蓋 Herd 設定、接管既有 Homebrew MariaDB，或提交 Token、私鑰與真實環境資料。

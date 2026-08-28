@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <mask id="server-cutouts" maskUnits="userSpaceOnUse" x="21" y="15" width="9" height="9">
+      <circle cx="25.5" cy="19.5" r="4" fill="#ffffff" />
+      <g fill="#000000">
+        <circle cx="24" cy="17.9" r="0.42" />
+        <circle cx="24" cy="19.5" r="0.42" />
+        <circle cx="24" cy="21.1" r="0.42" />
+      </g>
+      <g fill="none" stroke="#000000" stroke-linecap="round" stroke-width="0.85">
+        <path d="M25.35 17.9h2.1" />
+        <path d="M25.35 19.5h2.1" />
+        <path d="M25.35 21.1h2.1" />
+      </g>
+    </mask>
+    <mask id="code-cutouts" maskUnits="userSpaceOnUse" x="19" y="23" width="9" height="9">
+      <circle cx="23.5" cy="27" r="4" fill="#ffffff" />
+      <g fill="none" stroke="#000000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.25">
+        <path d="m22.65 25.15-1.6 1.85 1.6 1.85" />
+        <path d="m24.35 25.15 1.6 1.85-1.6 1.85" />
+      </g>
+    </mask>
+  </defs>
+  <path
+    fill="currentColor"
+    d="M6.75 3h17.9c1.15 0 1.55 0.85 0.65 1.65l-3.25 2.9c-0.45 0.4-0.85 0.55-1.5 0.55H10.3c-0.8 0-1.3 0.55-1.3 1.3v2.45h8.5c1.2 0 1.55 1.1 0.65 1.85l-3.25 2.75c-0.4 0.35-0.8 0.5-1.35 0.5H9v10.8A1.25 1.25 0 0 1 7.75 29H6.5C4.55 29 3 27.45 3 25.5V6.75A3.75 3.75 0 0 1 6.75 3Z"
+  />
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.15">
+    <path d="m16 19 6.2-5.55" />
+    <path d="M16 19h5.5" />
+    <path d="m16 19 4.65 5.25" />
+  </g>
+  <circle cx="16" cy="19" r="3" fill="currentColor" />
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="24.75" cy="11.25" r="3.65" stroke-width="1.15" />
+    <ellipse cx="24.75" cy="11.25" rx="1.45" ry="3.65" stroke-width="1.05" />
+    <path d="M21.25 10.1h7M21.25 12.4h7" stroke-width="1" />
+  </g>
+  <circle cx="25.5" cy="19.5" r="4" fill="currentColor" mask="url(#server-cutouts)" />
+  <circle cx="23.5" cy="27" r="4" fill="currentColor" mask="url(#code-cutouts)" />
+</svg>

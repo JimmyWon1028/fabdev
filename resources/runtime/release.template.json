@@ -1,0 +1,10 @@
+{
+  "name": "@NAME@",
+  "version": "@VERSION@",
+  "platform": "macos",
+  "architecture": "arm64",
+  "url": "@ARCHIVE@",
+  "size": @SIZE@,
+  "sha256": "@SHA256@",
+  "signature": "@SIGNATURE@"
+}

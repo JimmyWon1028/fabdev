@@ -1,0 +1,22 @@
+{
+  "name": "fabdev",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "./scripts/run-tauri.sh dev",
+    "dev:web": "pnpm --filter @fabdev/desktop dev",
+    "build": "pnpm --filter @fabdev/desktop build && ./scripts/run-cargo.sh build --workspace",
+    "build:web": "pnpm --filter @fabdev/desktop build",
+    "test": "pnpm -r --if-present test && ./scripts/run-cargo.sh test --workspace && pnpm run test:helper:macos",
+    "test:helper:macos": "./scripts/test-macos-helper.sh",
+    "build:helper:macos": "./scripts/build-macos-helper.sh",
+    "build:community:macos": "./scripts/build-community-macos.sh",
+    "lint": "pnpm -r --if-present lint && ./scripts/run-cargo.sh fmt --all -- --check && ./scripts/run-cargo.sh clippy --workspace --all-targets -- -D warnings && pnpm run lint:helper:macos",
+    "lint:helper:macos": "./scripts/lint-macos-helper.sh",
+    "format": "pnpm -r --if-present format && ./scripts/run-cargo.sh fmt --all && ./scripts/format-macos-helper.sh"
+  }
+}
