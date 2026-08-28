@@ -368,7 +368,7 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 
 P3 不影響 P0～P2 的 Manifest、下載來源與 Runtime Catalog 設計，可在產品公開需求成熟後再導入。
 
-## 12. 第一至第三階段執行結果
+## 12. 第一至第四階段執行結果
 
 ### 已完成
 
@@ -386,11 +386,14 @@ P3 不影響 P0～P2 的 Manifest、下載來源與 Runtime Catalog 設計，可
 - 本機 `main` 已同步至乾淨歷史；一般本機與遠端 branch refs 不再指向舊 Commit。
 - GitHub 目前只剩乾淨的 `main`；沒有其他 Branch、Tag、Pull Request 或 Release。
 - 已刪除 9 次清理前的 GitHub Actions workflow run、相關 Log 與 3 個 Windows artifacts。
+- 舊 Repository 已改名為 Private 且唯讀的 `fabdev-private-archive`，避免清理完成前誤改或誤公開。
+- 已建立全新的 Private `JimmyWon1028/fabdev`，恢復 Repository 描述與功能開關，並只推送乾淨 `main`。
+- 以舊 SHA 查詢全新同名 Repository 時，GitHub API 回覆找不到 Commit；舊物件不再能從新的公開候選網址讀取。
 
 ### 尚未執行
 
 - 尚未修改 GitHub Repository Visibility。
 - 尚未使用專用 secret scanner；目前僅完成規則式檔案與 Git 歷史掃描。
-- 尚未由 GitHub Support 確認清除伺服器端不可達 Git objects、cached views 或其他歷史快取。
+- `fabdev-private-archive` 仍需由 Repository Owner 在 GitHub 網頁手動永久刪除。
 
-實際以已知舊 SHA 查詢 GitHub Commit API 時，仍可讀取已經無 Branch 指向的舊 Commit。Force push、刪除 branch refs 與 Actions runs 不會立刻清除這些伺服器端物件。在 GitHub 完成伺服器端清除確認，或刪除並重新建立同名的乾淨 Repository 之前，不得把現有 Repository 改為 Public。
+全新同名 Repository 已與舊 Git objects 隔離，但客戶資料仍暫存在 Private archive 與本機復原 bundle。確認 GitHub archive 已永久刪除、復原 bundle 已移至安全位置或依政策銷毀，並完成最後一次公開內容人工審核之前，不得把新 Repository 改為 Public。
