@@ -432,6 +432,10 @@ Repository Owner 已明確核准「改 Public」，`JimmyWon1028/fabdev` 已從 
 - GitHub Private Vulnerability Reporting 已啟用並回報 `enabled: true`。
 - 以未登入連線驗證 Repository、README、`LICENSE-MIT`、`LICENSE-APACHE` 與 `SECURITY.md`，HTTP 狀態皆為 `200`。
 - 以未登入連線驗證已刪除的 `fabdev-private-archive` 與舊敏感 Commit，HTTP 狀態皆為 `404`。
+- 下載最終 Public `main` 的 GitHub Source ZIP；壓縮檔完整，包含 239 個檔案，沒有超過 1 MiB 的檔案或敏感副檔名。
+- 以核對官方 SHA-256 的 Gitleaks 8.30.1 掃描 Source ZIP，結果為 `no leaks found`；客戶識別補充規則也沒有命中。
+- GitHub 最終只有 `main`；Tag、Release、Actions run、artifact 與 Pull Request 數量皆為 0。
+- 本機 `main` 與遠端 `origin/main` HEAD 一致，工作樹乾淨。
 - 本次只變更 Repository Visibility 與安全設定，沒有建立 Release、上傳安裝包或重新打包 Community DMG。
 
-最終 Source ZIP、遠端 refs、Actions、artifacts 與本機同步狀態的驗證結果，需以包含本節紀錄的最終 Public HEAD 為準。
+包含本節結果的最終 Public HEAD 仍需再次下載 Source ZIP，確認紀錄 Commit 本身沒有改變上述結論。
