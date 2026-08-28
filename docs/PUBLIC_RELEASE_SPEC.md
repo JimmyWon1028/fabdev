@@ -94,6 +94,8 @@ fabdev-stable-v1.json
 
 `fabdev-app-v1.json` 是該版本不可變的 Manifest。`fabdev-stable-v1.json` 內容與它相同，但使用固定檔名，供 GitHub Latest Release URL 取得目前 Stable 版本。
 
+`SHA256SUMS` 收錄所有安裝包與選用工具，不收錄 Manifest 或 `.sha256` 檔，避免產生循環 Checksum。
+
 ### 5.2 選用工具
 
 `fabdev-connect.exe` 不屬於 Desktop App 更新包，可在同一 Release 作為獨立工具發布：
@@ -201,6 +203,39 @@ https://github.com/JimmyWon1028/fabdev/releases/download/v<version>/fabdev-app-v
 
 固定 URL 只有在 P1 實作前完成未登入 `200`、Redirect、Cache 與內容驗證後，才可寫入 App。P0 先將 GitHub Releases 頁面視為正式的人工作業入口。
 
+### 6.3 Release Asset 產生器
+
+`scripts/generate-app-release-manifest.mjs` 會驗證四個版本來源及 Rust／TypeScript Agent Protocol 一致，將已存在的安裝包複製成標準 Release Asset 名稱，並產生：
+
+```text
+<asset-name>.sha256
+SHA256SUMS
+fabdev-app-v1.json
+fabdev-stable-v1.json
+```
+
+使用方式：
+
+```bash
+pnpm run release:prepare -- \
+  --version 0.1.0 \
+  --published-at 2026-08-28T12:34:56Z \
+  --output-dir artifacts/releases/v0.1.0 \
+  --macos-arm64 artifacts/fabDev-Community-0.1.0-macos-arm64.dmg \
+  --windows-x64 artifacts/windows-x64/FabDev_0.1.0_x64-setup.exe \
+  --windows-connect-x64 target/x86_64-pc-windows-msvc/release/fabdev-connect.exe
+```
+
+macOS 或 Windows 安裝包至少提供一個；`fabdev-connect.exe` 為選用。`--published-at` 必須是已決定的 UTC RFC 3339 秒數，確保使用相同輸入可得到相同 Manifest。輸出目錄必須尚不存在，工具不會覆蓋先前整理的 Release Assets。
+
+此工具不會執行 Tauri／Cargo 建置、不會建立 Tag 或 GitHub Release，也不會上傳或 Publish。只有使用者明確授權「重新打包」後，才能先產生新的 DMG／EXE 再交給此工具整理。
+
+聚焦測試：
+
+```bash
+pnpm run test:release
+```
+
 ## 7. 完整性與安全邊界
 
 P0 的 SHA-256 可以偵測下載中斷或檔案內容不一致，但不是正式的發布者身分簽章。若 GitHub Account 或 Release 同時遭修改，SHA-256 與安裝包可能一起被替換。
@@ -277,7 +312,7 @@ P0 發布基礎需依序完成：
 
 - [x] Public Repository 與公開安全回報管道。
 - [x] Release Asset、版本、Channel、Manifest、Draft、Publish 與回復契約。
-- [ ] 產生 Release Manifest 與 Checksum 的可重現腳本。
+- [x] 產生 Release Manifest 與 Checksum 的可重現腳本。
 - [ ] 建立只會產生 Draft、不會自動 Publish 的 GitHub Actions Release workflow。
 - [ ] 在乾淨 Mac 完成 Community DMG 首次安裝、覆蓋更新與移除驗收。
 - [ ] 在乾淨 Windows x64 完成 NSIS 首次安裝、覆蓋更新與移除驗收。

@@ -347,6 +347,7 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 
 - 已決定使用 Public `fabdev` Repository。
 - 已建立 GitHub Releases 發布契約。
+- 已建立 Release Asset、SHA-256 與 App Manifest v1 產生器。
 - 建立下載頁、SHA-256、Release Manifest 與 Release Notes。
 
 ### P1：App 內檢查與下載
