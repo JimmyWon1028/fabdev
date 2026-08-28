@@ -391,9 +391,9 @@ P3 不影響 P0～P2 的 Manifest、下載來源與 Runtime Catalog 設計，可
 - 以舊 SHA 查詢全新同名 Repository 時，GitHub API 回覆找不到 Commit；舊物件不再能從新的公開候選網址讀取。
 - Repository Owner 已從 GitHub 網頁永久刪除 `fabdev-private-archive`，再次查詢時已找不到該 Repository。
 
-### 尚未執行
+### 公開前當時尚未執行
 
-- 尚未修改 GitHub Repository Visibility。
+- 當時尚未修改 GitHub Repository Visibility；實際公開結果記錄於第 14 節。
 
 全新同名 Repository 已與舊 Git objects 隔離，舊 GitHub archive 與本機復原 bundle 也已永久刪除。本機 Codex 可能保留不屬於一般 Branch／Tag 的內部復原 refs 或 reflog，因此不得使用 `git push --mirror`；公開內容必須以 GitHub 全新 Clone 的遠端 refs 為準。
 
@@ -423,3 +423,15 @@ Public 前內容與歷史檢查通過，Repository 仍維持 Private，尚未變
 - 確認沒有因 Visibility 變更而意外公開 Actions artifacts、Release asset 或其他 refs。
 
 Visibility 只能在 Repository Owner 明確核准「改 Public」後變更；本次最後檢查不包含 Visibility 修改、Release 建立或安裝包重新打包。
+
+## 14. Repository 改為 Public 的執行結果
+
+Repository Owner 已明確核准「改 Public」，`JimmyWon1028/fabdev` 已從 Private 變更為 Public。
+
+- GitHub Repository Visibility 已驗證為 `PUBLIC`，預設 Branch 維持 `main`。
+- GitHub Private Vulnerability Reporting 已啟用並回報 `enabled: true`。
+- 以未登入連線驗證 Repository、README、`LICENSE-MIT`、`LICENSE-APACHE` 與 `SECURITY.md`，HTTP 狀態皆為 `200`。
+- 以未登入連線驗證已刪除的 `fabdev-private-archive` 與舊敏感 Commit，HTTP 狀態皆為 `404`。
+- 本次只變更 Repository Visibility 與安全設定，沒有建立 Release、上傳安裝包或重新打包 Community DMG。
+
+最終 Source ZIP、遠端 refs、Actions、artifacts 與本機同步狀態的驗證結果，需以包含本節紀錄的最終 Public HEAD 為準。
