@@ -52,11 +52,11 @@ open target/debug/bundle/macos/fabDev.app
 pnpm run build:community:macos
 ```
 
-產物位於 `artifacts/fabDev-Community-<version>-macos-arm64.dmg`，並附有同名 `.sha256`。下一次建立的 DMG 會讓 fabDev App 內建 PHP 7.4.33、PHP 8.2.33、Nginx 1.30.4 與 dnsmasq 2.93，另包含唯一的 `demo.test` 範例及可雙擊的安裝與移除程序。PHP 8.4.24 與 MariaDB 12.3.2 仍會產生獨立的 Community Runtime Package，需由主控台另外安裝，不放入基礎 DMG。內建 PHP 以目前確認的設定作為初始 `php.ini`，其中 `upload_max_filesize` 與 `post_max_size` 均為 64M；首次啟動會依使用者目錄產生正確的 Runtime、Log 與 Session 路徑，不包含建置電腦的絕對路徑。目前既有 DMG 尚未因本次變更重新打包。
+產物位於 `artifacts/fabDev-Community-<version>-macos-arm64.dmg`，並附有同名 `.sha256`。`0.1.1` 本機候選 DMG 內建 PHP 7.4.33、PHP 8.2.33、Nginx 1.30.4 與 dnsmasq 2.93，另包含唯一的 `demo.test` 範例及可雙擊的安裝與移除程序。PHP 8.4.24 與 MariaDB 12.3.2 仍會產生獨立的 Community Runtime Package，需由主控台另外安裝，不放入基礎 DMG。內建 PHP 以目前確認的設定作為初始 `php.ini`，其中 `upload_max_filesize` 與 `post_max_size` 均為 64M；首次啟動會依使用者目錄產生正確的 Runtime、Log 與 Session 路徑，不包含建置電腦的絕對路徑。這個本機候選包已完成完整性驗證，但尚未建立 GitHub Draft Release。
 
 Community 安裝程式會驗證 DMG 內的 `SHA256SUMS`，再要求一次管理員權限安裝 `/Applications/fabDev.app` 與固定功能的 LaunchDaemon。更新會保留 Sites、Runtime 與 `php.ini`；移除程序預設保留資料，只有使用者再次確認才會把資料移到垃圾桶。完整操作說明在 [`distribution/macos/community/INSTALL.zh-TW.md`](distribution/macos/community/INSTALL.zh-TW.md)。
 
-公開下載使用 GitHub Releases；Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish 與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的安裝包並產生 Manifest／Checksum，不會觸發打包或發布。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立 Draft。`v0.1.0` Unsigned Community Draft 已重新打包並完成下載完整性驗證，但 macOS 乾淨機驗收發現阻擋問題，不能 Publish，因此目前仍沒有正式 Stable Release。
+公開下載使用 GitHub Releases；Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish 與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的安裝包並產生 Manifest／Checksum，不會觸發打包或發布。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立 Draft。`v0.1.0` Unsigned Community Draft 的 macOS 乾淨機驗收發現阻擋問題，不能 Publish；`v0.1.1` Tag 與本機 macOS 候選包已建立，但新的 Draft Release 尚未建立，因此目前仍沒有正式 Stable Release。
 
 Windows x64 使用 Current User NSIS 單檔安裝程式；完整的建置環境、Runtime／sidecar 準備、Windows 11 驗收及除錯經驗整理在 [`docs/WINDOWS_X64_PACKAGING.md`](docs/WINDOWS_X64_PACKAGING.md)。
 

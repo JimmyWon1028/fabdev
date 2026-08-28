@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Unsigned Community 安裝包與 Draft Release 已建立並重新下載驗證；macOS 乾淨機驗收發現阻擋問題，不得 Publish
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` Tag 與本機 macOS 候選包已建立，尚未建立新的 Draft Release
 
 ## 1. 目標
 
@@ -294,6 +294,12 @@ DRAFT v<version>
 原始移除程序已清除 App、Helper、資料與 Demo；殘留 CA 以精確 Fingerprint 人工清除，並恢復安裝前保留的外部 Resolver。人工補救只能讓本機回到安裝前狀態，不代表 `v0.1.0` 安裝包通過移除驗收。
 
 這三項問題的修正只進入後續程式碼，不得移動或重用 `v0.1.0` Tag，也不得覆蓋既有 Draft Assets。必須增加 Patch 版本、重新取得打包與 Draft 授權，再從首次安裝開始重跑 macOS 覆蓋更新及移除驗收。`v0.1.0` Draft 維持未發布。
+
+### 8.3 `v0.1.1` 候選版本準備
+
+`v0.1.1` 的正式版本來源與 Cargo workspace lock 已同步，完整測試與 lint 通過；annotated `v0.1.1` Tag 固定指向 Release Commit `8d70808`。取得重新打包授權後，本機 macOS ARM64 Community DMG 已建立，外層 SHA-256、Disk Image checksum、27 個內層檔案、App／Build 版本、ad-hoc 簽章、ARM64 Desktop／Agent／CLI、四個固定內建 Runtime 與新版移除程序均通過檢查。
+
+這只是本機候選包驗證。GitHub `v0.1.1` Draft 尚未建立；建立 Draft 仍需另外授權，且 GitHub Hosted macOS／Windows Job 必須從固定 Tag 重新建置兩平台 Assets，再重新下載核對 Release 內的實際 Hash。
 
 ## 9. Publish 後驗證
 

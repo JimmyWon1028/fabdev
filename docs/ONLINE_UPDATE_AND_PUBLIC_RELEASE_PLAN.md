@@ -3,7 +3,7 @@
 > 規劃日期：2026-08-28
 >
 > 適用階段：macOS ARM64／Windows x64 Unsigned Community Build
-> 文件狀態：已進入 P0；Repository 已公開，`v0.1.0` Draft Release 與 Unsigned Community 安裝包已建立並重新下載驗證，尚未 Publish
+> 文件狀態：已進入 P0；`v0.1.0` Draft 驗收失敗且未 Publish，`v0.1.1` Tag 與本機 macOS 候選包已建立，新的 Draft Release 尚未建立
 
 P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 
