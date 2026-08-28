@@ -168,6 +168,15 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.notEqual(testStart, -1)
   assert.ok(runtimeBuildStart < sidecarBuildStart)
   assert.ok(sidecarBuildStart < testStart)
+  assert.match(
+    workflow,
+    /"DontRepeatTypeInStaticProperties":false/
+  )
+
+  const swiftFormatConfig = JSON.parse(
+    await readFile(join(repoRoot, 'helpers/macos/.swift-format'), 'utf8')
+  )
+  assert.equal(swiftFormatConfig.rules.DontRepeatTypeInStaticProperties, false)
 
   const usesLines = workflow
     .split('\n')

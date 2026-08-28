@@ -1,0 +1,6 @@
+{
+  "rules": {
+    "DontRepeatTypeInStaticProperties": false
+  },
+  "version": 1
+}

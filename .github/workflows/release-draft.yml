@@ -186,6 +186,13 @@ jobs:
       - name: Prepare Desktop sidecars
         run: node scripts/build-desktop-bundle-assets.mjs
 
+      - name: Configure deterministic Swift lint
+        shell: bash
+        run: |
+          printf '%s\n' \
+            '{"rules":{"DontRepeatTypeInStaticProperties":false},"version":1}' \
+            > helpers/macos/.swift-format
+
       - name: Run tests and lint
         shell: bash
         run: |
