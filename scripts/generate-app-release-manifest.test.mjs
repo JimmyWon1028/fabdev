@@ -188,3 +188,17 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
     assert.match(line, /^\s+uses: [^@\s]+@[0-9a-f]{40}(?:\s+#.*)?$/)
   }
 })
+
+test('removes every exact stale fabDev CA without requiring user data', async () => {
+  const uninstaller = await readFile(
+    join(repoRoot, 'distribution/macos/community/Uninstall-fabDev.command'),
+    'utf8'
+  )
+
+  assert.match(uninstaller, /security find-certificate -c "\$common_name" -p "\$keychain"/)
+  assert.match(uninstaller, /expected_identity="CN=\$common_name,O=fabDev"/)
+  assert.match(uninstaller, /sed 's\/\^subject= \*\/\/'/)
+  assert.match(uninstaller, /sed 's\/\^issuer= \*\/\/'/)
+  assert.match(uninstaller, /security delete-certificate -t -Z "\$fingerprint"/)
+  assert.doesNotMatch(uninstaller, /DATA_ROOT\/config\/tls\/ca\.crt/)
+})

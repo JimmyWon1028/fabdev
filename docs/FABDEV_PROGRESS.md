@@ -58,7 +58,9 @@
 - 從 GitHub Draft 重新下載的 `v0.1.0` DMG 已通過管理員安裝、Helper／Resolver 建立、唯一 `demo.test` 的 DNS、HTTP、HTTPS、憑證 SAN 與 Login Keychain 信任驗證；Proxy 首次安裝清單為空。
 - 乾淨初始化發現 Site Home 未持久化，導致預設掃描其他本機專案；已改為建立 `demo.test` 後同步保存其父目錄，並加入不匯入同層無關資料夾的回歸測試。
 - macOS App 選單的原生 Quit 項目會直接結束 Desktop，沒有停止 Agent 與 Web 服務；已換成具有 `Command+Q` 的 fabDev 自訂 Quit 項目，統一交由既有的安全退出流程處理。
-- 以上兩項為 `v0.1.0` Draft 的 P0 阻擋問題；原 Tag 與 Draft 保持不變且不得 Publish。修正需使用新的 Patch 版本重新打包、建立 Draft 並重跑完整驗收。
+- Community 移除程序原本只依目前資料目錄的 CA Fingerprint 撤銷信任，無法清除舊資料留下的 fabDev CA；已改為逐張核對精確 Subject、Issuer 及 Fingerprint，再移除所有符合的 fabDev 自簽 CA，且不依賴使用者資料仍存在。
+- `v0.1.0` 原始移除程序已清除 App、Helper、資料與 Demo；殘留的舊 fabDev CA 已依精確 Fingerprint 人工移除，安裝前保留的外部 `/etc/resolver/test` 也已恢復。這項人工補救不算原始安裝包通過移除驗收。
+- 以上三項為 `v0.1.0` Draft 的 P0 阻擋問題；原 Tag 與 Draft 保持不變且不得 Publish。修正需使用新的 Patch 版本重新打包、建立 Draft 並重跑完整驗收。
 
 ## 2026-08-26 工作日誌
 
@@ -81,7 +83,7 @@
 
 ## 驗證邊界
 
-- `v0.1.0` 已開始乾淨 Mac 管理員安裝驗收，但因首次 Site Home 與 App 選單 Quit 兩項阻擋問題中止；覆蓋更新及完整移除尚未完成，修正後必須以新 Patch 版本重跑。
+- `v0.1.0` 已開始乾淨 Mac 管理員安裝驗收，但因首次 Site Home、App 選單 Quit 與舊 CA 清理三項阻擋問題未通過；覆蓋更新尚未完成，修正後必須以新 Patch 版本重跑完整流程。
 - 尚未驗證 Gatekeeper quarantine 與 Herd／Valet Port 衝突指引。
 - Release 建置仍警告 `rust-objcopy` 找不到 `libLLVM.dylib`；不影響產物生成，但 stripping 尚待修正。
 - Windows 安裝程式尚未在實體 Windows x64 驗證安裝、UAC Hosts 修改、啟動服務及完整解除安裝。
@@ -95,7 +97,7 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [x] 完成 Public Repository、Release Asset 命名、Stable Channel、App Manifest v1、Draft／Publish 與回復契約；見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 - [x] 建立 Release Asset／Manifest／Checksum 產生器；驗證四個版本來源與 Agent Protocol，不覆蓋既有輸出，也不執行打包或發布。
 - [x] 建立只接受手動雙重確認、既有 Tag 且只會建立 Draft 的 GitHub Actions Release workflow；只有最後 Job 具寫入權限，已用 `v0.1.0` 完成兩平台建置與 Draft 建立。
-- [ ] 在乾淨 Mac 驗證安裝 → 自動啟動 → `demo.test` → 更新 → 完整移除；`v0.1.0` 驗收已發現兩項阻擋問題，待新 Patch 版本重跑。
+- [ ] 在乾淨 Mac 驗證安裝 → 自動啟動 → `demo.test` → 更新 → 完整移除；`v0.1.0` 驗收已發現三項阻擋問題，待新 Patch 版本重跑。
 - [ ] 驗證 Gatekeeper、quarantine、管理員授權及 53／80／443 衝突錯誤訊息。
 - [ ] 修正 release stripping 工具鏈警告。
 - [x] 建立第一個 `v0.1.0` Draft Release，重新下載 9 個 Assets，核對實際大小、Manifest 與 SHA-256；目前仍未 Publish。

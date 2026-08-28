@@ -19,28 +19,55 @@ TRASH_ROOT="$HOME/.Trash"
 timestamp="$(/bin/date +%Y%m%d-%H%M%S)"
 
 remove_user_ca_trust() {
-  local certificate="$DATA_ROOT/config/tls/ca.crt"
   local keychain="$HOME/Library/Keychains/login.keychain-db"
-  if [[ ! -f "$certificate" || ! -f "$keychain" ]]; then
+  local common_name="fabDev Local Development CA"
+  local expected_identity="CN=$common_name,O=fabDev"
+  if [[ ! -f "$keychain" ]]; then
     return
   fi
-  local subject
-  subject="$(
-    /usr/bin/openssl x509 -in "$certificate" -noout -subject -nameopt RFC2253 2>/dev/null || true
-  )"
-  if [[ "$subject" != *"CN=fabDev Local Development CA"* ]]; then
-    echo "保留無法驗證為 fabDev CA 的 Login Keychain 憑證。" >&2
-    return
-  fi
-  local fingerprint
-  fingerprint="$(
-    /usr/bin/openssl x509 -in "$certificate" -outform DER 2>/dev/null \
-      | /usr/bin/shasum -a 256 \
-      | /usr/bin/awk '{ print $1 }'
-  )"
-  if [[ "$fingerprint" =~ ^[0-9a-fA-F]{64}$ ]]; then
-    /usr/bin/security delete-certificate -t -Z "$fingerprint" "$keychain" >/dev/null 2>&1 || true
-  fi
+
+  while true; do
+    local certificate
+    certificate="$(
+      /usr/bin/security find-certificate -c "$common_name" -p "$keychain" 2>/dev/null || true
+    )"
+    if [[ -z "$certificate" ]]; then
+      return
+    fi
+
+    local subject
+    local issuer
+    subject="$(
+      /usr/bin/printf '%s\n' "$certificate" \
+        | /usr/bin/openssl x509 -noout -subject -nameopt RFC2253 2>/dev/null \
+        | /usr/bin/sed 's/^subject= *//' || true
+    )"
+    issuer="$(
+      /usr/bin/printf '%s\n' "$certificate" \
+        | /usr/bin/openssl x509 -noout -issuer -nameopt RFC2253 2>/dev/null \
+        | /usr/bin/sed 's/^issuer= *//' || true
+    )"
+    if [[ "$subject" != "$expected_identity" || "$issuer" != "$expected_identity" ]]; then
+      echo "保留無法驗證為 fabDev 自簽 CA 的 Login Keychain 憑證。" >&2
+      return
+    fi
+
+    local fingerprint
+    fingerprint="$(
+      /usr/bin/printf '%s\n' "$certificate" \
+        | /usr/bin/openssl x509 -outform DER 2>/dev/null \
+        | /usr/bin/shasum -a 256 \
+        | /usr/bin/awk '{ print $1 }'
+    )"
+    if [[ ! "$fingerprint" =~ ^[0-9a-fA-F]{64}$ ]]; then
+      echo "保留無法計算 Fingerprint 的 fabDev CA。" >&2
+      return
+    fi
+    if ! /usr/bin/security delete-certificate -t -Z "$fingerprint" "$keychain" >/dev/null 2>&1; then
+      echo "無法從 Login Keychain 移除 fabDev CA。" >&2
+      return
+    fi
+  done
 }
 
 if [[ ! -d "$APP_TARGET" && -d "$LEGACY_APP_TARGET" ]]; then

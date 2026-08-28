@@ -30,7 +30,7 @@ DMG 內建 Runtime 使用 `*-macos-arm64-community` 來源，封裝進 App 前�
 shasum -a 256 fabDev-Community-*.dmg
 ```
 
-DMG 內的安裝程式也會在變更系統前驗證 `SHA256SUMS`。System Helper 只允許固定的 `53→53535`、`80→8080`、`443→8443`，不執行 PHP、Runtime binary、憑證操作、自訂 Port、路徑或任意命令。首次替 Site 啟用 HTTPS 時會把 fabDev CA 加入目前使用者的 Login Keychain；憑證與私鑰保存在 fabDev Application Support，Community 移除程序會撤銷對應的使用者信任。
+DMG 內的安裝程式也會在變更系統前驗證 `SHA256SUMS`。System Helper 只允許固定的 `53→53535`、`80→8080`、`443→8443`，不執行 PHP、Runtime binary、憑證操作、自訂 Port、路徑或任意命令。首次替 Site 啟用 HTTPS 時會把 fabDev CA 加入目前使用者的 Login Keychain；憑證與私鑰保存在 fabDev Application Support，Community 移除程序會撤銷目前及舊版留下、Subject 與 Issuer 均精確符合 fabDev 自簽 CA 的使用者信任。
 
 ## 更新
 
