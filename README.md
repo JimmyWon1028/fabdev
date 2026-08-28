@@ -56,6 +56,8 @@ pnpm run build:community:macos
 
 Community 安裝程式會驗證 DMG 內的 `SHA256SUMS`，再要求一次管理員權限安裝 `/Applications/fabDev.app` 與固定功能的 LaunchDaemon。更新會保留 Sites、Runtime 與 `php.ini`；移除程序預設保留資料，只有使用者再次確認才會把資料移到垃圾桶。完整操作說明在 [`distribution/macos/community/INSTALL.zh-TW.md`](distribution/macos/community/INSTALL.zh-TW.md)。
 
+公開下載使用 GitHub Releases；Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish 與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。目前尚未建立正式 Stable Release，且未因 P0 規格重新打包安裝程式。
+
 Windows x64 使用 Current User NSIS 單檔安裝程式；完整的建置環境、Runtime／sidecar 準備、Windows 11 驗收及除錯經驗整理在 [`docs/WINDOWS_X64_PACKAGING.md`](docs/WINDOWS_X64_PACKAGING.md)。
 
 Windows x64 的 PHP 8.4.24、MariaDB 12.3.2 與 Node.js 24.19.0 維持獨立選裝套件，可由 `./scripts/build-windows-runtime-packages.sh` 建立，輸出為 `artifacts/windows-x64/runtimes/` 下配對的 Release JSON 與 `.tar.gz`。MariaDB 與 Node.js 來源除了固定 SHA-256，也會驗證官方 PGP 簽章與完整 Fingerprint。

@@ -3,7 +3,9 @@
 > 規劃日期：2026-08-28
 >
 > 適用階段：macOS ARM64／Windows x64 Unsigned Community Build
-> 文件狀態：規劃，尚未授權實作、上傳、打包或變更 GitHub Visibility
+> 文件狀態：已進入 P0；Repository 已公開，尚未建立 Release、上傳或重新打包
+
+P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 
 ## 1. 已確認決策
 
@@ -13,7 +15,7 @@
 - App、Runtime 與使用者資料必須使用互相獨立的更新流程。
 - 線上下載使用 HTTPS；不讓 App 使用 FTP 或 SFTP 作為下載協定。
 - 第一階段以 GitHub Releases 作為安裝包與 Runtime Package 的主要候選來源。
-- 是否直接把 `JimmyWon1028/fabdev` 改為 Public，必須在公開前審查完成後再決定。
+- `JimmyWon1028/fabdev` 已完成公開前審查並改為 Public。
 
 ## 2. 更新範圍
 
@@ -100,11 +102,11 @@ App 啟動或每日檢查版本
 - 可由 GitHub Actions 自動建立 Draft Release。
 - 不需要自行維護公開下載 Server。
 
-目前 `JimmyWon1028/fabdev` 是 Private Repository。Private Release 需要 GitHub 讀取權限，不能直接作為一般使用者免登入的公開下載來源。
+目前 `JimmyWon1028/fabdev` 是 Public Repository，可作為一般使用者免登入的公開下載來源。
 
 可選擇以下其中一種方式：
 
-#### 方案 A：fabdev Repository 改為 Public
+#### 已選方案 A：fabdev Repository 改為 Public
 
 ```text
 JimmyWon1028/fabdev
@@ -213,6 +215,8 @@ App Release Manifest 至少包含：
 - Minimum OS version。
 - 每個平台／架構的 URL、大小、SHA-256 與 Release 簽章。
 - Minimum Agent Protocol／Helper version 等相容條件。
+
+P0 的固定檔名、完整欄位與驗證規則以 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md) 為準。
 
 Runtime Catalog 至少包含：
 
@@ -341,8 +345,8 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 
 ### P0：公開下載基礎
 
-- 決定 `fabdev` Public 或獨立 Public Releases Repository。
-- 建立 GitHub Releases 發布規則。
+- 已決定使用 Public `fabdev` Repository。
+- 已建立 GitHub Releases 發布契約。
 - 建立下載頁、SHA-256、Release Manifest 與 Release Notes。
 
 ### P1：App 內檢查與下載

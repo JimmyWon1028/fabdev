@@ -1,6 +1,6 @@
 # fabDev 工作進度與 TODO
 
-> 更新日期：2026-08-27
+> 更新日期：2026-08-28
 > 目前階段：macOS ARM64／Windows x64 Unsigned Community Build 0.1.0
 
 ## 已完成
@@ -85,10 +85,12 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 
 ### P0：Community Beta
 
+- [x] 完成 Public Repository、Release Asset 命名、Stable Channel、App Manifest v1、Draft／Publish 與回復契約；見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 - [ ] 在乾淨 Mac 驗證安裝 → 自動啟動 → `demo.test` → 更新 → 完整移除。
 - [ ] 驗證 Gatekeeper、quarantine、管理員授權及 53／80／443 衝突錯誤訊息。
 - [ ] 修正 release stripping 工具鏈警告。
-- [ ] 建立下載頁、公開 SHA-256 與版本發佈流程。
+- [ ] 建立 Manifest／Checksum 產生器與只建立 Draft 的 GitHub Actions Release workflow。
+- [ ] 建立第一個 Draft Release，重新下載驗證後由 Repository Owner 人工核准 Publish。
 
 ### P1：核心開發體驗
 
