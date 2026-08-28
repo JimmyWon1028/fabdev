@@ -127,3 +127,43 @@ test('refuses to overwrite an existing output directory', async (context) => {
     /Output directory already exists/
   )
 })
+
+test('keeps the Draft Release workflow manual and unable to publish', async () => {
+  const workflow = await readFile(
+    join(repoRoot, '.github/workflows/release-draft.yml'),
+    'utf8'
+  )
+  const triggerStart = workflow.indexOf('\non:\n')
+  const permissionsStart = workflow.indexOf('\npermissions:\n')
+  const createDraftStart = workflow.indexOf('\n  create-draft:\n')
+
+  assert.notEqual(triggerStart, -1)
+  assert.notEqual(permissionsStart, -1)
+  assert.notEqual(createDraftStart, -1)
+
+  const triggerBlock = workflow.slice(triggerStart, permissionsStart)
+  assert.match(triggerBlock, /\n  workflow_dispatch:\n/)
+  assert.doesNotMatch(triggerBlock, /\n  (push|pull_request|schedule|release):/)
+
+  assert.match(workflow, /CONFIRM_REPACKAGE: \$\{\{ inputs\.confirm_repackage \}\}/)
+  assert.match(workflow, /CONFIRM_DRAFT: \$\{\{ inputs\.confirm_draft \}\}/)
+  assert.match(workflow, /REPACKAGE v\$VERSION/)
+  assert.match(workflow, /DRAFT v\$VERSION/)
+  assert.match(workflow, /permissions:\n  contents: read/)
+  assert.doesNotMatch(workflow.slice(0, createDraftStart), /contents: write/)
+  assert.match(workflow.slice(createDraftStart), /permissions:\n      contents: write/)
+  assert.match(workflow, /gh release create/)
+  assert.match(workflow, /--draft/)
+  assert.match(workflow, /--verify-tag/)
+  assert.match(workflow, /--latest=false/)
+  assert.doesNotMatch(workflow, /gh release edit|--draft=false|make_latest/)
+  assert.doesNotMatch(workflow, /secrets\./)
+
+  const usesLines = workflow
+    .split('\n')
+    .filter((line) => /^\s+uses:/.test(line))
+  assert.ok(usesLines.length > 0)
+  for (const line of usesLines) {
+    assert.match(line, /^\s+uses: [^@\s]+@[0-9a-f]{40}(?:\s+#.*)?$/)
+  }
+})

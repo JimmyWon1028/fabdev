@@ -3,7 +3,7 @@
 > 規劃日期：2026-08-28
 >
 > 適用階段：macOS ARM64／Windows x64 Unsigned Community Build
-> 文件狀態：已進入 P0；Repository 已公開，尚未建立 Release、上傳或重新打包
+> 文件狀態：已進入 P0；Repository 已公開且 Draft-only workflow 已建立，尚未建立 Release、上傳或重新打包
 
 P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 
@@ -16,6 +16,7 @@ P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見
 - 線上下載使用 HTTPS；不讓 App 使用 FTP 或 SFTP 作為下載協定。
 - 第一階段以 GitHub Releases 作為安裝包與 Runtime Package 的主要候選來源。
 - `JimmyWon1028/fabdev` 已完成公開前審查並改為 Public。
+- Draft Release workflow 只接受手動雙重確認與既有 Tag，不會自動 Publish，目前尚未實際執行。
 
 ## 2. 更新範圍
 
@@ -348,6 +349,7 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 - 已決定使用 Public `fabdev` Repository。
 - 已建立 GitHub Releases 發布契約。
 - 已建立 Release Asset、SHA-256 與 App Manifest v1 產生器。
+- 已建立只會產生 Draft、不會自動 Publish 的手動 GitHub Actions workflow。
 - 建立下載頁、SHA-256、Release Manifest 與 Release Notes。
 
 ### P1：App 內檢查與下載

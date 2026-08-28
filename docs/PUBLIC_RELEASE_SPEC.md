@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：P0 發布契約已定義，尚未建立 GitHub Release 或重新打包安裝程式
+> 狀態：P0 發布契約與 Draft-only workflow 已建立，尚未建立 GitHub Release 或重新打包安裝程式
 
 ## 1. 目標
 
@@ -270,6 +270,21 @@ P0 的 SHA-256 可以偵測下載中斷或檔案內容不一致，但不是正�
 
 Draft Release 建立、Tag Push、Asset Upload 與 Publish 都屬於外部狀態變更，必須分別在使用者授權範圍內執行。
 
+### 8.1 Draft-only GitHub Actions workflow
+
+`.github/workflows/release-draft.yml` 只接受 `workflow_dispatch` 手動觸發，不接受 Push、Pull Request、排程或 Release 事件。執行前必須先由人工建立並推送已核准的 `v<version>` Tag；workflow 使用 `--verify-tag`，不會自行建立或移動 Tag。
+
+手動執行時必須提供 Stable SemVer、固定的 UTC `publishedAt`，並分別輸入完全相符的：
+
+```text
+REPACKAGE v<version>
+DRAFT v<version>
+```
+
+前者代表這次執行已取得重新打包授權，後者只授權建立 Draft。流程在 GitHub Hosted `macos-15` ARM64 與 `windows-latest` 建置、測試及整理 Assets，只有最後的 `create-draft` Job 具有 `contents: write`；其餘 Job 都是 `contents: read`。所有第三方 Action 固定到完整 Commit SHA。
+
+最後一步固定使用 `gh release create --draft --verify-tag --latest=false`，不包含 Publish 指令。建立後還會確認 GitHub API 回傳的 Release 仍為 Draft。此 workflow 尚未實際執行；第一次執行仍必須另行取得 Tag Push、重新打包與 Draft Release 外部變更授權。
+
 ## 9. Publish 後驗證
 
 - 以未登入狀態開啟 Release 頁面及每個 Asset，狀態必須成功。
@@ -313,7 +328,7 @@ P0 發布基礎需依序完成：
 - [x] Public Repository 與公開安全回報管道。
 - [x] Release Asset、版本、Channel、Manifest、Draft、Publish 與回復契約。
 - [x] 產生 Release Manifest 與 Checksum 的可重現腳本。
-- [ ] 建立只會產生 Draft、不會自動 Publish 的 GitHub Actions Release workflow。
+- [x] 建立只接受手動雙重確認、只會產生 Draft、不會自動 Publish 的 GitHub Actions Release workflow；尚未實際執行。
 - [ ] 在乾淨 Mac 完成 Community DMG 首次安裝、覆蓋更新與移除驗收。
 - [ ] 在乾淨 Windows x64 完成 NSIS 首次安裝、覆蓋更新與移除驗收。
 - [ ] 建立第一個 Draft Release 並從 GitHub 重新下載驗證。
