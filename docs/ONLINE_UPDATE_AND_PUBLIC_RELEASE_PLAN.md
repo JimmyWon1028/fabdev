@@ -389,11 +389,11 @@ P3 不影響 P0～P2 的 Manifest、下載來源與 Runtime Catalog 設計，可
 - 舊 Repository 已改名為 Private 且唯讀的 `fabdev-private-archive`，避免清理完成前誤改或誤公開。
 - 已建立全新的 Private `JimmyWon1028/fabdev`，恢復 Repository 描述與功能開關，並只推送乾淨 `main`。
 - 以舊 SHA 查詢全新同名 Repository 時，GitHub API 回覆找不到 Commit；舊物件不再能從新的公開候選網址讀取。
+- Repository Owner 已從 GitHub 網頁永久刪除 `fabdev-private-archive`，再次查詢時已找不到該 Repository。
 
 ### 尚未執行
 
 - 尚未修改 GitHub Repository Visibility。
 - 尚未使用專用 secret scanner；目前僅完成規則式檔案與 Git 歷史掃描。
-- `fabdev-private-archive` 仍需由 Repository Owner 在 GitHub 網頁手動永久刪除。
 
-全新同名 Repository 已與舊 Git objects 隔離，但客戶資料仍暫存在 Private archive 與本機復原 bundle。確認 GitHub archive 已永久刪除、復原 bundle 已移至安全位置或依政策銷毀，並完成最後一次公開內容人工審核之前，不得把新 Repository 改為 Public。
+全新同名 Repository 已與舊 Git objects 隔離，舊 GitHub archive 也已永久刪除；客戶資料目前只留在本機復原 bundle。確認復原 bundle 已移至安全位置或依政策銷毀，並完成最後一次公開內容人工審核之前，不得把新 Repository 改為 Public。
