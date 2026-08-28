@@ -114,7 +114,7 @@ impl TrayAction {
       "open-fabdev" => Some(Self::Open),
       "toggle-all" => Some(Self::ToggleAll),
       "toggle-mariadb" => Some(Self::ToggleMariaDb),
-      "quit-fabdev" => Some(Self::Quit),
+      "quit-fabdev" | "quit-fabdev-app" => Some(Self::Quit),
       _ => None,
     }
   }
@@ -1342,6 +1342,31 @@ fn handle_tray_action(app: &AppHandle, id: &str) {
   }
 }
 
+#[cfg(target_os = "macos")]
+fn build_macos_app_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+  let menu = Menu::default(app)?;
+  let menu_items = menu.items()?;
+  let application_menu = menu_items
+    .first()
+    .and_then(|item| item.as_submenu())
+    .ok_or_else(|| std::io::Error::other("macOS application menu is unavailable"))?;
+  let application_items = application_menu.items()?;
+  let quit_item = application_items
+    .last()
+    .filter(|item| item.as_predefined_menuitem().is_some())
+    .ok_or_else(|| std::io::Error::other("macOS application Quit item is unavailable"))?;
+
+  application_menu.remove(quit_item)?;
+  application_menu.append(&MenuItem::with_id(
+    app,
+    "quit-fabdev-app",
+    "Quit fabDev",
+    true,
+    Some("CmdOrCtrl+Q"),
+  )?)?;
+  Ok(menu)
+}
+
 fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
   let open = MenuItem::with_id(app, "open-fabdev", "Open fabDev", true, None::<&str>)?;
   let service_toggle = MenuItem::with_id(app, "toggle-all", "Start All", true, None::<&str>)?;
@@ -1381,8 +1406,11 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  let app = tauri::Builder::default()
-    .plugin(tauri_plugin_dialog::init())
+  let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+  #[cfg(target_os = "macos")]
+  let builder = builder.menu(build_macos_app_menu);
+
+  let app = builder
     .setup(|app| {
       #[cfg(target_os = "macos")]
       install_bundled_macos_runtimes(app)?;
@@ -1405,6 +1433,7 @@ pub fn run() {
         }
       }
     })
+    .on_menu_event(|app, event| handle_tray_action(app, event.id().as_ref()))
     .invoke_handler(tauri::generate_handler![
       agent_request,
       read_config_transfer_file,
@@ -1466,6 +1495,10 @@ mod tests {
       Some(TrayAction::ToggleMariaDb)
     );
     assert_eq!(TrayAction::from_id("quit-fabdev"), Some(TrayAction::Quit));
+    assert_eq!(
+      TrayAction::from_id("quit-fabdev-app"),
+      Some(TrayAction::Quit)
+    );
     assert_eq!(TrayAction::from_id("unknown"), None);
   }
 

@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Unsigned Community 安裝包與 Draft Release 已建立並重新下載驗證，尚未完成乾淨機驗收或 Publish
+> 狀態：`v0.1.0` Unsigned Community 安裝包與 Draft Release 已建立並重新下載驗證；macOS 乾淨機驗收發現阻擋問題，不得 Publish
 
 ## 1. 目標
 
@@ -287,6 +287,12 @@ DRAFT v<version>
 
 `v0.1.0` 已在取得 Tag Push、重新打包與 Draft Release 授權後實際執行。macOS ARM64 與 Windows x64 建置、測試及 Artifact 上傳成功；Draft 內 9 個 Assets 已重新下載，總表與個別 SHA-256、Manifest 記錄的大小與 Hash、兩份 Manifest 的逐位元一致性，以及 DMG 內部 checksum 均通過。此結果只代表 Draft Asset 完整，不代表已完成乾淨機安裝驗收或 Publish。
 
+### 8.2 `v0.1.0` macOS 驗收紀錄
+
+從 Draft 重新下載的 DMG 已完成管理員安裝，並確認 Helper、Resolver、`demo.test` DNS／HTTP／HTTPS、憑證 SAN、Login Keychain 信任與空白 Proxy 清單。驗收同時發現兩項 P0 阻擋問題：Community 首次初始化沒有保存範例 Site Home，可能掃描其他本機專案；macOS App 選單的原生 Quit 會繞過 Agent 與服務清理。
+
+這兩項問題的修正只進入後續程式碼，不得移動或重用 `v0.1.0` Tag，也不得覆蓋既有 Draft Assets。必須增加 Patch 版本、重新取得打包與 Draft 授權，再從首次安裝開始重跑 macOS 覆蓋更新及移除驗收。`v0.1.0` Draft 維持未發布。
+
 ## 9. Publish 後驗證
 
 - 以未登入狀態開啟 Release 頁面及每個 Asset，狀態必須成功。
@@ -331,7 +337,7 @@ P0 發布基礎需依序完成：
 - [x] Release Asset、版本、Channel、Manifest、Draft、Publish 與回復契約。
 - [x] 產生 Release Manifest 與 Checksum 的可重現腳本。
 - [x] 建立只接受手動雙重確認、只會產生 Draft、不會自動 Publish 的 GitHub Actions Release workflow，並以 `v0.1.0` 實際執行。
-- [ ] 在乾淨 Mac 完成 Community DMG 首次安裝、覆蓋更新與移除驗收。
+- [ ] 在乾淨 Mac 完成 Community DMG 首次安裝、覆蓋更新與移除驗收；`v0.1.0` 已因兩項阻擋問題失敗，待新 Patch 版本重跑。
 - [ ] 在乾淨 Windows x64 完成 NSIS 首次安裝、覆蓋更新與移除驗收。
 - [x] 建立第一個 `v0.1.0` Draft Release，並從 GitHub 重新下載 9 個 Assets 驗證大小、Manifest 與 SHA-256。
 - [ ] Repository Owner 人工核准第一個 Stable Publish。

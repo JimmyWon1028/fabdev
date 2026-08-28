@@ -1,13 +1,13 @@
 # fabDev 工作進度與 TODO
 
-> 更新日期：2026-08-28
+> 更新日期：2026-08-29
 > 目前階段：macOS ARM64／Windows x64 Unsigned Community Build 0.1.0
 
 ## 已完成
 
 - Tauri／Vue Desktop、Rust Agent／CLI、Unix Socket Protocol 32 與 SQLite Site Registry。
 - macOS App 與 `pnpm dev` 內建 dnsmasq 2.93、Nginx 1.30.4、PHP 7.4.33、PHP 8.2.33；首次啟動只補缺少版本，保留既有開發資料。
-- macOS 與 Windows 在 Site Registry 完全空白時建立唯一的 `demo.test`；已有任何 Site 時不新增或覆蓋。
+- macOS 與 Windows 在 Site Registry 完全空白時建立唯一的 `demo.test`；Community 首次初始化會把 Site Home 固定在範例專案的父目錄，避免掃描其他本機專案，已有任何 Site 時不新增或覆蓋。
 - `.test` DNS、Nginx、53／80／443 固定 Helper，以及 Start All／Stop All 與 menu bar 狀態。
 - 每 Site HTTPS 啟用／停用、本機 CA 與 SAN 憑證、macOS Login Keychain／Windows Current User Root 信任，以及 HTTP 自動轉址 HTTPS。
 - 多 Site、新增／移除、document root 偵測、每 Site PHP 7.4／8.2／8.4 切換，以及不使用 PHP 的純靜態 Site。
@@ -22,7 +22,7 @@
 - Community DMG 讓 App 內建 DNS、Nginx、PHP 7.4／8.2，並含 Helper、安裝／移除程序與唯一 `demo.test`；PHP 8.4、MariaDB 維持獨立選裝套件。
 - 總覽的 Web 服務控制使用單一狀態按鈕：全部運行時顯示「全部停止」，其他狀態顯示「全部啟動」。
 - 總覽的 MariaDB 卡片只顯示連線與運行狀態；啟動、停止及設定操作統一放在 MariaDB 頁面。
-- menu bar `Quit fabDev` 會先停止 Web 全部服務與 MariaDB、清理受管孤兒程序，再關閉 Agent 與 Desktop。
+- menu bar、macOS App 選單及 `Command+Q` 的 `Quit fabDev` 會走同一套退出流程，先停止 Web 全部服務與 MariaDB、清理受管孤兒程序，再關閉 Agent 與 Desktop。
 - Community Runtime 使用 `*-macos-arm64-community`、`community-ad-hoc` 描述及獨立 Catalog；開發套件維持 `*-dev`。
 - Windows Named Pipe Agent、Nginx／PHP-CGI Platform Adapter、白名單 Hosts Helper 與單一使用者 NSIS 安裝程式。
 - Windows 首次啟動會安裝內附 Nginx 1.30.4、PHP 7.4.33／8.2.33，並建立唯一的 `demo.test`。
@@ -53,6 +53,13 @@
 - Node.js 24.19.0 LTS 官方 macOS ARM64 Archive SHA-256 與發布者 PGP 簽章驗證通過；選裝套件已產生並確認 Node v24.19.0、npm 11.17.0、描述檔與單一 `24.19.0/` 封裝根目錄。
 - Proxy 聚焦測試確認自訂新增／移除與驗證、設定持久化、HTTP Host 改寫、Credential CORS、實際 streaming response、單一 Port 衝突隔離及停止後 Port 釋放。
 
+## 2026-08-29 工作日誌
+
+- 從 GitHub Draft 重新下載的 `v0.1.0` DMG 已通過管理員安裝、Helper／Resolver 建立、唯一 `demo.test` 的 DNS、HTTP、HTTPS、憑證 SAN 與 Login Keychain 信任驗證；Proxy 首次安裝清單為空。
+- 乾淨初始化發現 Site Home 未持久化，導致預設掃描其他本機專案；已改為建立 `demo.test` 後同步保存其父目錄，並加入不匯入同層無關資料夾的回歸測試。
+- macOS App 選單的原生 Quit 項目會直接結束 Desktop，沒有停止 Agent 與 Web 服務；已換成具有 `Command+Q` 的 fabDev 自訂 Quit 項目，統一交由既有的安全退出流程處理。
+- 以上兩項為 `v0.1.0` Draft 的 P0 阻擋問題；原 Tag 與 Draft 保持不變且不得 Publish。修正需使用新的 Patch 版本重新打包、建立 Draft 並重跑完整驗收。
+
 ## 2026-08-26 工作日誌
 
 - 完成 Agent Protocol 25 Proxy Manager；新增獨立 `fabdev-proxy` Rust Runtime、新增／編輯／移除、Credentials Origin、全部／單獨啟動停止、CLI、Desktop 頁面與 SQLite 設定及啟動狀態持久化。
@@ -74,7 +81,7 @@
 
 ## 驗證邊界
 
-- 尚未在乾淨 Mac 執行完整管理員安裝、更新及移除流程。
+- `v0.1.0` 已開始乾淨 Mac 管理員安裝驗收，但因首次 Site Home 與 App 選單 Quit 兩項阻擋問題中止；覆蓋更新及完整移除尚未完成，修正後必須以新 Patch 版本重跑。
 - 尚未驗證 Gatekeeper quarantine 與 Herd／Valet Port 衝突指引。
 - Release 建置仍警告 `rust-objcopy` 找不到 `libLLVM.dylib`；不影響產物生成，但 stripping 尚待修正。
 - Windows 安裝程式尚未在實體 Windows x64 驗證安裝、UAC Hosts 修改、啟動服務及完整解除安裝。
@@ -88,7 +95,7 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [x] 完成 Public Repository、Release Asset 命名、Stable Channel、App Manifest v1、Draft／Publish 與回復契約；見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 - [x] 建立 Release Asset／Manifest／Checksum 產生器；驗證四個版本來源與 Agent Protocol，不覆蓋既有輸出，也不執行打包或發布。
 - [x] 建立只接受手動雙重確認、既有 Tag 且只會建立 Draft 的 GitHub Actions Release workflow；只有最後 Job 具寫入權限，已用 `v0.1.0` 完成兩平台建置與 Draft 建立。
-- [ ] 在乾淨 Mac 驗證安裝 → 自動啟動 → `demo.test` → 更新 → 完整移除。
+- [ ] 在乾淨 Mac 驗證安裝 → 自動啟動 → `demo.test` → 更新 → 完整移除；`v0.1.0` 驗收已發現兩項阻擋問題，待新 Patch 版本重跑。
 - [ ] 驗證 Gatekeeper、quarantine、管理員授權及 53／80／443 衝突錯誤訊息。
 - [ ] 修正 release stripping 工具鏈警告。
 - [x] 建立第一個 `v0.1.0` Draft Release，重新下載 9 個 Assets，核對實際大小、Manifest 與 SHA-256；目前仍未 Publish。

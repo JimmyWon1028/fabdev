@@ -403,6 +403,9 @@ fn seed_demo(paths: &AppPaths, project_path: &std::path::Path) -> Result<bool> {
   if !repository.list()?.is_empty() {
     return Ok(false);
   }
+  let site_home = project_path
+    .parent()
+    .context("Community Demo path must have a parent directory")?;
   let site = create_site(SiteInput {
     name: Some("fabDev Demo".to_owned()),
     domain: Some("demo.test".to_owned()),
@@ -411,6 +414,7 @@ fn seed_demo(paths: &AppPaths, project_path: &std::path::Path) -> Result<bool> {
     php_version: Some("8.2".parse()?),
   })?;
   repository.insert(&site)?;
+  repository.save_site_home(site_home)?;
   Ok(true)
 }
 
@@ -466,6 +470,8 @@ mod tests {
     let root = std::env::temp_dir().join(format!("fabdev-community-{}", uuid::Uuid::new_v4()));
     let project = root.join("demo");
     std::fs::create_dir_all(project.join("public")).expect("create demo fixture");
+    std::fs::create_dir_all(root.join("unrelated-project"))
+      .expect("create unrelated project fixture");
     std::fs::write(project.join("public/index.php"), "<?php echo 'fabDev';")
       .expect("write demo fixture");
     let paths = AppPaths::from_root(root.join("data"));
@@ -485,6 +491,13 @@ mod tests {
         .expect("demo PHP version")
         .to_string(),
       "8.2"
+    );
+    assert_eq!(
+      SiteRepository::open(paths.database())
+        .expect("open seeded registry")
+        .site_home()
+        .expect("load Community Site Home"),
+      Some(root.clone())
     );
 
     std::fs::remove_dir_all(root).expect("remove demo fixture");
