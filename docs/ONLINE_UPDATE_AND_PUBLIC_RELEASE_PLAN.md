@@ -394,6 +394,32 @@ P3 不影響 P0～P2 的 Manifest、下載來源與 Runtime Catalog 設計，可
 ### 尚未執行
 
 - 尚未修改 GitHub Repository Visibility。
-- 尚未使用專用 secret scanner；目前僅完成規則式檔案與 Git 歷史掃描。
 
-全新同名 Repository 已與舊 Git objects 隔離，舊 GitHub archive 也已永久刪除；客戶資料目前只留在本機復原 bundle。確認復原 bundle 已移至安全位置或依政策銷毀，並完成最後一次公開內容人工審核之前，不得把新 Repository 改為 Public。
+全新同名 Repository 已與舊 Git objects 隔離，舊 GitHub archive 與本機復原 bundle 也已永久刪除。本機 Codex 可能保留不屬於一般 Branch／Tag 的內部復原 refs 或 reflog，因此不得使用 `git push --mirror`；公開內容必須以 GitHub 全新 Clone 的遠端 refs 為準。
+
+## 13. Public 前最後檢查結果
+
+### 結果
+
+Public 前內容與歷史檢查通過，Repository 仍維持 Private，尚未變更 Visibility。
+
+- 從 GitHub 建立全新 Clone，確認最終只有乾淨 `main`、6 個 Commit 與 239 個追蹤檔；本機與遠端 HEAD 完全一致。
+- 官方 Gitleaks 8.30.1 macOS ARM64 archive 的 SHA-256 已與 Release checksum 核對一致。
+- Gitleaks 掃描完整 6 個 Commit 與目前檔案內容，兩者皆回報 `no leaks found`。
+- 補充規則掃描未找到客戶識別、個人絕對路徑、特定內網 IP、常見 Token、私鑰、環境檔、憑證封裝或行動裝置 Provisioning Profile。
+- 沒有追蹤的 Symlink、Submodule 或超過 1 MiB 的檔案。
+- 11 份 Markdown 的相對連結全部有效；`LICENSE-MIT`、`LICENSE-APACHE` 與 `SECURITY.md` 均存在。
+- Cargo workspace 與各 Rust package 使用 `MIT OR Apache-2.0`；JavaScript workspace packages 目前皆為 Private、不發佈至 npm。
+- 確認全新 Site Registry 只建立唯一的 `demo.test`，全新 Proxy Manager 使用空清單。
+- GitHub Actions workflow 權限只有 `contents: read`；目前沒有 Actions runs、artifacts、Tag、Pull Request 或 Release。
+- `pnpm test`、`pnpm lint` 與 `git diff --check` 通過；MariaDB 實體 Runtime 測試依既有條件維持 1 項忽略。
+
+### 改為 Public 後立即驗證
+
+- 啟用 GitHub Private Vulnerability Reporting，並視需要設定 Branch Protection 或 Ruleset。
+- 以未登入狀態確認 Repository、README、License 與 `SECURITY.md` 可正常讀取。
+- 再次確認舊敏感 SHA 與已刪除的舊 Repository 均無法存取。
+- 下載 GitHub 自動產生的 Source ZIP，重新執行客戶識別與秘密掃描。
+- 確認沒有因 Visibility 變更而意外公開 Actions artifacts、Release asset 或其他 refs。
+
+Visibility 只能在 Repository Owner 明確核准「改 Public」後變更；本次最後檢查不包含 Visibility 修改、Release 建立或安裝包重新打包。
