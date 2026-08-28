@@ -55,7 +55,7 @@
 
 ## 2026-08-29 工作日誌
 
-- 專案正式版本來源已由 `0.1.0` 更新為 `0.1.1` 候選版；這只準備後續修正版，不代表已重新打包、建立 Tag 或 Draft Release。
+- 專案正式版本來源已由 `0.1.0` 更新為 `0.1.1` 候選版；候選版本準備完成，重新打包與 Draft Release 尚未執行。
 - 從 GitHub Draft 重新下載的 `v0.1.0` DMG 已通過管理員安裝、Helper／Resolver 建立、唯一 `demo.test` 的 DNS、HTTP、HTTPS、憑證 SAN 與 Login Keychain 信任驗證；Proxy 首次安裝清單為空。
 - 乾淨初始化發現 Site Home 未持久化，導致預設掃描其他本機專案；已改為建立 `demo.test` 後同步保存其父目錄，並加入不匯入同層無關資料夾的回歸測試。
 - macOS App 選單的原生 Quit 項目會直接結束 Desktop，沒有停止 Agent 與 Web 服務；已換成具有 `Command+Q` 的 fabDev 自訂 Quit 項目，統一交由既有的安全退出流程處理。
