@@ -129,10 +129,9 @@ test('refuses to overwrite an existing output directory', async (context) => {
 })
 
 test('keeps the Draft Release workflow manual and unable to publish', async () => {
-  const workflow = await readFile(
-    join(repoRoot, '.github/workflows/release-draft.yml'),
-    'utf8'
-  )
+  const workflow = (
+    await readFile(join(repoRoot, '.github/workflows/release-draft.yml'), 'utf8')
+  ).replaceAll('\r\n', '\n')
   const triggerStart = workflow.indexOf('\non:\n')
   const permissionsStart = workflow.indexOf('\npermissions:\n')
   const createDraftStart = workflow.indexOf('\n  create-draft:\n')
@@ -158,6 +157,17 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.match(workflow, /--latest=false/)
   assert.doesNotMatch(workflow, /gh release edit|--draft=false|make_latest/)
   assert.doesNotMatch(workflow, /secrets\./)
+
+  const runtimeBuildStart = workflow.indexOf(
+    '      - name: Build verified bundled macOS Runtimes'
+  )
+  const sidecarBuildStart = workflow.indexOf('      - name: Prepare Desktop sidecars')
+  const testStart = workflow.indexOf('      - name: Run tests and lint')
+  assert.notEqual(runtimeBuildStart, -1)
+  assert.notEqual(sidecarBuildStart, -1)
+  assert.notEqual(testStart, -1)
+  assert.ok(runtimeBuildStart < sidecarBuildStart)
+  assert.ok(sidecarBuildStart < testStart)
 
   const usesLines = workflow
     .split('\n')
