@@ -340,6 +340,32 @@ const en = {
   'settings.autoStartHelp': 'Disabling this option does not stop services that are currently running.',
   'settings.autoStartEnabled': 'Enabled; fabDev will automatically start all services on the next launch.',
   'settings.autoStartDisabled': 'Disabled; fabDev will only show current status on the next launch.',
+  'settings.autoCheckUpdatesTitle': 'Automatically check for updates',
+  'settings.autoCheckUpdatesDescription': 'Check the Stable channel when fabDev opens, at most once every 24 hours.',
+  'settings.autoCheckUpdatesHelp': 'A network failure never prevents fabDev or local services from starting.',
+  'settings.autoCheckUpdatesEnabled': 'Enabled; fabDev will check the Stable channel on launch when the last check is at least 24 hours old.',
+  'settings.autoCheckUpdatesDisabled': 'Disabled; updates will only be checked when you choose Check now.',
+  'settings.softwareUpdateTitle': 'Software update',
+  'settings.softwareUpdateDescription': 'Check, download, and verify the full Community installer from GitHub Releases.',
+  'settings.checkNow': 'Check now',
+  'settings.checkingUpdates': 'Checking…',
+  'settings.currentVersion': 'Current version',
+  'settings.latestVersion': 'Latest version',
+  'settings.channel': 'Channel',
+  'settings.lastChecked': 'Last checked',
+  'settings.notChecked': 'Not checked',
+  'settings.unsignedCommunityWarning': 'Unsigned Community Build: verify SHA-256 before opening. Gatekeeper or SmartScreen may show a warning.',
+  'settings.downloadingUpdate': 'Downloading and verifying…',
+  'settings.releaseNotes': 'Release Notes',
+  'settings.downloadUpdate': 'Download update',
+  'settings.downloadVerified': '{fileName} was downloaded and its size and SHA-256 were verified.',
+  'settings.updateAvailable': 'fabDev {version} is available.',
+  'settings.upToDate': 'fabDev {version} is up to date.',
+  'settings.updateError': 'Unable to update: {error}',
+  'settings.installUpdateTitle': 'Open verified installer',
+  'settings.installUpdateConfirm': 'fabDev will open the verified full installer, stop managed services, and quit. Sites, Runtime settings, and user data will be preserved by the installer.',
+  'settings.quitAndOpenInstaller': 'Quit and open installer',
+  'settings.preparingInstaller': 'Re-verifying the installer, then fabDev will stop services and quit…',
   'settings.saveError': 'Unable to save settings: {error}',
   'errors.mariaDbCurrentPassword': 'Unable to authenticate as MariaDB root. Verify the current password.',
   'errors.mariaDbPasswordRejected': 'MariaDB rejected the root password change (error {code}).',
@@ -396,7 +422,9 @@ const zhTW: TranslationTable = {
   'runtimes.eyebrow': 'Runtime manager', 'runtimes.description': '安裝、切換及移除 fabDev 管理的 PHP；每個 Site 仍可指定自己的版本。', 'runtimes.installLocal': '安裝本機套件', 'runtimes.globalPhp': '全域 PHP', 'runtimes.notSet': '尚未設定', 'runtimes.existingSitesIndependent': '既有 Site 維持各自設定。', 'runtimes.listLabel': 'PHP Runtime 清單', 'runtimes.siteCount': ' · {count} 個 Site：{sites}', 'runtimes.noSites': ' · 尚無 Site 使用', 'runtimes.notInstalledDescription': '尚未安裝；請選擇對應的 fabDev Runtime Package。', 'runtimes.globalVersion': '全域版本', 'runtimes.switching': '切換中…', 'runtimes.setGlobal': '設為全域', 'runtimes.switchGlobalFirst': '請先切換全域 PHP', 'runtimes.usedBySite': '仍有 Site 使用此 PHP 系列', 'runtimes.removeRuntime': '移除 Runtime', 'runtimes.removing': '移除中…', 'runtimes.remove': '移除', 'runtimes.choosePackage': '選擇套件…', 'runtimes.showInFinder': '在 Finder 顯示', 'runtimes.showInExplorer': '在檔案總管顯示', 'runtimes.erpConfig': 'ERP 參數', 'runtimes.erpConfigLoaded': '已將 PHP 8.2 ERP 參數填入編輯區；請儲存後套用', 'runtimes.close': '關閉', 'runtimes.iniContents': 'php.ini 內容', 'runtimes.applying': '驗證與套用中…', 'runtimes.saveApply': '儲存並套用', 'runtimes.iniHelp': '儲存前會用對應版本 PHP-FPM 驗證；失敗時保留原設定。', 'runtimes.footnote': '安裝時會核對平台、架構、檔案大小與 SHA-256。PHP 8.3 套件尚未發布前會維持未安裝狀態。', 'runtimes.chooseRelease': '選擇 fabDev Runtime 描述檔', 'runtimes.releaseFilter': 'Runtime Release', 'runtimes.chooseArtifact': '選擇對應的 PHP Runtime 套件', 'runtimes.packageFilter': 'Runtime Package', 'runtimes.installing': '正在驗證並安裝 Runtime 套件…', 'runtimes.installedCount': 'Runtime 已安裝；目前共有 {count} 個 PHP Runtime', 'runtimes.globalChanged': '全域 PHP 已切換為 {version}；Site 指定版本不受影響', 'runtimes.removeConfirm': '確定要移除 PHP {version}？\n\n只會刪除 fabDev 管理的 Runtime，不會刪除 Site 或專案檔案。', 'runtimes.removeTitle': '移除 PHP Runtime', 'runtimes.cancel': '取消', 'runtimes.removed': 'PHP {version} 已移除', 'runtimes.iniSaved': 'PHP {version} php.ini 已驗證並套用', 'runtimes.revealed': '已在 Finder 顯示 {path}', 'runtimes.revealedInExplorer': '已在檔案總管顯示 {path}',
   'runtimes.default': '預設', 'runtimes.defaultIniTitle': '預設 php.ini', 'runtimes.defaultIniDescription': '以目前 PHP 8.2 設定建立；按「ERP 參數」時才會載入此範本。', 'runtimes.defaultIniHelp': '新安裝的 PHP 會保持空白；修改此範本不會覆蓋各版本的 php.ini。', 'runtimes.defaultIniSaved': '預設 php.ini 範本已儲存',
   'node.eyebrow': 'Optional runtime', 'node.description': '安裝或移除 fabDev 獨立管理的穩定版 Node.js LTS；預設不安裝。', 'node.listLabel': 'Node.js Runtime', 'node.notInstalledDescription': '預設未安裝；專案需要 Node.js 時再安裝對應的 fabDev Runtime Package。', 'node.installedDescription': '已安裝，可作為 fabDev 獨立管理的 Node.js Runtime 使用。', 'node.chooseRelease': '選擇 Node.js Runtime 描述檔', 'node.chooseArtifact': '選擇對應的 Node.js Runtime 套件', 'node.install': '安裝穩定 LTS', 'node.installing': '正在驗證並安裝 Node.js Runtime…', 'node.installingShort': '安裝中…', 'node.installed': 'Node.js {version} LTS 已安裝', 'node.remove': '移除', 'node.removing': '移除中…', 'node.removeTitle': '移除 Node.js Runtime', 'node.removeConfirm': '確定要移除 fabDev 管理的 Node.js Runtime？\n\n只會刪除 Runtime，不會刪除 Site 或專案檔案。', 'node.removed': 'Node.js {version} 已移除', 'node.isolationNote': '此 Runtime 僅儲存在 fabDev 內，不會取代或修改 Homebrew、nvm、Herd 或系統 Node.js。',
-  'settings.eyebrow': 'Preferences', 'settings.title': '設定', 'settings.description': '設定 fabDev App 的顯示語言與啟動行為。', 'settings.label': 'fabDev 設定', 'settings.languageTitle': '顯示語言', 'settings.languageDescription': '選擇 fabDev 使用的介面語言。', 'settings.languageHelp': '變更會立即套用，並保留至下次啟動。', 'settings.english': 'English', 'settings.traditionalChinese': '繁體中文', 'settings.simplifiedChinese': '简体中文', 'settings.autoStartTitle': 'App 開啟時自動啟動服務', 'settings.autoStartDescription': '自動啟動 DNS、Nginx 與 Sites 需要的 PHP-FPM。', 'settings.autoStartHelp': '關閉此選項不會停止目前正在運行的服務。', 'settings.autoStartEnabled': '已開啟；下次啟動 fabDev 時會自動啟動所有服務。', 'settings.autoStartDisabled': '已關閉；下次啟動 fabDev 時只會顯示目前狀態。', 'settings.saveError': '無法儲存設定：{error}',
+  'settings.eyebrow': 'Preferences', 'settings.title': '設定', 'settings.description': '設定 fabDev App 的顯示語言、啟動行為與軟體更新。', 'settings.label': 'fabDev 設定', 'settings.languageTitle': '顯示語言', 'settings.languageDescription': '選擇 fabDev 使用的介面語言。', 'settings.languageHelp': '變更會立即套用，並保留至下次啟動。', 'settings.english': 'English', 'settings.traditionalChinese': '繁體中文', 'settings.simplifiedChinese': '简体中文', 'settings.autoStartTitle': 'App 開啟時自動啟動服務', 'settings.autoStartDescription': '自動啟動 DNS、Nginx 與 Sites 需要的 PHP-FPM。', 'settings.autoStartHelp': '關閉此選項不會停止目前正在運行的服務。', 'settings.autoStartEnabled': '已開啟；下次啟動 fabDev 時會自動啟動所有服務。', 'settings.autoStartDisabled': '已關閉；下次啟動 fabDev 時只會顯示目前狀態。',
+  'settings.autoCheckUpdatesTitle': '自動檢查更新', 'settings.autoCheckUpdatesDescription': 'fabDev 開啟時檢查 Stable Channel，每 24 小時最多一次。', 'settings.autoCheckUpdatesHelp': '網路失敗不會阻止 fabDev 或本機服務啟動。', 'settings.autoCheckUpdatesEnabled': '已開啟；距離上次檢查滿 24 小時後，fabDev 會在啟動時檢查 Stable Channel。', 'settings.autoCheckUpdatesDisabled': '已關閉；只會在你按下「立即檢查」時連線。',
+  'settings.softwareUpdateTitle': '軟體更新', 'settings.softwareUpdateDescription': '從 GitHub Releases 檢查、下載並驗證完整 Community 安裝包。', 'settings.checkNow': '立即檢查', 'settings.checkingUpdates': '檢查中…', 'settings.currentVersion': '目前版本', 'settings.latestVersion': '最新版本', 'settings.channel': 'Channel', 'settings.lastChecked': '上次檢查', 'settings.notChecked': '尚未檢查', 'settings.unsignedCommunityWarning': 'Unsigned Community Build：開啟前會驗證 SHA-256；Gatekeeper 或 SmartScreen 仍可能顯示警告。', 'settings.downloadingUpdate': '下載並驗證中…', 'settings.releaseNotes': 'Release Notes', 'settings.downloadUpdate': '下載更新', 'settings.downloadVerified': '{fileName} 已下載完成，檔案大小與 SHA-256 驗證通過。', 'settings.updateAvailable': 'fabDev {version} 可以下載。', 'settings.upToDate': 'fabDev {version} 已是最新版本。', 'settings.updateError': '無法更新：{error}', 'settings.installUpdateTitle': '開啟已驗證安裝包', 'settings.installUpdateConfirm': 'fabDev 將開啟已驗證的完整安裝包、停止受管服務並退出。安裝程序會保留 Sites、Runtime 設定與使用者資料。', 'settings.quitAndOpenInstaller': '退出並開啟安裝包', 'settings.preparingInstaller': '正在重新驗證安裝包，接著會停止服務並退出 fabDev…', 'settings.saveError': '無法儲存設定：{error}',
   'errors.mariaDbCurrentPassword': '無法以 MariaDB root 身分驗證，請確認目前密碼。', 'errors.mariaDbPasswordRejected': 'MariaDB 拒絕變更 root 密碼（錯誤 {code}）。', 'errors.systemIngressUnavailable': '系統入口無法使用 DNS 連接埠 {dnsPort}、HTTP 連接埠 {httpPort} 或 HTTPS 連接埠 {httpsPort}。'
 }
 
@@ -532,6 +560,34 @@ const zhCNHomeCopy = {
   'sites.homeManaged': '由 Site Home 管理'
 } satisfies Partial<TranslationTable>
 
+const zhCNUpdateCopy = {
+  'settings.description': '设置 fabDev App 的显示语言、启动行为与软件更新。',
+  'settings.autoCheckUpdatesTitle': '自动检查更新',
+  'settings.autoCheckUpdatesDescription': 'fabDev 打开时检查 Stable Channel，每 24 小时最多一次。',
+  'settings.autoCheckUpdatesHelp': '网络失败不会阻止 fabDev 或本机服务启动。',
+  'settings.autoCheckUpdatesEnabled': '已开启；距离上次检查满 24 小时后，fabDev 会在启动时检查 Stable Channel。',
+  'settings.autoCheckUpdatesDisabled': '已关闭；只会在你按下“立即检查”时联网。',
+  'settings.softwareUpdateTitle': '软件更新',
+  'settings.softwareUpdateDescription': '从 GitHub Releases 检查、下载并验证完整 Community 安装包。',
+  'settings.checkNow': '立即检查',
+  'settings.checkingUpdates': '检查中…',
+  'settings.currentVersion': '当前版本',
+  'settings.latestVersion': '最新版本',
+  'settings.lastChecked': '上次检查',
+  'settings.notChecked': '尚未检查',
+  'settings.unsignedCommunityWarning': 'Unsigned Community Build：打开前会验证 SHA-256；Gatekeeper 或 SmartScreen 仍可能显示警告。',
+  'settings.downloadingUpdate': '下载并验证中…',
+  'settings.downloadUpdate': '下载更新',
+  'settings.downloadVerified': '{fileName} 已下载完成，文件大小与 SHA-256 验证通过。',
+  'settings.updateAvailable': 'fabDev {version} 可以下载。',
+  'settings.upToDate': 'fabDev {version} 已是最新版本。',
+  'settings.updateError': '无法更新：{error}',
+  'settings.installUpdateTitle': '打开已验证安装包',
+  'settings.installUpdateConfirm': 'fabDev 将打开已验证的完整安装包、停止托管服务并退出。安装程序会保留 Sites、Runtime 设置与用户数据。',
+  'settings.quitAndOpenInstaller': '退出并打开安装包',
+  'settings.preparingInstaller': '正在重新验证安装包，接着会停止服务并退出 fabDev…'
+} satisfies Partial<TranslationTable>
+
 export const translations: Record<Language, TranslationTable> = {
   en,
   'zh-TW': { ...zhTW, ...zhTWBuiltInRuntimeCopy, ...zhTWLanShareCopy },
@@ -542,6 +598,7 @@ export const translations: Record<Language, TranslationTable> = {
     ...zhCNLanShareCopy,
     ...zhCNNodeCopy,
     ...zhCNSiteSelectionCopy,
-    ...zhCNProxySearchCopy
+    ...zhCNProxySearchCopy,
+    ...zhCNUpdateCopy
   }
 }

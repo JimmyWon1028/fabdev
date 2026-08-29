@@ -18,7 +18,20 @@ import {
 import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
 
-import { loadAutoStartServices, saveAutoStartServices } from '../utils/preferences'
+import type {
+  AppUpdateCheck,
+  AppUpdateDownloadProgress,
+  DownloadedAppUpdate
+} from '../utils/app-update'
+import {
+  loadAutoCheckUpdates,
+  loadAutoStartServices,
+  loadLastUpdateCheck,
+  saveAutoCheckUpdates,
+  saveAutoStartServices,
+  saveLastUpdateCheck,
+  shouldAutomaticallyCheckUpdates
+} from '../utils/preferences'
 import {
   areAllServicesRunning,
   hasEnabledSites,
@@ -30,6 +43,13 @@ interface StoreState {
   busy: boolean
   error: string | null
   autoStartServices: boolean
+  autoCheckUpdates: boolean
+  lastUpdateCheck: string | null
+  appUpdateBusy: boolean
+  appUpdateError: string | null
+  appUpdate: AppUpdateCheck | null
+  appUpdateDownload: AppUpdateDownloadProgress | null
+  downloadedAppUpdate: DownloadedAppUpdate | null
   status: AgentStatus | null
   lanShare: LanShareInfo | null
   mariaDbConfig: MariaDbConfig | null
@@ -51,6 +71,13 @@ export const useAppStore = defineStore('fabdev', {
     busy: false,
     error: null,
     autoStartServices: loadAutoStartServices(),
+    autoCheckUpdates: loadAutoCheckUpdates(),
+    lastUpdateCheck: loadLastUpdateCheck(),
+    appUpdateBusy: false,
+    appUpdateError: null,
+    appUpdate: null,
+    appUpdateDownload: null,
+    downloadedAppUpdate: null,
     status: null,
     lanShare: null,
     mariaDbConfig: null,
@@ -85,6 +112,82 @@ export const useAppStore = defineStore('fabdev', {
     setAutoStartServices(enabled: boolean) {
       saveAutoStartServices(enabled)
       this.autoStartServices = enabled
+    },
+    setAutoCheckUpdates(enabled: boolean) {
+      saveAutoCheckUpdates(enabled)
+      this.autoCheckUpdates = enabled
+    },
+    setAppUpdateDownloadProgress(progress: AppUpdateDownloadProgress) {
+      this.appUpdateDownload = progress
+    },
+    async checkAppUpdate() {
+      this.appUpdateBusy = true
+      this.appUpdateError = null
+      try {
+        const update = await invoke<AppUpdateCheck>('check_app_update')
+        const checkedAt = new Date().toISOString()
+        this.appUpdate = update
+        this.lastUpdateCheck = checkedAt
+        saveLastUpdateCheck(checkedAt)
+        if (!update.updateAvailable || this.downloadedAppUpdate?.version !== update.latestVersion) {
+          this.downloadedAppUpdate = null
+        }
+        return update
+      } catch (error) {
+        this.appUpdateError = error instanceof Error ? error.message : String(error)
+        throw error
+      } finally {
+        this.appUpdateBusy = false
+      }
+    },
+    async checkAppUpdateOnLaunch() {
+      if (
+        !shouldAutomaticallyCheckUpdates(
+          this.autoCheckUpdates,
+          this.lastUpdateCheck
+        )
+      ) {
+        return
+      }
+      try {
+        await this.checkAppUpdate()
+      } catch {
+        // Update failures must not block normal App startup.
+      }
+    },
+    async downloadAppUpdate() {
+      this.appUpdateBusy = true
+      this.appUpdateError = null
+      this.appUpdateDownload = null
+      try {
+        const download = await invoke<DownloadedAppUpdate>('download_app_update')
+        this.downloadedAppUpdate = download
+        return download
+      } catch (error) {
+        this.appUpdateError = error instanceof Error ? error.message : String(error)
+        throw error
+      } finally {
+        this.appUpdateBusy = false
+      }
+    },
+    async openAppReleaseNotes() {
+      const version = this.appUpdate?.latestVersion
+      if (!version) {
+        throw new Error('Check for updates before opening Release Notes')
+      }
+      await invoke<void>('open_app_release_notes', { version })
+    },
+    async installDownloadedAppUpdate() {
+      this.appUpdateBusy = true
+      this.appUpdateError = null
+      try {
+        return await invoke<DownloadedAppUpdate>('install_downloaded_app_update')
+      } catch (error) {
+        this.appUpdateError = error instanceof Error ? error.message : String(error)
+        throw error
+      } finally {
+        this.appUpdateBusy = false
+      }
     },
     async refreshStatus() {
       this.busy = true

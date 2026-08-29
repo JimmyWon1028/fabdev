@@ -16,6 +16,7 @@ tauri-build = { version = "2", features = [] }
 anyhow.workspace = true
 fabdev-core = { path = "../../../crates/core" }
 fabdev-runtime = { path = "../../../crates/runtime" }
+fabdev-updater = { path = "../../../crates/updater" }
 serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2", features = ["image-png", "tray-icon"] }

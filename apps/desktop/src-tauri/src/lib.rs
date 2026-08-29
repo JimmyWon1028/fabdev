@@ -33,6 +33,7 @@ const TRAY_ICON_PNG: &[u8] = include_bytes!("../icons/tray/fabdev-tray-44.png");
 const MACOS_APP_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
 const SERVICE_STATE_CHANGED_EVENT: &str = "fabdev://service-state-changed";
 const AGENT_ERROR_EVENT: &str = "fabdev://agent-error";
+const APP_UPDATE_DOWNLOAD_PROGRESS_EVENT: &str = "fabdev://app-update-download-progress";
 const APP_QUIT_STARTED_EVENT: &str = "fabdev://quit-started";
 const APP_QUIT_FAILED_EVENT: &str = "fabdev://quit-failed";
 const AGENT_START_TIMEOUT: Duration = Duration::from_secs(5);
@@ -42,8 +43,16 @@ const AGENT_INSTALL_RESPONSE_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const SYSTEM_INGRESS_ERROR_PREFIX: &str = "system ingress is unavailable on DNS port ";
 
 static AGENT_START_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+static APP_UPDATE_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 static QUIT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 static EXIT_ALLOWED: AtomicBool = AtomicBool::new(false);
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AppUpdateDownloadProgress {
+  downloaded_bytes: u64,
+  total_bytes: u64,
+}
 
 #[cfg(target_os = "macos")]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -201,6 +210,82 @@ fn open_proxy_in_chrome(domain: String, listen_port: u16) -> Result<(), String> 
   open_url_in_chrome(&url).map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+async fn check_app_update() -> Result<fabdev_updater::AppUpdateCheck, String> {
+  let (platform, architecture) = app_update_target()?;
+  fabdev_updater::check_for_app_update(env!("CARGO_PKG_VERSION"), platform, architecture)
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn download_app_update(
+  app: AppHandle,
+) -> Result<fabdev_updater::DownloadedAppUpdate, String> {
+  let _guard = APP_UPDATE_LOCK
+    .get_or_init(|| tokio::sync::Mutex::new(()))
+    .lock()
+    .await;
+  let (platform, architecture) = app_update_target()?;
+  let paths =
+    AppPaths::discover().ok_or_else(|| "unable to locate fabDev application data".to_owned())?;
+  paths
+    .ensure()
+    .map_err(|error| format!("unable to prepare fabDev application data: {error}"))?;
+  let progress_app = app.clone();
+  fabdev_updater::download_app_update(
+    &paths.cache,
+    env!("CARGO_PKG_VERSION"),
+    platform,
+    architecture,
+    move |downloaded_bytes, total_bytes| {
+      let _ = progress_app.emit(
+        APP_UPDATE_DOWNLOAD_PROGRESS_EVENT,
+        AppUpdateDownloadProgress {
+          downloaded_bytes,
+          total_bytes,
+        },
+      );
+    },
+  )
+  .await
+  .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn install_downloaded_app_update(
+  app: AppHandle,
+) -> Result<fabdev_updater::DownloadedAppUpdate, String> {
+  let _guard = APP_UPDATE_LOCK
+    .get_or_init(|| tokio::sync::Mutex::new(()))
+    .lock()
+    .await;
+  let (platform, architecture) = app_update_target()?;
+  let paths =
+    AppPaths::discover().ok_or_else(|| "unable to locate fabDev application data".to_owned())?;
+  let (download, installer_path) =
+    fabdev_updater::pending_app_update(&paths.cache, platform, architecture)
+      .await
+      .map_err(|error| error.to_string())?;
+  request_app_quit_for_update(app, installer_path)?;
+  Ok(download)
+}
+
+#[tauri::command]
+fn open_app_release_notes(version: String) -> Result<(), String> {
+  let url = fabdev_updater::release_notes_url(&version).map_err(|error| error.to_string())?;
+  open_url(&url).map_err(|error| error.to_string())
+}
+
+fn app_update_target() -> Result<(&'static str, &'static str), String> {
+  #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+  return Ok(("macos", "arm64"));
+  #[cfg(all(windows, target_arch = "x86_64"))]
+  return Ok(("windows", "x64"));
+  #[allow(unreachable_code)]
+  Err("app updates are not available for this platform or architecture".to_owned())
+}
+
 fn site_url(domain: &str, secured: bool) -> Result<String, String> {
   normalize_domain(domain)
     .map(|domain| {
@@ -356,6 +441,18 @@ fn open_url_in_chrome(url: &str) -> anyhow::Result<()> {
   Ok(())
 }
 
+#[cfg(target_os = "macos")]
+fn open_update_installer(path: &Path) -> anyhow::Result<()> {
+  let status = Command::new("/usr/bin/open")
+    .arg(path)
+    .status()
+    .context("unable to open the macOS app update disk image")?;
+  if !status.success() {
+    bail!("macOS could not open the verified app update disk image");
+  }
+  Ok(())
+}
+
 #[cfg(target_os = "windows")]
 fn reveal_path(path: &Path) -> anyhow::Result<()> {
   let status = Command::new("explorer.exe")
@@ -396,6 +493,14 @@ fn open_url_in_chrome(url: &str) -> anyhow::Result<()> {
   Ok(())
 }
 
+#[cfg(target_os = "windows")]
+fn open_update_installer(path: &Path) -> anyhow::Result<()> {
+  Command::new(path)
+    .spawn()
+    .context("unable to open the Windows app update installer")?;
+  Ok(())
+}
+
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn reveal_path(path: &Path) -> anyhow::Result<()> {
   let parent = path.parent().context("php.ini has no parent directory")?;
@@ -432,6 +537,11 @@ fn open_url_in_chrome(url: &str) -> anyhow::Result<()> {
     }
   }
   bail!("Google Chrome or Chromium is not installed")
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn open_update_installer(_path: &Path) -> anyhow::Result<()> {
+  bail!("app update installers are not supported on this platform")
 }
 
 async fn request_agent(request: AgentRequest) -> anyhow::Result<AgentResponse> {
@@ -639,8 +749,19 @@ async fn shutdown_agent_at(endpoint: &AgentEndpoint) -> anyhow::Result<()> {
 }
 
 fn request_app_quit(app: AppHandle) {
+  let _ = request_app_quit_after_shutdown(app, None);
+}
+
+fn request_app_quit_for_update(app: AppHandle, installer_path: PathBuf) -> Result<(), String> {
+  request_app_quit_after_shutdown(app, Some(installer_path))
+}
+
+fn request_app_quit_after_shutdown(
+  app: AppHandle,
+  installer_path: Option<PathBuf>,
+) -> Result<(), String> {
   if QUIT_IN_PROGRESS.swap(true, Ordering::SeqCst) {
-    return;
+    return Err("fabDev is already shutting down".to_owned());
   }
   set_tray_all_busy(&app);
   show_main_window(&app);
@@ -648,6 +769,15 @@ fn request_app_quit(app: AppHandle) {
   tauri::async_runtime::spawn(async move {
     match shutdown_agent_before_exit().await {
       Ok(()) => {
+        if let Some(installer_path) = installer_path {
+          if let Err(error) = open_update_installer(&installer_path) {
+            QUIT_IN_PROGRESS.store(false, Ordering::SeqCst);
+            let _ = app.emit(APP_QUIT_FAILED_EVENT, ());
+            let _ = app.emit(AGENT_ERROR_EVENT, error.to_string());
+            refresh_tray_service_state(&app).await;
+            return;
+          }
+        }
         EXIT_ALLOWED.store(true, Ordering::SeqCst);
         app.exit(0);
       }
@@ -659,6 +789,7 @@ fn request_app_quit(app: AppHandle) {
       }
     }
   });
+  Ok(())
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -1440,6 +1571,10 @@ pub fn run() {
       write_config_transfer_file,
       open_site,
       open_proxy_in_chrome,
+      check_app_update,
+      download_app_update,
+      install_downloaded_app_update,
+      open_app_release_notes,
       reveal_php_ini,
       reveal_default_php_ini,
       trust_local_ca

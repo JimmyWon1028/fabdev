@@ -327,6 +327,14 @@ Draft Connect 為 749,568 bytes，SHA-256 `2082d724e809a04111a78a74fe7f0aadd0212
 
 此環境證明 GitHub Actions 產生的 Windows x64 binary 可在 Windows 11 ARM 的 x64 模擬層完成安裝與生命週期驗收；乾淨實體 Windows x64、SmartScreen 簽章信譽及 IIS／Herd 共存仍是後續驗收邊界。
 
+### 8.6 `v0.1.2` 本機 macOS 候選包驗證
+
+取得 `0.1.2` 重新打包授權後，六個專案版本來源與 Cargo workspace lock 已同步。完整測試、Release Script、lint、rustfmt、Clippy 與 Swift lint 通過；本次只建立本機 macOS ARM64 Community 候選包，不包含 Commit、Push、Tag、Draft Release 或 Publish。
+
+`fabDev-Community-0.1.2-macos-arm64.dmg` 為 98,639,468 bytes，SHA-256 為 `4b718f1f639347e93531ea192c5064883620f9fd09f509f0185fb0df2a754c2b`。Disk Image checksum、27 個內層 SHA-256、App／Build `0.1.2`、ad-hoc codesign、ARM64 Desktop／Agent／CLI、dnsmasq 2.93、Nginx 1.30.4、PHP 7.4.33／8.2.33、安裝／移除程序來源一致性與公開內容邊界均通過；包內沒有 PHP 8.4、MariaDB、SQLite、憑證私鑰、環境檔或客戶識別內容。
+
+本機候選包 Hash 不取代未來 GitHub Actions Draft Asset 的重新下載與逐位元驗證，也不代表 `0.1.1 → 0.1.2` App 內線上更新、macOS 覆蓋安裝或 Windows x64 生命週期已完成驗收。
+
 ## 9. Publish 後驗證
 
 - 以未登入狀態開啟 Release 頁面及每個 Asset，狀態必須成功。
@@ -394,4 +402,4 @@ P0 發布基礎需依序完成：
 - [x] Repository Owner 已明確核准 `v0.1.1` Stable Publish。
 - [x] Publish `v0.1.1`，並以未登入公開 URL 重新下載 9 個 Assets，完成大小、SHA-256、Manifest、Draft 位元組與固定 Tag 驗證。
 
-`v0.1.1` 是目前可供公開下載的正式 Stable Release；P1 App 內檢查與下載仍未實作。
+`v0.1.1` 是目前可供公開下載的正式 Stable Release；P1 App 內檢查與下載已完成原始碼實作，`0.1.2` 本機 macOS 候選包已通過封裝內容驗證，Release Assets 與兩平台端到端更新驗收仍待後續授權及執行。

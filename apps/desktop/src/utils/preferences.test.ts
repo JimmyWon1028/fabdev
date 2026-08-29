@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  loadAutoCheckUpdates,
   loadAutoStartServices,
+  loadLastUpdateCheck,
   loadLanguage,
+  saveAutoCheckUpdates,
   saveAutoStartServices,
+  saveLastUpdateCheck,
+  shouldAutomaticallyCheckUpdates,
   saveLanguage
 } from './preferences'
 
@@ -51,5 +56,32 @@ describe('language preference', () => {
 
   it('falls back when the saved language is unsupported', () => {
     expect(loadLanguage(memoryStorage('fr'))).toBe('zh-TW')
+  })
+})
+
+describe('app update preferences', () => {
+  it('defaults automatic checks to enabled and persists the switch', () => {
+    const storage = memoryStorage()
+    expect(loadAutoCheckUpdates(storage)).toBe(true)
+    saveAutoCheckUpdates(false, storage)
+    expect(loadAutoCheckUpdates(storage)).toBe(false)
+  })
+
+  it('persists valid last-check timestamps', () => {
+    const storage = memoryStorage()
+    expect(loadLastUpdateCheck(storage)).toBeNull()
+    saveLastUpdateCheck('2026-08-29T00:00:00.000Z', storage)
+    expect(loadLastUpdateCheck(storage)).toBe('2026-08-29T00:00:00.000Z')
+  })
+
+  it('checks at most once per 24 hours', () => {
+    const lastChecked = '2026-08-29T00:00:00.000Z'
+    expect(
+      shouldAutomaticallyCheckUpdates(true, lastChecked, Date.parse('2026-08-29T23:59:00.000Z'))
+    ).toBe(false)
+    expect(
+      shouldAutomaticallyCheckUpdates(true, lastChecked, Date.parse('2026-08-30T00:00:00.000Z'))
+    ).toBe(true)
+    expect(shouldAutomaticallyCheckUpdates(false, null)).toBe(false)
   })
 })

@@ -3,7 +3,7 @@
 > 規劃日期：2026-08-28
 >
 > 適用階段：macOS ARM64／Windows x64 Unsigned Community Build
-> 文件狀態：P0 公開下載基礎已完成；`v0.1.0` Draft 驗收失敗且未 Publish，`v0.1.1` 已完成 Stable Publish 與匿名公開下載驗證
+> 文件狀態：P0 公開下載基礎已完成；`v0.1.1` 已完成 Stable Publish 與匿名公開下載驗證；P1 App 更新原始碼及 `0.1.2` 本機 macOS 候選包已完成，等待 Release Assets 封裝版驗收
 
 P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 
@@ -69,7 +69,7 @@ App 啟動或每日檢查版本
   → 顯示新版本、檔案大小與 Release Notes
   → 使用者按「下載更新」
   → 下載完整 DMG／Setup.exe 至暫存目錄
-  → 驗證大小、SHA-256 與 fabDev Release 簽章
+  → 驗證官方來源、大小與 SHA-256
   → 提示使用者 Quit fabDev
   → 開啟已下載的安裝包
   → 由既有安裝程序執行覆蓋更新
@@ -77,7 +77,9 @@ App 啟動或每日檢查版本
 
 更新檢查失敗、離線或下載中斷都不能阻止 App 正常啟動。
 
-### 3.1 設定頁建議
+P1 Unsigned Community Manifest 的 `signature` 必須為 `null`；正式 fabDev Release 數位簽章屬於 P3。P1 不得把空簽章描述成已完成簽章驗證。
+
+### 3.1 設定頁實作
 
 設定頁新增「軟體更新」區塊：
 
@@ -354,10 +356,11 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 
 ### P1：App 內檢查與下載
 
-- 自動／手動檢查版本。
-- 顯示新版資訊及下載進度。
-- 驗證後開啟完整 DMG／Setup.exe。
-- 不做背景自動覆蓋安裝。
+- 已完成啟動後每日自動檢查與設定頁手動檢查；檢查失敗不阻止 App 啟動。
+- 已完成新版、安裝包、Release Notes、上次檢查時間及下載進度顯示。
+- 已完成固定 Stable Manifest、官方 GitHub URL 白名單、平台原生 TLS、`.part` 下載、大小／SHA-256 驗證、原子改名及開啟前再次驗證。
+- 已完成使用者確認後走安全 Quit，再開啟完整 DMG／Setup.exe；不做背景自動覆蓋安裝。
+- 尚待下一個高於 `0.1.1` 的候選版，在封裝版 macOS／Windows 完成端到端驗收。
 
 ### P2：Runtime 線上安裝
 
@@ -460,4 +463,14 @@ https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.1
 - 遠端 annotated `v0.1.1` Tag 仍固定指向 Release Commit `8d70808a43fb3f2f5406c0e572c2b6e4e51f0350`。
 - `v0.1.0` 保持獨立 Draft，沒有誤發布或被 `v0.1.1` 覆蓋。
 
-P0 到此完成；下一階段為 P1 App 內版本檢查、下載進度、完整性驗證及開啟安裝包，不包含背景自動覆蓋安裝。
+P0 到此完成；P1 App 內版本檢查、下載進度、完整性驗證及安全 Quit 後開啟安裝包已完成原始碼實作，不包含背景自動覆蓋安裝。
+
+## 16. P1 App 更新實作結果
+
+- Desktop 設定頁提供目前版本、Stable 最新版本、自動檢查開關、上次檢查時間、Release Notes、安裝包資訊、下載進度與手動操作。
+- App 啟動後以 24 小時為間隔非阻塞檢查；離線、Manifest 無效或伺服器失敗只更新錯誤狀態，不阻止既有服務與 UI 啟動。
+- `crates/updater` 固定讀取 Public GitHub Releases Stable Manifest，使用平台原生 TLS、系統 Proxy 與系統信任庫；Manifest 與 Artifact URL 都限制在官方 Repository Release 路徑。
+- 下載先寫入 `.part`，核對 Content 大小與 SHA-256 後才原子改名；開啟安裝包前會使用快取的 Manifest 再驗證，失敗時拒絕安裝。
+- 使用者確認安裝後，Desktop 先停止 Web、MariaDB、受管孤兒程序與 Agent，再開啟 DMG／Setup.exe 並退出。
+- 前端 55 項、Updater 5 項一般測試、完整 `pnpm test` 與 `pnpm lint` 通過；實際公開 Manifest 與 99,295,774 bytes macOS DMG 的完整下載、大小及 SHA-256 驗證也已通過。
+- `0.1.2` 本機 macOS Community 候選包已完成，大小為 98,639,468 bytes，SHA-256 為 `4b718f1f639347e93531ea192c5064883620f9fd09f509f0185fb0df2a754c2b`；內外層 checksum、版本、ad-hoc 簽章、ARM64 執行檔及固定 Runtime 邊界通過。公開 Stable 仍是 `0.1.1`，因此封裝版 UI 的完整升級流程仍須等待 `0.1.2` Release Assets，在 macOS 與 Windows 各驗收一次後才能宣告 P1 發布驗收完成。

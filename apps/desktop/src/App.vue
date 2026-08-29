@@ -6,6 +6,7 @@ import { RouterLink, RouterView } from 'vue-router'
 import fabDevIconUrl from '../src-tauri/icons/fabdev-app-icon.svg?url'
 import HelpManual from './components/HelpManual.vue'
 import { useAppStore } from './stores/fabdev'
+import type { AppUpdateDownloadProgress } from './utils/app-update'
 import { isHelpShortcut } from './utils/help'
 import { useI18n } from './utils/i18n'
 
@@ -28,6 +29,10 @@ onMounted(async () => {
   unlisteners.push(
     await listen('fabdev://service-state-changed', () => store.refreshStatus()),
     await listen<string>('fabdev://agent-error', (event) => store.setError(event.payload)),
+    await listen<AppUpdateDownloadProgress>(
+      'fabdev://app-update-download-progress',
+      (event) => store.setAppUpdateDownloadProgress(event.payload)
+    ),
     await listen('fabdev://quit-started', () => {
       isQuitting.value = true
     }),
@@ -48,6 +53,7 @@ onMounted(async () => {
   ]).catch((error) => {
     store.setError(error instanceof Error ? error.message : String(error))
   })
+  void store.checkAppUpdateOnLaunch()
 })
 
 onUnmounted(() => {

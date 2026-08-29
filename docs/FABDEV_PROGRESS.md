@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-08-29
-> 目前階段：macOS ARM64／Windows x64 Unsigned Community Build 0.1.1 已發布；P0 公開下載基礎完成
+> 目前階段：macOS ARM64／Windows x64 Unsigned Community Build 0.1.2 本機 macOS 候選包已完成；P1 App 更新等待封裝版驗收
 
 ## 已完成
 
@@ -32,7 +32,7 @@
 
 ## 最近驗證
 
-- 完整測試：前端 28、Rust 116、macOS Helper 9 項一般測試全數通過；另有 1 項需指定實際 MariaDB Runtime 的測試維持忽略。
+- 完整測試：前端 55、Release Script 5、Rust 145、macOS Helper 9 項一般測試全數通過；另有 1 項需指定實際 MariaDB Runtime 與 2 項公開網路整合測試維持忽略，後兩項已在 P1 實作時分別手動執行通過。
 - 隔離 HTTPS 流程已確認 CA chain、`tls-e2e.test` SAN、Nginx 1.30.4 `-t`、18444 高位 TLS 與實際 HTTPS 靜態檔回應；`demo.test` 已完成 Login Keychain 信任、HTTP 301 與正式 443 HTTPS 200 驗證。
 - `pnpm lint`：TypeScript、rustfmt、Clippy 與 Swift lint 通過。
 - Community Runtime Catalog 清單含 dnsmasq 2.93、Nginx 1.30.4、PHP 7.4.33、8.2.33、8.4.24 與 MariaDB 12.3.2；基礎 DMG 已依內建四個 Runtime 的規格重新打包。
@@ -55,6 +55,11 @@
 
 ## 2026-08-29 工作日誌
 
+- 專案正式版本來源已由 `0.1.1` 更新為 `0.1.2` 本機候選版；本次已取得重新打包授權，但不包含 Commit、Push、Tag、Draft Release 或 Publish 授權。
+- 本機 `fabDev-Community-0.1.2-macos-arm64.dmg` 已重新打包完成，大小為 98,639,468 bytes，SHA-256 為 `4b718f1f639347e93531ea192c5064883620f9fd09f509f0185fb0df2a754c2b`。Disk Image checksum、27 個內層 SHA-256、App／Build `0.1.2`、ad-hoc 簽章、ARM64 Desktop／Agent／CLI、固定四個內建 Runtime、安裝／移除程序來源一致性與公開內容邊界均通過。
+- P1 App 更新已接上 Desktop 設定頁與 `crates/updater`：支援啟動後每日自動檢查、手動檢查、Stable 新版資訊、Release Notes、下載進度、完整 DMG／Setup.exe 下載、大小／SHA-256 驗證，以及走安全 Quit 後開啟已驗證安裝包。第一階段不做背景自動覆蓋安裝。
+- 更新來源固定為 Public GitHub Releases Stable Manifest；Manifest 會嚴格驗證產品、Channel、版本、發布時間、官方 URL、平台、架構、完整安裝模式、檔名、大小與 SHA-256。Unsigned Community 要求 `signature: null`，網路使用平台原生 TLS、系統 Proxy 與系統信任庫。
+- 實際公開 Stable Manifest 檢查通過；並以相同下載流程完整取得 99,295,774 bytes 的 macOS DMG，通過大小、SHA-256、待安裝 Manifest 快取與再次驗證後清除測試檔。前端 55 項、Updater 5 項一般測試與完整 `pnpm test`／`pnpm lint` 均通過；另有 2 項明確標記的公開網路整合測試維持忽略，已在本次分別手動執行通過。
 - `v0.1.1` 已發布為最新 Stable Release：<https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.1>。Release `378823889` 狀態為非 Draft、非 Pre-release，共 9 個 Assets；未登入 Release 頁面回傳 HTTP 200。9 個 Assets 已從公開 URL 全部重新下載，大小、總表與個別 SHA-256、兩份 Manifest 及與發布前 Draft 的逐位元比對全數通過；遠端 annotated Tag 仍固定在 Commit `8d70808`。
 - Repository Owner 已明確授權提交並推送發布前後驗收文件、更新 `v0.1.1` Release Notes、Publish 與公開下載驗證。
 - `v0.1.1` Windows x64 Setup 已在 Parallels Windows 11 ARM 的 x64 模擬層完成 `0.1.0 → 0.1.1` 覆蓋更新、資料保留、Start／Stop／Start、PHP 7.4／8.2 切換、HTTP 200、解除安裝與乾淨資料基線首次安裝。首次啟動只有 `demo.test`，Proxy 為空；解除安裝清除 App、登錄、Hosts、程序與 Port，並依政策保留使用者資料。
@@ -95,6 +100,8 @@
 
 ## 驗證邊界
 
+- 目前公開 Stable Manifest 仍是 `0.1.1`；雖然 `0.1.2` 本機 macOS 候選包已完成，但尚未建立 Tag、Draft 或 Windows Asset，因此仍無法在正式封裝版 UI 實測「偵測較新版 → 下載 → Quit → 開啟安裝包」。後續需由 `0.1.2` Release Assets 在 macOS 與 Windows 各完成一次端到端驗收。
+- `fabdev-updater` 已通過 `x86_64-pc-windows-msvc` 交叉編譯；完整 Desktop 的 Windows 本機交叉檢查停在既有 bundled SQLite C 建置缺少 MSVC `stdlib.h`，需由 Windows MSVC GitHub Actions 或實機環境驗證，並非 Updater Rust 程式錯誤。
 - `v0.1.0` 的首次 Site Home、App 選單 Quit 與舊 CA 清理三項阻擋問題，已由 `v0.1.1` Draft 在恢復至 fabDev 未安裝基線的 Mac 完成首次安裝、覆蓋更新與完整移除回歸。
 - 覆蓋安裝程序結束後未觀察到 App 保持運行；手動開啟後所有服務與保留資料驗證通過。若後續要把「更新後自動重新開啟 App」列為發佈條件，仍需在另一個 macOS Session 重現確認。
 - Gatekeeper quarantine 已驗證會拒絕 ad-hoc App；53／80／443 衝突腳本已確認先檢查再寫入，但本次未在 sudo 授權失效後重新建立實際特權 Port 衝突。
@@ -120,6 +127,10 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 
 ### P1：核心開發體驗
 
+- [x] App 啟動後每日自動檢查與設定頁手動檢查 Stable Manifest；離線或更新失敗不阻止 App 啟動。
+- [x] 顯示版本、發布資訊、Release Notes、安裝包資料與下載進度；完整安裝包使用 `.part`、大小／SHA-256 驗證、原子改名及開啟前再次驗證。
+- [x] 使用者確認後先走既有安全 Quit，停止 Web、MariaDB、受管程序與 Agent，再開啟 DMG／Setup.exe；不做背景自動覆蓋安裝。
+- [ ] 使用下一個高於 `0.1.1` 的候選版，在封裝版 macOS／Windows 各完成新版偵測、下載、失敗重試、Quit、開啟安裝包及覆蓋更新端到端驗收。
 - [ ] 提供可由一般本機瀏覽器操作的 Web UI；新增只綁定 loopback、具身分驗證與權限限制的 HTTP／WebSocket API，並讓前端在非 Tauri 環境改走該 API。
 - [ ] 建立 PHP 8.3 Community Runtime 與升級偵測通知。
 - [ ] 提供 shell PHP／Composer／Artisan shim，支援全域及 Site 版本。
