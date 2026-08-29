@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` Draft 已建立並完成 Assets 完整性驗證，尚待平台驗收
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` Draft 已完成 Assets 與 macOS 生命週期驗收，尚待 Windows 驗收
 
 ## 1. 目標
 
@@ -303,7 +303,15 @@ DRAFT v<version>
 
 Draft 內 9 個 Assets 已全部重新下載驗證。`SHA256SUMS` 與三份個別校驗檔均通過，兩份 Manifest 逐位元一致，並確認 `requiresFullInstaller=true`、簽章欄位為 `null`、Connect 未混入 App 安裝包清單。DMG 為 99,295,774 bytes、SHA-256 `24849fd966de2f61c4641056f9ab1c6b0b0ed59308f2e9b3cb6388cdf60ddb28`；Windows Setup 為 48,332,278 bytes、SHA-256 `5bd0c91c8885e855c03865aba9909b02c26ee2e73503450c1af27fa3fd310319`；Connect 為 749,568 bytes、SHA-256 `2082d724e809a04111a78a74fe7f0aadd021218569a4589a8c6b7b9fd0a4710f`。DMG Disk Image checksum、內部 27 個校驗項目、App／Build `0.1.1`、ad-hoc codesign、ARM64 Desktop／Agent／CLI、新版移除程序及公開內容邊界均通過。
 
-這只代表 Draft Assets 與封裝內容完整，仍不代表 macOS／Windows 乾淨機安裝、覆蓋更新、完整移除或 Publish 驗收完成。
+這只代表 Draft Assets 與封裝內容完整，不代表 Windows 乾淨機安裝或 Publish 驗收完成。
+
+### 8.4 `v0.1.1` macOS 驗收紀錄
+
+從 Draft 重新下載並驗證的 DMG 已在恢復至 fabDev 未安裝基線的 Mac 完成管理員首次安裝。App、Community Helper、Protocol 32 Agent、DNS、Nginx 與 PHP-FPM 正常啟動；初始化只有 `demo.test`，Proxy 清單為空，Site Home 已保存為 Demo 父目錄，App 重啟後仍未匯入其他本機專案。既有的相容 Resolver 與外部 System／Homebrew MariaDB 在安裝、運行及移除期間均未被修改或接管。
+
+以實際 macOS App 選單執行 `Quit fabDev` 後，Desktop、Agent、dnsmasq、Nginx、PHP-FPM、Proxy 與內部 53535／8080／8443 listener 全部清理。替 `demo.test` 啟用 HTTPS 後，Login Keychain CA 信任、HTTP 301、HTTPS 200、leaf certificate SAN 與 CA chain 均通過。
+
+同版覆蓋更新保留原 Site ID、Site Home、HTTPS、CA／leaf certificate、Demo、空白 Proxy 與 Resolver 指紋；更新後手動開啟 App 可正常恢復服務。完整移除已清除 App、Helper、資料、Demo、CA、受管程序及 53／80／443／53535／8080／8443 listener，本次 App、資料與 Demo 分別移至垃圾桶且可復原。覆蓋安裝結束後未觀察到 App 保持運行，若將更新後自動重新開啟列為發佈條件，仍需在另一個 macOS Session 重現確認。
 
 ## 9. Publish 後驗證
 
@@ -349,7 +357,7 @@ P0 發布基礎需依序完成：
 - [x] Release Asset、版本、Channel、Manifest、Draft、Publish 與回復契約。
 - [x] 產生 Release Manifest 與 Checksum 的可重現腳本。
 - [x] 建立只接受手動雙重確認、只會產生 Draft、不會自動 Publish 的 GitHub Actions Release workflow，並以 `v0.1.0` 與 `v0.1.1` 實際執行。
-- [ ] 在乾淨 Mac 完成 Community DMG 首次安裝、覆蓋更新與移除驗收；`v0.1.0` 已因三項阻擋問題失敗，待新 Patch 版本重跑。
+- [x] 在恢復至 fabDev 未安裝基線的 Mac 完成 `v0.1.1` Community DMG 首次安裝、覆蓋更新與完整移除驗收；原三項阻擋問題均通過回歸。
 - [ ] 在乾淨 Windows x64 完成 NSIS 首次安裝、覆蓋更新與移除驗收。
 - [x] 建立第一個 `v0.1.0` Draft Release，並從 GitHub 重新下載 9 個 Assets 驗證大小、Manifest 與 SHA-256。
 - [x] 建立 `v0.1.1` Draft Release，並從 GitHub 重新下載 9 個 Assets 驗證大小、Manifest、SHA-256 與 DMG 內容。
