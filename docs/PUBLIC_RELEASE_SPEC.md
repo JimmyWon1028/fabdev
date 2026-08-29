@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` Draft 已完成 Assets 與 macOS 生命週期驗收，尚待 Windows 驗收
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` Draft 已完成 Assets、macOS 與 Windows 生命週期驗收，進入最終 Publish 檢查
 
 ## 1. 目標
 
@@ -313,6 +313,20 @@ Draft 內 9 個 Assets 已全部重新下載驗證。`SHA256SUMS` 與三份個�
 
 同版覆蓋更新保留原 Site ID、Site Home、HTTPS、CA／leaf certificate、Demo、空白 Proxy 與 Resolver 指紋；更新後手動開啟 App 可正常恢復服務。完整移除已清除 App、Helper、資料、Demo、CA、受管程序及 53／80／443／53535／8080／8443 listener，本次 App、資料與 Demo 分別移至垃圾桶且可復原。覆蓋安裝結束後未觀察到 App 保持運行，若將更新後自動重新開啟列為發佈條件，仍需在另一個 macOS Session 重現確認。
 
+加入 quarantine 屬性的 Draft DMG 副本保持原 SHA-256；Gatekeeper 對內部 ad-hoc、無 Team ID 的 App 回報 rejected，符合 Unsigned Community Build 的已知限制。實際管理員首次安裝與 Helper 更新已在前述生命週期驗收通過；53／80／443 衝突腳本確認會在寫入 Helper 前停止，但因驗收結束後 sudo 授權已失效，本次未再次建立實際特權 Port 衝突。
+
+### 8.5 `v0.1.1` Windows 驗收紀錄
+
+從 Draft 重新下載的 Windows x64 Setup 已在 Parallels Windows 11 ARM VM 以 x64 模擬執行，檔案大小為 48,332,278 bytes，SHA-256 為 `5bd0c91c8885e855c03865aba9909b02c26ee2e73503450c1af27fa3fd310319`。先從保留資料的 `0.1.0` 執行 Current User 靜默覆蓋更新，Installer exit code 為 0，登錄版本更新為 `0.1.1`，SQLite SHA-256 保持 `525a44e957b1c1f0b6c3c103ff7d8f8ee6b1baea2ff4def4d6ec8492a9ccce8b`，原 `demo.test` Site ID、Site Home、PHP 8.2 與空白 Proxy 均保留。
+
+更新後 Agent Protocol 32、Nginx 1.30.4、PHP 7.4.33／8.2.33 均正常。Start → Stop → Start 完成，Stop 後 fabDev 管理的 Nginx／PHP 與 80／443 listener 全部清除；兩個 PHP 版本切換後 `http://demo.test` 都回傳 HTTP 200 與對應版本。Desktop 使用 Windows GUI subsystem，背景 Nginx／PHP 行程皆位於 fabDev Runtime，沒有 fabDev 衍生的額外 Terminal 行程。
+
+解除安裝 exit code 為 0，移除登錄、Desktop、Agent、Helper、Uninstaller、受管 Hosts、程序與 listener；使用者 `data` 與既有 Connect 設定依保留政策留在原目錄。為建立乾淨基線，保留資料整包移至 VM 內具名可復原備份後，再次安裝同一 Setup。首次啟動前沒有資料目錄或 Connect 設定；首次啟動後唯一 Site 為 `demo.test`、Proxy 清單為空、Site Home 為 `C:\Users\jimmywon\Sites`，PHP 7.4.33／8.2.33 與 HTTP 200 均通過。
+
+Draft Connect 為 749,568 bytes，SHA-256 `2082d724e809a04111a78a74fe7f0aadd021218569a4589a8c6b7b9fd0a4710f`；從 Parallels Shared Folder 啟動後成功轉存相同雜湊的本機 Runtime，並以 `runas --elevated` 執行。Connect 正確拒絕接管本機 fabDev 已存在的同名 `demo.test` Hosts 紀錄。Connect 的多 Site 實際轉送與中斷清理仍屬 P2，不作為本次 P0 NSIS 發布阻擋條件。
+
+此環境證明 GitHub Actions 產生的 Windows x64 binary 可在 Windows 11 ARM 的 x64 模擬層完成安裝與生命週期驗收；乾淨實體 Windows x64、SmartScreen 簽章信譽及 IIS／Herd 共存仍是後續驗收邊界。
+
 ## 9. Publish 後驗證
 
 - 以未登入狀態開啟 Release 頁面及每個 Asset，狀態必須成功。
@@ -358,9 +372,9 @@ P0 發布基礎需依序完成：
 - [x] 產生 Release Manifest 與 Checksum 的可重現腳本。
 - [x] 建立只接受手動雙重確認、只會產生 Draft、不會自動 Publish 的 GitHub Actions Release workflow，並以 `v0.1.0` 與 `v0.1.1` 實際執行。
 - [x] 在恢復至 fabDev 未安裝基線的 Mac 完成 `v0.1.1` Community DMG 首次安裝、覆蓋更新與完整移除驗收；原三項阻擋問題均通過回歸。
-- [ ] 在乾淨 Windows x64 完成 NSIS 首次安裝、覆蓋更新與移除驗收。
+- [x] 在乾淨 Windows 資料基線完成 x64 NSIS 首次安裝、覆蓋更新與移除驗收；本次環境為 Parallels Windows 11 ARM 的 x64 模擬層，實體 Windows x64 仍列為後續邊界。
 - [x] 建立第一個 `v0.1.0` Draft Release，並從 GitHub 重新下載 9 個 Assets 驗證大小、Manifest 與 SHA-256。
 - [x] 建立 `v0.1.1` Draft Release，並從 GitHub 重新下載 9 個 Assets 驗證大小、Manifest、SHA-256 與 DMG 內容。
-- [ ] Repository Owner 人工核准第一個 Stable Publish。
+- [x] Repository Owner 已明確核准 `v0.1.1` Stable Publish。
 
 目前只完成發布契約，不代表已有可供下載的正式 Stable Release。

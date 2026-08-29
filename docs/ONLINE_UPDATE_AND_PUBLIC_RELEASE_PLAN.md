@@ -3,7 +3,7 @@
 > 規劃日期：2026-08-28
 >
 > 適用階段：macOS ARM64／Windows x64 Unsigned Community Build
-> 文件狀態：已進入 P0；`v0.1.0` Draft 驗收失敗且未 Publish，`v0.1.1` Draft 已完成 Assets 與 macOS 生命週期驗收，尚待 Windows 驗收
+> 文件狀態：已進入 P0；`v0.1.0` Draft 驗收失敗且未 Publish，`v0.1.1` Draft 已完成 Assets、macOS 與 Windows 生命週期驗收，進入最終 Publish 檢查
 
 P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 

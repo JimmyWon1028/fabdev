@@ -261,6 +261,21 @@ artifacts/windows-x64/FabDev_0.1.0_x64-setup.exe
 
 此紀錄證明該產物在本次 Parallels Windows 11 VM 可安裝與使用；正式發佈仍應補做乾淨的實體 Windows x64、IIS／Herd 共存及簽章／下載鏈驗證。
 
+## 2026-08-29 `v0.1.1` Draft 驗收紀錄
+
+本次直接使用從 GitHub Draft 重新下載並核對過的兩個 Windows x64 產物：
+
+- Setup 大小 48,332,278 bytes，SHA-256 `5bd0c91c8885e855c03865aba9909b02c26ee2e73503450c1af27fa3fd310319`。
+- Connect 大小 749,568 bytes，SHA-256 `2082d724e809a04111a78a74fe7f0aadd021218569a4589a8c6b7b9fd0a4710f`。
+
+Windows 11 ARM VM 以 x64 模擬執行 Setup。先從既有 `0.1.0` 覆蓋更新，Installer exit code 為 0、登錄版本為 `0.1.1`，SQLite 雜湊保持不變，原 Site ID、Site Home、PHP 8.2 與空白 Proxy 均保留。Protocol 32、Nginx 1.30.4、PHP 7.4.33／8.2.33、Start → Stop → Start、兩個 PHP 版本的 `demo.test` HTTP 200，以及 Stop 後程序與 80／443 清理全部通過。
+
+解除安裝 exit code 為 0，App、登錄、受管 Hosts、Nginx／PHP 與 listener 均移除；`data` 與 Connect 設定依保留政策留在安裝目錄。為驗證首次安裝，保留目錄整包移至 VM 內具名可復原備份，確認安裝前沒有 fabDev 資料後再安裝同一 Setup。首次啟動只建立 `demo.test`，Proxy 清單為空，PHP 7.4.33／8.2.33 齊全，HTTP 200 通過。
+
+Connect 從 Parallels Shared Folder 啟動後，成功把自己轉存為本機 `fabdev-connect-runtime.exe`，本機 Runtime SHA-256 與 Draft Asset 相同，並以 `runas --elevated` 執行。當本機 fabDev Helper 已管理同名 `demo.test` 時，Connect 依設計拒絕覆寫該 Hosts 紀錄。多 Site 實際轉送與中斷清理仍列在 P2，不是本次 P0 NSIS 發布阻擋條件。
+
+此結果不能取代乾淨實體 Windows x64、SmartScreen 簽章信譽、IIS／Herd 共存與企業安全軟體環境驗證。
+
 ## 常見問題快速對照
 
 | 症狀 | 優先檢查 |

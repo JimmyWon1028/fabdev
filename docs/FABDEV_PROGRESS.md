@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-08-29
-> 目前階段：macOS ARM64／Windows x64 Unsigned Community Build 0.1.1 Draft 驗收
+> 目前階段：macOS ARM64／Windows x64 Unsigned Community Build 0.1.1 最終 Publish 檢查
 
 ## 已完成
 
@@ -55,6 +55,11 @@
 
 ## 2026-08-29 工作日誌
 
+- Repository Owner 已明確授權提交並推送發布前後驗收文件、更新 `v0.1.1` Release Notes、Publish 與公開下載驗證。
+- `v0.1.1` Windows x64 Setup 已在 Parallels Windows 11 ARM 的 x64 模擬層完成 `0.1.0 → 0.1.1` 覆蓋更新、資料保留、Start／Stop／Start、PHP 7.4／8.2 切換、HTTP 200、解除安裝與乾淨資料基線首次安裝。首次啟動只有 `demo.test`，Proxy 為空；解除安裝清除 App、登錄、Hosts、程序與 Port，並依政策保留使用者資料。
+- Draft Connect 已確認 Shared Folder 啟動後轉存相同 SHA-256 的本機 Runtime 並進入 UAC `--elevated`；同時驗證它會拒絕接管本機 fabDev 已存在的同名 Hosts 紀錄。多 Site 實際轉送與中斷清理維持 P2，不列為 P0 NSIS Publish 阻擋條件。
+- quarantine DMG 副本保持原 SHA-256，Gatekeeper 對 ad-hoc、無 Team ID 的 App 如預期回報 rejected；管理員安裝已在完整生命週期驗收通過。53／80／443 檢查位於 Helper 寫入前，實際特權 Port 衝突因 sudo 授權已失效未再次重跑。
+- macOS hosted release 的 `rust-objcopy` 警告來自 runner Rust 工具缺少 `libLLVM.dylib`；已讓 Tauri release build 與 Community CLI 明確使用 `CARGO_PROFILE_RELEASE_STRIP=none`。完整測試、lint 與無 stripping 警告的 release App build 通過，修正已推送至 main，但不移動固定的 `v0.1.1` Tag 或變更 Draft Assets。
 - 專案正式版本來源已由 `0.1.0` 更新為 `0.1.1` 候選版；annotated `v0.1.1` Tag 固定在 Release Commit `8d70808`。GitHub Actions 已從該 Tag 重新建置 macOS ARM64／Windows x64 產物並建立 Draft Release，沒有 Publish。
 - 本機重新打包的 `fabDev-Community-0.1.1-macos-arm64.dmg` 為 98,158,623 bytes，SHA-256 為 `fba390ef39b0fe6e0542a64448c4af954423bc2ea8a3e3ca47777397565a22fc`；DMG、27 個內層檔案、App／Build 版本、ad-hoc 簽章與 Desktop／Agent／CLI ARM64 均驗證通過，新版 Uninstaller 與來源一致。此 Hash 只記錄本機候選包，不取代未來 Draft Assets 的重新下載驗證。
 - `v0.1.1` Draft 的 9 個 Assets 已全部重新下載；總表與三份個別 SHA-256、兩份逐位元一致的 Manifest、實際檔案大小及 DMG 內部 27 個校驗項目全數通過。DMG 為 99,295,774 bytes、SHA-256 `24849fd966de2f61c4641056f9ab1c6b0b0ed59308f2e9b3cb6388cdf60ddb28`；Windows Setup 為 48,332,278 bytes、SHA-256 `5bd0c91c8885e855c03865aba9909b02c26ee2e73503450c1af27fa3fd310319`；Connect 為 749,568 bytes、SHA-256 `2082d724e809a04111a78a74fe7f0aadd021218569a4589a8c6b7b9fd0a4710f`。
@@ -91,9 +96,9 @@
 
 - `v0.1.0` 的首次 Site Home、App 選單 Quit 與舊 CA 清理三項阻擋問題，已由 `v0.1.1` Draft 在恢復至 fabDev 未安裝基線的 Mac 完成首次安裝、覆蓋更新與完整移除回歸。
 - 覆蓋安裝程序結束後未觀察到 App 保持運行；手動開啟後所有服務與保留資料驗證通過。若後續要把「更新後自動重新開啟 App」列為發佈條件，仍需在另一個 macOS Session 重現確認。
-- 尚未驗證 Gatekeeper quarantine 與 Herd／Valet Port 衝突指引。
-- Release 建置仍警告 `rust-objcopy` 找不到 `libLLVM.dylib`；不影響產物生成，但 stripping 尚待修正。
-- Windows 安裝程式尚未在實體 Windows x64 驗證安裝、UAC Hosts 修改、啟動服務及完整解除安裝。
+- Gatekeeper quarantine 已驗證會拒絕 ad-hoc App；53／80／443 衝突腳本已確認先檢查再寫入，但本次未在 sudo 授權失效後重新建立實際特權 Port 衝突。
+- release stripping 工具鏈警告已在 main 修正並以無警告 release App build 驗證；固定的 `v0.1.1` Tag 與既有 Draft Assets 不回寫此未來建置修正。
+- Windows x64 Setup 已在 Parallels Windows 11 ARM 的 x64 模擬層完成生命週期驗收；乾淨實體 Windows x64、SmartScreen 簽章信譽與 IIS／Herd 共存尚未驗證。
 
 ## TODO
 
@@ -105,11 +110,11 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [x] 建立 Release Asset／Manifest／Checksum 產生器；驗證四個版本來源與 Agent Protocol，不覆蓋既有輸出，也不執行打包或發布。
 - [x] 建立只接受手動雙重確認、既有 Tag 且只會建立 Draft 的 GitHub Actions Release workflow；只有最後 Job 具寫入權限，已用 `v0.1.0` 與 `v0.1.1` 完成兩平台建置與 Draft 建立。
 - [x] 在恢復至 fabDev 未安裝基線的 Mac 驗證安裝 → 自動啟動 → `demo.test` → 更新 → 完整移除；`v0.1.1` 已通過原三項阻擋問題回歸與外部 Resolver／MariaDB 共存檢查。
-- [ ] 驗證 Gatekeeper、quarantine、管理員授權及 53／80／443 衝突錯誤訊息。
-- [ ] 修正 release stripping 工具鏈警告。
+- [x] 驗證 Gatekeeper、quarantine 與管理員授權；實際 53／80／443 特權 Port 衝突保留為後續補充驗收。
+- [x] 修正 release stripping 工具鏈警告。
 - [x] 建立第一個 `v0.1.0` Draft Release，重新下載 9 個 Assets，核對實際大小、Manifest 與 SHA-256；目前仍未 Publish。
 - [x] 建立 `v0.1.1` Draft Release，重新下載 9 個 Assets 並驗證大小、Manifest、SHA-256、DMG 內容與公開內容邊界；目前仍未 Publish。
-- [ ] 由 Repository Owner 在乾淨 Mac／Windows 驗收完成後人工核准 Publish。
+- [x] Repository Owner 已在 Mac／Windows 驗收完成後人工核准 `v0.1.1` Publish。
 
 ### P1：核心開發體驗
 
@@ -127,7 +132,7 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [x] macOS ARM64 MariaDB 選裝服務。
 - [ ] Windows MariaDB 安裝版與 Portable 版的 Runtime、資料及升級策略。
 - [x] Windows Platform Adapter 與 Unsigned Community NSIS 安裝包。
-- [ ] 在乾淨 Windows x64 驗證安裝 → UAC → `demo.test` → PHP 切換 → 完整移除。
+- [x] 在 Parallels Windows 11 ARM 的 x64 模擬層以乾淨資料基線驗證安裝 → UAC Helper／Hosts → `demo.test` → PHP 切換 → 完整移除；實體 Windows x64 仍待補測。
 - [ ] 在 Parallels Windows 11 驗證 `fabdev-connect.exe` → UAC → 多 Site hosts → `http://site-one.test`／`http://site-two.test` → 並行載入 → 中斷清理。
 - [ ] Developer ID、notarization 與 `SMAppService` Signed Distribution。
 
