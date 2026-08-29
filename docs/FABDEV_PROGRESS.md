@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-08-29
-> 目前階段：macOS ARM64／Windows x64 Unsigned Community Build 0.1.1 候選版
+> 目前階段：macOS ARM64／Windows x64 Unsigned Community Build 0.1.1 Draft 驗收
 
 ## 已完成
 
@@ -55,8 +55,9 @@
 
 ## 2026-08-29 工作日誌
 
-- 專案正式版本來源已由 `0.1.0` 更新為 `0.1.1` 候選版；annotated `v0.1.1` Tag 固定在 Release Commit `8d70808`，macOS 候選包已重新打包，Draft Release 尚未建立。
+- 專案正式版本來源已由 `0.1.0` 更新為 `0.1.1` 候選版；annotated `v0.1.1` Tag 固定在 Release Commit `8d70808`。GitHub Actions 已從該 Tag 重新建置 macOS ARM64／Windows x64 產物並建立 Draft Release，沒有 Publish。
 - 本機重新打包的 `fabDev-Community-0.1.1-macos-arm64.dmg` 為 98,158,623 bytes，SHA-256 為 `fba390ef39b0fe6e0542a64448c4af954423bc2ea8a3e3ca47777397565a22fc`；DMG、27 個內層檔案、App／Build 版本、ad-hoc 簽章與 Desktop／Agent／CLI ARM64 均驗證通過，新版 Uninstaller 與來源一致。此 Hash 只記錄本機候選包，不取代未來 Draft Assets 的重新下載驗證。
+- `v0.1.1` Draft 的 9 個 Assets 已全部重新下載；總表與三份個別 SHA-256、兩份逐位元一致的 Manifest、實際檔案大小及 DMG 內部 27 個校驗項目全數通過。DMG 為 99,295,774 bytes、SHA-256 `24849fd966de2f61c4641056f9ab1c6b0b0ed59308f2e9b3cb6388cdf60ddb28`；Windows Setup 為 48,332,278 bytes、SHA-256 `5bd0c91c8885e855c03865aba9909b02c26ee2e73503450c1af27fa3fd310319`；Connect 為 749,568 bytes、SHA-256 `2082d724e809a04111a78a74fe7f0aadd021218569a4589a8c6b7b9fd0a4710f`。
 - 從 GitHub Draft 重新下載的 `v0.1.0` DMG 已通過管理員安裝、Helper／Resolver 建立、唯一 `demo.test` 的 DNS、HTTP、HTTPS、憑證 SAN 與 Login Keychain 信任驗證；Proxy 首次安裝清單為空。
 - 乾淨初始化發現 Site Home 未持久化，導致預設掃描其他本機專案；已改為建立 `demo.test` 後同步保存其父目錄，並加入不匯入同層無關資料夾的回歸測試。
 - macOS App 選單的原生 Quit 項目會直接結束 Desktop，沒有停止 Agent 與 Web 服務；已換成具有 `Command+Q` 的 fabDev 自訂 Quit 項目，統一交由既有的安全退出流程處理。
@@ -85,7 +86,7 @@
 
 ## 驗證邊界
 
-- `v0.1.0` 已開始乾淨 Mac 管理員安裝驗收，但因首次 Site Home、App 選單 Quit 與舊 CA 清理三項阻擋問題未通過；覆蓋更新尚未完成，修正後必須以新 Patch 版本重跑完整流程。
+- `v0.1.0` 已開始乾淨 Mac 管理員安裝驗收，但因首次 Site Home、App 選單 Quit 與舊 CA 清理三項阻擋問題未通過；`v0.1.1` Draft 已含修正，仍須從首次安裝開始重跑完整流程。
 - 尚未驗證 Gatekeeper quarantine 與 Herd／Valet Port 衝突指引。
 - Release 建置仍警告 `rust-objcopy` 找不到 `libLLVM.dylib`；不影響產物生成，但 stripping 尚待修正。
 - Windows 安裝程式尚未在實體 Windows x64 驗證安裝、UAC Hosts 修改、啟動服務及完整解除安裝。
@@ -98,11 +99,12 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 
 - [x] 完成 Public Repository、Release Asset 命名、Stable Channel、App Manifest v1、Draft／Publish 與回復契約；見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 - [x] 建立 Release Asset／Manifest／Checksum 產生器；驗證四個版本來源與 Agent Protocol，不覆蓋既有輸出，也不執行打包或發布。
-- [x] 建立只接受手動雙重確認、既有 Tag 且只會建立 Draft 的 GitHub Actions Release workflow；只有最後 Job 具寫入權限，已用 `v0.1.0` 完成兩平台建置與 Draft 建立。
+- [x] 建立只接受手動雙重確認、既有 Tag 且只會建立 Draft 的 GitHub Actions Release workflow；只有最後 Job 具寫入權限，已用 `v0.1.0` 與 `v0.1.1` 完成兩平台建置與 Draft 建立。
 - [ ] 在乾淨 Mac 驗證安裝 → 自動啟動 → `demo.test` → 更新 → 完整移除；`v0.1.0` 驗收已發現三項阻擋問題，待新 Patch 版本重跑。
 - [ ] 驗證 Gatekeeper、quarantine、管理員授權及 53／80／443 衝突錯誤訊息。
 - [ ] 修正 release stripping 工具鏈警告。
 - [x] 建立第一個 `v0.1.0` Draft Release，重新下載 9 個 Assets，核對實際大小、Manifest 與 SHA-256；目前仍未 Publish。
+- [x] 建立 `v0.1.1` Draft Release，重新下載 9 個 Assets 並驗證大小、Manifest、SHA-256、DMG 內容與公開內容邊界；目前仍未 Publish。
 - [ ] 由 Repository Owner 在乾淨 Mac／Windows 驗收完成後人工核准 Publish。
 
 ### P1：核心開發體驗

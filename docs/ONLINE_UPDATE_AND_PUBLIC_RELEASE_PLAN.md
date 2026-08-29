@@ -3,7 +3,7 @@
 > 規劃日期：2026-08-28
 >
 > 適用階段：macOS ARM64／Windows x64 Unsigned Community Build
-> 文件狀態：已進入 P0；`v0.1.0` Draft 驗收失敗且未 Publish，`v0.1.1` Tag 與本機 macOS 候選包已建立，新的 Draft Release 尚未建立
+> 文件狀態：已進入 P0；`v0.1.0` Draft 驗收失敗且未 Publish，`v0.1.1` Draft 已建立並完成 Assets 完整性驗證，尚待平台驗收
 
 P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 
@@ -16,7 +16,7 @@ P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見
 - 線上下載使用 HTTPS；不讓 App 使用 FTP 或 SFTP 作為下載協定。
 - 第一階段以 GitHub Releases 作為安裝包與 Runtime Package 的主要候選來源。
 - `JimmyWon1028/fabdev` 已完成公開前審查並改為 Public。
-- Draft Release workflow 只接受手動雙重確認與既有 Tag，不會自動 Publish；已用 `v0.1.0` 完成首次實際建置與 Draft 驗證。
+- Draft Release workflow 只接受手動雙重確認與既有 Tag，不會自動 Publish；已用 `v0.1.0` 與 `v0.1.1` 完成實際兩平台建置與 Draft Assets 驗證。
 
 ## 2. 更新範圍
 

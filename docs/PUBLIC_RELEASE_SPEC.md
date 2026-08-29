@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` Tag 與本機 macOS 候選包已建立，尚未建立新的 Draft Release
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` Draft 已建立並完成 Assets 完整性驗證，尚待平台驗收
 
 ## 1. 目標
 
@@ -295,11 +295,15 @@ DRAFT v<version>
 
 這三項問題的修正只進入後續程式碼，不得移動或重用 `v0.1.0` Tag，也不得覆蓋既有 Draft Assets。必須增加 Patch 版本、重新取得打包與 Draft 授權，再從首次安裝開始重跑 macOS 覆蓋更新及移除驗收。`v0.1.0` Draft 維持未發布。
 
-### 8.3 `v0.1.1` 候選版本準備
+### 8.3 `v0.1.1` Draft 驗證
 
 `v0.1.1` 的正式版本來源與 Cargo workspace lock 已同步，完整測試與 lint 通過；annotated `v0.1.1` Tag 固定指向 Release Commit `8d70808`。取得重新打包授權後，本機 macOS ARM64 Community DMG 已建立，外層 SHA-256、Disk Image checksum、27 個內層檔案、App／Build 版本、ad-hoc 簽章、ARM64 Desktop／Agent／CLI、四個固定內建 Runtime 與新版移除程序均通過檢查。
 
-這只是本機候選包驗證。GitHub `v0.1.1` Draft 尚未建立；建立 Draft 仍需另外授權，且 GitHub Hosted macOS／Windows Job 必須從固定 Tag 重新建置兩平台 Assets，再重新下載核對 Release 內的實際 Hash。
+取得 Draft Release 授權後，GitHub Actions Run `33222168031` 已從固定 Tag Commit `8d70808` 完成 macOS ARM64、Windows x64 與 Draft 建立 Job。Release 保持 `draft=true`、`published_at=null`，沒有 Publish；原 `v0.1.0` Draft 亦保持不變。
+
+Draft 內 9 個 Assets 已全部重新下載驗證。`SHA256SUMS` 與三份個別校驗檔均通過，兩份 Manifest 逐位元一致，並確認 `requiresFullInstaller=true`、簽章欄位為 `null`、Connect 未混入 App 安裝包清單。DMG 為 99,295,774 bytes、SHA-256 `24849fd966de2f61c4641056f9ab1c6b0b0ed59308f2e9b3cb6388cdf60ddb28`；Windows Setup 為 48,332,278 bytes、SHA-256 `5bd0c91c8885e855c03865aba9909b02c26ee2e73503450c1af27fa3fd310319`；Connect 為 749,568 bytes、SHA-256 `2082d724e809a04111a78a74fe7f0aadd021218569a4589a8c6b7b9fd0a4710f`。DMG Disk Image checksum、內部 27 個校驗項目、App／Build `0.1.1`、ad-hoc codesign、ARM64 Desktop／Agent／CLI、新版移除程序及公開內容邊界均通過。
+
+這只代表 Draft Assets 與封裝內容完整，仍不代表 macOS／Windows 乾淨機安裝、覆蓋更新、完整移除或 Publish 驗收完成。
 
 ## 9. Publish 後驗證
 
@@ -344,10 +348,11 @@ P0 發布基礎需依序完成：
 - [x] Public Repository 與公開安全回報管道。
 - [x] Release Asset、版本、Channel、Manifest、Draft、Publish 與回復契約。
 - [x] 產生 Release Manifest 與 Checksum 的可重現腳本。
-- [x] 建立只接受手動雙重確認、只會產生 Draft、不會自動 Publish 的 GitHub Actions Release workflow，並以 `v0.1.0` 實際執行。
+- [x] 建立只接受手動雙重確認、只會產生 Draft、不會自動 Publish 的 GitHub Actions Release workflow，並以 `v0.1.0` 與 `v0.1.1` 實際執行。
 - [ ] 在乾淨 Mac 完成 Community DMG 首次安裝、覆蓋更新與移除驗收；`v0.1.0` 已因三項阻擋問題失敗，待新 Patch 版本重跑。
 - [ ] 在乾淨 Windows x64 完成 NSIS 首次安裝、覆蓋更新與移除驗收。
 - [x] 建立第一個 `v0.1.0` Draft Release，並從 GitHub 重新下載 9 個 Assets 驗證大小、Manifest 與 SHA-256。
+- [x] 建立 `v0.1.1` Draft Release，並從 GitHub 重新下載 9 個 Assets 驗證大小、Manifest、SHA-256 與 DMG 內容。
 - [ ] Repository Owner 人工核准第一個 Stable Publish。
 
 目前只完成發布契約，不代表已有可供下載的正式 Stable Release。
