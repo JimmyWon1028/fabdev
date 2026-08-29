@@ -3,7 +3,7 @@
 > 規劃日期：2026-08-28
 >
 > 適用階段：macOS ARM64／Windows x64 Unsigned Community Build
-> 文件狀態：已進入 P0；`v0.1.0` Draft 驗收失敗且未 Publish，`v0.1.1` Draft 已完成 Assets、macOS 與 Windows 生命週期驗收，進入最終 Publish 檢查
+> 文件狀態：P0 公開下載基礎已完成；`v0.1.0` Draft 驗收失敗且未 Publish，`v0.1.1` 已完成 Stable Publish 與匿名公開下載驗證
 
 P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 
@@ -16,7 +16,7 @@ P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見
 - 線上下載使用 HTTPS；不讓 App 使用 FTP 或 SFTP 作為下載協定。
 - 第一階段以 GitHub Releases 作為安裝包與 Runtime Package 的主要候選來源。
 - `JimmyWon1028/fabdev` 已完成公開前審查並改為 Public。
-- Draft Release workflow 只接受手動雙重確認與既有 Tag，不會自動 Publish；已用 `v0.1.0` 與 `v0.1.1` 完成實際兩平台建置與 Draft Assets 驗證。
+- Draft Release workflow 只接受手動雙重確認與既有 Tag，不會自動 Publish；已用 `v0.1.0` 與 `v0.1.1` 完成實際兩平台建置與 Draft Assets 驗證，`v0.1.1` 再經人工核准另行發布為 Stable。
 
 ## 2. 更新範圍
 
@@ -350,7 +350,7 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 - 已建立 GitHub Releases 發布契約。
 - 已建立 Release Asset、SHA-256 與 App Manifest v1 產生器。
 - 已建立只會產生 Draft、不會自動 Publish 的手動 GitHub Actions workflow。
-- 建立下載頁、SHA-256、Release Manifest 與 Release Notes。
+- 已發布 `v0.1.1` Stable 下載頁、SHA-256、Release Manifest 與 Release Notes，並完成匿名公開下載驗證。
 
 ### P1：App 內檢查與下載
 
@@ -444,3 +444,20 @@ Repository Owner 已明確核准「改 Public」，`JimmyWon1028/fabdev` 已從 
 - GitHub 最終只有 `main`；Tag、Release、Actions run、artifact 與 Pull Request 數量皆為 0。
 - 本機 `main` 與遠端 `origin/main` HEAD 一致，工作樹乾淨。
 - 本次只變更 Repository Visibility 與安全設定，沒有建立 Release、上傳安裝包或重新打包 Community DMG。
+
+## 15. `v0.1.1` Stable 發布結果
+
+Repository Owner 完成 macOS／Windows 驗收並明確核准後，`v0.1.1` 已於 `2026-08-29T01:54:37Z` 發布為最新 Stable Release：
+
+```text
+https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.1
+```
+
+- Release `378823889` 為非 Draft、非 Pre-release，共 9 個公開 Assets。
+- 未登入 Release 頁面回傳 HTTP `200`；所有 Assets 均可由公開版本 URL 完整下載。
+- 公開 DMG、Windows Setup 與 Connect 的大小及 SHA-256 全部通過，兩份 Stable Manifest 逐位元一致。
+- 9 個公開檔案與發布前 Draft 驗收檔逐位元一致，Publish 沒有替換內容。
+- 遠端 annotated `v0.1.1` Tag 仍固定指向 Release Commit `8d70808a43fb3f2f5406c0e572c2b6e4e51f0350`。
+- `v0.1.0` 保持獨立 Draft，沒有誤發布或被 `v0.1.1` 覆蓋。
+
+P0 到此完成；下一階段為 P1 App 內版本檢查、下載進度、完整性驗證及開啟安裝包，不包含背景自動覆蓋安裝。

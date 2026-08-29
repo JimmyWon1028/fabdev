@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` Draft 已完成 Assets、macOS 與 Windows 生命週期驗收，進入最終 Publish 檢查
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 已完成 Assets、macOS／Windows 生命週期驗收、Stable Publish 與匿名公開下載驗證
 
 ## 1. 目標
 
@@ -299,11 +299,11 @@ DRAFT v<version>
 
 `v0.1.1` 的正式版本來源與 Cargo workspace lock 已同步，完整測試與 lint 通過；annotated `v0.1.1` Tag 固定指向 Release Commit `8d70808`。取得重新打包授權後，本機 macOS ARM64 Community DMG 已建立，外層 SHA-256、Disk Image checksum、27 個內層檔案、App／Build 版本、ad-hoc 簽章、ARM64 Desktop／Agent／CLI、四個固定內建 Runtime 與新版移除程序均通過檢查。
 
-取得 Draft Release 授權後，GitHub Actions Run `33222168031` 已從固定 Tag Commit `8d70808` 完成 macOS ARM64、Windows x64 與 Draft 建立 Job。Release 保持 `draft=true`、`published_at=null`，沒有 Publish；原 `v0.1.0` Draft 亦保持不變。
+取得 Draft Release 授權後，GitHub Actions Run `33222168031` 已從固定 Tag Commit `8d70808` 完成 macOS ARM64、Windows x64 與 Draft 建立 Job。建立當時 Release 保持 `draft=true`、`published_at=null`；完成後續平台驗收及 Repository Owner 核准後，`v0.1.1` 已另行 Publish。原 `v0.1.0` Draft 仍保持不變。
 
 Draft 內 9 個 Assets 已全部重新下載驗證。`SHA256SUMS` 與三份個別校驗檔均通過，兩份 Manifest 逐位元一致，並確認 `requiresFullInstaller=true`、簽章欄位為 `null`、Connect 未混入 App 安裝包清單。DMG 為 99,295,774 bytes、SHA-256 `24849fd966de2f61c4641056f9ab1c6b0b0ed59308f2e9b3cb6388cdf60ddb28`；Windows Setup 為 48,332,278 bytes、SHA-256 `5bd0c91c8885e855c03865aba9909b02c26ee2e73503450c1af27fa3fd310319`；Connect 為 749,568 bytes、SHA-256 `2082d724e809a04111a78a74fe7f0aadd021218569a4589a8c6b7b9fd0a4710f`。DMG Disk Image checksum、內部 27 個校驗項目、App／Build `0.1.1`、ad-hoc codesign、ARM64 Desktop／Agent／CLI、新版移除程序及公開內容邊界均通過。
 
-這只代表 Draft Assets 與封裝內容完整，不代表 Windows 乾淨機安裝或 Publish 驗收完成。
+這一階段只代表 Draft Assets 與封裝內容完整；Windows 安裝與 Publish 驗收結果分別記錄於第 8.5 與 9.1 節。
 
 ### 8.4 `v0.1.1` macOS 驗收紀錄
 
@@ -336,6 +336,22 @@ Draft Connect 為 749,568 bytes，SHA-256 `2082d724e809a04111a78a74fe7f0aadd0212
 - 驗證 Source Tag 指向 Release Commit，且沒有重用或移動 Tag。
 - 確認沒有意外發布 GitHub Actions 暫存 Artifact、Log 或內部 Runtime 開發包。
 - 記錄最終 Release URL、Commit、Tag、Asset 大小及 SHA-256。
+
+### 9.1 `v0.1.1` Stable Publish 執行結果
+
+Repository Owner 明確核准後，GitHub Release `378823889` 已於 `2026-08-29T01:54:37Z` 發布為 Stable；狀態為 `draft=false`、`prerelease=false`，並已成為 GitHub 最新正式 Release：
+
+```text
+https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.1
+```
+
+- 未登入開啟 Release 頁面回傳 HTTP `200`。
+- 9 個公開 Assets 已由版本公開 URL 全部重新下載；檔案大小與發布前 Draft 驗收版本一致。
+- `SHA256SUMS` 與三份個別 `.sha256` 全數通過；DMG、Windows Setup 與 Connect 的 SHA-256 分別為 `24849fd966de2f61c4641056f9ab1c6b0b0ed59308f2e9b3cb6388cdf60ddb28`、`5bd0c91c8885e855c03865aba9909b02c26ee2e73503450c1af27fa3fd310319`、`2082d724e809a04111a78a74fe7f0aadd021218569a4589a8c6b7b9fd0a4710f`。
+- `fabdev-app-v1.json` 與 `fabdev-stable-v1.json` 逐位元一致；內容為 Stable `0.1.1`、`requiresFullInstaller=true`，兩個 App artifact 的 `signature` 均為 `null`。
+- 9 個發布後公開檔案均與發布前 Draft 驗收版本逐位元一致，沒有在 Publish 過程替換 Asset。
+- 遠端 annotated `v0.1.1` Tag 的 peeled Commit 仍為 `8d70808a43fb3f2f5406c0e572c2b6e4e51f0350`，沒有移動或重用 Tag。
+- Release 只有預期的 Community DMG、Windows Setup、Connect、Checksum 與兩份 Manifest，未包含 Actions 暫存 Artifact、Log 或內部 Runtime 開發包。
 
 ## 10. 撤回與回復
 
@@ -376,5 +392,6 @@ P0 發布基礎需依序完成：
 - [x] 建立第一個 `v0.1.0` Draft Release，並從 GitHub 重新下載 9 個 Assets 驗證大小、Manifest 與 SHA-256。
 - [x] 建立 `v0.1.1` Draft Release，並從 GitHub 重新下載 9 個 Assets 驗證大小、Manifest、SHA-256 與 DMG 內容。
 - [x] Repository Owner 已明確核准 `v0.1.1` Stable Publish。
+- [x] Publish `v0.1.1`，並以未登入公開 URL 重新下載 9 個 Assets，完成大小、SHA-256、Manifest、Draft 位元組與固定 Tag 驗證。
 
-目前只完成發布契約，不代表已有可供下載的正式 Stable Release。
+`v0.1.1` 是目前可供公開下載的正式 Stable Release；P1 App 內檢查與下載仍未實作。

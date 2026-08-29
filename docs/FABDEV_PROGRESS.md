@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-08-29
-> 目前階段：macOS ARM64／Windows x64 Unsigned Community Build 0.1.1 最終 Publish 檢查
+> 目前階段：macOS ARM64／Windows x64 Unsigned Community Build 0.1.1 已發布；P0 公開下載基礎完成
 
 ## 已完成
 
@@ -55,12 +55,13 @@
 
 ## 2026-08-29 工作日誌
 
+- `v0.1.1` 已發布為最新 Stable Release：<https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.1>。Release `378823889` 狀態為非 Draft、非 Pre-release，共 9 個 Assets；未登入 Release 頁面回傳 HTTP 200。9 個 Assets 已從公開 URL 全部重新下載，大小、總表與個別 SHA-256、兩份 Manifest 及與發布前 Draft 的逐位元比對全數通過；遠端 annotated Tag 仍固定在 Commit `8d70808`。
 - Repository Owner 已明確授權提交並推送發布前後驗收文件、更新 `v0.1.1` Release Notes、Publish 與公開下載驗證。
 - `v0.1.1` Windows x64 Setup 已在 Parallels Windows 11 ARM 的 x64 模擬層完成 `0.1.0 → 0.1.1` 覆蓋更新、資料保留、Start／Stop／Start、PHP 7.4／8.2 切換、HTTP 200、解除安裝與乾淨資料基線首次安裝。首次啟動只有 `demo.test`，Proxy 為空；解除安裝清除 App、登錄、Hosts、程序與 Port，並依政策保留使用者資料。
 - Draft Connect 已確認 Shared Folder 啟動後轉存相同 SHA-256 的本機 Runtime 並進入 UAC `--elevated`；同時驗證它會拒絕接管本機 fabDev 已存在的同名 Hosts 紀錄。多 Site 實際轉送與中斷清理維持 P2，不列為 P0 NSIS Publish 阻擋條件。
 - quarantine DMG 副本保持原 SHA-256，Gatekeeper 對 ad-hoc、無 Team ID 的 App 如預期回報 rejected；管理員安裝已在完整生命週期驗收通過。53／80／443 檢查位於 Helper 寫入前，實際特權 Port 衝突因 sudo 授權已失效未再次重跑。
 - macOS hosted release 的 `rust-objcopy` 警告來自 runner Rust 工具缺少 `libLLVM.dylib`；已讓 Tauri release build 與 Community CLI 明確使用 `CARGO_PROFILE_RELEASE_STRIP=none`。完整測試、lint 與無 stripping 警告的 release App build 通過，修正已推送至 main，但不移動固定的 `v0.1.1` Tag 或變更 Draft Assets。
-- 專案正式版本來源已由 `0.1.0` 更新為 `0.1.1` 候選版；annotated `v0.1.1` Tag 固定在 Release Commit `8d70808`。GitHub Actions 已從該 Tag 重新建置 macOS ARM64／Windows x64 產物並建立 Draft Release，沒有 Publish。
+- 專案正式版本來源已由 `0.1.0` 更新為 `0.1.1`；annotated `v0.1.1` Tag 固定在 Release Commit `8d70808`。GitHub Actions 已從該 Tag 重新建置 macOS ARM64／Windows x64 產物並建立 Draft，完成驗收後已另行 Publish。
 - 本機重新打包的 `fabDev-Community-0.1.1-macos-arm64.dmg` 為 98,158,623 bytes，SHA-256 為 `fba390ef39b0fe6e0542a64448c4af954423bc2ea8a3e3ca47777397565a22fc`；DMG、27 個內層檔案、App／Build 版本、ad-hoc 簽章與 Desktop／Agent／CLI ARM64 均驗證通過，新版 Uninstaller 與來源一致。此 Hash 只記錄本機候選包，不取代未來 Draft Assets 的重新下載驗證。
 - `v0.1.1` Draft 的 9 個 Assets 已全部重新下載；總表與三份個別 SHA-256、兩份逐位元一致的 Manifest、實際檔案大小及 DMG 內部 27 個校驗項目全數通過。DMG 為 99,295,774 bytes、SHA-256 `24849fd966de2f61c4641056f9ab1c6b0b0ed59308f2e9b3cb6388cdf60ddb28`；Windows Setup 為 48,332,278 bytes、SHA-256 `5bd0c91c8885e855c03865aba9909b02c26ee2e73503450c1af27fa3fd310319`；Connect 為 749,568 bytes、SHA-256 `2082d724e809a04111a78a74fe7f0aadd021218569a4589a8c6b7b9fd0a4710f`。
 - 從 `v0.1.1` Draft 重新下載的 DMG 已在恢復至 fabDev 未安裝基線的 Mac 完成管理員首次安裝；App／Helper 正確安裝，首次初始化只有 `demo.test`、Proxy 清單為空，Site Home 已保存為 Demo 父目錄，重啟後沒有掃描其他本機專案。外部 Resolver 與 System／Homebrew MariaDB 全程保持不變。
@@ -113,8 +114,9 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [x] 驗證 Gatekeeper、quarantine 與管理員授權；實際 53／80／443 特權 Port 衝突保留為後續補充驗收。
 - [x] 修正 release stripping 工具鏈警告。
 - [x] 建立第一個 `v0.1.0` Draft Release，重新下載 9 個 Assets，核對實際大小、Manifest 與 SHA-256；目前仍未 Publish。
-- [x] 建立 `v0.1.1` Draft Release，重新下載 9 個 Assets 並驗證大小、Manifest、SHA-256、DMG 內容與公開內容邊界；目前仍未 Publish。
+- [x] 建立 `v0.1.1` Draft Release，重新下載 9 個 Assets 並驗證大小、Manifest、SHA-256、DMG 內容與公開內容邊界；完成 macOS／Windows 驗收後已 Publish。
 - [x] Repository Owner 已在 Mac／Windows 驗收完成後人工核准 `v0.1.1` Publish。
+- [x] 更新 `v0.1.1` Release Notes、Publish Stable Release，並完成未登入頁面、9 個公開 Assets、Checksum、Manifest、Draft 位元組與固定 Tag 驗證。
 
 ### P1：核心開發體驗
 
