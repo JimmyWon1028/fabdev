@@ -53,7 +53,8 @@ done
 
 FABDEV_BUNDLED_RUNTIME_SOURCE="$COMMUNITY_RUNTIME_DIR" \
   "$REPO_ROOT/scripts/run-tauri.sh" build --bundles app
-"$REPO_ROOT/scripts/run-cargo.sh" build --release -p fabdev-cli
+CARGO_PROFILE_RELEASE_STRIP=none \
+  "$REPO_ROOT/scripts/run-cargo.sh" build --release -p fabdev-cli
 /usr/bin/codesign --force --sign - --identifier com.fabdev.cli "$CLI_PATH"
 /usr/bin/codesign --force --deep --sign - "$APP_PATH"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_PATH"

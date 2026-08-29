@@ -7,6 +7,9 @@ CARGO_PATH="$(rustup which cargo)"
 RUST_BIN_DIR="${CARGO_PATH%/cargo}"
 
 export PATH="$RUST_BIN_DIR:$PATH"
+if [[ "${1:-}" == "build" ]]; then
+  export CARGO_PROFILE_RELEASE_STRIP="${CARGO_PROFILE_RELEASE_STRIP:-none}"
+fi
 if [[ "$(uname -s)" == "Darwin" && ( "${1:-}" == "dev" || "${1:-}" == "build" ) ]]; then
   node "$REPO_ROOT/scripts/prepare-bundled-runtime-assets.mjs"
 fi
