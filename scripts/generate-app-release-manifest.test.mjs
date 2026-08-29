@@ -202,3 +202,15 @@ test('removes every exact stale fabDev CA without requiring user data', async ()
   assert.match(uninstaller, /security delete-certificate -t -Z "\$fingerprint"/)
   assert.doesNotMatch(uninstaller, /DATA_ROOT\/config\/tls\/ca\.crt/)
 })
+
+test('allows macOS updates when new and legacy app names resolve to the same bundle', async () => {
+  const installer = await readFile(
+    join(repoRoot, 'distribution/macos/community/Install-fabDev.command'),
+    'utf8'
+  )
+
+  assert.match(
+    installer,
+    /\[\[ -d "\$APP_TARGET" && -d "\$LEGACY_APP_TARGET" \]\] &&\n  \[\[ ! "\$APP_TARGET" -ef "\$LEGACY_APP_TARGET" \]\]/
+  )
+})

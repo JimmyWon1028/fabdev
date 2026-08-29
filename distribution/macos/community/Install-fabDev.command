@@ -72,7 +72,8 @@ if [[ -e "$TEMP_APP" || -e "$PREVIOUS_APP" ]]; then
   echo "偵測到未完成的舊安裝，請先移除 $TEMP_APP 或 $PREVIOUS_APP。" >&2
   exit 1
 fi
-if [[ -d "$APP_TARGET" && -d "$LEGACY_APP_TARGET" ]]; then
+if [[ -d "$APP_TARGET" && -d "$LEGACY_APP_TARGET" ]] &&
+  [[ ! "$APP_TARGET" -ef "$LEGACY_APP_TARGET" ]]; then
   echo "偵測到新舊名稱的 App 同時存在，請先保留其中一份再更新。" >&2
   exit 1
 fi
