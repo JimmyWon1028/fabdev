@@ -1,6 +1,6 @@
 # P2.4 Runtime Draft Acceptance Plan
 
-> 狀態：P2.4a Release pipeline hardening 與 `0.1.4` 候選版版本來源已完成；Windows MSVC 格式、前端測試、Rust workspace、Connect、NSIS 與產物上傳均通過。尚未執行重新打包、Tag、Draft Release、實機安裝或 Publish。
+> 狀態：`v0.1.4` 首次重新打包在完整 Rust 測試發現 Windows Runtime `minimumOsVersion` 格式錯誤，未建立 Release；修正候選版為 `0.1.5`。P2.4a Release pipeline hardening、Windows MSVC、Runtime 真實封裝、Connect 與 NSIS 已通過，待重新執行 macOS 完整流程。
 
 ## 1. 目標與固定範圍
 
@@ -13,7 +13,7 @@ P2.4 只交付 PHP 8.4.24 的兩平台線上安裝驗收：
 - Catalog／Package signature 在 Unsigned Community v1 固定為 `null`。
 - 不在本階段加入 Node.js、Nginx、dnsmasq 或 MariaDB 線上更新。
 
-候選版本固定為 `0.1.4`，原因是 Catalog v1 的最低 App 版本與固定 Release URL 已以 `0.1.4` 定義。
+修正候選版本為 `0.1.5`；已推送的 `v0.1.4` Tag 保留為失敗候選稽核，不移動、不重用，也不建立 Release。
 
 ## 2. 已確認的前置缺口
 
@@ -33,7 +33,7 @@ P2.4 不能直接執行現有 Draft workflow，必須先完成下列 Release too
 
 - 以 `fabdev-runtime` 的 Typed Model 與 Validator 作為唯一契約，建立可由 CI 呼叫的正式 Catalog／descriptor 產生入口。
 - 輸入固定 Release 版本、Catalog Sequence、產生／到期時間，以及兩平台 Package 路徑；URL、檔名、平台、架構與健康檢查 profile 由程式產生，不接受任意值。
-- 第一份公開 Catalog 使用 `catalogSequence: 1`、`minimumAppVersion: 0.1.4`、`minimumAgentProtocolVersion: 33`。
+- 第一份公開 Catalog 使用 `catalogSequence: 1`、`minimumAppVersion: 0.1.5`、`minimumAgentProtocolVersion: 33`。
 - Catalog 到期日採明確輸入並通過 UTC／未過期驗證；建議為 Publish 日期後 180 天，不在 workflow 中隱含無限期限。
 - 產生後立即以同一 Rust Validator 重新解析；拒絕零大小、錯誤 SHA-256、重複 Runtime、錯誤 URL、未知平台及非 `null` signature。
 
@@ -55,15 +55,15 @@ P2.4 不能直接執行現有 Draft workflow，必須先完成下列 Release too
 - macOS／Windows Jobs 各自上傳 Runtime Package 與不可變的來源驗證資料，最後只有 `create-draft` Job 具 `contents: write`。
 - `create-draft` 合併兩平台輸出，產生 Runtime Catalog、兩份 Package checksum、既有 App manifests 與總 `SHA256SUMS`。
 - Release Assets 預期由 9 個增加為 14 個：既有 9 個，加上 2 個 Runtime Packages、2 個個別 checksum 與 1 個 Runtime Catalog。
-- Workflow 維持手動 `REPACKAGE v0.1.4` 與 `DRAFT v0.1.4` 雙重確認，只接受既有 annotated Tag，且永不自動 Publish。
+- Workflow 維持手動 `REPACKAGE v0.1.5` 與 `DRAFT v0.1.5` 雙重確認，只接受既有 annotated Tag，且永不自動 Publish。
 
 ## 4. P2.4b：候選版與 Draft 靜態驗收
 
 需要依序取得版本修改、提交／推送、Tag、重新打包及 Draft Release 授權。
 
-1. 將專案版本升級為 `0.1.4`，執行完整 `pnpm test`、`pnpm lint`、`pnpm build` 與 `git diff --check`。
+1. 將專案版本升級為 `0.1.5`，執行完整 `pnpm test`、`pnpm lint`、`pnpm build` 與 `git diff --check`。
 2. 提交並推送 Release tooling／版本變更，確認 macOS 與 Windows CI 均通過。
-3. 建立並推送 annotated `v0.1.4` Tag。
+3. 建立並推送 annotated `v0.1.5` Tag。
 4. 經使用者明確說「重新打包」後，手動啟動 Draft workflow。
 5. 從 Draft 重新下載全部 14 個 Assets，不使用 runner 工作目錄中的原始檔驗收。
 6. 核對總表、個別 checksum、Catalog、實際大小、SHA-256、Archive 單一根目錄、來源驗證資料與公開內容邊界。
@@ -75,7 +75,7 @@ macOS ARM64 與 Windows x64 都必須保存驗收前後快照，至少包含 Sit
 
 每平台執行：
 
-1. 從 `0.1.3` 覆蓋安裝 `0.1.4`，確認既有資料與服務狀態不變。
+1. 從 `0.1.3` 覆蓋安裝 `0.1.5`，確認既有資料與服務狀態不變。
 2. 檢查 Catalog 呈現的版本、Unsigned Community 警告、大小與 SHA-256。
 3. 下載途中取消，確認 `.part` 清除；重新下載並確認進度與 verified 狀態。
 4. 安裝前第二次確認；安裝 PHP 8.4.24 後確認全域 PHP、既有 Sites 與 `current` 未切換。
@@ -89,7 +89,7 @@ macOS ARM64 與 Windows x64 都必須保存驗收前後快照，至少包含 Sit
 Draft Asset 靜態驗證與兩平台隔離安裝通過後，Repository Owner 才能另行核准 Publish。由於 GitHub Draft 無法透過匿名 `releases/latest` 存取，下列項目是 Publish 後的立即阻擋驗收：
 
 - 未登入請求 `fabdev-runtime-v1.json` 與兩平台 Package 均為 HTTP 200。
-- `releases/latest` 指向 `v0.1.4`，Catalog bytes 與 Draft 驗收版本逐位元一致。
+- `releases/latest` 指向 `v0.1.5`，Catalog bytes 與 Draft 驗收版本逐位元一致。
 - 封裝版 App 完成真正的匿名「檢查 → 取消 → 重試 → 下載 → 安裝」。
 - 公開 Assets 的大小與 SHA-256 與 Draft 驗收紀錄一致。
 
@@ -100,11 +100,11 @@ Draft Asset 靜態驗證與兩平台隔離安裝通過後，Repository Owner 才
 | 關卡 | 需要的明確授權 | 不包含 |
 | --- | --- | --- |
 | P2.4a | 開始 Release pipeline hardening | 重新打包、版本修改、Tag、Release |
-| P2.4b-1 | 允許升級版本並提交／推送 `0.1.4` | Tag、重新打包、Release |
-| P2.4b-2 | 允許建立並推送 `v0.1.4` Tag | 重新打包、Release |
+| P2.4b-1 | 允許升級版本並提交／推送 `0.1.5` | Tag、重新打包、Release |
+| P2.4b-2 | 允許建立並推送 `v0.1.5` Tag | 重新打包、Release |
 | P2.4b-3 | 明確說「重新打包」，並允許建立 Draft Release | Publish |
 | P2.4c | 允許安裝 Draft 候選版與 PHP 8.4 Runtime 驗收 | Publish |
-| Publish | 允許更新 Release Notes 並 Publish `v0.1.4` | 刪除已發布 Stable 或 Tag |
+| Publish | 允許更新 Release Notes 並 Publish `v0.1.5` | 刪除已發布 Stable 或 Tag |
 
 ## 8. 完成條件
 

@@ -285,7 +285,7 @@ pub fn generate_community_php_catalog(
         version: "8.4.24".to_owned(),
         platform: "windows".to_owned(),
         architecture: "x64".to_owned(),
-        minimum_os_version: Some("11".to_owned()),
+        minimum_os_version: Some("11.0".to_owned()),
         file_name: Some(windows_file_name.to_owned()),
         url: release_url(windows_file_name),
         size: windows_size,
@@ -1151,6 +1151,10 @@ mod tests {
       Some(PHP_SOURCE_SIGNING_FINGERPRINT)
     );
     assert_eq!(catalog.runtimes[1].platform, "windows");
+    assert_eq!(
+      catalog.runtimes[1].minimum_os_version.as_deref(),
+      Some("11.0")
+    );
     assert_eq!(catalog.runtimes[1].size, 15);
     assert_eq!(
       catalog.runtimes[1].url,
