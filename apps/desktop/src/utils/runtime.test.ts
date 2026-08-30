@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildRuntimeRows,
+  formatRuntimeBytes,
   installedPhpSeries,
   isBuiltInPhpSeries,
+  isRuntimeDownloadActive,
+  runtimeProgressPercent,
   phpSeriesFromVersion
 } from './runtime'
 
@@ -41,5 +44,20 @@ describe('PHP Runtime presentation', () => {
     expect(isBuiltInPhpSeries('7.4')).toBe(true)
     expect(isBuiltInPhpSeries('8.2')).toBe(true)
     expect(isBuiltInPhpSeries('8.4')).toBe(false)
+  })
+
+  it('formats package sizes and clamps download progress', () => {
+    expect(formatRuntimeBytes(1024)).toBe('1.00 KiB')
+    expect(formatRuntimeBytes(12 * 1024 * 1024)).toBe('12.0 MiB')
+    expect(runtimeProgressPercent(25, 100)).toBe(25)
+    expect(runtimeProgressPercent(120, 100)).toBe(100)
+    expect(runtimeProgressPercent(1, 0)).toBe(0)
+  })
+
+  it('allows cancellation only while the download is active', () => {
+    expect(isRuntimeDownloadActive('queued')).toBe(true)
+    expect(isRuntimeDownloadActive('downloading')).toBe(true)
+    expect(isRuntimeDownloadActive('verified')).toBe(false)
+    expect(isRuntimeDownloadActive('installing')).toBe(false)
   })
 })

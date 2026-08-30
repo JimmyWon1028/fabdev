@@ -128,6 +128,8 @@ pub enum RuntimeError {
   InvalidActiveLink(PathBuf),
   #[error("runtime installation is not supported on this platform")]
   UnsupportedPlatform,
+  #[error("runtime health check failed: {0}")]
+  HealthCheckFailed(String),
 }
 
 #[derive(Debug, Error)]
@@ -620,6 +622,29 @@ pub fn install_tar_gz_with_activation(
   base: impl AsRef<Path>,
   activate: bool,
 ) -> Result<InstallLayout, RuntimeError> {
+  install_tar_gz_with_health_check(
+    artifact,
+    expected_sha256,
+    name,
+    version,
+    base,
+    activate,
+    |_| Ok(()),
+  )
+}
+
+pub fn install_tar_gz_with_health_check<F>(
+  artifact: impl AsRef<Path>,
+  expected_sha256: &str,
+  name: &str,
+  version: &str,
+  base: impl AsRef<Path>,
+  activate: bool,
+  health_check: F,
+) -> Result<InstallLayout, RuntimeError>
+where
+  F: FnOnce(&Path) -> Result<(), RuntimeError>,
+{
   validate_identifier(name)?;
   validate_identifier(version)?;
   verify_sha256(&artifact, expected_sha256)?;
@@ -631,14 +656,24 @@ pub fn install_tar_gz_with_activation(
   remove_dir_if_exists(&layout.staging_root)?;
   std::fs::create_dir_all(&layout.staging_root)?;
 
-  let archive = File::open(artifact)?;
-  let mut archive = tar::Archive::new(GzDecoder::new(BufReader::new(archive)));
-  archive.unpack(&layout.staging_root)?;
-  let extracted = layout.staging_root.join(version);
-  if !extracted.is_dir() {
-    remove_dir_if_exists(&layout.staging_root)?;
-    return Err(RuntimeError::InvalidArchive(version.to_owned()));
-  }
+  let staged_result = (|| {
+    let archive = File::open(artifact)?;
+    let mut archive = tar::Archive::new(GzDecoder::new(BufReader::new(archive)));
+    archive.unpack(&layout.staging_root)?;
+    let extracted = layout.staging_root.join(version);
+    if !extracted.is_dir() {
+      return Err(RuntimeError::InvalidArchive(version.to_owned()));
+    }
+    health_check(&extracted)?;
+    Ok(extracted)
+  })();
+  let extracted = match staged_result {
+    Ok(extracted) => extracted,
+    Err(error) => {
+      remove_dir_if_exists(&layout.staging_root)?;
+      return Err(error);
+    }
+  };
 
   let runtime_parent = layout
     .runtime_root
@@ -1149,6 +1184,69 @@ mod tests {
     let error = install_tar_gz(&artifact, "0000", "php", "8.2.33", root.join("runtimes"))
       .expect_err("reject checksum");
     assert!(matches!(error, RuntimeError::ChecksumMismatch { .. }));
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn runs_health_check_before_install_and_cleans_failed_staging() {
+    let root = std::env::temp_dir().join(format!("fabdev-runtime-health-{}", uuid::Uuid::new_v4()));
+    let source = root.join("source/8.4.24");
+    std::fs::create_dir_all(&source).expect("create Runtime fixture");
+    std::fs::write(source.join("marker.txt"), b"healthy").expect("write Runtime fixture");
+    let artifact = root.join("runtime.tar.gz");
+    let archive_file = File::create(&artifact).expect("create Runtime archive");
+    let encoder = flate2::write::GzEncoder::new(archive_file, flate2::Compression::default());
+    let mut archive = tar::Builder::new(encoder);
+    archive
+      .append_dir_all("8.4.24", &source)
+      .expect("append Runtime fixture");
+    archive.finish().expect("finish Runtime archive");
+    drop(archive);
+    let checksum = hex::encode(Sha256::digest(
+      std::fs::read(&artifact).expect("read archive"),
+    ));
+    let runtime_base = root.join("runtimes");
+    std::fs::create_dir_all(runtime_base.join("php/8.2.33")).expect("create existing Runtime");
+    set_active_version(&runtime_base, "php", "8.2.33").expect("activate existing Runtime");
+
+    let error = install_tar_gz_with_health_check(
+      &artifact,
+      &checksum,
+      "php",
+      "8.4.24",
+      &runtime_base,
+      false,
+      |staged| {
+        assert_eq!(
+          std::fs::read(staged.join("marker.txt")).expect("read staged fixture"),
+          b"healthy"
+        );
+        Err(RuntimeError::HealthCheckFailed(
+          "fixture failure".to_owned(),
+        ))
+      },
+    )
+    .expect_err("reject unhealthy Runtime");
+
+    assert!(matches!(error, RuntimeError::HealthCheckFailed(_)));
+    assert!(!runtime_base.join("php/8.4.24").exists());
+    assert!(!runtime_base.join(".staging/php-8.4.24").exists());
+
+    install_tar_gz_with_health_check(
+      &artifact,
+      &checksum,
+      "php",
+      "8.4.24",
+      &runtime_base,
+      false,
+      |_| Ok(()),
+    )
+    .expect("install healthy Runtime side by side");
+    assert!(runtime_base.join("php/8.4.24").is_dir());
+    assert_eq!(
+      active_version(&runtime_base, "php").expect("read active Runtime"),
+      Some("8.2.33".to_owned())
+    );
     std::fs::remove_dir_all(root).expect("remove fixture");
   }
 

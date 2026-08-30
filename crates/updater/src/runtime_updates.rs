@@ -154,6 +154,33 @@ where
   Ok(downloaded_runtime_update(&release, target))
 }
 
+pub async fn verified_cached_runtime_update(
+  request: RuntimeDownloadRequest<'_>,
+) -> anyhow::Result<DownloadedRuntimeUpdate> {
+  let catalog = cached_runtime_catalog(
+    request.cache_directory,
+    request.current_app_version,
+    request.current_agent_protocol_version,
+  )
+  .await?;
+  let release = select_runtime_release(
+    &catalog,
+    request.name,
+    request.version,
+    request.platform,
+    request.architecture,
+  )?;
+  let file_name = release
+    .file_name
+    .as_deref()
+    .context("the cached Runtime entry is missing its file name")?;
+  let path = runtime_update_root(request.cache_directory)
+    .join(RUNTIME_UPDATE_PENDING_DIRECTORY)
+    .join(file_name);
+  verify_runtime_artifact(&path, release).await?;
+  Ok(downloaded_runtime_update(release, path))
+}
+
 pub async fn cleanup_runtime_update_partials(cache_directory: &Path) -> anyhow::Result<usize> {
   let root = runtime_update_root(cache_directory);
   let mut removed = remove_partials_in_directory(&root).await?;
@@ -642,6 +669,48 @@ mod tests {
 
     assert_eq!(downloaded.path, pending.join(file_name));
     assert_eq!(progress.load(Ordering::Relaxed), 7);
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[tokio::test]
+  async fn revalidates_catalog_identity_and_package_before_install() {
+    let root = std::env::temp_dir().join(format!("fabdev-runtime-install-{}", Uuid::new_v4()));
+    let contents = generate_runtime_catalog(&catalog(), &validation()).expect("generate Catalog");
+    let validated =
+      parse_and_validate_runtime_catalog(&contents, &validation()).expect("validate Catalog");
+    persist_runtime_catalog(&root, &contents, &validated)
+      .await
+      .expect("persist Catalog");
+    let pending = runtime_update_root(&root).join(RUNTIME_UPDATE_PENDING_DIRECTORY);
+    tokio::fs::create_dir_all(&pending)
+      .await
+      .expect("create pending");
+    let file_name = "php-8.4.24-macos-arm64-community.tar.gz";
+    tokio::fs::write(pending.join(file_name), b"payload")
+      .await
+      .expect("write verified package");
+    let request = RuntimeDownloadRequest {
+      cache_directory: &root,
+      current_app_version: "0.1.4",
+      current_agent_protocol_version: RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+      name: "php",
+      version: "8.4.24",
+      platform: "macos",
+      architecture: "arm64",
+    };
+
+    let verified = verified_cached_runtime_update(request)
+      .await
+      .expect("revalidate package");
+    assert_eq!(verified.path, pending.join(file_name));
+
+    tokio::fs::write(&verified.path, b"tampered")
+      .await
+      .expect("tamper package");
+    let error = verified_cached_runtime_update(request)
+      .await
+      .expect_err("reject changed package");
+    assert!(error.to_string().contains("size does not match"));
     std::fs::remove_dir_all(root).expect("remove fixture");
   }
 

@@ -15,7 +15,8 @@ mod runtime_updates;
 
 pub use runtime_updates::{
   cached_runtime_catalog, check_for_runtime_updates, cleanup_runtime_update_partials,
-  download_cached_runtime_update, DownloadedRuntimeUpdate, RuntimeDownloadRequest,
+  download_cached_runtime_update, verified_cached_runtime_update, DownloadedRuntimeUpdate,
+  RuntimeDownloadRequest,
 };
 
 pub const STABLE_MANIFEST_URL: &str =

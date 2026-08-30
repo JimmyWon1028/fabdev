@@ -408,7 +408,7 @@ Agent Protocol 31 新增 MariaDB 的 PHP 連線來源與 System Socket 設定。
 
 Agent Protocol 32 把 MariaDB 連線資訊獨立持久化，避免舊版設定覆寫造成回歸；Managed Service 未運行時，PHP-FPM 設定產生器會自動改用 System Socket，啟動與停止後立即重新套用。
 
-Agent Protocol 33 新增 Runtime Catalog 檢查、背景下載、操作輪詢與取消。Agent 只接受 Runtime 名稱、版本與 `operationId`，固定從 GitHub Release Catalog 解析 URL 與檔名；下載採系統 TLS／Proxy、Redirect Host 白名單、`.part`、大小／SHA-256 及原子完成。操作不跨 Agent 重啟恢復，啟動時只清除殘留 `.part`；P2.3 完成前 `InstallDownloadedRuntime` 固定拒絕。
+Agent Protocol 33 提供 Runtime Catalog 檢查、背景下載、操作輪詢、取消及已驗證 Package 安裝。Agent 只接受 Runtime 名稱、版本與 `operationId`，固定從 GitHub Release Catalog 解析 URL 與檔名；下載採系統 TLS／Proxy、Redirect Host 白名單、`.part`、大小／SHA-256 及原子完成。安裝前重新讀取並驗證快取 Catalog 與 Package，PHP 使用固定 `php-runtime-v1` 健康檢查及 Side-by-side 安裝，不切換 `current`、全域 PHP 或 Site。操作不跨 Agent 重啟恢復，啟動時只清除殘留 `.part`。
 
 Desktop 更換 Agent Protocol 時會分別記錄 Web stack 與 MariaDB 的運行狀態；舊 Agent 安全關閉、新 Agent 就緒後，只恢復升級前正在運行的服務。
 

@@ -2,7 +2,7 @@
 
 > 規劃日期：2026-08-30
 >
-> 狀態：P2.1 Schema／Validator 與 P2.2 Agent 下載／操作狀態已完成；P2.3 尚未開始
+> 狀態：P2.1 Schema／Validator、P2.2 Agent 下載／操作狀態與 P2.3 PHP Runtime UI／Side-by-side 安裝已完成；公開 Feed 與兩平台封裝驗收留待 P2.4
 >
 > 第一個目標：PHP 8.4.24，macOS ARM64 與 Windows x64，Side-by-side 線上安裝
 
@@ -257,9 +257,13 @@ P2.2 已完成程式與本機 fixture 驗證；公開 GitHub Runtime Catalog／P
 
 ### P2.3：PHP Runtime UI 與安裝
 
-- PHP 頁面顯示可用版本、Unsigned 警告、大小、SHA-256 與進度。
-- 使用者分別確認下載及安裝。
-- 安裝 PHP 8.4.24，但不自動切換 Site 或全域 PHP。
+- [x] PHP 頁面顯示可用版本、Unsigned 警告、大小、SHA-256 與進度。
+- [x] 使用者分別確認下載及安裝。
+- [x] 安裝前重新驗證快取 Catalog、Runtime identity、大小及 SHA-256。
+- [x] 解壓 staging 後執行固定 PHP CLI／版本檢查，安裝後驗證必要 MySQL extensions 及 macOS FPM／Windows CGI 設定。
+- [x] PHP 8.4.24 採 Side-by-side 安裝，不自動切換 Site、全域 PHP 或 `current`；失敗時清除本次新增的 Runtime、設定及 staging。
+
+P2.3 已完成程式、前端呈現與本機 fixture 驗證。公開 Runtime Catalog／Package 尚未發布，因此實際 GitHub 下載、真實 PHP 8.4.24 binary 健康檢查、Site HTTP 200、重啟持久性及 Windows x64 驗收仍屬 P2.4。
 
 ### P2.4：兩平台 Draft 驗收
 

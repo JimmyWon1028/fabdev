@@ -1024,6 +1024,24 @@ impl ServiceSupervisor {
     generate_php_config(&self.paths, &self.runtimes, version).map(|_| ())
   }
 
+  pub fn validate_php_runtime_install(
+    &self,
+    version: &PhpVersion,
+    expected_patch_version: &str,
+  ) -> Result<()> {
+    self.runtimes.resolve_php(version)?;
+    let managed_php_ini = managed_php_ini_path(&self.paths, version);
+    if !managed_php_ini.exists() {
+      if let Some(parent) = managed_php_ini.parent() {
+        std::fs::create_dir_all(parent)?;
+      }
+      std::fs::write(&managed_php_ini, "")?;
+    }
+    let config = generate_php_config(&self.paths, &self.runtimes, version)?;
+    validate_php_config(&config)?;
+    validate_php_cli(&config, expected_patch_version)
+  }
+
   pub fn read_erp_php_ini(&self, version: Option<&PhpVersion>) -> Result<String> {
     let template_path = ensure_default_php_ini_template(&self.paths, &self.runtimes)?;
     let template = std::fs::read_to_string(template_path)?;
@@ -2032,6 +2050,22 @@ fn validate_php_config(config: &GeneratedPhpConfig) -> Result<()> {
   )
 }
 
+fn validate_php_cli(config: &GeneratedPhpConfig, expected_patch_version: &str) -> Result<()> {
+  let script = format!(
+    "if (PHP_VERSION !== '{expected_patch_version}' || !extension_loaded('mysqli') || !extension_loaded('pdo_mysql')) {{ fwrite(STDERR, 'PHP Runtime health check failed'); exit(1); }}"
+  );
+  run_check(
+    php_cli_binary(&config.runtime),
+    [
+      "-c".to_owned(),
+      config.php_ini.to_string_lossy().into_owned(),
+      "-r".to_owned(),
+      script,
+    ],
+    &format!("PHP {expected_patch_version} CLI and required extensions"),
+  )
+}
+
 fn validate_nginx_config(runtimes: &RuntimePaths, config: &Path) -> Result<()> {
   run_check(
     nginx_binary(&runtimes.nginx),
@@ -2209,6 +2243,14 @@ fn php_server_binary(runtime: &Path) -> PathBuf {
     runtime.join("php-cgi.exe")
   } else {
     runtime.join("sbin/php-fpm")
+  }
+}
+
+fn php_cli_binary(runtime: &Path) -> PathBuf {
+  if cfg!(windows) {
+    runtime.join("php.exe")
+  } else {
+    runtime.join("bin/php")
   }
 }
 
@@ -4759,6 +4801,50 @@ mod tests {
     assert!(contents.is_empty());
     assert!(service_contents.is_empty());
     std::fs::remove_dir_all(root).expect("remove empty php.ini fixture");
+  }
+
+  #[cfg(unix)]
+  #[test]
+  fn initializes_and_preserves_online_runtime_php_ini() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = std::env::temp_dir().join(format!("fabdev-online-php-ini-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(root.join("data"));
+    paths.ensure().expect("create App paths");
+    let runtimes = RuntimePaths {
+      dnsmasq: root.join("runtimes/dnsmasq"),
+      nginx: root.join("runtimes/nginx"),
+      php: root.join("runtimes/php"),
+      mariadb: root.join("runtimes/mariadb"),
+    };
+    let runtime = add_php_runtime(&runtimes.php, "8.4.24");
+    let cli = runtime.join("bin/php");
+    std::fs::create_dir_all(cli.parent().expect("CLI parent")).expect("create CLI parent");
+    for executable in [&cli, &runtime.join("sbin/php-fpm")] {
+      std::fs::write(executable, "#!/bin/sh\nexit 0\n").expect("write PHP fixture");
+      let mut permissions = std::fs::metadata(executable)
+        .expect("read PHP fixture metadata")
+        .permissions();
+      permissions.set_mode(0o755);
+      std::fs::set_permissions(executable, permissions).expect("make PHP fixture executable");
+    }
+    let supervisor = ServiceSupervisor::new(paths.clone(), runtimes, ServicePorts::system());
+    let version: PhpVersion = "8.4".parse().expect("parse PHP 8.4");
+    let managed = managed_php_ini_path(&paths, &version);
+
+    supervisor
+      .validate_php_runtime_install(&version, "8.4.24")
+      .expect("initialize online Runtime php.ini");
+    assert_eq!(std::fs::read_to_string(&managed).expect("read php.ini"), "");
+    std::fs::write(&managed, "memory_limit = 256M\n").expect("customize php.ini");
+    supervisor
+      .validate_php_runtime_install(&version, "8.4.24")
+      .expect("revalidate online Runtime php.ini");
+    assert_eq!(
+      std::fs::read_to_string(&managed).expect("read preserved php.ini"),
+      "memory_limit = 256M\n"
+    );
+    std::fs::remove_dir_all(root).expect("remove online php.ini fixture");
   }
 
   #[test]

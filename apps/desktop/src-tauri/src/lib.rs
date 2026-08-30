@@ -1184,7 +1184,8 @@ async fn send_request(
   let response_timeout = match &request {
     AgentRequest::InstallPhpRuntime { .. }
     | AgentRequest::InstallNodeRuntime { .. }
-    | AgentRequest::InstallMariaDbRuntime { .. } => AGENT_INSTALL_RESPONSE_TIMEOUT,
+    | AgentRequest::InstallMariaDbRuntime { .. }
+    | AgentRequest::InstallDownloadedRuntime { .. } => AGENT_INSTALL_RESPONSE_TIMEOUT,
     _ => AGENT_RESPONSE_TIMEOUT,
   };
   send_request_with_timeout(endpoint, request, response_timeout).await

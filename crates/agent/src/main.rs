@@ -15,8 +15,9 @@ use fabdev_core::{
 };
 use fabdev_proxy::ProxyManager;
 use fabdev_runtime::{
-  active_version, deactivate_runtime, install_tar_gz_with_activation, list_installed_versions,
-  mark_runtime_removed, remove_installed_version, set_active_version, RuntimeRelease,
+  active_version, deactivate_runtime, install_tar_gz_with_activation,
+  install_tar_gz_with_health_check, list_installed_versions, mark_runtime_removed,
+  remove_installed_version, set_active_version, RuntimeError, RuntimeRelease,
   ValidatedRuntimeCatalog,
 };
 use fabdev_services::{ensure_local_ca, RuntimePaths, ServicePorts, ServiceSupervisor};
@@ -145,6 +146,20 @@ impl RuntimeDownloadTask {
       .unwrap_or_else(|poisoned| poisoned.into_inner());
     snapshot.status = status;
     snapshot.error = error;
+  }
+
+  fn begin_install(&self) -> Result<RuntimeUpdateOperation> {
+    let mut snapshot = self
+      .snapshot
+      .lock()
+      .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if snapshot.status != RuntimeUpdateOperationStatus::Verified {
+      bail!("Runtime package must be verified before installation");
+    }
+    snapshot.status = RuntimeUpdateOperationStatus::Installing;
+    snapshot.error = None;
+    drop(snapshot);
+    Ok(self.snapshot())
   }
 
   fn cancel(&self) -> Result<RuntimeUpdateOperation> {
@@ -284,6 +299,38 @@ impl RuntimeUpdateManager {
       .cloned()
       .context("Runtime update operation was not found")?;
     operation.cancel()
+  }
+
+  async fn begin_install(&self, operation_id: uuid::Uuid) -> Result<RuntimeUpdateOperation> {
+    let operation = self
+      .operations
+      .lock()
+      .await
+      .get(&operation_id)
+      .cloned()
+      .context("Runtime update operation was not found")?;
+    operation.begin_install()
+  }
+
+  async fn finish_install(
+    &self,
+    operation_id: uuid::Uuid,
+    error: Option<String>,
+  ) -> Result<RuntimeUpdateOperation> {
+    let operation = self
+      .operations
+      .lock()
+      .await
+      .get(&operation_id)
+      .cloned()
+      .context("Runtime update operation was not found")?;
+    let status = if error.is_some() {
+      RuntimeUpdateOperationStatus::Failed
+    } else {
+      RuntimeUpdateOperationStatus::Completed
+    };
+    operation.set_status(status, error);
+    Ok(operation.snapshot())
   }
 
   async fn cancel_all(&self) {
@@ -1109,13 +1156,10 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       }
     }
     AgentRequest::InstallDownloadedRuntime { operation_id } => {
-      match state.runtime_updates.get(operation_id).await {
-        Ok(_) => AgentResponse::Error {
-          code: "runtime_install_not_available".to_owned(),
-          message: "online Runtime installation is reserved for P2.3".to_owned(),
-        },
+      match install_downloaded_runtime(state, operation_id).await {
+        Ok(operation) => AgentResponse::RuntimeUpdateOperation(operation),
         Err(error) => AgentResponse::Error {
-          code: "runtime_update_operation_not_found".to_owned(),
+          code: "runtime_install_failed".to_owned(),
           message: error.to_string(),
         },
       }
@@ -1808,6 +1852,223 @@ async fn check_runtime_updates(state: &AgentState) -> Result<RuntimeUpdateCheck>
   build_runtime_update_check(&catalog, &state.paths.runtimes)
 }
 
+async fn install_downloaded_runtime(
+  state: &AgentState,
+  operation_id: uuid::Uuid,
+) -> Result<RuntimeUpdateOperation> {
+  let operation = state.runtime_updates.begin_install(operation_id).await?;
+  let result = install_downloaded_runtime_inner(state, &operation).await;
+  match result {
+    Ok(()) => {
+      state
+        .runtime_updates
+        .finish_install(operation_id, None)
+        .await
+    }
+    Err(error) => {
+      state
+        .runtime_updates
+        .finish_install(operation_id, Some(error.to_string()))
+        .await
+    }
+  }
+}
+
+async fn install_downloaded_runtime_inner(
+  state: &AgentState,
+  operation: &RuntimeUpdateOperation,
+) -> Result<()> {
+  if operation.name != "php" || operation.version != "8.4.24" {
+    bail!("online Runtime installation only supports PHP 8.4.24");
+  }
+  let downloaded =
+    fabdev_updater::verified_cached_runtime_update(fabdev_updater::RuntimeDownloadRequest {
+      cache_directory: &state.paths.cache,
+      current_app_version: env!("CARGO_PKG_VERSION"),
+      current_agent_protocol_version: PROTOCOL_VERSION,
+      name: &operation.name,
+      version: &operation.version,
+      platform: &operation.platform,
+      architecture: &operation.architecture,
+    })
+    .await
+    .context("Runtime package revalidation failed before installation")?;
+
+  let runtime_root = state.paths.runtimes.clone();
+  let active_before = active_version(&runtime_root, "php")?;
+  let runtime_destination = runtime_root.join("php").join(&downloaded.version);
+  if runtime_destination.exists() {
+    bail!(
+      "Runtime {} {} is already installed",
+      downloaded.name,
+      downloaded.version
+    );
+  }
+  let artifact_path = downloaded.path.clone();
+  let expected_sha256 = downloaded.sha256.clone();
+  let name = downloaded.name.clone();
+  let version = downloaded.version.clone();
+  let install_result = tokio::task::spawn_blocking(move || {
+    install_tar_gz_with_health_check(
+      artifact_path,
+      &expected_sha256,
+      &name,
+      &version,
+      runtime_root,
+      false,
+      |staged| validate_staged_php_runtime(staged, &version),
+    )
+  })
+  .await
+  .context("Runtime installation task failed")?;
+  if let Err(error) = install_result {
+    if runtime_destination.exists() {
+      remove_online_runtime_directory(&runtime_destination)?;
+    }
+    return Err(error.into());
+  }
+
+  let php_version = php_series(&downloaded.version)?
+    .parse::<PhpVersion>()
+    .context("invalid installed PHP Runtime series")?;
+  let config_directory = state.paths.config.join("php").join(php_version.to_string());
+  let service_directory = state
+    .paths
+    .services
+    .join("php")
+    .join(php_version.to_string());
+  let config_existed = config_directory.exists();
+  let service_existed = service_directory.exists();
+  let validation = state
+    .services
+    .lock()
+    .await
+    .validate_php_runtime_install(&php_version, &downloaded.version);
+  if let Err(error) = validation {
+    rollback_online_php_install(
+      &state.paths.runtimes,
+      &downloaded.version,
+      active_before.as_deref(),
+      &config_directory,
+      config_existed,
+      &service_directory,
+      service_existed,
+    )?;
+    return Err(error.context("installed PHP Runtime failed its fixed health check"));
+  }
+  let active_after = match active_version(&state.paths.runtimes, "php") {
+    Ok(active_after) => active_after,
+    Err(error) => {
+      rollback_online_php_install(
+        &state.paths.runtimes,
+        &downloaded.version,
+        active_before.as_deref(),
+        &config_directory,
+        config_existed,
+        &service_directory,
+        service_existed,
+      )?;
+      return Err(error.into());
+    }
+  };
+  if active_after != active_before {
+    rollback_online_php_install(
+      &state.paths.runtimes,
+      &downloaded.version,
+      active_before.as_deref(),
+      &config_directory,
+      config_existed,
+      &service_directory,
+      service_existed,
+    )?;
+    bail!("online Runtime installation changed the active PHP version");
+  }
+  Ok(())
+}
+
+fn validate_staged_php_runtime(runtime: &Path, expected_version: &str) -> Result<(), RuntimeError> {
+  let cli = if cfg!(windows) {
+    runtime.join("php.exe")
+  } else {
+    runtime.join("bin/php")
+  };
+  let server = if cfg!(windows) {
+    runtime.join("php-cgi.exe")
+  } else {
+    runtime.join("sbin/php-fpm")
+  };
+  if !cli.is_file() || !server.is_file() {
+    return Err(RuntimeError::HealthCheckFailed(
+      "required PHP CLI and server binaries are missing".to_owned(),
+    ));
+  }
+  let output = std::process::Command::new(&cli)
+    .args(["-n", "--version"])
+    .output()
+    .map_err(|error| RuntimeError::HealthCheckFailed(error.to_string()))?;
+  let version_prefix = format!("PHP {expected_version}");
+  if !output.status.success()
+    || !String::from_utf8_lossy(&output.stdout).starts_with(&version_prefix)
+  {
+    return Err(RuntimeError::HealthCheckFailed(format!(
+      "PHP CLI did not report {expected_version}"
+    )));
+  }
+  #[cfg(windows)]
+  {
+    let output = std::process::Command::new(&server)
+      .args(["-n", "-v"])
+      .output()
+      .map_err(|error| RuntimeError::HealthCheckFailed(error.to_string()))?;
+    if !output.status.success()
+      || !String::from_utf8_lossy(&output.stdout).starts_with(&version_prefix)
+    {
+      return Err(RuntimeError::HealthCheckFailed(format!(
+        "PHP CGI did not report {expected_version}"
+      )));
+    }
+  }
+  Ok(())
+}
+
+fn rollback_online_php_install(
+  runtime_root: &Path,
+  version: &str,
+  active_before: Option<&str>,
+  config_directory: &Path,
+  config_existed: bool,
+  service_directory: &Path,
+  service_existed: bool,
+) -> Result<()> {
+  match active_before {
+    Some(active_before) => set_active_version(runtime_root, "php", active_before)?,
+    None => {
+      deactivate_runtime(runtime_root, "php")?;
+    }
+  }
+  remove_online_runtime_directory(&runtime_root.join("php").join(version))?;
+  if !config_existed && config_directory.exists() {
+    std::fs::remove_dir_all(config_directory)?;
+  }
+  if !service_existed && service_directory.exists() {
+    std::fs::remove_dir_all(service_directory)?;
+  }
+  Ok(())
+}
+
+fn remove_online_runtime_directory(runtime: &Path) -> Result<()> {
+  let metadata = std::fs::symlink_metadata(runtime)
+    .with_context(|| format!("unable to inspect failed Runtime: {}", runtime.display()))?;
+  if !metadata.is_dir() || metadata.file_type().is_symlink() {
+    bail!(
+      "failed Runtime path is not a directory: {}",
+      runtime.display()
+    );
+  }
+  std::fs::remove_dir_all(runtime)
+    .with_context(|| format!("unable to remove failed Runtime: {}", runtime.display()))
+}
+
 async fn cached_runtime_update_artifact(
   state: &AgentState,
   name: &str,
@@ -2417,6 +2678,88 @@ mod tests {
     );
     assert!(task.is_cancelled());
     assert!(task.cancel().is_err());
+  }
+
+  #[test]
+  fn installs_only_after_a_verified_download() {
+    let operation_id = Uuid::new_v4();
+    let task = RuntimeDownloadTask::new(RuntimeUpdateOperation {
+      operation_id,
+      status: RuntimeUpdateOperationStatus::Verified,
+      name: "php".to_owned(),
+      version: "8.4.24".to_owned(),
+      platform: "macos".to_owned(),
+      architecture: "arm64".to_owned(),
+      file_name: "php-8.4.24-macos-arm64-community.tar.gz".to_owned(),
+      bytes_downloaded: 100,
+      total_bytes: 100,
+      sha256: "a".repeat(64),
+      error: None,
+    });
+
+    assert_eq!(
+      task.begin_install().expect("begin Runtime install").status,
+      RuntimeUpdateOperationStatus::Installing
+    );
+    assert!(task.begin_install().is_err());
+  }
+
+  #[cfg(unix)]
+  #[test]
+  fn validates_fixed_staged_php_binary_paths_and_version() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = std::env::temp_dir().join(format!("fabdev-php-health-{}", Uuid::new_v4()));
+    let cli = root.join("bin/php");
+    let fpm = root.join("sbin/php-fpm");
+    std::fs::create_dir_all(cli.parent().expect("CLI parent")).expect("create CLI parent");
+    std::fs::create_dir_all(fpm.parent().expect("FPM parent")).expect("create FPM parent");
+    std::fs::write(&cli, "#!/bin/sh\nprintf 'PHP 8.4.24 (cli)\\n'\n").expect("write CLI fixture");
+    std::fs::write(&fpm, "fixture").expect("write FPM fixture");
+    let mut permissions = std::fs::metadata(&cli)
+      .expect("read CLI metadata")
+      .permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(&cli, permissions).expect("make CLI executable");
+
+    validate_staged_php_runtime(&root, "8.4.24").expect("validate staged PHP");
+    let error = validate_staged_php_runtime(&root, "8.4.25").expect_err("reject wrong PHP");
+    assert!(matches!(error, RuntimeError::HealthCheckFailed(_)));
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn rolls_back_only_the_new_online_runtime_and_restores_active_php() {
+    let root = std::env::temp_dir().join(format!("fabdev-php-rollback-{}", Uuid::new_v4()));
+    let runtimes = root.join("runtimes");
+    let config = root.join("config/php/8.4");
+    let service = root.join("services/php/8.4");
+    std::fs::create_dir_all(runtimes.join("php/8.2.33")).expect("create existing Runtime");
+    std::fs::create_dir_all(runtimes.join("php/8.4.24")).expect("create new Runtime");
+    std::fs::create_dir_all(&config).expect("create new config");
+    std::fs::create_dir_all(&service).expect("create new service config");
+    set_active_version(&runtimes, "php", "8.4.24").expect("simulate changed active Runtime");
+
+    rollback_online_php_install(
+      &runtimes,
+      "8.4.24",
+      Some("8.2.33"),
+      &config,
+      false,
+      &service,
+      false,
+    )
+    .expect("roll back online Runtime");
+
+    assert_eq!(
+      active_version(&runtimes, "php").expect("read restored active Runtime"),
+      Some("8.2.33".to_owned())
+    );
+    assert!(runtimes.join("php/8.2.33").is_dir());
+    assert!(!runtimes.join("php/8.4.24").exists());
+    assert!(!config.exists());
+    assert!(!service.exists());
+    std::fs::remove_dir_all(root).expect("remove fixture");
   }
 
   #[tokio::test]

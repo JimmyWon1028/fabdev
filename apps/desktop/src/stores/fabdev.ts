@@ -10,6 +10,8 @@ import {
   type PhpRuntimeState,
   type ProxyConnectionInput,
   type ProxyManagerState,
+  type RuntimeUpdateCheck,
+  type RuntimeUpdateOperation,
   type Site,
   type SiteEditInput,
   type SiteHomeSettings,
@@ -57,6 +59,8 @@ interface StoreState {
   siteHome: SiteHomeSettings | null
   sites: Site[]
   phpRuntimes: PhpRuntimeState
+  runtimeUpdateCheck: RuntimeUpdateCheck | null
+  runtimeUpdateOperation: RuntimeUpdateOperation | null
   nodeRuntime: NodeRuntimeState
   proxyManager: ProxyManagerState
 }
@@ -88,6 +92,8 @@ export const useAppStore = defineStore('fabdev', {
       globalVersion: null,
       installed: []
     },
+    runtimeUpdateCheck: null,
+    runtimeUpdateOperation: null,
     nodeRuntime: {
       stableVersion: stableNodeVersion,
       installedVersion: null
@@ -261,6 +267,77 @@ export const useAppStore = defineStore('fabdev', {
       if (response.type === 'phpRuntimes') {
         this.phpRuntimes = response.payload
         this.connected = true
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async checkRuntimeUpdates() {
+      const response = await sendRequest({ type: 'checkRuntimeUpdates' })
+      if (response.type === 'runtimeUpdates') {
+        this.runtimeUpdateCheck = response.payload
+        this.runtimeUpdateOperation = null
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async startRuntimeDownload(name: string, version: string) {
+      const response = await sendRequest({
+        type: 'startRuntimeDownload',
+        payload: { name, version }
+      })
+      if (response.type === 'runtimeUpdateOperation') {
+        this.runtimeUpdateOperation = response.payload
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async getRuntimeUpdateOperation(operationId: string) {
+      const response = await sendRequest({
+        type: 'getRuntimeUpdateOperation',
+        payload: { operationId }
+      })
+      if (response.type === 'runtimeUpdateOperation') {
+        this.runtimeUpdateOperation = response.payload
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async cancelRuntimeDownload(operationId: string) {
+      const response = await sendRequest({
+        type: 'cancelRuntimeDownload',
+        payload: { operationId }
+      })
+      if (response.type === 'runtimeUpdateOperation') {
+        this.runtimeUpdateOperation = response.payload
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async installDownloadedRuntime(operationId: string) {
+      const response = await sendRequest({
+        type: 'installDownloadedRuntime',
+        payload: { operationId }
+      })
+      if (response.type === 'runtimeUpdateOperation') {
+        this.runtimeUpdateOperation = response.payload
+        if (response.payload.status === 'completed') {
+          await this.loadPhpRuntimes()
+        }
         return response.payload
       }
       if (response.type === 'error') {
