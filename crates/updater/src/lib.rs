@@ -590,7 +590,18 @@ mod tests {
   fn filters_runtime_release_by_platform_and_architecture() {
     let catalog = RuntimeCatalog {
       schema_version: 1,
+      product: "fabdev-runtime".to_owned(),
+      channel: "community".to_owned(),
+      catalog_sequence: 1,
       generated_at: "2026-08-22T00:00:00Z".to_owned(),
+      expires_at: "2027-08-22T00:00:00Z".to_owned(),
+      unsigned_community_build: true,
+      integrity: "sha256".to_owned(),
+      compatibility: fabdev_runtime::RuntimeCatalogCompatibility {
+        minimum_app_version: "0.1.4".to_owned(),
+        minimum_agent_protocol_version: 33,
+      },
+      signature: None,
       runtimes: vec![RuntimeRelease {
         name: "php".to_owned(),
         version: "8.2.33".to_owned(),
@@ -599,7 +610,8 @@ mod tests {
         url: "https://example.invalid/php.tar.zst".to_owned(),
         size: 1,
         sha256: "00".repeat(32),
-        signature: "development".to_owned(),
+        signature: Some("development".to_owned()),
+        ..RuntimeRelease::default()
       }],
     };
     assert!(find_release(&catalog, "php", "8.2.33", "macos", "arm64").is_some());

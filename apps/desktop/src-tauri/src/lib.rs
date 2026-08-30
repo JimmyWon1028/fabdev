@@ -1683,7 +1683,8 @@ mod tests {
       url: "php-8.2.33.tar.gz".to_owned(),
       size: 7,
       sha256: "fixture".to_owned(),
-      signature: "development-ad-hoc".to_owned(),
+      signature: Some("development-ad-hoc".to_owned()),
+      ..fabdev_runtime::RuntimeRelease::default()
     };
     validate_bundled_macos_release(
       &release,

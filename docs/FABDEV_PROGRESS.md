@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-08-30
-> 目前階段：Unsigned Community Build `v0.1.3` 已發布並完成公開下載與 App 內更新驗收；P2 Runtime Catalog v1 規格完成，P2.1 尚未開始實作
+> 目前階段：Unsigned Community Build `v0.1.3` 已發布並完成公開下載與 App 內更新驗收；P2.1 Runtime Catalog v1 契約與驗證完成，下一階段為 P2.2 Agent 下載與操作狀態
 
 ## 已完成
 
@@ -65,6 +65,7 @@
 - Windows 封裝版 `0.1.2 → 0.1.3` App 內線上更新已完成：App 下載 48,728,655 bytes Setup、驗證 SHA-256 `fdb9fe3830791be471311f701d7ba1c4e8877e4ae3d7fa3a3e7b03b66aec4254`，安全 Quit 後開啟 NSIS；更新後 Desktop／Agent 皆為 `0.1.3`、Protocol 32，唯一 Site、Site Home 與空白 Proxy 均保留。
 - 驗收期間觀察到 Windows Agent 會重複記錄 PHP 8.2 狀態端點 `404 Not Found`，主控台也持續等待 PHP-FPM 指標；實際 `demo.test` HTTP 200 與 PHP 8.2.33 正常，因此不阻擋 `v0.1.3`，但列入後續修正。
 - P2 Runtime Catalog v1 規格已完成；第一個目標為 PHP 8.4.24 macOS ARM64／Windows x64 Side-by-side 線上安裝，採固定 GitHub Release URL、`.part`、大小／SHA-256、使用者確認、Agent 固定健康檢查與失敗清理。Unsigned Community 的 Catalog／Package signature 固定為 `null`，完整契約見 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md)。
+- P2.1 已完成 Runtime Catalog v1 Typed Model、1 MiB Parser、產生器與嚴格 Validator；涵蓋固定 Product／Channel、RFC 3339 UTC 時間、SemVer／Protocol 相容、Sequence 與 Catalog SHA-256 防回退、兩平台 PHP 8.4.24 固定 URL／檔名、nullable signature、上游來源驗證、大小／SHA-256 及重複項目檢查。既有本機 Runtime descriptor 維持相容，尚未加入網路下載、Agent Protocol 33 或 UI。
 
 ## 2026-08-29 工作日誌
 
@@ -157,7 +158,7 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 
 ### P2：選裝與跨平台
 
-- [ ] 依 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md) 完成 Runtime Catalog v1、Agent Protocol 33 與 PHP 8.4.24 兩平台 Side-by-side 線上安裝；規格已完成，實作尚未開始。
+- [ ] 依 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md) 完成 Runtime Catalog v1、Agent Protocol 33 與 PHP 8.4.24 兩平台 Side-by-side 線上安裝；P2.1 Schema／Validator 已完成，P2.2 Agent 下載尚未開始。
 - [x] 單一穩定版 Node.js LTS 獨立選裝、顯示狀態及移除。
 - [ ] Node.js 多版本、全域版本、`.nvmrc`／`fabdev.yml` 與選用的專案感知 CLI shim。
 - [x] macOS ARM64 MariaDB 選裝服務。

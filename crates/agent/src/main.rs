@@ -2150,7 +2150,8 @@ mod tests {
       url: "runtime.tar.gz".to_owned(),
       size: 7,
       sha256: "fixture".to_owned(),
-      signature: "development-ad-hoc".to_owned(),
+      signature: Some("development-ad-hoc".to_owned()),
+      ..RuntimeRelease::default()
     };
 
     let error = validate_php_release(&release, &artifact).expect_err("reject Nginx package");
@@ -2180,7 +2181,8 @@ mod tests {
       url: "runtime.tar.gz".to_owned(),
       size: 7,
       sha256: "fixture".to_owned(),
-      signature: "development-ad-hoc".to_owned(),
+      signature: Some("development-ad-hoc".to_owned()),
+      ..RuntimeRelease::default()
     };
 
     validate_php_release(&release, &artifact).expect("accept PHP 8.4 package");
@@ -2209,7 +2211,8 @@ mod tests {
       url: "runtime.tar.gz".to_owned(),
       size: 7,
       sha256: "fixture".to_owned(),
-      signature: "development-ad-hoc".to_owned(),
+      signature: Some("development-ad-hoc".to_owned()),
+      ..RuntimeRelease::default()
     };
 
     validate_node_release(&release, &artifact).expect("accept pinned Node.js package");
@@ -2378,7 +2381,8 @@ mod tests {
       url: "runtime.tar.gz".to_owned(),
       size: 7,
       sha256: "fixture".to_owned(),
-      signature: "development-ad-hoc".to_owned(),
+      signature: Some("development-ad-hoc".to_owned()),
+      ..RuntimeRelease::default()
     };
 
     validate_mariadb_release(&release, &artifact).expect("accept MariaDB package");

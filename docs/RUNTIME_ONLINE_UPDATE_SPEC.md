@@ -2,7 +2,7 @@
 
 > 規劃日期：2026-08-30
 >
-> 狀態：規格完成，尚未開始實作
+> 狀態：P2.1 Schema、產生器、Parser 與嚴格 Validator 已完成；P2.2 尚未開始
 >
 > 第一個目標：PHP 8.4.24，macOS ARM64 與 Windows x64，Side-by-side 線上安裝
 
@@ -243,9 +243,9 @@ PHP 8.4.24 採 Side-by-side 安裝：
 
 ### P2.1：Schema 與產生器
 
-- 擴充 `RuntimeCatalog`／`RuntimeRelease` Typed Model。
-- 建立 Catalog 產生器、Parser、嚴格 Validator 與測試。
-- 不連接 UI、不下載、不重新打包。
+- [x] 擴充 `RuntimeCatalog`／`RuntimeRelease` Typed Model。
+- [x] 建立 Catalog 產生器、Parser、嚴格 Validator 與測試。
+- [x] 不連接 UI、不下載、不重新打包。
 
 ### P2.2：Agent 下載與操作狀態
 

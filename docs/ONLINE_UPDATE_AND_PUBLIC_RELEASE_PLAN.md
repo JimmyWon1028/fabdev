@@ -366,7 +366,7 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 
 ### P2：Runtime 線上安裝
 
-- Runtime Catalog v1 規格已完成；見 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md)。
+- Runtime Catalog v1 規格與 P2.1 Typed Model／產生器／Parser／Validator 已完成；見 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md)。
 - 第一個目標為 PHP 8.4.24 macOS ARM64／Windows x64 Side-by-side 安裝，不自動切換 Site 或全域 PHP。
 - 待實作 Agent HTTPS 下載、`.part`、驗證、操作狀態、固定健康檢查與失敗清理。
 - 後續再加入 Nginx、dnsmasq、Node.js 分類更新政策。
