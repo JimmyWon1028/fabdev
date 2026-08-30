@@ -22,6 +22,10 @@ const MAX_GENERATED_AT_FUTURE_SECONDS: i64 = 5 * 60;
 const MAX_PHP_RUNTIME_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_SAFE_JSON_INTEGER: u64 = 9_007_199_254_740_991;
 const PHP_SOURCE_SIGNING_FINGERPRINT: &str = "9D7F99A0CB8F05C8A6958D6256A97AF7600A39A6";
+const PHP_84_MACOS_SOURCE_SHA256: &str =
+  "e127be09a8506f4327c5cfa78a614b00d210714484ec215ce0011b4a03c00731";
+const PHP_84_WINDOWS_SOURCE_SHA256: &str =
+  "86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -101,6 +105,18 @@ pub struct ValidatedRuntimeCatalog {
   pub sha256: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct CommunityPhpCatalogInput<'a> {
+  pub release_version: &'a str,
+  pub catalog_sequence: u64,
+  pub generated_at: &'a str,
+  pub expires_at: &'a str,
+  pub minimum_app_version: &'a str,
+  pub macos_arm64_package: &'a Path,
+  pub windows_x64_package: &'a Path,
+  pub now_unix_seconds: i64,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InstallLayout {
   pub runtime_root: PathBuf,
@@ -150,6 +166,14 @@ pub enum RuntimeCatalogError {
   SequenceRollback { received: u64, accepted: u64 },
   #[error("runtime catalog sequence {sequence} was reused with different contents")]
   SequenceHashMismatch { sequence: u64 },
+}
+
+#[derive(Debug, Error)]
+pub enum RuntimeCatalogBuildError {
+  #[error("unable to read Runtime package: {0}")]
+  Read(#[from] std::io::Error),
+  #[error(transparent)]
+  Catalog(#[from] RuntimeCatalogError),
 }
 
 pub fn parse_and_validate_runtime_catalog(
@@ -206,6 +230,104 @@ pub fn generate_runtime_catalog(
   let sha256 = hex::encode(Sha256::digest(&contents));
   validate_runtime_catalog(catalog, &sha256, validation)?;
   Ok(contents)
+}
+
+pub fn generate_community_php_catalog(
+  input: &CommunityPhpCatalogInput<'_>,
+) -> Result<Vec<u8>, RuntimeCatalogBuildError> {
+  let macos_file_name = "php-8.4.24-macos-arm64-community.tar.gz";
+  let windows_file_name = "php-8.4.24-windows-x64-community.tar.gz";
+  let (macos_size, macos_sha256) = file_size_and_sha256(input.macos_arm64_package)?;
+  let (windows_size, windows_sha256) = file_size_and_sha256(input.windows_x64_package)?;
+  let release_url = |file_name: &str| {
+    format!(
+      "{RELEASE_DOWNLOAD_PREFIX}{}/{file_name}",
+      input.release_version
+    )
+  };
+  let catalog = RuntimeCatalog {
+    schema_version: RUNTIME_CATALOG_SCHEMA_VERSION,
+    product: RUNTIME_CATALOG_PRODUCT.to_owned(),
+    channel: RUNTIME_CATALOG_CHANNEL.to_owned(),
+    catalog_sequence: input.catalog_sequence,
+    generated_at: input.generated_at.to_owned(),
+    expires_at: input.expires_at.to_owned(),
+    unsigned_community_build: true,
+    integrity: "sha256".to_owned(),
+    compatibility: RuntimeCatalogCompatibility {
+      minimum_app_version: input.minimum_app_version.to_owned(),
+      minimum_agent_protocol_version: RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+    },
+    signature: None,
+    runtimes: vec![
+      RuntimeRelease {
+        name: "php".to_owned(),
+        version: "8.4.24".to_owned(),
+        platform: "macos".to_owned(),
+        architecture: "arm64".to_owned(),
+        minimum_os_version: Some("13.0".to_owned()),
+        file_name: Some(macos_file_name.to_owned()),
+        url: release_url(macos_file_name),
+        size: macos_size,
+        sha256: macos_sha256,
+        signature: None,
+        source_verification: Some(RuntimeSourceVerification {
+          method: "pgp".to_owned(),
+          fingerprint: Some(PHP_SOURCE_SIGNING_FINGERPRINT.to_owned()),
+          upstream_sha256: PHP_84_MACOS_SOURCE_SHA256.to_owned(),
+        }),
+        archive_format: Some("tar.gz".to_owned()),
+        install_mode: Some("side-by-side".to_owned()),
+        health_check_profile: Some("php-runtime-v1".to_owned()),
+      },
+      RuntimeRelease {
+        name: "php".to_owned(),
+        version: "8.4.24".to_owned(),
+        platform: "windows".to_owned(),
+        architecture: "x64".to_owned(),
+        minimum_os_version: Some("11".to_owned()),
+        file_name: Some(windows_file_name.to_owned()),
+        url: release_url(windows_file_name),
+        size: windows_size,
+        sha256: windows_sha256,
+        signature: None,
+        source_verification: Some(RuntimeSourceVerification {
+          method: "official-sha256".to_owned(),
+          fingerprint: None,
+          upstream_sha256: PHP_84_WINDOWS_SOURCE_SHA256.to_owned(),
+        }),
+        archive_format: Some("tar.gz".to_owned()),
+        install_mode: Some("side-by-side".to_owned()),
+        health_check_profile: Some("php-runtime-v1".to_owned()),
+      },
+    ],
+  };
+  let validation = RuntimeCatalogValidation {
+    current_app_version: input.minimum_app_version,
+    current_agent_protocol_version: RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+    now_unix_seconds: input.now_unix_seconds,
+    accepted_catalog: None,
+  };
+  let contents = generate_runtime_catalog(&catalog, &validation)?;
+  parse_and_validate_runtime_catalog(&contents, &validation)?;
+  Ok(contents)
+}
+
+fn file_size_and_sha256(path: &Path) -> Result<(u64, String), std::io::Error> {
+  let file = File::open(path)?;
+  let mut reader = BufReader::new(file);
+  let mut hasher = Sha256::new();
+  let mut size = 0_u64;
+  let mut buffer = [0_u8; 64 * 1024];
+  loop {
+    let count = reader.read(&mut buffer)?;
+    if count == 0 {
+      break;
+    }
+    size += count as u64;
+    hasher.update(&buffer[..count]);
+  }
+  Ok((size, hex::encode(hasher.finalize())))
 }
 
 pub fn validate_runtime_catalog(
@@ -983,6 +1105,92 @@ mod tests {
       now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
       accepted_catalog,
     }
+  }
+
+  #[test]
+  fn generates_the_fixed_community_php_catalog_from_packages() {
+    let root = std::env::temp_dir().join(format!(
+      "fabdev-runtime-catalog-build-{}",
+      uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&root).expect("create Catalog fixture");
+    let macos_package = root.join("macos.tar.gz");
+    let windows_package = root.join("windows.tar.gz");
+    std::fs::write(&macos_package, b"macos runtime").expect("write macOS package");
+    std::fs::write(&windows_package, b"windows runtime").expect("write Windows package");
+
+    let contents = generate_community_php_catalog(&CommunityPhpCatalogInput {
+      release_version: "0.1.4",
+      catalog_sequence: 1,
+      generated_at: "2026-08-30T00:00:00Z",
+      expires_at: "2027-02-26T00:00:00Z",
+      minimum_app_version: "0.1.4",
+      macos_arm64_package: &macos_package,
+      windows_x64_package: &windows_package,
+      now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test")
+        .expect("parse test time"),
+    })
+    .expect("generate Community PHP Catalog");
+    let catalog: RuntimeCatalog = serde_json::from_slice(&contents).expect("parse Catalog");
+
+    assert_eq!(catalog.catalog_sequence, 1);
+    assert_eq!(catalog.signature, None);
+    assert_eq!(catalog.runtimes.len(), 2);
+    assert_eq!(catalog.runtimes[0].platform, "macos");
+    assert_eq!(catalog.runtimes[0].size, 13);
+    assert_eq!(
+      catalog.runtimes[0].sha256,
+      hex::encode(Sha256::digest(b"macos runtime"))
+    );
+    assert_eq!(
+      catalog.runtimes[0]
+        .source_verification
+        .as_ref()
+        .expect("macOS source verification")
+        .fingerprint
+        .as_deref(),
+      Some(PHP_SOURCE_SIGNING_FINGERPRINT)
+    );
+    assert_eq!(catalog.runtimes[1].platform, "windows");
+    assert_eq!(catalog.runtimes[1].size, 15);
+    assert_eq!(
+      catalog.runtimes[1].url,
+      "https://github.com/JimmyWon1028/fabdev/releases/download/v0.1.4/php-8.4.24-windows-x64-community.tar.gz"
+    );
+    std::fs::remove_dir_all(root).expect("remove Catalog fixture");
+  }
+
+  #[test]
+  fn rejects_an_empty_community_php_package() {
+    let root = std::env::temp_dir().join(format!(
+      "fabdev-runtime-catalog-empty-{}",
+      uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&root).expect("create Catalog fixture");
+    let macos_package = root.join("macos.tar.gz");
+    let windows_package = root.join("windows.tar.gz");
+    std::fs::write(&macos_package, []).expect("write empty macOS package");
+    std::fs::write(&windows_package, b"windows runtime").expect("write Windows package");
+
+    let error = generate_community_php_catalog(&CommunityPhpCatalogInput {
+      release_version: "0.1.4",
+      catalog_sequence: 1,
+      generated_at: "2026-08-30T00:00:00Z",
+      expires_at: "2027-02-26T00:00:00Z",
+      minimum_app_version: "0.1.4",
+      macos_arm64_package: &macos_package,
+      windows_x64_package: &windows_package,
+      now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test")
+        .expect("parse test time"),
+    })
+    .expect_err("reject empty package");
+
+    assert!(matches!(
+      error,
+      RuntimeCatalogBuildError::Catalog(RuntimeCatalogError::Invalid { ref field, .. })
+        if field == "runtimes[0].size"
+    ));
+    std::fs::remove_dir_all(root).expect("remove Catalog fixture");
   }
 
   #[test]

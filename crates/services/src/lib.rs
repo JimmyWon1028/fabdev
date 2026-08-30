@@ -1072,14 +1072,14 @@ impl ServiceSupervisor {
 
   pub async fn save_php_ini(&mut self, version: &PhpVersion, contents: &str) -> Result<()> {
     validate_php_ini_contents(contents)?;
-    let config = generate_php_config(&self.paths, &self.runtimes, version)?;
+    generate_php_config(&self.paths, &self.runtimes, version)?;
     let managed_path = managed_php_ini_path(&self.paths, version);
     let previous = std::fs::read(&managed_path)?;
     std::fs::write(&managed_path, contents)?;
-    std::fs::write(&config.php_ini, contents)?;
+    let config = generate_php_config(&self.paths, &self.runtimes, version)?;
     if let Err(error) = validate_php_config(&config) {
       std::fs::write(&managed_path, &previous)?;
-      std::fs::write(&config.php_ini, &previous)?;
+      generate_php_config(&self.paths, &self.runtimes, version)?;
       return Err(error.context("invalid php.ini"));
     }
 
@@ -1087,8 +1087,8 @@ impl ServiceSupervisor {
       self.stop_php_version(version).await?;
       if let Err(error) = self.ensure_php_version_running(&config).await {
         std::fs::write(&managed_path, &previous)?;
-        std::fs::write(&config.php_ini, &previous)?;
-        let _ = self.ensure_php_version_running(&config).await;
+        let restored_config = generate_php_config(&self.paths, &self.runtimes, version)?;
+        let _ = self.ensure_php_version_running(&restored_config).await;
         return Err(error.context("unable to restart PHP-FPM with updated php.ini"));
       }
     }
@@ -1828,7 +1828,13 @@ fn generate_php_config(
     let template = std::fs::read_to_string(&template_path)?;
     std::fs::write(&managed_php_ini, render_php(&template))?;
   }
-  std::fs::copy(&managed_php_ini, &php_ini)?;
+  let managed_php_ini_contents = std::fs::read_to_string(&managed_php_ini)?;
+  let service_php_ini_contents = effective_php_ini_contents(
+    &managed_php_ini_contents,
+    cfg!(windows),
+    &render_php,
+  );
+  std::fs::write(&php_ini, service_php_ini_contents)?;
   #[cfg(unix)]
   {
     let php_pool = php_service.join("php-fpm.d/www.conf");
@@ -1855,6 +1861,18 @@ fn php_ini_template(version: &PhpVersion) -> &'static str {
     "8.2" => PHP_82_INI_TEMPLATE,
     "8.4" => PHP_82_INI_TEMPLATE,
     _ => PHP_INI_TEMPLATE,
+  }
+}
+
+fn effective_php_ini_contents(
+  managed_contents: &str,
+  windows: bool,
+  render_php: &impl Fn(&str) -> String,
+) -> String {
+  if windows && managed_contents.is_empty() {
+    render_php(PHP_WINDOWS_INI_TEMPLATE)
+  } else {
+    managed_contents.to_owned()
   }
 }
 
@@ -4801,6 +4819,31 @@ mod tests {
     assert!(contents.is_empty());
     assert!(service_contents.is_empty());
     std::fs::remove_dir_all(root).expect("remove empty php.ini fixture");
+  }
+
+  #[test]
+  fn renders_windows_service_defaults_for_an_empty_managed_php_ini() {
+    let rendered = effective_php_ini_contents("", true, &|template| {
+      template
+        .replace("@RUNTIME_ROOT@", "C:/fabdev/php/8.4.24")
+        .replace("@SERVICE_ROOT@", "C:/fabdev/services/php/8.4")
+        .replace("@MARIADB_SOCKET@", "")
+        .replace("@PHP_EXTENSION_API@", "")
+    });
+
+    assert!(rendered.contains("extension_dir = \"C:/fabdev/php/8.4.24/ext\""));
+    assert!(rendered.contains("extension = mysqli"));
+    assert!(rendered.contains("extension = pdo_mysql"));
+  }
+
+  #[test]
+  fn preserves_nonempty_windows_managed_php_ini() {
+    let managed = "memory_limit = 256M\n";
+    let rendered = effective_php_ini_contents(managed, true, &|_| {
+      panic!("the Windows template must not replace user contents")
+    });
+
+    assert_eq!(rendered, managed);
   }
 
   #[cfg(unix)]

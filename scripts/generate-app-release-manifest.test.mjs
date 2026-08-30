@@ -23,13 +23,19 @@ test('prepares canonical release assets, checksums, and manifests', async (conte
   const macContents = Buffer.from('macOS installer fixture')
   const windowsContents = Buffer.from('Windows installer fixture')
   const connectContents = Buffer.from('fabDev Connect fixture')
+  const macRuntimeContents = Buffer.from('macOS PHP Runtime fixture')
+  const windowsRuntimeContents = Buffer.from('Windows PHP Runtime fixture')
   const macSource = join(testRoot, 'input.dmg')
   const windowsSource = join(testRoot, 'input-setup.exe')
   const connectSource = join(testRoot, 'input-connect.exe')
+  const macRuntimeSource = join(testRoot, 'input-runtime-macos.tar.gz')
+  const windowsRuntimeSource = join(testRoot, 'input-runtime-windows.tar.gz')
   const outputDir = join(testRoot, 'release')
   await writeFile(macSource, macContents)
   await writeFile(windowsSource, windowsContents)
   await writeFile(connectSource, connectContents)
+  await writeFile(macRuntimeSource, macRuntimeContents)
+  await writeFile(windowsRuntimeSource, windowsRuntimeContents)
 
   const result = await prepareAppRelease({
     repoRoot,
@@ -38,12 +44,16 @@ test('prepares canonical release assets, checksums, and manifests', async (conte
     outputDir,
     macosArm64: macSource,
     windowsX64: windowsSource,
-    windowsConnectX64: connectSource
+    windowsConnectX64: connectSource,
+    runtimeMacosArm64: macRuntimeSource,
+    runtimeWindowsX64: windowsRuntimeSource
   })
 
   const macName = `fabDev-Community-${projectVersion}-macos-arm64.dmg`
   const windowsName = `fabDev-Community-${projectVersion}-windows-x64-setup.exe`
   const connectName = `fabDev-Connect-${projectVersion}-windows-x64.exe`
+  const macRuntimeName = 'php-8.4.24-macos-arm64-community.tar.gz'
+  const windowsRuntimeName = 'php-8.4.24-windows-x64-community.tar.gz'
   assert.deepEqual((await readdir(outputDir)).sort(), [
     'SHA256SUMS',
     'fabdev-app-v1.json',
@@ -52,13 +62,25 @@ test('prepares canonical release assets, checksums, and manifests', async (conte
     `${connectName}.sha256`,
     macName,
     `${macName}.sha256`,
+    macRuntimeName,
+    `${macRuntimeName}.sha256`,
     windowsName,
-    `${windowsName}.sha256`
+    `${windowsName}.sha256`,
+    windowsRuntimeName,
+    `${windowsRuntimeName}.sha256`
   ].sort())
 
   assert.equal(await readFile(join(outputDir, macName), 'utf8'), macContents.toString())
   assert.equal(await readFile(join(outputDir, windowsName), 'utf8'), windowsContents.toString())
   assert.equal(await readFile(join(outputDir, connectName), 'utf8'), connectContents.toString())
+  assert.equal(
+    await readFile(join(outputDir, macRuntimeName), 'utf8'),
+    macRuntimeContents.toString()
+  )
+  assert.equal(
+    await readFile(join(outputDir, windowsRuntimeName), 'utf8'),
+    windowsRuntimeContents.toString()
+  )
 
   const manifest = JSON.parse(await readFile(join(outputDir, 'fabdev-app-v1.json'), 'utf8'))
   const stableManifest = JSON.parse(
@@ -81,7 +103,9 @@ test('prepares canonical release assets, checksums, and manifests', async (conte
     await readFile(join(outputDir, 'SHA256SUMS'), 'utf8'),
     `${digest(macContents)}  ${macName}\n` +
       `${digest(windowsContents)}  ${windowsName}\n` +
-      `${digest(connectContents)}  ${connectName}\n`
+      `${digest(connectContents)}  ${connectName}\n` +
+      `${digest(macRuntimeContents)}  ${macRuntimeName}\n` +
+      `${digest(windowsRuntimeContents)}  ${windowsRuntimeName}\n`
   )
   assert.equal(
     await readFile(join(outputDir, `${macName}.sha256`), 'utf8'),
@@ -146,6 +170,8 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
 
   assert.match(workflow, /CONFIRM_REPACKAGE: \$\{\{ inputs\.confirm_repackage \}\}/)
   assert.match(workflow, /CONFIRM_DRAFT: \$\{\{ inputs\.confirm_draft \}\}/)
+  assert.match(workflow, /RUNTIME_CATALOG_SEQUENCE: \$\{\{ inputs\.runtime_catalog_sequence \}\}/)
+  assert.match(workflow, /RUNTIME_CATALOG_EXPIRES_AT: \$\{\{ inputs\.runtime_catalog_expires_at \}\}/)
   assert.match(workflow, /REPACKAGE v\$VERSION/)
   assert.match(workflow, /DRAFT v\$VERSION/)
   assert.match(workflow, /permissions:\n  contents: read/)
@@ -159,6 +185,13 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.doesNotMatch(workflow, /releases\/tags\//)
   assert.doesNotMatch(workflow, /gh release edit|--draft=false|make_latest/)
   assert.doesNotMatch(workflow, /secrets\./)
+  assert.match(workflow, /PHP_VERSION=8\.4\.24/)
+  assert.match(workflow, /build-windows-php-runtime\.ps1 -OutputDirectory release-input/)
+  assert.match(workflow, /--runtime-macos-arm64/)
+  assert.match(workflow, /--runtime-windows-x64/)
+  assert.match(workflow, /--bin fabdev-runtime-catalog/)
+  assert.match(workflow, /release-assets\/fabdev-runtime-v1\.json/)
+  assert.match(workflow, /\)" = "14"/)
 
   const runtimeBuildStart = workflow.indexOf(
     '      - name: Build verified bundled macOS Runtimes'
@@ -187,6 +220,26 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   for (const line of usesLines) {
     assert.match(line, /^\s+uses: [^@\s]+@[0-9a-f]{40}(?:\s+#.*)?$/)
   }
+})
+
+test('pins and verifies the Windows PHP 8.4 online Runtime package', async () => {
+  const script = await readFile(
+    join(repoRoot, 'scripts/build-windows-php-runtime.ps1'),
+    'utf8'
+  )
+
+  assert.match(script, /\$phpVersion = "8\.4\.24"/)
+  assert.match(
+    script,
+    /\$phpSha256 = "86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb"/
+  )
+  assert.match(script, /php-\$phpVersion-windows-x64-community\.tar\.gz/)
+  assert.match(script, /ext\/php_mysqli\.dll/)
+  assert.match(script, /ext\/php_pdo_mysql\.dll/)
+  assert.match(script, /extension_loaded\('mysqli'\)/)
+  assert.match(script, /extension_loaded\('pdo_mysql'\)/)
+  assert.match(script, /tar\.exe -tzf/)
+  assert.doesNotMatch(script, /mariadb|node/i)
 })
 
 test('removes every exact stale fabDev CA without requiring user data', async () => {

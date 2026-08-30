@@ -212,7 +212,7 @@ PHP 8.4.24 採 Side-by-side 安裝：
 
 1. 從固定 PHP 原始碼、SHA-256、PGP 簽章與 Fingerprint 建置兩平台 Package。
 2. 驗證 Package 只有單一版本根目錄，且不依賴未封裝的 Homebrew、Herd、nvm 或系統 Runtime。
-3. 產生兩份 Runtime descriptor 與 `fabdev-runtime-v1.json`；產生器拒絕重複項目、未知平台、錯誤檔名、零大小或非小寫 SHA-256。
+3. 以兩份 Runtime Package 產生 `fabdev-runtime-v1.json`；正式 Catalog 產生器拒絕重複項目、未知平台、錯誤檔名、零大小或非小寫 SHA-256，不發布舊格式 descriptor。
 4. 將 Catalog、Package 與個別 checksum 加入下一個 App Draft Release；不得加入 `*-dev` 產物。
 5. 從 Draft 重新下載兩平台 Package，核對大小、SHA-256、Catalog 及內容。
 6. 在隔離 macOS 與 Windows 完成檢查、下載、取消／重試、安裝、健康檢查及資料保留驗收。
@@ -267,6 +267,10 @@ P2.3 已完成程式、前端呈現與本機 fixture 驗證。公開 Runtime Cat
 
 ### P2.4：兩平台 Draft 驗收
 
+- 完整執行矩陣、Release tooling 缺口、14 個 Asset 契約、授權關卡與 Publish 後匿名 Feed 閘門見 [`P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md`](P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md)。
+- [x] 正式 Runtime Catalog v1 產生器、兩平台 Package checksum 納入總表，以及固定 14 個 Draft Asset 契約。
+- [x] Windows PHP 8.4.24 專用來源 SHA-256、CLI／CGI／MySQL extensions 與單一 Archive 根目錄驗證腳本。
+- [x] Windows 空白使用者 `php.ini` 保留，內部服務設定自動載入 `mysqli`／`pdo_mysql` 的回歸修正。
 - 取得明確重新打包授權後才建立 Runtime Packages。
 - 建立 App Draft Release，重新下載並驗證所有 Runtime Assets。
 - macOS／Windows 端到端通過且 Repository Owner 核准後才 Publish。

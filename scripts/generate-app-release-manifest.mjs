@@ -29,7 +29,9 @@ function parseArgs(argv) {
     ['--repository', 'repository'],
     ['--macos-arm64', 'macosArm64'],
     ['--windows-x64', 'windowsX64'],
-    ['--windows-connect-x64', 'windowsConnectX64']
+    ['--windows-connect-x64', 'windowsConnectX64'],
+    ['--runtime-macos-arm64', 'runtimeMacosArm64'],
+    ['--runtime-windows-x64', 'runtimeWindowsX64']
   ])
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -65,7 +67,9 @@ function printHelp() {
     [--repository <owner/repository>] \\
     [--macos-arm64 <dmg>] \\
     [--windows-x64 <setup.exe>] \\
-    [--windows-connect-x64 <fabdev-connect.exe>]
+    [--windows-connect-x64 <fabdev-connect.exe>] \\
+    [--runtime-macos-arm64 <php-runtime.tar.gz>] \\
+    [--runtime-windows-x64 <php-runtime.tar.gz>]
 
 At least one App installer must be provided. The output directory must not exist.
 `)
@@ -204,6 +208,21 @@ function optionalToolDefinitions(version, options) {
   ].filter((definition) => definition.source)
 }
 
+function runtimePackageDefinitions(options) {
+  return [
+    {
+      source: options.runtimeMacosArm64,
+      label: 'PHP 8.4.24 macOS ARM64 Runtime package',
+      fileName: 'php-8.4.24-macos-arm64-community.tar.gz'
+    },
+    {
+      source: options.runtimeWindowsX64,
+      label: 'PHP 8.4.24 Windows x64 Runtime package',
+      fileName: 'php-8.4.24-windows-x64-community.tar.gz'
+    }
+  ].filter((definition) => definition.source)
+}
+
 export async function prepareAppRelease(options) {
   const repoRoot = resolve(options.repoRoot ?? defaultRepoRoot)
   const version = requireString(options.version, '--version')
@@ -227,7 +246,8 @@ export async function prepareAppRelease(options) {
     throw new Error('At least one App installer is required')
   }
   const optionalTools = optionalToolDefinitions(version, options)
-  const definitions = [...installers, ...optionalTools]
+  const runtimePackages = runtimePackageDefinitions(options)
+  const definitions = [...installers, ...optionalTools, ...runtimePackages]
   for (const definition of definitions) {
     definition.source = await validateSource(resolve(repoRoot, definition.source), definition.label)
   }

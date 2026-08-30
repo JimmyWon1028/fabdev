@@ -26,12 +26,16 @@ mkdir -p "$ARTIFACT_DIR"
 "$RUNTIME_ROOT/bin/php" -v
 php_modules="$("$RUNTIME_ROOT/bin/php" -m)"
 echo "$php_modules"
-for required_module in imagick imap tidy; do
+for required_module in imagick imap mysqli pdo_mysql tidy; do
   if ! grep -Fxq "$required_module" <<< "$php_modules"; then
     echo "Runtime does not load required PHP module: $required_module" >&2
     exit 1
   fi
 done
+if ! grep -Fxq "Zend OPcache" <<< "$php_modules"; then
+  echo "Runtime does not load required PHP module: Zend OPcache" >&2
+  exit 1
+fi
 "$RUNTIME_ROOT/bin/php" -r '
   $image = new Imagick();
   $image->newImage(2, 2, "white");
@@ -53,6 +57,13 @@ done
 "$RUNTIME_ROOT/sbin/php-fpm" --fpm-config "$RUNTIME_ROOT/etc/php-fpm.conf" --test
 
 COPYFILE_DISABLE=1 tar -czf "$ARTIFACT_DIR/$ARCHIVE_NAME" -C "$(dirname "$RUNTIME_ROOT")" "$(basename "$RUNTIME_ROOT")"
+archive_root="$(basename "$RUNTIME_ROOT")"
+while IFS= read -r archive_entry; do
+  if [[ "$archive_entry" != "$archive_root/" && "$archive_entry" != "$archive_root/"* ]]; then
+    echo "Runtime Archive contains an entry outside $archive_root/: $archive_entry" >&2
+    exit 1
+  fi
+done < <(tar -tzf "$ARTIFACT_DIR/$ARCHIVE_NAME")
 artifact_sha256="$(shasum -a 256 "$ARTIFACT_DIR/$ARCHIVE_NAME" | awk '{print $1}')"
 artifact_size="$(stat -f '%z' "$ARTIFACT_DIR/$ARCHIVE_NAME")"
 

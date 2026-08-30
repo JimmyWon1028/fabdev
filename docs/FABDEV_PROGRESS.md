@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-08-30
-> 目前階段：Unsigned Community Build `v0.1.3` 已發布並完成公開下載與 App 內更新驗收；P2.3 PHP Runtime UI、重新驗證、固定健康檢查與 Side-by-side 安裝完成，下一階段為 P2.4 兩平台 Draft 驗收
+> 目前階段：Unsigned Community Build `v0.1.3` 已發布並完成公開下載與 App 內更新驗收；P2.4a Release pipeline hardening 已實作，待 CI 後進入 `0.1.4` 候選版與兩平台 Draft 驗收
 
 ## 已完成
 
@@ -68,6 +68,8 @@
 - P2.1 已完成 Runtime Catalog v1 Typed Model、1 MiB Parser、產生器與嚴格 Validator；涵蓋固定 Product／Channel、RFC 3339 UTC 時間、SemVer／Protocol 相容、Sequence 與 Catalog SHA-256 防回退、兩平台 PHP 8.4.24 固定 URL／檔名、nullable signature、上游來源驗證、大小／SHA-256 及重複項目檢查，並維持既有本機 Runtime descriptor 相容。
 - P2.2 已完成 Agent Protocol 33 Runtime 更新請求／回應、固定 Catalog URL、GitHub HTTPS Redirect Host 白名單、系統 Proxy／信任庫、Catalog 與 Sequence 快取、`.part` 串流大小／SHA-256、原子完成、驗證快取重用、背景進度輪詢、取消／失敗清理、啟動殘檔清理及 Shutdown 取消。公開 Runtime Feed 尚未發布，GitHub 匿名實際下載留待 P2.4。
 - P2.3 已完成 PHP Runtime 線上安裝 UI、Unsigned Community 警告、版本／大小／SHA-256／進度顯示、下載與安裝兩次確認，以及 Protocol 33 `InstallDownloadedRuntime`。Agent 安裝前會重新驗證快取 Catalog 與 Package，解壓至 staging 後執行固定 CLI／版本檢查，安裝後再驗證必要 MySQL extensions 與 macOS FPM／Windows CGI；PHP 8.4.24 只並存安裝，不切換 `current`、全域 PHP 或 Site，失敗時清除本次新增內容。公開 Feed、真實兩平台 binary 與 Site HTTP 驗收留待 P2.4。
+- P2.4 執行規劃已建立於 [`P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md`](P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md)：先完成正式 Community Runtime 產生器、Windows 空白 php.ini／必要 extensions 回歸及 Draft workflow 的 14 個 Asset 契約，再經另行授權執行 `0.1.4` 版本、Tag、重新打包、Draft、兩平台實機與 Publish 後匿名 Feed 驗收。
+- P2.4a 已實作正式 Rust Runtime Catalog v1 產生器、固定兩平台 PHP 8.4.24 Package metadata、Windows 專用可重現 Package 腳本、空白使用者 php.ini／內部必要 MySQL extensions 分離，以及包含 14 個 Assets 且永不自動 Publish 的 Draft workflow；本機 Release Script 7 項與靜態檢查通過，Rust／Windows 原生 CI 待推送驗證。
 
 ## 2026-08-29 工作日誌
 
