@@ -36,7 +36,10 @@ fn generate(args: &[String]) -> Result<(), Box<dyn Error>> {
   if let Some(parent) = output.parent() {
     std::fs::create_dir_all(parent)?;
   }
-  let mut file = OpenOptions::new().write(true).create_new(true).open(output)?;
+  let mut file = OpenOptions::new()
+    .write(true)
+    .create_new(true)
+    .open(output)?;
   file.write_all(&contents)?;
   println!("Generated {}", output.display());
   Ok(())

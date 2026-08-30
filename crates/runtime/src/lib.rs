@@ -1127,8 +1127,7 @@ mod tests {
       minimum_app_version: "0.1.4",
       macos_arm64_package: &macos_package,
       windows_x64_package: &windows_package,
-      now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test")
-        .expect("parse test time"),
+      now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
     })
     .expect("generate Community PHP Catalog");
     let catalog: RuntimeCatalog = serde_json::from_slice(&contents).expect("parse Catalog");
@@ -1180,8 +1179,7 @@ mod tests {
       minimum_app_version: "0.1.4",
       macos_arm64_package: &macos_package,
       windows_x64_package: &windows_package,
-      now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test")
-        .expect("parse test time"),
+      now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
     })
     .expect_err("reject empty package");
 

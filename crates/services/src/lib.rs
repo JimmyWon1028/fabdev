@@ -1829,11 +1829,8 @@ fn generate_php_config(
     std::fs::write(&managed_php_ini, render_php(&template))?;
   }
   let managed_php_ini_contents = std::fs::read_to_string(&managed_php_ini)?;
-  let service_php_ini_contents = effective_php_ini_contents(
-    &managed_php_ini_contents,
-    cfg!(windows),
-    &render_php,
-  );
+  let service_php_ini_contents =
+    effective_php_ini_contents(&managed_php_ini_contents, cfg!(windows), &render_php);
   std::fs::write(&php_ini, service_php_ini_contents)?;
   #[cfg(unix)]
   {
