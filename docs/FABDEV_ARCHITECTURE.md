@@ -327,7 +327,7 @@ docs/
 
 - PHP 8.3 與 Node.js Binary 的實際建置版本。
 - App 程式碼簽章、公證、更新 Channel 與私鑰保管流程。
-- CLI Shim 與 Shell PATH 的使用者授權流程。
+- Composer／Artisan、Site-aware CLI Shim 與 Shell PATH 的使用者授權流程；全域終端機 PHP 的明確啟用／停用流程已完成。
 - Node.js 開發伺服器是否納入程序監控。
 - PHP 8.0、8.1、8.5 及後續版本的支援範圍。
 - Windows Adapter 與安裝器的詳細實作時程。

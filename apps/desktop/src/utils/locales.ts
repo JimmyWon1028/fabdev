@@ -265,6 +265,19 @@ const en = {
   'runtimes.globalPhp': 'Global PHP',
   'runtimes.notSet': 'Not set',
   'runtimes.existingSitesIndependent': 'Existing Sites keep their own settings.',
+  'runtimes.terminalEyebrow': 'Terminal integration',
+  'runtimes.terminalTitle': 'Terminal PHP',
+  'runtimes.terminalDescriptionMac': 'Use only the stable fabDev PHP shim for PHP. Herd PHP PATH lines are reversibly commented out; other PATH entries are preserved.',
+  'runtimes.terminalDescriptionWindows': 'Use only the stable fabDev PHP shim for PHP in the current user PATH. Herd PHP PATH entries are backed up and removed; Machine PATH is not changed.',
+  'runtimes.terminalOn': 'Enabled',
+  'runtimes.terminalOff': 'Disabled',
+  'runtimes.terminalEnable': 'Enable terminal PHP',
+  'runtimes.terminalRepair': 'Repair integration',
+  'runtimes.terminalDisable': 'Disable',
+  'runtimes.terminalWorking': 'Updating…',
+  'runtimes.terminalRestartHelp': 'Open a new terminal after changing this setting. Existing terminal windows keep their previous PATH.',
+  'runtimes.terminalEnabled': 'Terminal PHP is enabled at {path}; open a new terminal to use it',
+  'runtimes.terminalDisabled': 'Terminal PHP is disabled and the previous Herd PHP PATH was restored',
   'runtimes.onlineEyebrow': 'Verified online package',
   'runtimes.onlineTitle': 'PHP Runtime online install',
   'runtimes.onlineDescription': 'Check the fixed GitHub Runtime Catalog, then download and install an optional PHP version side by side.',
@@ -332,7 +345,7 @@ const en = {
   'runtimes.packageFilter': 'Runtime Package',
   'runtimes.installing': 'Validating and installing Runtime package…',
   'runtimes.installedCount': 'Runtime installed; {count} PHP runtimes are now installed',
-  'runtimes.globalChanged': 'Global PHP switched to {version}; Site-specific versions were not changed',
+  'runtimes.globalChanged': 'Global PHP switched to {version}; Site-specific versions were not changed, and enabled terminal PHP will use this version in new terminals',
   'runtimes.removeConfirm': 'Remove PHP {version}?\n\nOnly the fabDev-managed Runtime will be deleted. Sites and project files will not be deleted.',
   'runtimes.removeTitle': 'Remove PHP Runtime',
   'runtimes.cancel': 'Cancel',
@@ -408,6 +421,7 @@ export type TranslationKey = keyof typeof en
 type TranslationTable = Record<TranslationKey, string>
 
 const zhTW: TranslationTable = {
+  ...en,
   'app.tagline': 'ERP Development', 'app.quittingTitle': '正在關閉 fabDev…', 'app.quittingDescription': '正在停止受管服務並清理背景程序，可能需要幾秒鐘。', 'nav.label': '主要導覽', 'nav.dashboard': '總覽', 'nav.mariadb': 'MariaDB', 'nav.sites': 'Sites', 'nav.runtimes': 'PHP 設定', 'nav.nodejs': 'Node.js', 'nav.proxy': 'Proxy', 'nav.settings': '設定',
   'agent.connected': 'Agent 已連線', 'agent.disconnected': 'Agent 未連線', 'agent.waiting': '等待背景服務',
   'dashboard.eyebrow': 'Local environment', 'dashboard.title': '開發服務總覽', 'dashboard.description': '管理內建 DNS、Nginx、PHP Runtime、`.test` 網域與遠端 Proxy。', 'dashboard.startAll': '全部啟動', 'dashboard.stopAll': '全部停止', 'dashboard.startMariaDb': '啟動 MariaDB', 'dashboard.stopMariaDb': '停止 MariaDB', 'common.refresh': '重新整理', 'dashboard.notReady': '開發服務尚未就緒', 'dashboard.serviceStatus': '服務狀態', 'dashboard.phpNotInstalled': '尚未安裝 PHP', 'dashboard.phpFpmPoolMetrics': '運行 {active} · 閒置 {idle} · 排隊 {queue} · 慢請求 {slow}', 'dashboard.phpFpmMetricsUnavailable': '等待 PHP-FPM 指標', 'dashboard.phpFpmSaturated': 'PHP-FPM 容量警告', 'dashboard.phpFpmSaturatedDescription': '{versions} 有請求排隊或曾達到 Worker 上限；請先檢查 Slow Log，再決定是否增加容量。', 'dashboard.nodeRuntimeDetail': 'Node.js {version} LTS', 'dashboard.nodeRuntimeAvailable': 'Node.js {version} LTS', 'dashboard.proxyDetail': '運行 {running}／{total} · 異常 {issues}', 'dashboard.milestone': 'Milestone 02', 'dashboard.multiplePhp': '多版本 PHP Runtime', 'dashboard.multiplePhpDescription': 'PHP 7.4 與 8.2 由 fabDev 內建；PHP 8.4 等其他版本可另外安裝，每個 Site 可獨立指定版本。',
@@ -622,9 +636,48 @@ const zhCNUpdateCopy = {
   'settings.preparingInstaller': '正在重新验证安装包，接着会停止服务并退出 fabDev…'
 } satisfies Partial<TranslationTable>
 
+const zhTWTerminalPhpCopy = {
+  'runtimes.terminalEyebrow': '終端機整合',
+  'runtimes.terminalTitle': '終端機 PHP',
+  'runtimes.terminalDescriptionMac': 'PHP 只使用固定的 fabDev shim；Herd PHP PATH 會以可還原註解停用，其他 PATH 保持不變。',
+  'runtimes.terminalDescriptionWindows': 'PHP 只使用目前使用者 PATH 內固定的 fabDev shim；Herd PHP PATH 會先備份再移除，不修改 Machine PATH。',
+  'runtimes.terminalOn': '已啟用',
+  'runtimes.terminalOff': '未啟用',
+  'runtimes.terminalEnable': '啟用終端機 PHP',
+  'runtimes.terminalRepair': '修復整合',
+  'runtimes.terminalDisable': '停用',
+  'runtimes.terminalWorking': '處理中…',
+  'runtimes.terminalRestartHelp': '變更後請開啟新的終端機；現有終端機視窗會保留原本的 PATH。',
+  'runtimes.terminalEnabled': '終端機 PHP 已啟用於 {path}；開啟新的終端機即可使用',
+  'runtimes.terminalDisabled': '終端機 PHP 已停用，原本的 Herd PHP PATH 已恢復',
+  'runtimes.globalChanged': '全域 PHP 已切換為 {version}；Site 指定版本不受影響，已啟用的終端機 PHP 會在新終端機使用此版本'
+} satisfies Partial<TranslationTable>
+
+const zhCNTerminalPhpCopy = {
+  'runtimes.terminalEyebrow': '终端整合',
+  'runtimes.terminalTitle': '终端 PHP',
+  'runtimes.terminalDescriptionMac': 'PHP 只使用固定的 fabDev shim；Herd PHP PATH 会以可还原注释停用，其他 PATH 保持不变。',
+  'runtimes.terminalDescriptionWindows': 'PHP 只使用当前用户 PATH 内固定的 fabDev shim；Herd PHP PATH 会先备份再移除，不修改 Machine PATH。',
+  'runtimes.terminalOn': '已启用',
+  'runtimes.terminalOff': '未启用',
+  'runtimes.terminalEnable': '启用终端 PHP',
+  'runtimes.terminalRepair': '修复整合',
+  'runtimes.terminalDisable': '停用',
+  'runtimes.terminalWorking': '处理中…',
+  'runtimes.terminalRestartHelp': '更改后请打开新的终端；现有终端窗口会保留原本的 PATH。',
+  'runtimes.terminalEnabled': '终端 PHP 已启用于 {path}；打开新的终端即可使用',
+  'runtimes.terminalDisabled': '终端 PHP 已停用，原本的 Herd PHP PATH 已恢复',
+  'runtimes.globalChanged': '全局 PHP 已切换为 {version}；Site 指定版本不受影响，已启用的终端 PHP 会在新终端使用此版本'
+} satisfies Partial<TranslationTable>
+
 export const translations: Record<Language, TranslationTable> = {
   en,
-  'zh-TW': { ...zhTW, ...zhTWBuiltInRuntimeCopy, ...zhTWLanShareCopy },
+  'zh-TW': {
+    ...zhTW,
+    ...zhTWBuiltInRuntimeCopy,
+    ...zhTWLanShareCopy,
+    ...zhTWTerminalPhpCopy
+  },
   'zh-CN': {
     ...zhCN,
     ...zhCNBuiltInRuntimeCopy,
@@ -633,6 +686,7 @@ export const translations: Record<Language, TranslationTable> = {
     ...zhCNNodeCopy,
     ...zhCNSiteSelectionCopy,
     ...zhCNProxySearchCopy,
-    ...zhCNUpdateCopy
+    ...zhCNUpdateCopy,
+    ...zhCNTerminalPhpCopy
   }
 }

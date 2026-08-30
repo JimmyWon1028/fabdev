@@ -904,6 +904,7 @@ dependencies = [
  "anyhow",
  "clap",
  "fabdev-core",
+ "fabdev-platform",
  "fabdev-proxy",
  "fabdev-runtime",
  "fabdev-services",
@@ -976,7 +977,10 @@ name = "fabdev-platform"
 version = "0.1.5"
 dependencies = [
  "async-trait",
+ "directories",
  "thiserror 2.0.20",
+ "windows-sys 0.61.2",
+ "winreg",
 ]
 
 [[package]]

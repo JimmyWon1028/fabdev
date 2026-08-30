@@ -10,7 +10,7 @@ pub use protocol::{
   PhpFpmPoolStatus, PhpRuntimeInfo, PhpRuntimeState, ProxyConnectionInfo, ProxyConnectionInput,
   ProxyConnectionSettings, ProxyConnectionState, ProxyManagerState, RuntimeUpdateArtifact,
   RuntimeUpdateCheck, RuntimeUpdateOperation, RuntimeUpdateOperationStatus, ServiceState,
-  SiteHomeInput, SiteHomeSettings, PROTOCOL_VERSION, STABLE_NODE_VERSION,
+  SiteHomeInput, SiteHomeSettings, TerminalPhpState, PROTOCOL_VERSION, STABLE_NODE_VERSION,
 };
 pub use site::{
   create_site, default_site_domain, detect_document_root, edit_site, normalize_domain, PhpVersion,

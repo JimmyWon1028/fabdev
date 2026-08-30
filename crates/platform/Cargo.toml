@@ -7,4 +7,12 @@ rust-version.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+directories.workspace = true
 thiserror.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_UI_WindowsAndMessaging"
+] }
+winreg = "0.55"

@@ -15,7 +15,8 @@ import {
   type Site,
   type SiteEditInput,
   type SiteHomeSettings,
-  type SiteInput
+  type SiteInput,
+  type TerminalPhpState
 } from '@fabdev/contracts'
 import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
@@ -59,6 +60,7 @@ interface StoreState {
   siteHome: SiteHomeSettings | null
   sites: Site[]
   phpRuntimes: PhpRuntimeState
+  terminalPhp: TerminalPhpState | null
   runtimeUpdateCheck: RuntimeUpdateCheck | null
   runtimeUpdateOperation: RuntimeUpdateOperation | null
   nodeRuntime: NodeRuntimeState
@@ -92,6 +94,7 @@ export const useAppStore = defineStore('fabdev', {
       globalVersion: null,
       installed: []
     },
+    terminalPhp: null,
     runtimeUpdateCheck: null,
     runtimeUpdateOperation: null,
     nodeRuntime: {
@@ -267,6 +270,39 @@ export const useAppStore = defineStore('fabdev', {
       if (response.type === 'phpRuntimes') {
         this.phpRuntimes = response.payload
         this.connected = true
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async loadTerminalPhp() {
+      const response = await sendRequest({ type: 'getTerminalPhp' })
+      if (response.type === 'terminalPhp') {
+        this.terminalPhp = response.payload
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async enableTerminalPhp() {
+      const response = await sendRequest({ type: 'enableTerminalPhp' })
+      if (response.type === 'terminalPhp') {
+        this.terminalPhp = response.payload
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async disableTerminalPhp() {
+      const response = await sendRequest({ type: 'disableTerminalPhp' })
+      if (response.type === 'terminalPhp') {
+        this.terminalPhp = response.payload
         return response.payload
       }
       if (response.type === 'error') {

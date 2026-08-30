@@ -71,6 +71,9 @@
 - P2.4 執行規劃已建立於 [`P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md`](P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md)：正式 Community Runtime 產生器、Windows 空白 php.ini／必要 extensions 回歸及 Draft workflow 的 14 個 Asset 契約已完成，修正候選版為 `0.1.5`。
 - P2.4a 已實作正式 Rust Runtime Catalog v1 產生器、固定兩平台 PHP 8.4.24 Package metadata、Windows 專用可重現 Package 腳本、空白使用者 php.ini／內部必要 MySQL extensions 分離，以及包含 14 個 Assets 且永不自動 Publish 的 Draft workflow；本機 Release Script 7 項與靜態檢查通過，Windows MSVC Run `33293398434` 的格式、前端測試、Rust workspace、Connect、NSIS 及產物上傳也全數通過。
 - `v0.1.4` 首次重新打包的 Windows Job 與三個 macOS Runtime 建置通過，但完整 Rust 測試發現 Windows Runtime `minimumOsVersion: "11"` 不符合兩段數字契約；Draft 未建立，遠端 Tag 保留且不移動。修正為 `"11.0"` 後，Root／Desktop package、Tauri config、Cargo workspace 與全部 fabDev workspace lock entries 已升為 `0.1.5`。
+- `v0.1.5` Draft workflow Run `33295048040` 全數通過並建立 14 個 Assets；重新下載後的總表、個別 checksum、App／Runtime Manifest、DMG、NSIS、Connect 與兩平台 PHP 8.4.24 Archive 均通過靜態驗證。macOS `0.1.3 → 0.1.5` 覆蓋安裝保留唯一 `demo.test`，HTTP 200；Production Agent 隔離安裝 PHP 8.4.24 後 CLI、FPM、`mysqli`、`pdo_mysql` 正常，且未切換全域 PHP、Site 或 `current`。
+- Windows `0.1.3 → 0.1.5` 覆蓋安裝已通過：Protocol 33、唯一 `demo.test`、全域 PHP 8.2.33、空白 Proxy 與 MariaDB 未安裝狀態均保留，HTTP 200。PHP 8.4.24 Package 的大小／SHA-256 驗證成功，但 Rust `tar` 完成 79 個檔案與 7 個子目錄解壓後，在套用 Windows 目錄 mtime 時回傳 `Access is denied (os error 5)`；失敗 staging、Catalog 快取與暫存檔已精確清除，既有服務與 PHP 8.2.33 仍正常。
+- Windows Runtime 修正為解壓時不保留 Archive mtime，並在 Draft workflow 使用當次真實 `php-8.4.24-windows-x64-community.tar.gz` 執行 Rust 安裝回歸；本機 Rust workspace、Release tests、Clippy、格式與 diff 檢查通過。`v0.1.5` 不發布，需升版、Windows CI 真實 Package 安裝與兩平台重新驗收後才能 Publish。
 
 ## 2026-08-29 工作日誌
 
@@ -156,14 +159,15 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [ ] 修正 Windows PHP-CGI 狀態輪詢持續收到 404 並重複寫入日誌的問題；不得影響已正常運作的 Site HTTP／PHP 流程。
 - [ ] 提供可由一般本機瀏覽器操作的 Web UI；新增只綁定 loopback、具身分驗證與權限限制的 HTTP／WebSocket API，並讓前端在非 Tauri 環境改走該 API。
 - [ ] 建立 PHP 8.3 Community Runtime 與升級偵測通知。
-- [ ] 提供 shell PHP／Composer／Artisan shim，支援全域及 Site 版本。
+- [x] 提供 macOS／Windows 全域終端機 PHP shim；切換全域版本時由固定 shim 動態跟隨 `current`／`current.version`。macOS 以可還原標記停用 Herd PHP PATH，Windows 使用目前使用者 PATH，不修改 Machine PATH。
+- [ ] 擴充 Composer／Artisan 與 Site-aware shim，依目前目錄選擇 Site PHP。
 - [ ] 加入可進版控的 `fabdev.yml` Site 設定。
 - [ ] 提供 Redis、LDAP、ODBC 等選配 PHP Extension 管理。
 - [ ] 建立 `fabdev-mcp` 薄型轉接層；先提供每 Site 範圍的資訊、狀態與 DNS → HTTP／HTTPS → Nginx → PHP → MariaDB 診斷，再加入具確認、白名單與敏感資訊遮罩的變更工具。
 
 ### P2：選裝與跨平台
 
-- [ ] 依 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md) 完成 Runtime Catalog v1、Agent Protocol 33 與 PHP 8.4.24 兩平台 Side-by-side 線上安裝；P2.1～P2.3 已完成，P2.4 Draft 與 macOS／Windows 實機驗收待執行。
+- [ ] 依 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md) 完成 Runtime Catalog v1、Agent Protocol 33 與 PHP 8.4.24 兩平台 Side-by-side 線上安裝；P2.1～P2.3、`v0.1.5` Draft 靜態驗證、macOS 與 Windows App 覆蓋驗收已完成，Windows Runtime mtime 修正待新版 CI 與實機重驗，Publish 後匿名 Feed 驗收仍待執行。
 - [x] 單一穩定版 Node.js LTS 獨立選裝、顯示狀態及移除。
 - [ ] Node.js 多版本、全域版本、`.nvmrc`／`fabdev.yml` 與選用的專案感知 CLI shim。
 - [x] macOS ARM64 MariaDB 選裝服務。

@@ -34,7 +34,7 @@
 | 優先級 | 功能 | fabDev 現況 | 建議方向 |
 | --- | --- | --- | --- |
 | P0 | `fabdev.yml` | 尚未實作 | 先支援 Site、PHP、HTTPS、alias 與服務需求 |
-| P0 | PHP／Composer／Artisan shim | 尚未實作 | 依目前目錄選擇 Site PHP，不污染系統 PATH |
+| P0 | PHP／Composer／Artisan shim | 全域終端機 PHP 已完成；Composer、Artisan 與 Site-aware 尚未實作 | 依目前目錄選擇 Site PHP，不污染 Machine PATH |
 | P0 | 通用 Site 診斷與 Log Viewer | 尚未實作 | DNS → HTTP／HTTPS → Nginx → PHP-FPM → MariaDB |
 | P0 | `fabdev-mcp` 唯讀工具 | 尚未實作 | 作為 Agent Protocol 薄型轉接層 |
 | P0 | Runtime 更新偵測 | 部分 Runtime 管理已完成 | 加入 PHP／服務版本通知與安全更新流程 |
@@ -73,7 +73,8 @@ Herd 將 PHP、Composer、Laravel Installer 與常見 Artisan 操作整合到 CL
 
 fabDev 建議：
 
-- [ ] 提供 `php`、`composer`、`artisan` shim。
+- [x] 提供全域 `php` shim；macOS 與 Windows 均由固定入口動態跟隨全域版本。
+- [ ] 提供 `composer`、`artisan` shim。
 - [ ] 從目前工作目錄向上尋找 `fabdev.yml` 或 Site Registry 對應路徑。
 - [ ] Site 目錄使用該 Site PHP，其他目錄使用全域 PHP。
 - [ ] `composer` 使用 fabDev 管理的 PHAR，不依賴 Herd 或 Homebrew PHP。

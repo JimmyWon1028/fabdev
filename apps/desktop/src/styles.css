@@ -1233,6 +1233,51 @@ button:disabled {
   margin-left: auto;
 }
 
+.terminal-php-card {
+  display: grid;
+  gap: 12px;
+  max-width: 820px;
+  margin-bottom: 18px;
+  padding: 18px;
+  background: #fff;
+  border: 1px solid #dce2de;
+  border-radius: 14px;
+}
+
+.terminal-php-details {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.terminal-php-details .state-pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.terminal-php-details h2,
+.terminal-php-details p {
+  margin: 0;
+}
+
+.terminal-php-details .eyebrow {
+  margin-bottom: 5px;
+}
+
+.terminal-php-card code {
+  overflow-wrap: anywhere;
+  color: #536059;
+}
+
+.terminal-php-card .runtime-actions {
+  justify-content: flex-start;
+}
+
+.terminal-php-card small {
+  color: #6d7771;
+}
+
 .runtime-online-card {
   display: grid;
   gap: 18px;

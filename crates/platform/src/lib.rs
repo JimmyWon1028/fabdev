@@ -3,6 +3,12 @@ use std::path::Path;
 use async_trait::async_trait;
 use thiserror::Error;
 
+mod terminal_php;
+
+pub use terminal_php::{
+  disable_terminal_php, enable_terminal_php, terminal_php_state, TerminalPhpIntegrationState,
+};
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SystemOperation {
   InstallTestResolver,
@@ -17,6 +23,10 @@ pub enum PlatformError {
   Unsupported,
   #[error("system helper rejected operation: {0}")]
   Rejected(String),
+  #[error("terminal integration is invalid: {0}")]
+  InvalidTerminalIntegration(String),
+  #[error(transparent)]
+  Io(#[from] std::io::Error),
 }
 
 #[async_trait]

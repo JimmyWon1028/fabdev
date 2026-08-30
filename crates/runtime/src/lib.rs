@@ -781,6 +781,9 @@ where
   let staged_result = (|| {
     let archive = File::open(artifact)?;
     let mut archive = tar::Archive::new(GzDecoder::new(BufReader::new(archive)));
+    #[cfg(windows)]
+    // Windows can reject directory timestamp writes after all payload files were extracted.
+    archive.set_preserve_mtime(false);
     archive.unpack(&layout.staging_root)?;
     let extracted = layout.staging_root.join(version);
     if !extracted.is_dir() {
@@ -1458,6 +1461,31 @@ mod tests {
       Some("8.2.33".to_owned())
     );
     std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[cfg(windows)]
+  #[test]
+  #[ignore = "requires the verified Windows PHP package built by the release workflow"]
+  fn installs_real_windows_php_archive() {
+    let artifact = PathBuf::from(
+      std::env::var("FABDEV_WINDOWS_RUNTIME_PACKAGE")
+        .expect("FABDEV_WINDOWS_RUNTIME_PACKAGE must identify the release package"),
+    );
+    let checksum = hex::encode(Sha256::digest(
+      std::fs::read(&artifact).expect("read Windows PHP Runtime package"),
+    ));
+    let root = std::env::temp_dir().join(format!(
+      "fabdev-runtime-windows-package-{}",
+      uuid::Uuid::new_v4()
+    ));
+
+    install_tar_gz_with_activation(&artifact, &checksum, "php", "8.4.24", &root, false)
+      .expect("install packaged Windows PHP Runtime");
+
+    assert!(root.join("php/8.4.24/php.exe").is_file());
+    assert!(root.join("php/8.4.24/php-cgi.exe").is_file());
+    assert!(!root.join("php/current.version").exists());
+    std::fs::remove_dir_all(root).expect("remove Windows Runtime fixture");
   }
 
   #[test]

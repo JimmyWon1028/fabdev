@@ -11,8 +11,9 @@ use fabdev_core::{
   AgentResponse, AgentStatus, AppPaths, LanShareInfo, LanShareSiteInfo, NodeRuntimeState,
   PhpRuntimeInfo, PhpRuntimeState, PhpVersion, RuntimeUpdateArtifact, RuntimeUpdateCheck,
   RuntimeUpdateOperation, RuntimeUpdateOperationStatus, ServiceState, Site, SiteHomeSettings,
-  SiteInput, SiteRepository, PROTOCOL_VERSION, STABLE_NODE_VERSION,
+  SiteInput, SiteRepository, TerminalPhpState, PROTOCOL_VERSION, STABLE_NODE_VERSION,
 };
+use fabdev_platform::{disable_terminal_php, enable_terminal_php, terminal_php_state};
 use fabdev_proxy::ProxyManager;
 use fabdev_runtime::{
   active_version, deactivate_runtime, install_tar_gz_with_activation,
@@ -1239,6 +1240,13 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
         Err(error) => internal_error(error),
       }
     }
+    AgentRequest::GetTerminalPhp => terminal_php_response(&state.paths, TerminalPhpAction::Get),
+    AgentRequest::EnableTerminalPhp => {
+      terminal_php_response(&state.paths, TerminalPhpAction::Enable)
+    }
+    AgentRequest::DisableTerminalPhp => {
+      terminal_php_response(&state.paths, TerminalPhpAction::Disable)
+    }
     AgentRequest::RemovePhpRuntime { version } => {
       let series = match php_series(&version) {
         Ok(series) => series,
@@ -2459,6 +2467,32 @@ fn symbolic_link_site_ids(home: &Path, home_sites: &[Site]) -> Result<Vec<uuid::
       .map(|site| site.id)
       .collect(),
   )
+}
+
+#[derive(Clone, Copy)]
+enum TerminalPhpAction {
+  Get,
+  Enable,
+  Disable,
+}
+
+fn terminal_php_response(paths: &AppPaths, action: TerminalPhpAction) -> AgentResponse {
+  let result = match action {
+    TerminalPhpAction::Get => terminal_php_state(&paths.root),
+    TerminalPhpAction::Enable => enable_terminal_php(&paths.root),
+    TerminalPhpAction::Disable => disable_terminal_php(&paths.root),
+  };
+  match result {
+    Ok(state) => AgentResponse::TerminalPhp(TerminalPhpState {
+      enabled: state.enabled,
+      bin_path: state.bin_path,
+      shim_path: state.shim_path,
+    }),
+    Err(error) => AgentResponse::Error {
+      code: "terminal_php_integration_failed".to_owned(),
+      message: error.to_string(),
+    },
+  }
 }
 
 async fn php_runtime_state(state: &AgentState) -> Result<PhpRuntimeState> {

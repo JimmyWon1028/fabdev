@@ -302,6 +302,13 @@ jobs:
         shell: pwsh
         run: ./scripts/build-windows-php-runtime.ps1 -OutputDirectory release-input
 
+      - name: Validate packaged Windows PHP Runtime installation
+        env:
+          FABDEV_WINDOWS_RUNTIME_PACKAGE: release-input/php-8.4.24-windows-x64-community.tar.gz
+        run: >-
+          cargo test -p fabdev-runtime installs_real_windows_php_archive
+          --target x86_64-pc-windows-msvc -- --ignored
+
       - name: Check Rust workspace
         run: cargo check --workspace --all-targets --target x86_64-pc-windows-msvc
 

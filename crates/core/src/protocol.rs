@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Site, SiteEditInput, SiteInput};
 
-pub const PROTOCOL_VERSION: u16 = 33;
+pub const PROTOCOL_VERSION: u16 = 34;
 pub const STABLE_NODE_VERSION: &str = "24.19.0";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -68,6 +68,9 @@ pub enum AgentRequest {
   SetGlobalPhp {
     version: String,
   },
+  GetTerminalPhp,
+  EnableTerminalPhp,
+  DisableTerminalPhp,
   RemovePhpRuntime {
     version: String,
   },
@@ -157,6 +160,7 @@ pub enum AgentResponse {
   PhpRuntimes(PhpRuntimeState),
   PhpRuntimeInstalled(PhpRuntimeState),
   GlobalPhpChanged(PhpRuntimeState),
+  TerminalPhp(TerminalPhpState),
   PhpRuntimeRemoved(PhpRuntimeState),
   PhpIni {
     php_version: crate::PhpVersion,
@@ -284,6 +288,14 @@ pub struct PhpRuntimeInfo {
   pub series: String,
   pub active: bool,
   pub sites: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalPhpState {
+  pub enabled: bool,
+  pub bin_path: PathBuf,
+  pub shim_path: PathBuf,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -458,6 +470,30 @@ mod tests {
   use uuid::Uuid;
 
   use super::*;
+
+  #[test]
+  fn serializes_terminal_php_integration_contract() {
+    assert_eq!(
+      serde_json::to_value(AgentRequest::EnableTerminalPhp).expect("serialize request"),
+      json!({ "type": "enableTerminalPhp" })
+    );
+    assert_eq!(
+      serde_json::to_value(AgentResponse::TerminalPhp(TerminalPhpState {
+        enabled: true,
+        bin_path: PathBuf::from("/tmp/fabDev/bin"),
+        shim_path: PathBuf::from("/tmp/fabDev/bin/php"),
+      }))
+      .expect("serialize response"),
+      json!({
+        "type": "terminalPhp",
+        "payload": {
+          "enabled": true,
+          "binPath": "/tmp/fabDev/bin",
+          "shimPath": "/tmp/fabDev/bin/php"
+        }
+      })
+    );
+  }
 
   #[test]
   fn serializes_remove_site_with_camel_case_fields() {

@@ -1,4 +1,4 @@
-export const protocolVersion = 33
+export const protocolVersion = 34
 export const stableNodeVersion = '24.19.0'
 
 export type ServiceState =
@@ -85,6 +85,12 @@ export interface PhpRuntimeInfo {
 export interface PhpRuntimeState {
   globalVersion: string | null
   installed: PhpRuntimeInfo[]
+}
+
+export interface TerminalPhpState {
+  enabled: boolean
+  binPath: string
+  shimPath: string
 }
 
 export interface NodeRuntimeState {
@@ -214,6 +220,9 @@ export type AgentRequest =
       payload: { artifactPath: string; releasePath: string }
     }
   | { type: 'setGlobalPhp'; payload: { version: string } }
+  | { type: 'getTerminalPhp' }
+  | { type: 'enableTerminalPhp' }
+  | { type: 'disableTerminalPhp' }
   | { type: 'removePhpRuntime'; payload: { version: string } }
   | { type: 'getPhpIni'; payload: { phpVersion: string } }
   | { type: 'savePhpIni'; payload: { phpVersion: string; contents: string } }
@@ -274,6 +283,7 @@ export type AgentResponse =
   | { type: 'phpRuntimes'; payload: PhpRuntimeState }
   | { type: 'phpRuntimeInstalled'; payload: PhpRuntimeState }
   | { type: 'globalPhpChanged'; payload: PhpRuntimeState }
+  | { type: 'terminalPhp'; payload: TerminalPhpState }
   | { type: 'phpRuntimeRemoved'; payload: PhpRuntimeState }
   | { type: 'phpIni'; payload: { phpVersion: string; contents: string } }
   | { type: 'phpIniSaved'; payload: { phpVersion: string } }

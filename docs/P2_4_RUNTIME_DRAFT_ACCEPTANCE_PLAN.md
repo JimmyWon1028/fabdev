@@ -1,6 +1,6 @@
 # P2.4 Runtime Draft Acceptance Plan
 
-> 狀態：`v0.1.4` 首次重新打包在完整 Rust 測試發現 Windows Runtime `minimumOsVersion` 格式錯誤，未建立 Release；修正候選版為 `0.1.5`。P2.4a Release pipeline hardening、Windows MSVC、Runtime 真實封裝、Connect 與 NSIS 已通過，待重新執行 macOS 完整流程。
+> 狀態：`v0.1.5` Draft 的 14 個 Assets 與 macOS 覆蓋／隔離 Runtime 安裝已通過；Windows 覆蓋安裝與既有 `demo.test` 也通過，但 PHP 8.4.24 真實安裝發現 Rust `tar` 在套用 Windows 目錄 mtime 時回傳 `Access is denied`。`v0.1.5` 不發布；已加入 Windows 不保留 Archive mtime 的修正與真實 Release Package 安裝回歸，下一個可用候選至少為 `0.1.6`。
 
 ## 1. 目標與固定範圍
 
@@ -13,7 +13,7 @@ P2.4 只交付 PHP 8.4.24 的兩平台線上安裝驗收：
 - Catalog／Package signature 在 Unsigned Community v1 固定為 `null`。
 - 不在本階段加入 Node.js、Nginx、dnsmasq 或 MariaDB 線上更新。
 
-修正候選版本為 `0.1.5`；已推送的 `v0.1.4` Tag 保留為失敗候選稽核，不移動、不重用，也不建立 Release。
+`v0.1.4` 與 `v0.1.5` Tag 均保留為失敗候選稽核，不移動、不重用；`v0.1.5` Draft 維持未發布，待新版 Stable 完成公開驗證後依 `AGENTS.md` 刪除 Release、保留 Tag。
 
 ## 2. 已確認的前置缺口
 

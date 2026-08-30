@@ -48,6 +48,7 @@ onMounted(async () => {
   await store.restoreMariaDbOnLaunch()
   void Promise.all([
     store.loadPhpRuntimes(),
+    store.loadTerminalPhp(),
     store.loadNodeRuntime(),
     store.loadProxyManager()
   ]).catch((error) => {

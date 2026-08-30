@@ -76,6 +76,9 @@ enum Command {
   SetGlobalPhp {
     version: String,
   },
+  TerminalPhp,
+  EnableTerminalPhp,
+  DisableTerminalPhp,
   RemovePhpRuntime {
     version: String,
   },
@@ -263,6 +266,9 @@ async fn main() -> Result<()> {
       release_path: release,
     },
     Command::SetGlobalPhp { version } => AgentRequest::SetGlobalPhp { version },
+    Command::TerminalPhp => AgentRequest::GetTerminalPhp,
+    Command::EnableTerminalPhp => AgentRequest::EnableTerminalPhp,
+    Command::DisableTerminalPhp => AgentRequest::DisableTerminalPhp,
     Command::RemovePhpRuntime { version } => AgentRequest::RemovePhpRuntime { version },
     Command::PhpIni { php } => AgentRequest::GetPhpIni { php_version: php },
     Command::SavePhpIni { php, file } => AgentRequest::SavePhpIni {

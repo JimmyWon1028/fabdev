@@ -55,7 +55,7 @@ async function refresh() {
   action.value = 'refresh'
   message.value = ''
   try {
-    await store.loadPhpRuntimes()
+    await Promise.all([store.loadPhpRuntimes(), store.loadTerminalPhp()])
   } catch (error) {
     message.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -226,6 +226,34 @@ async function setGlobal(runtime: PhpRuntimeInfo) {
   }
 }
 
+async function enableTerminalPhp() {
+  action.value = 'terminal-php:enable'
+  message.value = ''
+  try {
+    const state = await store.enableTerminalPhp()
+    message.value = t('runtimes.terminalEnabled', {
+      path: formatPathForDisplay(state.binPath, isWindows)
+    })
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    action.value = null
+  }
+}
+
+async function disableTerminalPhp() {
+  action.value = 'terminal-php:disable'
+  message.value = ''
+  try {
+    await store.disableTerminalPhp()
+    message.value = t('runtimes.terminalDisabled')
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    action.value = null
+  }
+}
+
 async function removeRuntime(runtime: PhpRuntimeInfo) {
   const approved = await confirm(
     t('runtimes.removeConfirm', { version: runtime.version }),
@@ -357,6 +385,43 @@ async function revealPhpIni() {
       <strong>{{ store.phpRuntimes.globalVersion ?? t('runtimes.notSet') }}</strong>
       <small>{{ t('runtimes.existingSitesIndependent') }}</small>
     </div>
+
+    <section class="terminal-php-card" :aria-label="t('runtimes.terminalTitle')">
+      <div class="terminal-php-details">
+        <div>
+          <p class="eyebrow">{{ t('runtimes.terminalEyebrow') }}</p>
+          <h2>{{ t('runtimes.terminalTitle') }}</h2>
+          <p>{{ t(isWindows ? 'runtimes.terminalDescriptionWindows' : 'runtimes.terminalDescriptionMac') }}</p>
+        </div>
+        <span
+          class="state-pill"
+          :data-state="store.terminalPhp?.enabled ? 'running' : 'installed'"
+        >
+          {{ t(store.terminalPhp?.enabled ? 'runtimes.terminalOn' : 'runtimes.terminalOff') }}
+        </span>
+      </div>
+      <code v-if="store.terminalPhp">{{ formatPathForDisplay(store.terminalPhp.binPath, isWindows) }}</code>
+      <div class="runtime-actions">
+        <button
+          class="secondary-button"
+          :disabled="action !== null || !store.phpRuntimes.globalVersion"
+          @click="enableTerminalPhp"
+        >
+          {{ action === 'terminal-php:enable'
+            ? t('runtimes.terminalWorking')
+            : t(store.terminalPhp?.enabled ? 'runtimes.terminalRepair' : 'runtimes.terminalEnable') }}
+        </button>
+        <button
+          v-if="store.terminalPhp?.enabled"
+          class="danger-button"
+          :disabled="action !== null"
+          @click="disableTerminalPhp"
+        >
+          {{ action === 'terminal-php:disable' ? t('runtimes.terminalWorking') : t('runtimes.terminalDisable') }}
+        </button>
+      </div>
+      <small>{{ t('runtimes.terminalRestartHelp') }}</small>
+    </section>
 
     <section class="runtime-online-card" :aria-label="t('runtimes.onlineTitle')">
       <div class="runtime-online-header">
