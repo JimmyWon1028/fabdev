@@ -1,6 +1,6 @@
 # P2.4 Runtime Draft Acceptance Plan
 
-> 狀態：`v0.1.5` Draft 的 14 個 Assets 與 macOS 覆蓋／隔離 Runtime 安裝已通過；Windows 覆蓋安裝與既有 `demo.test` 也通過，但 PHP 8.4.24 真實安裝發現 Rust `tar` 在套用 Windows 目錄 mtime 時回傳 `Access is denied`。`v0.1.5` 不發布；已加入 Windows 不保留 Archive mtime 的修正與真實 Release Package 安裝回歸，下一個可用候選至少為 `0.1.6`。
+> 狀態：`v0.1.5` Draft 的 14 個 Assets 與 macOS 覆蓋／隔離 Runtime 安裝已通過；Windows 覆蓋安裝與既有 `demo.test` 也通過，但 PHP 8.4.24 真實安裝發現 Rust `tar` 在套用 Windows 目錄 mtime 時回傳 `Access is denied`。`v0.1.5` 不發布；已加入 Windows 不保留 Archive mtime 的修正與真實 Release Package 安裝回歸，未標記 Windows CI 已通過，正式候選版為 `0.1.6`。
 
 ## 1. 目標與固定範圍
 
@@ -55,15 +55,15 @@ P2.4 不能直接執行現有 Draft workflow，必須先完成下列 Release too
 - macOS／Windows Jobs 各自上傳 Runtime Package 與不可變的來源驗證資料，最後只有 `create-draft` Job 具 `contents: write`。
 - `create-draft` 合併兩平台輸出，產生 Runtime Catalog、兩份 Package checksum、既有 App manifests 與總 `SHA256SUMS`。
 - Release Assets 預期由 9 個增加為 14 個：既有 9 個，加上 2 個 Runtime Packages、2 個個別 checksum 與 1 個 Runtime Catalog。
-- Workflow 維持手動 `REPACKAGE v0.1.5` 與 `DRAFT v0.1.5` 雙重確認，只接受既有 annotated Tag，且永不自動 Publish。
+- Workflow 維持手動 `REPACKAGE v0.1.6` 與 `DRAFT v0.1.6` 雙重確認，只接受既有 annotated Tag，且永不自動 Publish。
 
 ## 4. P2.4b：候選版與 Draft 靜態驗收
 
 需要依序取得版本修改、提交／推送、Tag、重新打包及 Draft Release 授權。
 
-1. 將專案版本升級為 `0.1.5`，執行完整 `pnpm test`、`pnpm lint`、`pnpm build` 與 `git diff --check`。
+1. 將專案版本升級為 `0.1.6`，執行完整 `pnpm test`、`pnpm lint`、`pnpm build` 與 `git diff --check`。
 2. 提交並推送 Release tooling／版本變更，確認 macOS 與 Windows CI 均通過。
-3. 建立並推送 annotated `v0.1.5` Tag。
+3. 建立並推送 annotated `v0.1.6` Tag。
 4. 經使用者明確說「重新打包」後，手動啟動 Draft workflow。
 5. 從 Draft 重新下載全部 14 個 Assets，不使用 runner 工作目錄中的原始檔驗收。
 6. 核對總表、個別 checksum、Catalog、實際大小、SHA-256、Archive 單一根目錄、來源驗證資料與公開內容邊界。
@@ -75,7 +75,7 @@ macOS ARM64 與 Windows x64 都必須保存驗收前後快照，至少包含 Sit
 
 每平台執行：
 
-1. 從 `0.1.3` 覆蓋安裝 `0.1.5`，確認既有資料與服務狀態不變。
+1. 從 `0.1.3` 覆蓋安裝 `0.1.6`，確認既有資料與服務狀態不變。
 2. 檢查 Catalog 呈現的版本、Unsigned Community 警告、大小與 SHA-256。
 3. 下載途中取消，確認 `.part` 清除；重新下載並確認進度與 verified 狀態。
 4. 安裝前第二次確認；安裝 PHP 8.4.24 後確認全域 PHP、既有 Sites 與 `current` 未切換。
@@ -89,7 +89,7 @@ macOS ARM64 與 Windows x64 都必須保存驗收前後快照，至少包含 Sit
 Draft Asset 靜態驗證與兩平台隔離安裝通過後，Repository Owner 才能另行核准 Publish。由於 GitHub Draft 無法透過匿名 `releases/latest` 存取，下列項目是 Publish 後的立即阻擋驗收：
 
 - 未登入請求 `fabdev-runtime-v1.json` 與兩平台 Package 均為 HTTP 200。
-- `releases/latest` 指向 `v0.1.5`，Catalog bytes 與 Draft 驗收版本逐位元一致。
+- `releases/latest` 指向 `v0.1.6`，Catalog bytes 與 Draft 驗收版本逐位元一致。
 - 封裝版 App 完成真正的匿名「檢查 → 取消 → 重試 → 下載 → 安裝」。
 - 公開 Assets 的大小與 SHA-256 與 Draft 驗收紀錄一致。
 
@@ -100,11 +100,11 @@ Draft Asset 靜態驗證與兩平台隔離安裝通過後，Repository Owner 才
 | 關卡 | 需要的明確授權 | 不包含 |
 | --- | --- | --- |
 | P2.4a | 開始 Release pipeline hardening | 重新打包、版本修改、Tag、Release |
-| P2.4b-1 | 允許升級版本並提交／推送 `0.1.5` | Tag、重新打包、Release |
-| P2.4b-2 | 允許建立並推送 `v0.1.5` Tag | 重新打包、Release |
+| P2.4b-1 | 允許升級版本並提交／推送 `0.1.6` | Tag、重新打包、Release |
+| P2.4b-2 | 允許建立並推送 `v0.1.6` Tag | 重新打包、Release |
 | P2.4b-3 | 明確說「重新打包」，並允許建立 Draft Release | Publish |
 | P2.4c | 允許安裝 Draft 候選版與 PHP 8.4 Runtime 驗收 | Publish |
-| Publish | 允許更新 Release Notes 並 Publish `v0.1.5` | 刪除已發布 Stable 或 Tag |
+| Publish | 允許更新 Release Notes 並 Publish `v0.1.6` | 刪除已發布 Stable 或 Tag |
 
 ## 8. 完成條件
 

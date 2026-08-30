@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-08-30
-> 目前階段：Unsigned Community Build `v0.1.3` 已發布；`v0.1.4` 重新打包在完整 Rust 測試阻擋且未建立 Release，已修正並升為 `0.1.5` 候選版
+> 目前階段：Unsigned Community Build `v0.1.3` 已發布；`v0.1.5` 保留為未發布失敗候選，Windows Runtime mtime 與終端機 PHP 修正已通過未標記 Windows CI，正式候選版升為 `0.1.6`
 
 ## 已完成
 
@@ -68,12 +68,13 @@
 - P2.1 已完成 Runtime Catalog v1 Typed Model、1 MiB Parser、產生器與嚴格 Validator；涵蓋固定 Product／Channel、RFC 3339 UTC 時間、SemVer／Protocol 相容、Sequence 與 Catalog SHA-256 防回退、兩平台 PHP 8.4.24 固定 URL／檔名、nullable signature、上游來源驗證、大小／SHA-256 及重複項目檢查，並維持既有本機 Runtime descriptor 相容。
 - P2.2 已完成 Agent Protocol 33 Runtime 更新請求／回應、固定 Catalog URL、GitHub HTTPS Redirect Host 白名單、系統 Proxy／信任庫、Catalog 與 Sequence 快取、`.part` 串流大小／SHA-256、原子完成、驗證快取重用、背景進度輪詢、取消／失敗清理、啟動殘檔清理及 Shutdown 取消。公開 Runtime Feed 尚未發布，GitHub 匿名實際下載留待 P2.4。
 - P2.3 已完成 PHP Runtime 線上安裝 UI、Unsigned Community 警告、版本／大小／SHA-256／進度顯示、下載與安裝兩次確認，以及 Protocol 33 `InstallDownloadedRuntime`。Agent 安裝前會重新驗證快取 Catalog 與 Package，解壓至 staging 後執行固定 CLI／版本檢查，安裝後再驗證必要 MySQL extensions 與 macOS FPM／Windows CGI；PHP 8.4.24 只並存安裝，不切換 `current`、全域 PHP 或 Site，失敗時清除本次新增內容。公開 Feed、真實兩平台 binary 與 Site HTTP 驗收留待 P2.4。
-- P2.4 執行規劃已建立於 [`P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md`](P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md)：正式 Community Runtime 產生器、Windows 空白 php.ini／必要 extensions 回歸及 Draft workflow 的 14 個 Asset 契約已完成，修正候選版為 `0.1.5`。
+- P2.4 執行規劃已建立於 [`P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md`](P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md)：正式 Community Runtime 產生器、Windows 空白 php.ini／必要 extensions 回歸及 Draft workflow 的 14 個 Asset 契約已完成，正式候選版為 `0.1.6`。
 - P2.4a 已實作正式 Rust Runtime Catalog v1 產生器、固定兩平台 PHP 8.4.24 Package metadata、Windows 專用可重現 Package 腳本、空白使用者 php.ini／內部必要 MySQL extensions 分離，以及包含 14 個 Assets 且永不自動 Publish 的 Draft workflow；本機 Release Script 7 項與靜態檢查通過，Windows MSVC Run `33293398434` 的格式、前端測試、Rust workspace、Connect、NSIS 及產物上傳也全數通過。
 - `v0.1.4` 首次重新打包的 Windows Job 與三個 macOS Runtime 建置通過，但完整 Rust 測試發現 Windows Runtime `minimumOsVersion: "11"` 不符合兩段數字契約；Draft 未建立，遠端 Tag 保留且不移動。修正為 `"11.0"` 後，Root／Desktop package、Tauri config、Cargo workspace 與全部 fabDev workspace lock entries 已升為 `0.1.5`。
 - `v0.1.5` Draft workflow Run `33295048040` 全數通過並建立 14 個 Assets；重新下載後的總表、個別 checksum、App／Runtime Manifest、DMG、NSIS、Connect 與兩平台 PHP 8.4.24 Archive 均通過靜態驗證。macOS `0.1.3 → 0.1.5` 覆蓋安裝保留唯一 `demo.test`，HTTP 200；Production Agent 隔離安裝 PHP 8.4.24 後 CLI、FPM、`mysqli`、`pdo_mysql` 正常，且未切換全域 PHP、Site 或 `current`。
 - Windows `0.1.3 → 0.1.5` 覆蓋安裝已通過：Protocol 33、唯一 `demo.test`、全域 PHP 8.2.33、空白 Proxy 與 MariaDB 未安裝狀態均保留，HTTP 200。PHP 8.4.24 Package 的大小／SHA-256 驗證成功，但 Rust `tar` 完成 79 個檔案與 7 個子目錄解壓後，在套用 Windows 目錄 mtime 時回傳 `Access is denied (os error 5)`；失敗 staging、Catalog 快取與暫存檔已精確清除，既有服務與 PHP 8.2.33 仍正常。
 - Windows Runtime 修正為解壓時不保留 Archive mtime，並在 Draft workflow 使用當次真實 `php-8.4.24-windows-x64-community.tar.gz` 執行 Rust 安裝回歸；本機 Rust workspace、Release tests、Clippy、格式與 diff 檢查通過。`v0.1.5` 不發布，需升版、Windows CI 真實 Package 安裝與兩平台重新驗收後才能 Publish。
+- 未標記候選 Commit `1d16676` 已通過 Windows x64 CI Run `33300616719`：格式、前端測試、Desktop sidecars、內建 Windows Runtime、完整 Rust workspace、Connect、NSIS 與產物上傳全數成功；專案版本因此升為 `0.1.6`，真實 PHP 8.4.24 Package 安裝回歸留在 Draft workflow 執行。
 
 ## 2026-08-29 工作日誌
 
