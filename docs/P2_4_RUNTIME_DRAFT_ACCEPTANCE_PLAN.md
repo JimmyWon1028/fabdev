@@ -1,6 +1,6 @@
 # P2.4 Runtime Draft Acceptance Plan
 
-> 狀態：P2.4a Release pipeline hardening 已實作並通過格式與前端測試；`0.1.4` 候選版版本來源已同步。尚未執行重新打包、Tag、Draft Release、實機安裝或 Publish。
+> 狀態：P2.4a Release pipeline hardening 與 `0.1.4` 候選版版本來源已完成；Windows MSVC 格式、前端測試、Rust workspace、Connect、NSIS 與產物上傳均通過。尚未執行重新打包、Tag、Draft Release、實機安裝或 Publish。
 
 ## 1. 目標與固定範圍
 
