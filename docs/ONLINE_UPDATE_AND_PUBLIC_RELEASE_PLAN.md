@@ -223,28 +223,30 @@ P0 的固定檔名、完整欄位與驗證規則以 [`PUBLIC_RELEASE_SPEC.md`](P
 
 Runtime Catalog 至少包含：
 
-- Schema version。
+- Product、Schema version。
 - Catalog sequence。
 - Generated time／expires time。
 - Channel。
 - Runtime name、version、platform、architecture。
-- URL、大小、SHA-256 與套件簽章。
+- App／Agent Protocol 相容條件。
+- 固定 GitHub Release URL、檔名、大小與 SHA-256。
+- Nullable Catalog／Package 簽章，以及不冒充 Package 簽章的上游來源驗證紀錄。
+
+P2 Community v1 的完整契約見 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md)。未正式簽章期間，Catalog 與 Package 的 `signature` 都固定為 `null`；SHA-256 只代表完整性，不宣稱發布者身分驗證。
 
 ## 6. Runtime 線上下載流程
 
 ```text
-Agent 下載已簽署 Catalog
-  → 驗證 Catalog 簽章、時間及 Sequence
+Agent 下載固定官方 Catalog
+  → 驗證 Schema、Product、Channel、時間、Sequence 與相容條件
   → 選擇符合 OS／CPU／Channel 的版本
-  → 下載至 .partial
-  → 驗證允許的 HTTPS Host、大小、SHA-256 與套件簽章
+  → 使用者確認後下載至 .part
+  → 驗證允許的 HTTPS Host、版本路徑、大小與 SHA-256
   → 解壓至 staging
-  → 執行 binary／設定健康檢查
+  → 執行 Agent 內建的固定 binary／設定健康檢查
   → 安裝為非使用中版本
-  → 停止相關服務
-  → 原子切換 current
-  → 啟動並驗證
-  → 失敗時切回上一版
+  → 第一版不自動切換 Site、全域 PHP 或 current
+  → 失敗時刪除 staging／新版本並保留舊版
 ```
 
 更新政策：
@@ -255,7 +257,7 @@ Agent 下載已簽署 Catalog
 - MariaDB：第一階段不做自動更新；先定義資料備份、格式相容與回復流程。
 - 每個 Runtime 至少保留上一個可用版本，確認穩定後才允許清理。
 
-目前 Runtime 已具備 SHA-256、staging 與 `current` 原子切換的基礎，但 Catalog 的 `signature` 仍是描述文字，不是正式的數位簽章。
+目前 Runtime 已具備 SHA-256、staging 與 `current` 原子切換的基礎，但 Catalog 的 `signature` 仍是描述文字，不是正式的數位簽章。P2 v1 必須拆分上游來源驗證紀錄與 nullable Package signature，禁止再用 `community-ad-hoc` 冒充簽章。
 
 ## 7. Repository 改為 Public 的盤點結果
 
@@ -364,9 +366,10 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 
 ### P2：Runtime 線上安裝
 
-- Signed Runtime Catalog。
-- Agent HTTPS 下載、驗證、健康檢查與回復。
-- PHP、Nginx、dnsmasq、Node.js 分類更新政策。
+- Runtime Catalog v1 規格已完成；見 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md)。
+- 第一個目標為 PHP 8.4.24 macOS ARM64／Windows x64 Side-by-side 安裝，不自動切換 Site 或全域 PHP。
+- 待實作 Agent HTTPS 下載、`.part`、驗證、操作狀態、固定健康檢查與失敗清理。
+- 後續再加入 Nginx、dnsmasq、Node.js 分類更新政策。
 - MariaDB 維持獨立人工更新流程。
 
 ### P3：未來正式簽章
