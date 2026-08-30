@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use flate2::read::GzDecoder;
 use semver::Version;
@@ -809,7 +810,7 @@ where
     .parent()
     .ok_or_else(|| RuntimeError::InvalidArchive(name.to_owned()))?;
   std::fs::create_dir_all(runtime_parent)?;
-  std::fs::rename(&extracted, &layout.runtime_root)?;
+  rename_runtime_directory(&extracted, &layout.runtime_root)?;
   remove_dir_if_exists(&layout.staging_root)?;
   if activate {
     switch_current(runtime_parent, version, &layout.active_link)?;
@@ -1019,11 +1020,52 @@ fn version_key(value: &str) -> Vec<u64> {
 }
 
 fn remove_dir_if_exists(path: &Path) -> Result<(), RuntimeError> {
-  match std::fs::remove_dir_all(path) {
+  match remove_runtime_directory(path) {
     Ok(()) => Ok(()),
     Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
     Err(error) => Err(error.into()),
   }
+}
+
+fn rename_runtime_directory(source: &Path, destination: &Path) -> std::io::Result<()> {
+  retry_windows_permission_denied(|| std::fs::rename(source, destination))
+}
+
+fn remove_runtime_directory(path: &Path) -> std::io::Result<()> {
+  retry_windows_permission_denied(|| std::fs::remove_dir_all(path))
+}
+
+fn retry_windows_permission_denied<T>(
+  operation: impl FnMut() -> std::io::Result<T>,
+) -> std::io::Result<T> {
+  #[cfg(windows)]
+  {
+    retry_permission_denied(51, Duration::from_millis(100), operation)
+  }
+  #[cfg(not(windows))]
+  {
+    retry_permission_denied(1, Duration::ZERO, operation)
+  }
+}
+
+fn retry_permission_denied<T>(
+  attempts: usize,
+  delay: Duration,
+  mut operation: impl FnMut() -> std::io::Result<T>,
+) -> std::io::Result<T> {
+  debug_assert!(attempts > 0);
+  for attempt in 0..attempts {
+    match operation() {
+      Ok(value) => return Ok(value),
+      Err(error)
+        if error.kind() == std::io::ErrorKind::PermissionDenied && attempt + 1 < attempts =>
+      {
+        std::thread::sleep(delay);
+      }
+      Err(error) => return Err(error),
+    }
+  }
+  unreachable!("the final retry attempt always returns")
 }
 
 #[cfg(unix)]
@@ -1402,6 +1444,31 @@ mod tests {
     )
     .expect("verify checksum");
     std::fs::remove_file(path).expect("remove fixture");
+  }
+
+  #[test]
+  fn retries_only_permission_denied_filesystem_operations() {
+    let mut attempts = 0;
+    let result = retry_permission_denied(3, Duration::ZERO, || {
+      attempts += 1;
+      if attempts < 3 {
+        Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+      } else {
+        Ok("renamed")
+      }
+    })
+    .expect("retry transient permission denial");
+    assert_eq!(result, "renamed");
+    assert_eq!(attempts, 3);
+
+    let mut non_retryable_attempts = 0;
+    let error = retry_permission_denied(3, Duration::ZERO, || {
+      non_retryable_attempts += 1;
+      Err::<(), _>(std::io::Error::from(std::io::ErrorKind::NotFound))
+    })
+    .expect_err("return non-retryable error");
+    assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+    assert_eq!(non_retryable_attempts, 1);
   }
 
   #[test]
