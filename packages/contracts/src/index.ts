@@ -1,4 +1,4 @@
-export const protocolVersion = 32
+export const protocolVersion = 33
 export const stableNodeVersion = '24.19.0'
 
 export type ServiceState =
@@ -92,6 +92,50 @@ export interface NodeRuntimeState {
   installedVersion: string | null
 }
 
+export interface RuntimeUpdateCheck {
+  catalogSequence: number
+  generatedAt: string
+  expiresAt: string
+  unsignedCommunityBuild: boolean
+  artifacts: RuntimeUpdateArtifact[]
+}
+
+export interface RuntimeUpdateArtifact {
+  name: string
+  version: string
+  platform: string
+  architecture: string
+  minimumOsVersion: string
+  fileName: string
+  size: number
+  sha256: string
+  unsignedCommunityBuild: boolean
+  installed: boolean
+}
+
+export type RuntimeUpdateOperationStatus =
+  | 'queued'
+  | 'downloading'
+  | 'verified'
+  | 'installing'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export interface RuntimeUpdateOperation {
+  operationId: string
+  status: RuntimeUpdateOperationStatus
+  name: string
+  version: string
+  platform: string
+  architecture: string
+  fileName: string
+  bytesDownloaded: number
+  totalBytes: number
+  sha256: string
+  error: string | null
+}
+
 export type ProxyConnectionState =
   | 'starting'
   | 'running'
@@ -159,6 +203,11 @@ export type AgentRequest =
   | { type: 'startLanShare'; payload: { siteId: string; port: number } }
   | { type: 'stopLanShareSite'; payload: { siteId: string } }
   | { type: 'stopLanShare' }
+  | { type: 'checkRuntimeUpdates' }
+  | { type: 'startRuntimeDownload'; payload: { name: string; version: string } }
+  | { type: 'getRuntimeUpdateOperation'; payload: { operationId: string } }
+  | { type: 'cancelRuntimeDownload'; payload: { operationId: string } }
+  | { type: 'installDownloadedRuntime'; payload: { operationId: string } }
   | { type: 'listPhpRuntimes' }
   | {
       type: 'installPhpRuntime'
@@ -220,6 +269,8 @@ export type AgentResponse =
   | { type: 'localCaReady'; payload: LocalCaInfo }
   | { type: 'siteHttpsChanged'; payload: Site }
   | { type: 'lanShare'; payload: LanShareInfo | null }
+  | { type: 'runtimeUpdates'; payload: RuntimeUpdateCheck }
+  | { type: 'runtimeUpdateOperation'; payload: RuntimeUpdateOperation }
   | { type: 'phpRuntimes'; payload: PhpRuntimeState }
   | { type: 'phpRuntimeInstalled'; payload: PhpRuntimeState }
   | { type: 'globalPhpChanged'; payload: PhpRuntimeState }

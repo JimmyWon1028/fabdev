@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Site, SiteEditInput, SiteInput};
 
-pub const PROTOCOL_VERSION: u16 = 32;
+pub const PROTOCOL_VERSION: u16 = 33;
 pub const STABLE_NODE_VERSION: &str = "24.19.0";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -46,6 +46,20 @@ pub enum AgentRequest {
     site_id: uuid::Uuid,
   },
   StopLanShare,
+  CheckRuntimeUpdates,
+  StartRuntimeDownload {
+    name: String,
+    version: String,
+  },
+  GetRuntimeUpdateOperation {
+    operation_id: uuid::Uuid,
+  },
+  CancelRuntimeDownload {
+    operation_id: uuid::Uuid,
+  },
+  InstallDownloadedRuntime {
+    operation_id: uuid::Uuid,
+  },
   ListPhpRuntimes,
   InstallPhpRuntime {
     artifact_path: PathBuf,
@@ -138,6 +152,8 @@ pub enum AgentResponse {
   LocalCaReady(LocalCaInfo),
   SiteHttpsChanged(Site),
   LanShare(Option<LanShareInfo>),
+  RuntimeUpdates(RuntimeUpdateCheck),
+  RuntimeUpdateOperation(RuntimeUpdateOperation),
   PhpRuntimes(PhpRuntimeState),
   PhpRuntimeInstalled(PhpRuntimeState),
   GlobalPhpChanged(PhpRuntimeState),
@@ -275,6 +291,59 @@ pub struct PhpRuntimeInfo {
 pub struct NodeRuntimeState {
   pub stable_version: String,
   pub installed_version: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeUpdateCheck {
+  pub catalog_sequence: u64,
+  pub generated_at: String,
+  pub expires_at: String,
+  pub unsigned_community_build: bool,
+  pub artifacts: Vec<RuntimeUpdateArtifact>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeUpdateArtifact {
+  pub name: String,
+  pub version: String,
+  pub platform: String,
+  pub architecture: String,
+  pub minimum_os_version: String,
+  pub file_name: String,
+  pub size: u64,
+  pub sha256: String,
+  pub unsigned_community_build: bool,
+  pub installed: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeUpdateOperation {
+  pub operation_id: uuid::Uuid,
+  pub status: RuntimeUpdateOperationStatus,
+  pub name: String,
+  pub version: String,
+  pub platform: String,
+  pub architecture: String,
+  pub file_name: String,
+  pub bytes_downloaded: u64,
+  pub total_bytes: u64,
+  pub sha256: String,
+  pub error: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RuntimeUpdateOperationStatus {
+  Queued,
+  Downloading,
+  Verified,
+  Installing,
+  Completed,
+  Failed,
+  Cancelled,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -646,6 +715,85 @@ mod tests {
         "payload": {
           "artifactPath": "/tmp/node.tar.gz",
           "releasePath": "/tmp/node.json"
+        }
+      })
+    );
+  }
+
+  #[test]
+  fn serializes_runtime_update_protocol_with_camel_case_fields() {
+    let operation_id =
+      Uuid::parse_str("fabde000-0000-4000-8000-000000000033").expect("parse operation ID");
+    assert_eq!(
+      serde_json::to_value(AgentRequest::CheckRuntimeUpdates)
+        .expect("serialize Runtime update check"),
+      json!({ "type": "checkRuntimeUpdates" })
+    );
+    assert_eq!(
+      serde_json::to_value(AgentRequest::StartRuntimeDownload {
+        name: "php".to_owned(),
+        version: "8.4.24".to_owned(),
+      })
+      .expect("serialize Runtime download start"),
+      json!({
+        "type": "startRuntimeDownload",
+        "payload": { "name": "php", "version": "8.4.24" }
+      })
+    );
+    assert_eq!(
+      serde_json::to_value(AgentRequest::CancelRuntimeDownload { operation_id })
+        .expect("serialize Runtime download cancellation"),
+      json!({
+        "type": "cancelRuntimeDownload",
+        "payload": { "operationId": "fabde000-0000-4000-8000-000000000033" }
+      })
+    );
+    assert_eq!(
+      serde_json::to_value(AgentRequest::GetRuntimeUpdateOperation { operation_id })
+        .expect("serialize Runtime operation lookup"),
+      json!({
+        "type": "getRuntimeUpdateOperation",
+        "payload": { "operationId": "fabde000-0000-4000-8000-000000000033" }
+      })
+    );
+    assert_eq!(
+      serde_json::to_value(AgentRequest::InstallDownloadedRuntime { operation_id })
+        .expect("serialize Runtime installation request"),
+      json!({
+        "type": "installDownloadedRuntime",
+        "payload": { "operationId": "fabde000-0000-4000-8000-000000000033" }
+      })
+    );
+
+    let response = AgentResponse::RuntimeUpdateOperation(RuntimeUpdateOperation {
+      operation_id,
+      status: RuntimeUpdateOperationStatus::Downloading,
+      name: "php".to_owned(),
+      version: "8.4.24".to_owned(),
+      platform: "macos".to_owned(),
+      architecture: "arm64".to_owned(),
+      file_name: "php-8.4.24-macos-arm64-community.tar.gz".to_owned(),
+      bytes_downloaded: 50,
+      total_bytes: 100,
+      sha256: "a".repeat(64),
+      error: None,
+    });
+    assert_eq!(
+      serde_json::to_value(response).expect("serialize Runtime operation"),
+      json!({
+        "type": "runtimeUpdateOperation",
+        "payload": {
+          "operationId": "fabde000-0000-4000-8000-000000000033",
+          "status": "downloading",
+          "name": "php",
+          "version": "8.4.24",
+          "platform": "macos",
+          "architecture": "arm64",
+          "fileName": "php-8.4.24-macos-arm64-community.tar.gz",
+          "bytesDownloaded": 50,
+          "totalBytes": 100,
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "error": null
         }
       })
     );

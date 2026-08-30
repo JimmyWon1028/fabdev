@@ -266,13 +266,13 @@ Rust Core Agent（一般使用者權限）
 ### 10.5 Runtime 與更新
 
 - Nginx、dnsmasq、PHP、Node.js 與未來 MariaDB 按 OS、CPU 架構及版本分開發布。
-- Runtime Catalog 至少包含名稱、版本、平台、架構、下載 URL、大小、SHA-256 與數位簽章。
+- Runtime Catalog 至少包含名稱、版本、平台、架構、下載 URL、大小、SHA-256、nullable Package signature 與上游來源驗證紀錄；Unsigned Community v1 的 Catalog／Package signature 固定為 `null`。
 - 安裝採暫存下載、驗證、健康檢查、原子切換及失敗回復。
 - P1 Unsigned Community App 更新由 Desktop 經 Tauri Command 呼叫 `crates/updater`，固定讀取 Public GitHub Releases 的 Stable Manifest。網路連線使用平台原生 TLS、系統 Proxy 與系統信任庫，不接受 UI 或 Manifest 指定任意更新來源。
 - App Manifest 必須通過 schema、產品、Stable Channel、版本、發布時間、平台、架構、完整安裝包模式、官方 GitHub Release URL、檔名、大小與小寫 SHA-256 驗證。Unsigned Community 的 `signature` 必須為 `null`；正式數位簽章留待 P3。
 - 完整 DMG／Setup.exe 下載至 `.part`，完成大小與 SHA-256 驗證後才原子改名；開啟安裝包前必須使用先前快取的 Manifest 再驗證一次。下載或檢查失敗不阻止 App 啟動，也不能留下可被誤認為完整安裝包的檔名。
 - App 不在背景直接覆蓋自己。使用者確認安裝後，Desktop 先走既有安全 Quit 流程，停止 Web、MariaDB、受管程序與 Agent，再開啟已驗證的完整安裝包並退出。
-- 未來 Tauri signed updater 只更新 fabDev App、Agent、Helper 與 CLI；Runtime 使用獨立 signed catalog。
+- 未來 Tauri signed updater 只更新 fabDev App、Agent、Helper 與 CLI；Runtime 在 P3 導入獨立 signed catalog，P2 Community v1 先使用固定 GitHub Release Catalog 與 SHA-256 完整性驗證。
 - App 更新、Runtime 更新及專案設定遷移不得混成單一不可回復操作。
 - macOS fabDev App 內建 dnsmasq、Nginx、PHP 7.4 與 PHP 8.2；啟動時只補齊缺少且未被使用者明確移除的內建 Runtime，保留既有版本、設定與 Site。PHP 7.4／8.2 可移除，移除標記會阻止下次啟動自動補回，明確重新安裝成功後才清除。PHP 8.3、PHP 8.4 及其他服務維持獨立選裝。
 - 第一個 Runtime 使用 PHP 8.2.33 官方原始碼建置，目標為 macOS ARM64；不得使用 Herd Binary，執行時也不得依賴 Homebrew。
@@ -326,7 +326,6 @@ docs/
 ## 12. 尚待確認的實作細節
 
 - PHP 8.3 與 Node.js Binary 的實際建置版本。
-- Runtime Catalog 與 Release Server 的部署位置。
 - App 程式碼簽章、公證、更新 Channel 與私鑰保管流程。
 - CLI Shim 與 Shell PATH 的使用者授權流程。
 - Node.js 開發伺服器是否納入程序監控。
@@ -408,6 +407,8 @@ Agent Protocol 20 新增本機 CA 建立與每 Site HTTPS 切換。CA 與 Site �
 Agent Protocol 31 新增 MariaDB 的 PHP 連線來源與 System Socket 設定。Managed 模式維持 fabDev 專用 Socket；System／Homebrew 模式讓 PHP 的 `localhost` 連線使用指定 Socket。
 
 Agent Protocol 32 把 MariaDB 連線資訊獨立持久化，避免舊版設定覆寫造成回歸；Managed Service 未運行時，PHP-FPM 設定產生器會自動改用 System Socket，啟動與停止後立即重新套用。
+
+Agent Protocol 33 新增 Runtime Catalog 檢查、背景下載、操作輪詢與取消。Agent 只接受 Runtime 名稱、版本與 `operationId`，固定從 GitHub Release Catalog 解析 URL 與檔名；下載採系統 TLS／Proxy、Redirect Host 白名單、`.part`、大小／SHA-256 及原子完成。操作不跨 Agent 重啟恢復，啟動時只清除殘留 `.part`；P2.3 完成前 `InstallDownloadedRuntime` 固定拒絕。
 
 Desktop 更換 Agent Protocol 時會分別記錄 Web stack 與 MariaDB 的運行狀態；舊 Agent 安全關閉、新 Agent 就緒後，只恢復升級前正在運行的服務。
 

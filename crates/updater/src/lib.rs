@@ -11,6 +11,13 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use fabdev_runtime::{RuntimeCatalog, RuntimeRelease};
 
+mod runtime_updates;
+
+pub use runtime_updates::{
+  cached_runtime_catalog, check_for_runtime_updates, cleanup_runtime_update_partials,
+  download_cached_runtime_update, DownloadedRuntimeUpdate, RuntimeDownloadRequest,
+};
+
 pub const STABLE_MANIFEST_URL: &str =
   "https://github.com/JimmyWon1028/fabdev/releases/latest/download/fabdev-stable-v1.json";
 const RELEASE_BASE_URL: &str = "https://github.com/JimmyWon1028/fabdev/releases";

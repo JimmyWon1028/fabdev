@@ -1,20 +1,23 @@
 use std::collections::{HashMap, HashSet};
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex as StdMutex};
 
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use fabdev_core::{
   create_site, default_site_domain, default_site_home, edit_site, AgentEndpoint, AgentRequest,
   AgentResponse, AgentStatus, AppPaths, LanShareInfo, LanShareSiteInfo, NodeRuntimeState,
-  PhpRuntimeInfo, PhpRuntimeState, PhpVersion, ServiceState, Site, SiteHomeSettings, SiteInput,
-  SiteRepository, PROTOCOL_VERSION, STABLE_NODE_VERSION,
+  PhpRuntimeInfo, PhpRuntimeState, PhpVersion, RuntimeUpdateArtifact, RuntimeUpdateCheck,
+  RuntimeUpdateOperation, RuntimeUpdateOperationStatus, ServiceState, Site, SiteHomeSettings,
+  SiteInput, SiteRepository, PROTOCOL_VERSION, STABLE_NODE_VERSION,
 };
 use fabdev_proxy::ProxyManager;
 use fabdev_runtime::{
   active_version, deactivate_runtime, install_tar_gz_with_activation, list_installed_versions,
   mark_runtime_removed, remove_installed_version, set_active_version, RuntimeRelease,
+  ValidatedRuntimeCatalog,
 };
 use fabdev_services::{ensure_local_ca, RuntimePaths, ServicePorts, ServiceSupervisor};
 use fabdev_share::ShareServer;
@@ -84,7 +87,210 @@ struct AgentState {
   services: Mutex<ServiceSupervisor>,
   lan_share: Mutex<LanShareState>,
   proxy_manager: Mutex<ProxyManager>,
+  runtime_updates: RuntimeUpdateManager,
   shutdown: Arc<Notify>,
+}
+
+#[derive(Clone, Default)]
+struct RuntimeUpdateManager {
+  operations: Arc<Mutex<HashMap<uuid::Uuid, Arc<RuntimeDownloadTask>>>>,
+}
+
+struct RuntimeDownloadTask {
+  snapshot: StdMutex<RuntimeUpdateOperation>,
+  cancelled: AtomicBool,
+  bytes_downloaded: AtomicU64,
+}
+
+impl RuntimeDownloadTask {
+  fn new(operation: RuntimeUpdateOperation) -> Self {
+    Self {
+      bytes_downloaded: AtomicU64::new(operation.bytes_downloaded),
+      snapshot: StdMutex::new(operation),
+      cancelled: AtomicBool::new(false),
+    }
+  }
+
+  fn snapshot(&self) -> RuntimeUpdateOperation {
+    let mut snapshot = self
+      .snapshot
+      .lock()
+      .unwrap_or_else(|poisoned| poisoned.into_inner())
+      .clone();
+    snapshot.bytes_downloaded = self.bytes_downloaded.load(Ordering::Relaxed);
+    snapshot
+  }
+
+  fn begin_download(&self) -> bool {
+    let mut snapshot = self
+      .snapshot
+      .lock()
+      .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if self.cancelled.load(Ordering::Acquire) {
+      return false;
+    }
+    snapshot.status = RuntimeUpdateOperationStatus::Downloading;
+    snapshot.error = None;
+    true
+  }
+
+  fn set_progress(&self, downloaded: u64) {
+    self.bytes_downloaded.store(downloaded, Ordering::Relaxed);
+  }
+
+  fn set_status(&self, status: RuntimeUpdateOperationStatus, error: Option<String>) {
+    let mut snapshot = self
+      .snapshot
+      .lock()
+      .unwrap_or_else(|poisoned| poisoned.into_inner());
+    snapshot.status = status;
+    snapshot.error = error;
+  }
+
+  fn cancel(&self) -> Result<RuntimeUpdateOperation> {
+    let mut snapshot = self
+      .snapshot
+      .lock()
+      .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if !matches!(
+      snapshot.status,
+      RuntimeUpdateOperationStatus::Queued | RuntimeUpdateOperationStatus::Downloading
+    ) {
+      bail!("Runtime download can no longer be cancelled");
+    }
+    self.cancelled.store(true, Ordering::Release);
+    snapshot.status = RuntimeUpdateOperationStatus::Cancelled;
+    snapshot.error = None;
+    drop(snapshot);
+    Ok(self.snapshot())
+  }
+
+  fn is_cancelled(&self) -> bool {
+    self.cancelled.load(Ordering::Acquire)
+  }
+}
+
+impl RuntimeUpdateManager {
+  async fn start(
+    &self,
+    cache_directory: PathBuf,
+    artifact: RuntimeUpdateArtifact,
+  ) -> Result<RuntimeUpdateOperation> {
+    const MAX_RUNTIME_UPDATE_OPERATIONS: usize = 64;
+
+    let operation_id = uuid::Uuid::new_v4();
+    let operation = RuntimeUpdateOperation {
+      operation_id,
+      status: RuntimeUpdateOperationStatus::Queued,
+      name: artifact.name,
+      version: artifact.version,
+      platform: artifact.platform,
+      architecture: artifact.architecture,
+      file_name: artifact.file_name,
+      bytes_downloaded: 0,
+      total_bytes: artifact.size,
+      sha256: artifact.sha256,
+      error: None,
+    };
+    let task = Arc::new(RuntimeDownloadTask::new(operation.clone()));
+    {
+      let mut operations = self.operations.lock().await;
+      let duplicate_active = operations.values().any(|existing| {
+        let existing = existing.snapshot();
+        existing.name == operation.name
+          && existing.version == operation.version
+          && existing.platform == operation.platform
+          && existing.architecture == operation.architecture
+          && matches!(
+            existing.status,
+            RuntimeUpdateOperationStatus::Queued | RuntimeUpdateOperationStatus::Downloading
+          )
+      });
+      if duplicate_active {
+        bail!("the requested Runtime is already downloading");
+      }
+      if operations.len() >= MAX_RUNTIME_UPDATE_OPERATIONS {
+        operations.retain(|_, existing| {
+          matches!(
+            existing.snapshot().status,
+            RuntimeUpdateOperationStatus::Queued | RuntimeUpdateOperationStatus::Downloading
+          )
+        });
+      }
+      if operations.len() >= MAX_RUNTIME_UPDATE_OPERATIONS {
+        bail!("too many Runtime downloads are active");
+      }
+      operations.insert(operation_id, Arc::clone(&task));
+    }
+
+    let background_operation = operation.clone();
+    tokio::spawn(async move {
+      if !task.begin_download() {
+        return;
+      }
+      let progress_task = Arc::clone(&task);
+      let cancellation_task = Arc::clone(&task);
+      let result = fabdev_updater::download_cached_runtime_update(
+        fabdev_updater::RuntimeDownloadRequest {
+          cache_directory: &cache_directory,
+          current_app_version: env!("CARGO_PKG_VERSION"),
+          current_agent_protocol_version: PROTOCOL_VERSION,
+          name: &background_operation.name,
+          version: &background_operation.version,
+          platform: &background_operation.platform,
+          architecture: &background_operation.architecture,
+        },
+        move |downloaded, _| progress_task.set_progress(downloaded),
+        move || cancellation_task.is_cancelled(),
+      )
+      .await;
+      if task.is_cancelled() {
+        if let Ok(downloaded) = result {
+          let _ = tokio::fs::remove_file(downloaded.path).await;
+        }
+        task.set_status(RuntimeUpdateOperationStatus::Cancelled, None);
+      } else {
+        match result {
+          Ok(_) => {
+            task.set_progress(background_operation.total_bytes);
+            task.set_status(RuntimeUpdateOperationStatus::Verified, None);
+          }
+          Err(error) => task.set_status(
+            RuntimeUpdateOperationStatus::Failed,
+            Some(error.to_string()),
+          ),
+        }
+      }
+    });
+    Ok(operation)
+  }
+
+  async fn get(&self, operation_id: uuid::Uuid) -> Result<RuntimeUpdateOperation> {
+    self
+      .operations
+      .lock()
+      .await
+      .get(&operation_id)
+      .map(|operation| operation.snapshot())
+      .context("Runtime update operation was not found")
+  }
+
+  async fn cancel(&self, operation_id: uuid::Uuid) -> Result<RuntimeUpdateOperation> {
+    let operation = self
+      .operations
+      .lock()
+      .await
+      .get(&operation_id)
+      .cloned()
+      .context("Runtime update operation was not found")?;
+    operation.cancel()
+  }
+
+  async fn cancel_all(&self) {
+    for operation in self.operations.lock().await.values() {
+      let _ = operation.cancel();
+    }
+  }
 }
 
 struct LanShareState {
@@ -236,6 +442,9 @@ async fn main() -> Result<()> {
   paths
     .ensure()
     .context("unable to create fabDev application directories")?;
+  fabdev_updater::cleanup_runtime_update_partials(&paths.cache)
+    .await
+    .context("unable to clean stale Runtime update partial files")?;
   let endpoint = default_agent_endpoint(&arguments, &paths);
 
   let repository =
@@ -277,6 +486,7 @@ async fn main() -> Result<()> {
     services: Mutex::new(supervisor),
     lan_share: Mutex::new(LanShareState::new(arguments.http_port)),
     proxy_manager: Mutex::new(proxy_manager),
+    runtime_updates: RuntimeUpdateManager::default(),
     shutdown: Arc::new(Notify::new()),
   });
   {
@@ -851,6 +1061,65 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
         message: error.to_string(),
       },
     },
+    AgentRequest::CheckRuntimeUpdates => match check_runtime_updates(state).await {
+      Ok(check) => AgentResponse::RuntimeUpdates(check),
+      Err(error) => AgentResponse::Error {
+        code: "runtime_update_check_failed".to_owned(),
+        message: error.to_string(),
+      },
+    },
+    AgentRequest::StartRuntimeDownload { name, version } => {
+      let artifact = match cached_runtime_update_artifact(state, &name, &version).await {
+        Ok(artifact) => artifact,
+        Err(error) => {
+          return AgentResponse::Error {
+            code: "runtime_download_invalid".to_owned(),
+            message: error.to_string(),
+          };
+        }
+      };
+      match state
+        .runtime_updates
+        .start(state.paths.cache.clone(), artifact)
+        .await
+      {
+        Ok(operation) => AgentResponse::RuntimeUpdateOperation(operation),
+        Err(error) => AgentResponse::Error {
+          code: "runtime_download_start_failed".to_owned(),
+          message: error.to_string(),
+        },
+      }
+    }
+    AgentRequest::GetRuntimeUpdateOperation { operation_id } => {
+      match state.runtime_updates.get(operation_id).await {
+        Ok(operation) => AgentResponse::RuntimeUpdateOperation(operation),
+        Err(error) => AgentResponse::Error {
+          code: "runtime_update_operation_not_found".to_owned(),
+          message: error.to_string(),
+        },
+      }
+    }
+    AgentRequest::CancelRuntimeDownload { operation_id } => {
+      match state.runtime_updates.cancel(operation_id).await {
+        Ok(operation) => AgentResponse::RuntimeUpdateOperation(operation),
+        Err(error) => AgentResponse::Error {
+          code: "runtime_download_cancel_failed".to_owned(),
+          message: error.to_string(),
+        },
+      }
+    }
+    AgentRequest::InstallDownloadedRuntime { operation_id } => {
+      match state.runtime_updates.get(operation_id).await {
+        Ok(_) => AgentResponse::Error {
+          code: "runtime_install_not_available".to_owned(),
+          message: "online Runtime installation is reserved for P2.3".to_owned(),
+        },
+        Err(error) => AgentResponse::Error {
+          code: "runtime_update_operation_not_found".to_owned(),
+          message: error.to_string(),
+        },
+      }
+    }
     AgentRequest::ListPhpRuntimes => match php_runtime_state(state).await {
       Ok(runtime_state) => AgentResponse::PhpRuntimes(runtime_state),
       Err(error) => internal_error(error),
@@ -1283,6 +1552,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
     }
     AgentRequest::Shutdown => match stop_for_shutdown(state).await {
       Ok(()) => {
+        state.runtime_updates.cancel_all().await;
         let shutdown = Arc::clone(&state.shutdown);
         tokio::spawn(async move {
           tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -1526,6 +1796,110 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       }
     }
   }
+}
+
+async fn check_runtime_updates(state: &AgentState) -> Result<RuntimeUpdateCheck> {
+  let catalog = fabdev_updater::check_for_runtime_updates(
+    &state.paths.cache,
+    env!("CARGO_PKG_VERSION"),
+    PROTOCOL_VERSION,
+  )
+  .await?;
+  build_runtime_update_check(&catalog, &state.paths.runtimes)
+}
+
+async fn cached_runtime_update_artifact(
+  state: &AgentState,
+  name: &str,
+  version: &str,
+) -> Result<RuntimeUpdateArtifact> {
+  let catalog = fabdev_updater::cached_runtime_catalog(
+    &state.paths.cache,
+    env!("CARGO_PKG_VERSION"),
+    PROTOCOL_VERSION,
+  )
+  .await?;
+  let artifact = runtime_update_artifacts(&catalog, &state.paths.runtimes)?
+    .into_iter()
+    .find(|artifact| artifact.name == name && artifact.version == version)
+    .context("the verified Runtime Catalog does not contain the requested Runtime")?;
+  if artifact.installed {
+    bail!(
+      "Runtime {} {} is already installed",
+      artifact.name,
+      artifact.version
+    );
+  }
+  Ok(artifact)
+}
+
+fn build_runtime_update_check(
+  catalog: &ValidatedRuntimeCatalog,
+  runtime_root: &Path,
+) -> Result<RuntimeUpdateCheck> {
+  Ok(RuntimeUpdateCheck {
+    catalog_sequence: catalog.catalog.catalog_sequence,
+    generated_at: catalog.catalog.generated_at.clone(),
+    expires_at: catalog.catalog.expires_at.clone(),
+    unsigned_community_build: catalog.catalog.unsigned_community_build,
+    artifacts: runtime_update_artifacts(catalog, runtime_root)?,
+  })
+}
+
+fn runtime_update_artifacts(
+  catalog: &ValidatedRuntimeCatalog,
+  runtime_root: &Path,
+) -> Result<Vec<RuntimeUpdateArtifact>> {
+  let (platform, architecture) = runtime_update_target()?;
+  let installed_versions = list_installed_versions(runtime_root, "php")?;
+  let artifacts = catalog
+    .catalog
+    .runtimes
+    .iter()
+    .filter(|release| release.platform == platform && release.architecture == architecture)
+    .map(|release| {
+      Ok(RuntimeUpdateArtifact {
+        name: release.name.clone(),
+        version: release.version.clone(),
+        platform: release.platform.clone(),
+        architecture: release.architecture.clone(),
+        minimum_os_version: release
+          .minimum_os_version
+          .clone()
+          .context("validated Runtime entry is missing minimumOsVersion")?,
+        file_name: release
+          .file_name
+          .clone()
+          .context("validated Runtime entry is missing fileName")?,
+        size: release.size,
+        sha256: release.sha256.clone(),
+        unsigned_community_build: catalog.catalog.unsigned_community_build,
+        installed: installed_versions.contains(&release.version),
+      })
+    })
+    .collect::<Result<Vec<_>>>()?;
+  if artifacts.is_empty() {
+    bail!("Runtime Catalog has no package for {platform}/{architecture}");
+  }
+  Ok(artifacts)
+}
+
+fn runtime_update_target() -> Result<(&'static str, &'static str)> {
+  let platform = if cfg!(target_os = "macos") {
+    "macos"
+  } else if cfg!(target_os = "windows") {
+    "windows"
+  } else {
+    bail!("Runtime online updates are not supported on this platform");
+  };
+  let architecture = if cfg!(target_arch = "aarch64") {
+    "arm64"
+  } else if cfg!(target_arch = "x86_64") {
+    "x64"
+  } else {
+    bail!("Runtime online updates are not supported on this architecture");
+  };
+  Ok((platform, architecture))
 }
 
 async fn stop_all(state: &AgentState) -> Result<()> {
@@ -2016,6 +2390,34 @@ mod tests {
   use uuid::Uuid;
 
   use super::*;
+
+  #[test]
+  fn tracks_runtime_download_progress_and_cancellation() {
+    let operation_id = Uuid::new_v4();
+    let task = RuntimeDownloadTask::new(RuntimeUpdateOperation {
+      operation_id,
+      status: RuntimeUpdateOperationStatus::Queued,
+      name: "php".to_owned(),
+      version: "8.4.24".to_owned(),
+      platform: "macos".to_owned(),
+      architecture: "arm64".to_owned(),
+      file_name: "php-8.4.24-macos-arm64-community.tar.gz".to_owned(),
+      bytes_downloaded: 0,
+      total_bytes: 100,
+      sha256: "a".repeat(64),
+      error: None,
+    });
+
+    assert!(task.begin_download());
+    task.set_progress(25);
+    assert_eq!(task.snapshot().bytes_downloaded, 25);
+    assert_eq!(
+      task.cancel().expect("cancel Runtime download").status,
+      RuntimeUpdateOperationStatus::Cancelled
+    );
+    assert!(task.is_cancelled());
+    assert!(task.cancel().is_err());
+  }
 
   #[tokio::test]
   async fn removes_one_shared_site_without_stopping_the_others() {

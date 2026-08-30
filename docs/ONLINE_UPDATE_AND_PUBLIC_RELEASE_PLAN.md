@@ -3,7 +3,7 @@
 > 規劃日期：2026-08-28
 >
 > 適用階段：macOS ARM64／Windows x64 Unsigned Community Build
-> 文件狀態：P0 公開下載基礎與 P1 App 內更新均已完成；`v0.1.3` 已完成 Stable Publish、匿名公開下載及封裝版線上更新驗收，下一階段為 P2 Runtime 線上安裝規劃
+> 文件狀態：P0 公開下載基礎與 P1 App 內更新均已完成；`v0.1.3` 已完成 Stable Publish、匿名公開下載及封裝版線上更新驗收；P2.1 Catalog 與 P2.2 Agent 下載完成，下一階段為 P2.3 Runtime UI／安裝
 
 P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 
@@ -366,9 +366,9 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 
 ### P2：Runtime 線上安裝
 
-- Runtime Catalog v1 規格與 P2.1 Typed Model／產生器／Parser／Validator 已完成；見 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md)。
+- Runtime Catalog v1 規格、P2.1 Typed Model／產生器／Parser／Validator，以及 P2.2 Agent Protocol 33／下載操作狀態已完成；見 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md)。
 - 第一個目標為 PHP 8.4.24 macOS ARM64／Windows x64 Side-by-side 安裝，不自動切換 Site 或全域 PHP。
-- 待實作 Agent HTTPS 下載、`.part`、驗證、操作狀態、固定健康檢查與失敗清理。
+- Agent HTTPS 下載、`.part`、大小／SHA-256、操作狀態、取消／重試與錯誤清理已完成；固定健康檢查與 Side-by-side 安裝留待 P2.3。
 - 後續再加入 Nginx、dnsmasq、Node.js 分類更新政策。
 - MariaDB 維持獨立人工更新流程。
 

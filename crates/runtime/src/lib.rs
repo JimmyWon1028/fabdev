@@ -20,6 +20,7 @@ pub const RUNTIME_CATALOG_URL: &str =
 const RELEASE_DOWNLOAD_PREFIX: &str = "https://github.com/JimmyWon1028/fabdev/releases/download/v";
 const MAX_GENERATED_AT_FUTURE_SECONDS: i64 = 5 * 60;
 const MAX_PHP_RUNTIME_BYTES: u64 = 1024 * 1024 * 1024;
+const MAX_SAFE_JSON_INTEGER: u64 = 9_007_199_254_740_991;
 const PHP_SOURCE_SIGNING_FINGERPRINT: &str = "9D7F99A0CB8F05C8A6958D6256A97AF7600A39A6";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -226,9 +227,9 @@ pub fn validate_runtime_catalog(
     format!("must be {RUNTIME_CATALOG_CHANNEL}"),
   )?;
   require_catalog_value(
-    catalog.catalog_sequence > 0,
+    catalog.catalog_sequence > 0 && catalog.catalog_sequence <= MAX_SAFE_JSON_INTEGER,
     "catalogSequence",
-    "must be a positive integer",
+    format!("must be between 1 and {MAX_SAFE_JSON_INTEGER}"),
   )?;
   require_catalog_value(
     catalog.unsigned_community_build,
@@ -1078,6 +1079,12 @@ mod tests {
     let error = generate_runtime_catalog(&catalog, &catalog_validation(None))
       .expect_err("reject uppercase SHA-256");
     assert!(error.to_string().contains("lowercase hexadecimal"));
+
+    let mut catalog = valid_catalog();
+    catalog.catalog_sequence = MAX_SAFE_JSON_INTEGER + 1;
+    let error = generate_runtime_catalog(&catalog, &catalog_validation(None))
+      .expect_err("reject Catalog sequence outside the JSON safe integer range");
+    assert!(error.to_string().contains("must be between 1"));
   }
 
   #[test]

@@ -2,7 +2,7 @@
 
 > 規劃日期：2026-08-30
 >
-> 狀態：P2.1 Schema、產生器、Parser 與嚴格 Validator 已完成；P2.2 尚未開始
+> 狀態：P2.1 Schema／Validator 與 P2.2 Agent 下載／操作狀態已完成；P2.3 尚未開始
 >
 > 第一個目標：PHP 8.4.24，macOS ARM64 與 Windows x64，Side-by-side 線上安裝
 
@@ -249,9 +249,11 @@ PHP 8.4.24 採 Side-by-side 安裝：
 
 ### P2.2：Agent 下載與操作狀態
 
-- 共用 `crates/updater` 的 TLS、`.part`、大小與 SHA-256 流程。
-- 升級 Agent Protocol 33，加入背景操作與輪詢。
-- 完成取消、重試、快取與錯誤清理。
+- [x] 共用 `crates/updater` 的 TLS、`.part`、大小與 SHA-256 流程。
+- [x] 升級 Agent Protocol 33，加入背景操作與輪詢。
+- [x] 完成取消、重試、快取與錯誤清理。
+
+P2.2 已完成程式與本機 fixture 驗證；公開 GitHub Runtime Catalog／Package 尚未發布，因此固定 `releases/latest` Feed 的匿名實際下載留待 P2.4 Draft 驗收。`InstallDownloadedRuntime` 已保留於 Protocol 33，但在 P2.3 完成健康檢查與 Side-by-side 安裝前固定拒絕執行。
 
 ### P2.3：PHP Runtime UI 與安裝
 

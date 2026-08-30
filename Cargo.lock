@@ -908,6 +908,7 @@ dependencies = [
  "fabdev-runtime",
  "fabdev-services",
  "fabdev-share",
+ "fabdev-updater",
  "serde_json",
  "tokio",
  "uuid",
