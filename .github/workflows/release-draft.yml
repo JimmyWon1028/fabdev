@@ -304,7 +304,7 @@ jobs:
 
       - name: Validate packaged Windows PHP Runtime installation
         env:
-          FABDEV_WINDOWS_RUNTIME_PACKAGE: release-input/php-8.4.24-windows-x64-community.tar.gz
+          FABDEV_WINDOWS_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/php-8.4.24-windows-x64-community.tar.gz
         run: >-
           cargo test -p fabdev-runtime installs_real_windows_php_archive
           --target x86_64-pc-windows-msvc -- --ignored
