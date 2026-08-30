@@ -3,7 +3,7 @@
 > 規劃日期：2026-08-28
 >
 > 適用階段：macOS ARM64／Windows x64 Unsigned Community Build
-> 文件狀態：P0 公開下載基礎已完成；`v0.1.1` 已完成 Stable Publish 與匿名公開下載驗證；P1 App 更新原始碼及 `0.1.2` 本機 macOS 候選包已完成，等待 Release Assets 封裝版驗收
+> 文件狀態：P0 公開下載基礎與 P1 App 內更新均已完成；`v0.1.3` 已完成 Stable Publish、匿名公開下載及封裝版線上更新驗收，下一階段為 P2 Runtime 線上安裝規劃
 
 P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 
@@ -16,7 +16,7 @@ P0 可執行的版本、Asset、Manifest、Draft、Publish 與回復契約，見
 - 線上下載使用 HTTPS；不讓 App 使用 FTP 或 SFTP 作為下載協定。
 - 第一階段以 GitHub Releases 作為安裝包與 Runtime Package 的主要候選來源。
 - `JimmyWon1028/fabdev` 已完成公開前審查並改為 Public。
-- Draft Release workflow 只接受手動雙重確認與既有 Tag，不會自動 Publish；已用 `v0.1.0` 與 `v0.1.1` 完成實際兩平台建置與 Draft Assets 驗證，`v0.1.1` 再經人工核准另行發布為 Stable。
+- Draft Release workflow 只接受手動雙重確認與既有 Tag，不會自動 Publish；已用 `v0.1.0`、`v0.1.1`、`v0.1.2` 與 `v0.1.3` 執行候選版流程，`v0.1.1` 與 `v0.1.3` 再經人工核准另行發布為 Stable。
 
 ## 2. 更新範圍
 
@@ -352,7 +352,7 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 - 已建立 GitHub Releases 發布契約。
 - 已建立 Release Asset、SHA-256 與 App Manifest v1 產生器。
 - 已建立只會產生 Draft、不會自動 Publish 的手動 GitHub Actions workflow。
-- 已發布 `v0.1.1` Stable 下載頁、SHA-256、Release Manifest 與 Release Notes，並完成匿名公開下載驗證。
+- 已發布 `v0.1.3` Stable 下載頁、SHA-256、Release Manifest 與 Release Notes，並完成匿名公開下載及 App 內更新驗證。
 
 ### P1：App 內檢查與下載
 
@@ -360,7 +360,7 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 - 已完成新版、安裝包、Release Notes、上次檢查時間及下載進度顯示。
 - 已完成固定 Stable Manifest、官方 GitHub URL 白名單、平台原生 TLS、`.part` 下載、大小／SHA-256 驗證、原子改名及開啟前再次驗證。
 - 已完成使用者確認後走安全 Quit，再開啟完整 DMG／Setup.exe；不做背景自動覆蓋安裝。
-- 尚待下一個高於 `0.1.1` 的候選版，在封裝版 macOS／Windows 完成端到端驗收。
+- 已完成封裝版端到端驗收：Windows 由 App 內執行 `0.1.2 → 0.1.3` 偵測、下載、SHA-256 驗證、安全 Quit、開啟 Setup 與覆蓋安裝；macOS 完成 `0.1.1 → 0.1.3` 覆蓋更新及大小寫不敏感磁碟的安裝器回歸。
 
 ### P2：Runtime 線上安裝
 
@@ -473,4 +473,20 @@ P0 到此完成；P1 App 內版本檢查、下載進度、完整性驗證及安�
 - 下載先寫入 `.part`，核對 Content 大小與 SHA-256 後才原子改名；開啟安裝包前會使用快取的 Manifest 再驗證，失敗時拒絕安裝。
 - 使用者確認安裝後，Desktop 先停止 Web、MariaDB、受管孤兒程序與 Agent，再開啟 DMG／Setup.exe 並退出。
 - 前端 55 項、Updater 5 項一般測試、完整 `pnpm test` 與 `pnpm lint` 通過；實際公開 Manifest 與 99,295,774 bytes macOS DMG 的完整下載、大小及 SHA-256 驗證也已通過。
-- `0.1.2` 本機 macOS Community 候選包已完成，大小為 98,639,468 bytes，SHA-256 為 `4b718f1f639347e93531ea192c5064883620f9fd09f509f0185fb0df2a754c2b`；內外層 checksum、版本、ad-hoc 簽章、ARM64 執行檔及固定 Runtime 邊界通過。公開 Stable 仍是 `0.1.1`，因此封裝版 UI 的完整升級流程仍須等待 `0.1.2` Release Assets，在 macOS 與 Windows 各驗收一次後才能宣告 P1 發布驗收完成。
+- `0.1.2` 本機 macOS Community 候選包為 98,639,468 bytes，SHA-256 為 `4b718f1f639347e93531ea192c5064883620f9fd09f509f0185fb0df2a754c2b`；內外層 checksum、版本、ad-hoc 簽章、ARM64 執行檔及固定 Runtime 邊界通過。此候選版後續成為 P1 封裝驗收基準，最終由含安裝器修正的 `0.1.3` 完成發布驗收。
+
+## 17. `v0.1.3` Stable 與 P1 發布驗收結果
+
+Repository Owner 完成兩平台驗收並明確核准後，GitHub Release `379130930` 已於 `2026-08-30T00:54:23Z` Publish：
+
+```text
+https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.3
+```
+
+- Release 為 `draft=false`、`prerelease=false`，共 9 個公開 Assets；annotated `v0.1.3` Tag、`main` 與 `origin/main` 均指向 Commit `1d6625d42e16e65e2b188a5da2c4c4774f784f74`。
+- 公開 DMG 為 99,976,348 bytes，SHA-256 `96d6e49f363cd257b97e83dda0d4ada8793b6cf8bffcb93de49576b66d318a9e`；Windows Setup 為 48,728,655 bytes，SHA-256 `fdb9fe3830791be471311f701d7ba1c4e8877e4ae3d7fa3a3e7b03b66aec4254`；Connect 為 749,568 bytes，SHA-256 `4d18c1578d6c33649ced95417d4503ab7ddd08538f478fc5ce0fcbe8a97540a8`。
+- 9 個 Assets 已由匿名公開 URL 重新下載；總表、三份個別 checksum、兩份 Manifest、DMG 內部 27 項 checksum 與公開內容邊界全數通過。
+- macOS `0.1.1 → 0.1.3` 覆蓋更新、資料保留、`demo.test`、PHP 8.2.33 與 Quit 清理通過；`0.1.3` 同時修正大小寫不敏感磁碟把相同 App 誤判為兩份的問題。
+- Windows 11 ARM64 Parallels 的 x64 App 相容環境完成 App 內 `0.1.2 → 0.1.3`：偵測新版、下載進度、大小與 SHA-256、Quit 清理、開啟 Setup、移除舊程式但保留資料、安裝及重新啟動全部通過。
+- Windows 更新後 Desktop／Agent 皆為 `0.1.3`、Protocol 32；DNS、Nginx、PHP 正常，原 `demo.test` Site ID、Site Home 與空白 Proxy 保留，HTTP 200／PHP 8.2.33。
+- P1 到此完成；第一版維持完整安裝包、使用者確認與安全 Quit，不做背景靜默覆蓋。下一階段為 P2 Runtime 線上安裝的信任、下載、健康檢查與回復契約。

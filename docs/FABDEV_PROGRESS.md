@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
-> 更新日期：2026-08-29
-> 目前階段：macOS ARM64／Windows x64 Unsigned Community Build 0.1.2 本機 macOS 候選包已完成；P1 App 更新等待封裝版驗收
+> 更新日期：2026-08-30
+> 目前階段：Unsigned Community Build `v0.1.3` 已發布並完成公開下載與 App 內更新驗收；P1 App 更新完成，下一階段為 P2 Runtime 線上安裝規劃
 
 ## 已完成
 
@@ -32,6 +32,9 @@
 
 ## 最近驗證
 
+- `v0.1.3` 已發布為最新 Stable Release：<https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.3>。Release `379130930` 為非 Draft、非 Pre-release，共 9 個公開 Assets；遠端 annotated Tag、`main` 與 `origin/main` 均固定在 Commit `1d6625d42e16e65e2b188a5da2c4c4774f784f74`。
+- 9 個 `v0.1.3` 公開 Assets 已由匿名 URL 重新下載；DMG、Windows Setup、Connect、`SHA256SUMS`、三份個別 checksum 與兩份逐位元一致的 Manifest 全數通過。公開 Stable Manifest 為 `0.1.3`、Agent Protocol 32、`requiresFullInstaller=true`，Unsigned Community 簽章欄位維持 `null`。
+- Windows 11 ARM64 Parallels 的 x64 App 相容環境已從封裝版 `0.1.2` 於 App 內偵測、下載並更新至 `0.1.3`；大小與 SHA-256、Quit 後 Desktop／Agent／Nginx／PHP 清理、NSIS 覆蓋安裝及重新啟動均通過。原 `demo.test` Site ID、Site Home 與空白 Proxy 保留，更新後 HTTP 200／PHP 8.2.33。
 - 完整測試：前端 55、Release Script 5、Rust 145、macOS Helper 9 項一般測試全數通過；另有 1 項需指定實際 MariaDB Runtime 與 2 項公開網路整合測試維持忽略，後兩項已在 P1 實作時分別手動執行通過。
 - 隔離 HTTPS 流程已確認 CA chain、`tls-e2e.test` SAN、Nginx 1.30.4 `-t`、18444 高位 TLS 與實際 HTTPS 靜態檔回應；`demo.test` 已完成 Login Keychain 信任、HTTP 301 與正式 443 HTTPS 200 驗證。
 - `pnpm lint`：TypeScript、rustfmt、Clippy 與 Swift lint 通過。
@@ -52,6 +55,15 @@
 - `fabdev-connect` 通過 `x86_64-pc-windows-msvc` 交叉編譯檢查；Windows GUI、UAC、實際 hosts 與瀏覽器流程待 Parallels Windows 11 驗收。
 - Node.js 24.19.0 LTS 官方 macOS ARM64 Archive SHA-256 與發布者 PGP 簽章驗證通過；選裝套件已產生並確認 Node v24.19.0、npm 11.17.0、描述檔與單一 `24.19.0/` 封裝根目錄。
 - Proxy 聚焦測試確認自訂新增／移除與驗證、設定持久化、HTTP Host 改寫、Credential CORS、實際 streaming response、單一 Port 衝突隔離及停止後 Port 釋放。
+
+## 2026-08-30 工作日誌
+
+- `0.1.2` 封裝版 App 更新驗收在 macOS 發現大小寫不敏感磁碟會把新舊 App 名稱誤判為兩份 App；已於 `0.1.3` 修正同 inode 路徑辨識，同名但確實為不同 App 時仍會安全拒絕更新。
+- `v0.1.3` GitHub Actions 已完成 macOS ARM64、Windows x64 與 Draft Release Jobs。Draft 內 9 個 Assets 已重新下載並通過大小、SHA-256、Manifest、DMG 內部 checksum 與公開內容邊界驗證。
+- macOS ARM64 已完成 `0.1.1 → 0.1.3` 覆蓋更新、資料保留、`demo.test` DNS／HTTP 200、PHP 8.2.33 與安全 Quit 清理；Windows 已完成 `0.1.1 → 0.1.3` 人工覆蓋、解除安裝資料保留與重新安裝生命週期驗收。
+- Repository Owner 明確核准後，`v0.1.3` 已於 `2026-08-30T00:54:23Z` Publish。發布後 9 個 Assets、公開 Stable／App Manifest、匿名下載與 checksum 均再次驗證通過。
+- Windows 封裝版 `0.1.2 → 0.1.3` App 內線上更新已完成：App 下載 48,728,655 bytes Setup、驗證 SHA-256 `fdb9fe3830791be471311f701d7ba1c4e8877e4ae3d7fa3a3e7b03b66aec4254`，安全 Quit 後開啟 NSIS；更新後 Desktop／Agent 皆為 `0.1.3`、Protocol 32，唯一 Site、Site Home 與空白 Proxy 均保留。
+- 驗收期間觀察到 Windows Agent 會重複記錄 PHP 8.2 狀態端點 `404 Not Found`，主控台也持續等待 PHP-FPM 指標；實際 `demo.test` HTTP 200 與 PHP 8.2.33 正常，因此不阻擋 `v0.1.3`，但列入後續修正。
 
 ## 2026-08-29 工作日誌
 
@@ -100,7 +112,8 @@
 
 ## 驗證邊界
 
-- 目前公開 Stable Manifest 仍是 `0.1.1`；雖然 `0.1.2` 本機 macOS 候選包已完成，但尚未建立 Tag、Draft 或 Windows Asset，因此仍無法在正式封裝版 UI 實測「偵測較新版 → 下載 → Quit → 開啟安裝包」。後續需由 `0.1.2` Release Assets 在 macOS 與 Windows 各完成一次端到端驗收。
+- 目前公開 Stable Manifest 為 `0.1.3`；Windows 已完成封裝版 App 內 `0.1.2 → 0.1.3` 偵測、下載、驗證、Quit、開啟 Setup 與覆蓋更新。macOS 已完成 `0.1.1 → 0.1.3` 覆蓋更新及大小寫不敏感磁碟的安裝器修正驗收。
+- 更新失敗與重試由 Updater 聚焦測試覆蓋；公開 Release 的成功下載與覆蓋流程已實測，但不會為了製造故障而修改已發布 Asset 或 Stable Manifest。
 - `fabdev-updater` 已通過 `x86_64-pc-windows-msvc` 交叉編譯；完整 Desktop 的 Windows 本機交叉檢查停在既有 bundled SQLite C 建置缺少 MSVC `stdlib.h`，需由 Windows MSVC GitHub Actions 或實機環境驗證，並非 Updater Rust 程式錯誤。
 - `v0.1.0` 的首次 Site Home、App 選單 Quit 與舊 CA 清理三項阻擋問題，已由 `v0.1.1` Draft 在恢復至 fabDev 未安裝基線的 Mac 完成首次安裝、覆蓋更新與完整移除回歸。
 - 覆蓋安裝程序結束後未觀察到 App 保持運行；手動開啟後所有服務與保留資料驗證通過。若後續要把「更新後自動重新開啟 App」列為發佈條件，仍需在另一個 macOS Session 重現確認。
@@ -124,13 +137,16 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [x] 建立 `v0.1.1` Draft Release，重新下載 9 個 Assets 並驗證大小、Manifest、SHA-256、DMG 內容與公開內容邊界；完成 macOS／Windows 驗收後已 Publish。
 - [x] Repository Owner 已在 Mac／Windows 驗收完成後人工核准 `v0.1.1` Publish。
 - [x] 更新 `v0.1.1` Release Notes、Publish Stable Release，並完成未登入頁面、9 個公開 Assets、Checksum、Manifest、Draft 位元組與固定 Tag 驗證。
+- [x] 建立並驗證 `v0.1.3` Draft Release；完成 macOS／Windows 覆蓋、Windows App 內線上更新、資料保留及 Publish 後公開下載驗收。
+- [x] Repository Owner 已核准 `v0.1.3` Publish；Release Notes 已補上發布後驗收結果，Stable Tag 固定在 Commit `1d6625d`。
 
 ### P1：核心開發體驗
 
 - [x] App 啟動後每日自動檢查與設定頁手動檢查 Stable Manifest；離線或更新失敗不阻止 App 啟動。
 - [x] 顯示版本、發布資訊、Release Notes、安裝包資料與下載進度；完整安裝包使用 `.part`、大小／SHA-256 驗證、原子改名及開啟前再次驗證。
 - [x] 使用者確認後先走既有安全 Quit，停止 Web、MariaDB、受管程序與 Agent，再開啟 DMG／Setup.exe；不做背景自動覆蓋安裝。
-- [ ] 使用下一個高於 `0.1.1` 的候選版，在封裝版 macOS／Windows 各完成新版偵測、下載、失敗重試、Quit、開啟安裝包及覆蓋更新端到端驗收。
+- [x] 使用高於 `0.1.1` 的封裝版完成 App 更新驗收：Windows 實測 `0.1.2 → 0.1.3` 的偵測、下載、完整性驗證、Quit、開啟 Setup 與覆蓋更新；macOS 完成 `0.1.1 → 0.1.3` 覆蓋及安裝器回歸，失敗與重試由 Updater 測試覆蓋。
+- [ ] 修正 Windows PHP-CGI 狀態輪詢持續收到 404 並重複寫入日誌的問題；不得影響已正常運作的 Site HTTP／PHP 流程。
 - [ ] 提供可由一般本機瀏覽器操作的 Web UI；新增只綁定 loopback、具身分驗證與權限限制的 HTTP／WebSocket API，並讓前端在非 Tauri 環境改走該 API。
 - [ ] 建立 PHP 8.3 Community Runtime 與升級偵測通知。
 - [ ] 提供 shell PHP／Composer／Artisan shim，支援全域及 Site 版本。

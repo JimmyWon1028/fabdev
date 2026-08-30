@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 已完成 Assets、macOS／Windows 生命週期驗收、Stable Publish 與匿名公開下載驗證
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.3` 已完成兩平台驗收、Stable Publish、匿名公開下載與 App 內更新驗收
 
 ## 1. 目標
 
@@ -335,6 +335,18 @@ Draft Connect 為 749,568 bytes，SHA-256 `2082d724e809a04111a78a74fe7f0aadd0212
 
 本機候選包 Hash 不取代未來 GitHub Actions Draft Asset 的重新下載與逐位元驗證，也不代表 `0.1.1 → 0.1.2` App 內線上更新、macOS 覆蓋安裝或 Windows x64 生命週期已完成驗收。
 
+### 8.7 `v0.1.3` Draft 與平台驗收
+
+`0.1.2` 封裝驗收在 macOS 大小寫不敏感磁碟發現安裝器會把同一 App 的新舊大小寫名稱誤判為兩份；`0.1.3` 以 inode 判斷同一實體 App 並保留真正重複安裝的拒絕保護。六個版本來源與 Cargo workspace lock 已同步，Tag 固定在 Commit `1d6625d42e16e65e2b188a5da2c4c4774f784f74`。
+
+取得重新打包、Tag、Draft 與驗收授權後，GitHub Actions 完成 macOS ARM64、Windows x64 與 Draft Release Jobs。Draft 內 9 個 Assets 已重新下載，大小、`SHA256SUMS`、三份個別 checksum、兩份 Manifest、DMG 內部 27 項 checksum、版本、架構、ad-hoc 簽章與公開內容邊界全數通過：
+
+- macOS DMG：99,976,348 bytes，SHA-256 `96d6e49f363cd257b97e83dda0d4ada8793b6cf8bffcb93de49576b66d318a9e`。
+- Windows Setup：48,728,655 bytes，SHA-256 `fdb9fe3830791be471311f701d7ba1c4e8877e4ae3d7fa3a3e7b03b66aec4254`。
+- Windows Connect：749,568 bytes，SHA-256 `4d18c1578d6c33649ced95417d4503ab7ddd08538f478fc5ce0fcbe8a97540a8`。
+
+macOS ARM64 完成 `0.1.1 → 0.1.3` 覆蓋更新、資料保留、`demo.test`、PHP 8.2.33 與安全 Quit 清理。Parallels Windows 11 ARM64 的 x64 App 相容環境完成 `0.1.1 → 0.1.3` 人工覆蓋、解除安裝資料保留與重新安裝，並另以封裝版 `0.1.2` 實際走 App 內新版偵測、下載、大小／SHA-256 驗證、安全 Quit、開啟 Setup、覆蓋安裝及重新啟動。更新後 Desktop／Agent 皆為 `0.1.3`、Protocol 32，原 Site ID、Site Home、空白 Proxy 與 HTTP 200／PHP 8.2.33 均保留。
+
 ## 9. Publish 後驗證
 
 - 以未登入狀態開啟 Release 頁面及每個 Asset，狀態必須成功。
@@ -360,6 +372,20 @@ https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.1
 - 9 個發布後公開檔案均與發布前 Draft 驗收版本逐位元一致，沒有在 Publish 過程替換 Asset。
 - 遠端 annotated `v0.1.1` Tag 的 peeled Commit 仍為 `8d70808a43fb3f2f5406c0e572c2b6e4e51f0350`，沒有移動或重用 Tag。
 - Release 只有預期的 Community DMG、Windows Setup、Connect、Checksum 與兩份 Manifest，未包含 Actions 暫存 Artifact、Log 或內部 Runtime 開發包。
+
+### 9.2 `v0.1.3` Stable Publish 執行結果
+
+Repository Owner 明確核准後，GitHub Release `379130930` 已於 `2026-08-30T00:54:23Z` 發布為 Stable；狀態為 `draft=false`、`prerelease=false`：
+
+```text
+https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.3
+```
+
+- 9 個公開 Assets 已由匿名 URL 重新下載，三個 Binary 的大小與 SHA-256、總表及個別 checksum 全數通過。
+- `fabdev-app-v1.json` 與 `fabdev-stable-v1.json` 逐位元一致；內容為 Stable `0.1.3`、Agent Protocol 32、`requiresFullInstaller=true`，兩個 App artifact 的 `signature` 均為 `null`。
+- 遠端 annotated `v0.1.3` Tag 的 peeled Commit、`main` 與 `origin/main` 均為 `1d6625d42e16e65e2b188a5da2c4c4774f784f74`，沒有移動或重用 Tag。
+- Release 只有預期的 Community DMG、Windows Setup、Connect、Checksum 與兩份 Manifest，沒有 Actions 暫存 Artifact、Log、內部 Runtime 開發包或客戶資料。
+- 發布後已由 Windows 封裝版 App 完成 `0.1.2 → 0.1.3` Stable 線上更新；下載檔 SHA-256 與公開 Asset 一致，安全 Quit 會先結束 Desktop、Agent、Nginx 與 PHP，再開啟完整 Setup。
 
 ## 10. 撤回與回復
 
@@ -394,12 +420,14 @@ P0 發布基礎需依序完成：
 - [x] Public Repository 與公開安全回報管道。
 - [x] Release Asset、版本、Channel、Manifest、Draft、Publish 與回復契約。
 - [x] 產生 Release Manifest 與 Checksum 的可重現腳本。
-- [x] 建立只接受手動雙重確認、只會產生 Draft、不會自動 Publish 的 GitHub Actions Release workflow，並以 `v0.1.0` 與 `v0.1.1` 實際執行。
+- [x] 建立只接受手動雙重確認、只會產生 Draft、不會自動 Publish 的 GitHub Actions Release workflow，並以 `v0.1.0`、`v0.1.1`、`v0.1.2` 與 `v0.1.3` 實際執行候選版流程。
 - [x] 在恢復至 fabDev 未安裝基線的 Mac 完成 `v0.1.1` Community DMG 首次安裝、覆蓋更新與完整移除驗收；原三項阻擋問題均通過回歸。
 - [x] 在乾淨 Windows 資料基線完成 x64 NSIS 首次安裝、覆蓋更新與移除驗收；本次環境為 Parallels Windows 11 ARM 的 x64 模擬層，實體 Windows x64 仍列為後續邊界。
 - [x] 建立第一個 `v0.1.0` Draft Release，並從 GitHub 重新下載 9 個 Assets 驗證大小、Manifest 與 SHA-256。
 - [x] 建立 `v0.1.1` Draft Release，並從 GitHub 重新下載 9 個 Assets 驗證大小、Manifest、SHA-256 與 DMG 內容。
 - [x] Repository Owner 已明確核准 `v0.1.1` Stable Publish。
 - [x] Publish `v0.1.1`，並以未登入公開 URL 重新下載 9 個 Assets，完成大小、SHA-256、Manifest、Draft 位元組與固定 Tag 驗證。
+- [x] 建立 `v0.1.3` Draft、完成 macOS／Windows 覆蓋與資料保留驗收，並由 Repository Owner 明確核准 Stable Publish。
+- [x] Publish `v0.1.3`，完成 9 個公開 Assets、Stable／App Manifest、匿名下載、固定 Tag 與 Windows App 內 `0.1.2 → 0.1.3` 更新驗收。
 
-`v0.1.1` 是目前可供公開下載的正式 Stable Release；P1 App 內檢查與下載已完成原始碼實作，`0.1.2` 本機 macOS 候選包已通過封裝內容驗證，Release Assets 與兩平台端到端更新驗收仍待後續授權及執行。
+`v0.1.3` 是目前可供公開下載的正式 Stable Release；P0 公開發布基礎與 P1 App 內檢查、下載、完整性驗證、安全 Quit 及完整安裝包更新均已完成。下一階段為 P2 Runtime 線上安裝；第一版不做背景靜默覆蓋或正式發布者簽章。
