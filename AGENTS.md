@@ -51,3 +51,5 @@ System／Homebrew MariaDB Socket 屬於內部連線細節，不顯示於一般 M
 ## Commit、PR 與安全邊界
 
 採用 Conventional Commits，例如 `feat: add runtime installer`。PR 應說明目的、驗證方式、相關 issue，UI 變更需附截圖。Desktop 與 Agent 維持一般使用者權限；53／80／443、固定的 `/etc/resolver/test` 及 LaunchDaemon 只能經白名單 System Helper 操作，CA 信任則由目前使用者的互動 Session 經固定路徑與內容驗證後執行。不得覆蓋 Herd 設定、接管既有 Homebrew MariaDB，或提交 Token、私鑰與真實環境資料。
+
+新版 Stable Release 完成 Publish 與公開下載驗證後，已被新版取代且不再使用的 Draft Release 必須刪除，包含其 Draft Assets，避免 Repository Owner 的 Releases 頁被廢棄 Draft 排在正式版本前方。刪除前必須確認目標仍為 `draft=true` 且新版 Stable 已驗證成功；只刪除 Release 紀錄與 Assets，預設保留 Git Tag。已發布的 Stable／Pre-release 不得套用此規則，除非使用者另行明確要求刪除。
