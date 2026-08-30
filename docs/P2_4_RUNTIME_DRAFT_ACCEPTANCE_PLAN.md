@@ -1,6 +1,6 @@
 # P2.4 Runtime Draft Acceptance Plan
 
-> 狀態：P2.4a Release pipeline hardening 已實作，待 CI 驗證。P2.1～P2.3 已完成；尚未執行重新打包、Tag、Draft Release、實機安裝或 Publish。
+> 狀態：P2.4a Release pipeline hardening 已實作並通過格式與前端測試；`0.1.4` 候選版版本來源已同步。尚未執行重新打包、Tag、Draft Release、實機安裝或 Publish。
 
 ## 1. 目標與固定範圍
 
