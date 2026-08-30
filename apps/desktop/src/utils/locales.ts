@@ -287,6 +287,7 @@ const en = {
   'runtimes.onlineCheck': 'Check online',
   'runtimes.onlineChecking': 'Checking…',
   'runtimes.onlineAvailable': 'PHP {version} is available online',
+  'runtimes.onlineAvailableCount': '{count} PHP Runtime versions are available online',
   'runtimes.onlineNone': 'No matching online PHP Runtime is available',
   'runtimes.unsignedCommunity': 'Unsigned Community',
   'runtimes.unsignedWarning': 'This Community package has no publisher signature. fabDev verifies the Catalog, size, and SHA-256, but this does not prove publisher identity.',
@@ -313,6 +314,11 @@ const en = {
   'runtimes.onlineStatus.completed': 'Installed',
   'runtimes.onlineStatus.failed': 'Failed',
   'runtimes.onlineStatus.cancelled': 'Cancelled',
+  'runtimes.updateAvailable': 'Update available',
+  'runtimes.updateTo': ' · Update available: PHP {version}',
+  'runtimes.onlinePackageSize': ' · Online package: {size}',
+  'runtimes.install': 'Install',
+  'runtimes.update': 'Update',
   'runtimes.listLabel': 'PHP Runtime list',
   'runtimes.default': 'Default',
   'runtimes.defaultIniTitle': 'Default php.ini',
@@ -676,13 +682,32 @@ const zhCNTerminalPhpCopy = {
   'runtimes.globalChanged': '全局 PHP 已切换为 {version}；Site 指定版本不受影响，已启用的终端 PHP 会在新终端使用此版本'
 } satisfies Partial<TranslationTable>
 
+const zhTWWindowsRuntimeCatalogCopy = {
+  'runtimes.onlineAvailableCount': '線上共有 {count} 個 PHP Runtime 版本可用',
+  'runtimes.updateAvailable': '有可用更新',
+  'runtimes.updateTo': ' · 可更新至 PHP {version}',
+  'runtimes.onlinePackageSize': ' · 線上套件：{size}',
+  'runtimes.install': '安裝',
+  'runtimes.update': '更新'
+} satisfies Partial<TranslationTable>
+
+const zhCNWindowsRuntimeCatalogCopy = {
+  'runtimes.onlineAvailableCount': '在线共有 {count} 个 PHP Runtime 版本可用',
+  'runtimes.updateAvailable': '有可用更新',
+  'runtimes.updateTo': ' · 可更新至 PHP {version}',
+  'runtimes.onlinePackageSize': ' · 在线包：{size}',
+  'runtimes.install': '安装',
+  'runtimes.update': '更新'
+} satisfies Partial<TranslationTable>
+
 export const translations: Record<Language, TranslationTable> = {
   en,
   'zh-TW': {
     ...zhTW,
     ...zhTWBuiltInRuntimeCopy,
     ...zhTWLanShareCopy,
-    ...zhTWTerminalPhpCopy
+    ...zhTWTerminalPhpCopy,
+    ...zhTWWindowsRuntimeCatalogCopy
   },
   'zh-CN': {
     ...zhCN,
@@ -693,6 +718,7 @@ export const translations: Record<Language, TranslationTable> = {
     ...zhCNSiteSelectionCopy,
     ...zhCNProxySearchCopy,
     ...zhCNUpdateCopy,
-    ...zhCNTerminalPhpCopy
+    ...zhCNTerminalPhpCopy,
+    ...zhCNWindowsRuntimeCatalogCopy
   }
 }

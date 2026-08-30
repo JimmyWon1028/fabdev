@@ -460,11 +460,6 @@ fn validate_catalog_release(
 ) -> Result<(), RuntimeCatalogError> {
   let field = |name: &str| format!("runtimes[{index}].{name}");
   require_catalog_value(release.name == "php", field("name"), "must be php")?;
-  require_catalog_value(
-    release.version == "8.4.24",
-    field("version"),
-    "must be 8.4.24 for Community v1",
-  )?;
   let supported_target = matches!(
     (release.platform.as_str(), release.architecture.as_str()),
     ("macos", "arm64") | ("windows", "x64")
@@ -474,6 +469,7 @@ fn validate_catalog_release(
     field("platform"),
     "must target macos/arm64 or windows/x64",
   )?;
+  validate_catalog_php_version(release, &field("version"))?;
   let minimum_os_version = release
     .minimum_os_version
     .as_deref()
@@ -548,6 +544,27 @@ fn validate_catalog_release(
     field("healthCheckProfile"),
   )?;
   Ok(())
+}
+
+fn validate_catalog_php_version(
+  release: &RuntimeRelease,
+  field: &str,
+) -> Result<(), RuntimeCatalogError> {
+  if release.platform == "macos" {
+    return require_catalog_value(
+      release.version == "8.4.24",
+      field,
+      "must be 8.4.24 for macOS Community v1",
+    );
+  }
+
+  let version = Version::parse(&release.version)
+    .map_err(|error| invalid_catalog(field, format!("must be stable SemVer: {error}")))?;
+  require_catalog_value(
+    version.major >= 7 && version.pre.is_empty() && version.build.is_empty(),
+    field,
+    "must be stable PHP SemVer 7.0.0 or newer for Windows",
+  )
 }
 
 fn validate_versioned_release_url(
@@ -1312,6 +1329,34 @@ mod tests {
 
     generate_runtime_catalog(&catalog, &catalog_validation(None))
       .expect("accept Windows x64 Runtime");
+  }
+
+  #[test]
+  fn accepts_future_windows_php_series_and_keeps_macos_fixed() {
+    let mut catalog = valid_catalog();
+    let release = &mut catalog.runtimes[0];
+    release.version = "9.1.2".to_owned();
+    release.platform = "windows".to_owned();
+    release.architecture = "x64".to_owned();
+    release.minimum_os_version = Some("11.0".to_owned());
+    release.file_name = Some("php-9.1.2-windows-x64-community.tar.gz".to_owned());
+    release.url = "https://github.com/JimmyWon1028/fabdev/releases/download/v0.1.4/php-9.1.2-windows-x64-community.tar.gz".to_owned();
+    release.source_verification = Some(RuntimeSourceVerification {
+      method: "official-sha256".to_owned(),
+      fingerprint: None,
+      upstream_sha256: "b".repeat(64),
+    });
+    generate_runtime_catalog(&catalog, &catalog_validation(None))
+      .expect("accept future Windows PHP Runtime");
+
+    let release = &mut catalog.runtimes[0];
+    release.platform = "macos".to_owned();
+    release.architecture = "arm64".to_owned();
+    release.file_name = Some("php-9.1.2-macos-arm64-community.tar.gz".to_owned());
+    release.url = "https://github.com/JimmyWon1028/fabdev/releases/download/v0.1.4/php-9.1.2-macos-arm64-community.tar.gz".to_owned();
+    let error = generate_runtime_catalog(&catalog, &catalog_validation(None))
+      .expect_err("keep macOS online PHP fixed");
+    assert!(error.to_string().contains("must be 8.4.24 for macOS"));
   }
 
   #[test]

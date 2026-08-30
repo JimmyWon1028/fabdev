@@ -1392,6 +1392,20 @@ button:disabled {
   width: 100%;
 }
 
+.runtime-row-progress {
+  display: grid;
+  gap: 3px;
+  margin-top: 8px;
+}
+
+.runtime-row-progress progress {
+  width: min(260px, 100%);
+}
+
+.runtime-row-progress small {
+  color: #68736c;
+}
+
 .runtime-online-progress small {
   color: #a23b31;
 }

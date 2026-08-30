@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import type { PhpRuntimeInfo, RuntimeUpdateOperation } from '@fabdev/contracts'
+import type {
+  PhpRuntimeInfo,
+  RuntimeUpdateArtifact,
+  RuntimeUpdateOperation
+} from '@fabdev/contracts'
 import { confirm, open } from '@tauri-apps/plugin-dialog'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
@@ -8,6 +12,7 @@ import { useI18n } from '../utils/i18n'
 import { formatPathForDisplay, isWindowsPlatform } from '../utils/path'
 import {
   buildRuntimeRows,
+  buildWindowsRuntimeRows,
   formatRuntimeBytes,
   isBuiltInPhpSeries,
   isRuntimeDownloadActive,
@@ -22,9 +27,16 @@ const phpIniSeries = ref<string | null>(null)
 const phpIniContents = ref('')
 let mounted = true
 
+const isWindows = isWindowsPlatform()
 const rows = computed(() => buildRuntimeRows(store.phpRuntimes.installed))
+const onlineArtifacts = computed(() =>
+  store.runtimeUpdateCheck?.artifacts.filter((artifact) => artifact.name === 'php') ?? []
+)
+const windowsRows = computed(() =>
+  buildWindowsRuntimeRows(store.phpRuntimes.installed, onlineArtifacts.value)
+)
 const onlineArtifact = computed(() =>
-  store.runtimeUpdateCheck?.artifacts.find((artifact) => artifact.name === 'php') ?? null
+  onlineArtifacts.value[0] ?? null
 )
 const onlineOperation = computed(() => store.runtimeUpdateOperation)
 const onlineInstalled = computed(() => {
@@ -38,7 +50,6 @@ const onlineProgress = computed(() => {
   const operation = onlineOperation.value
   return operation ? runtimeProgressPercent(operation.bytesDownloaded, operation.totalBytes) : 0
 })
-const isWindows = isWindowsPlatform()
 const showInFileManagerLabel = computed(() =>
   t(isWindows ? 'runtimes.showInExplorer' : 'runtimes.showInFinder')
 )
@@ -56,6 +67,9 @@ async function refresh() {
   message.value = ''
   try {
     await Promise.all([store.loadPhpRuntimes(), store.loadTerminalPhp()])
+    if (isWindows) {
+      await store.checkRuntimeUpdates()
+    }
   } catch (error) {
     message.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -100,9 +114,15 @@ async function checkOnlineRuntimes() {
   message.value = ''
   try {
     await store.checkRuntimeUpdates()
-    message.value = onlineArtifact.value
-      ? t('runtimes.onlineAvailable', { version: onlineArtifact.value.version })
-      : t('runtimes.onlineNone')
+    if (isWindows) {
+      message.value = onlineArtifacts.value.length > 0
+        ? t('runtimes.onlineAvailableCount', { count: onlineArtifacts.value.length })
+        : t('runtimes.onlineNone')
+    } else {
+      message.value = onlineArtifact.value
+        ? t('runtimes.onlineAvailable', { version: onlineArtifact.value.version })
+        : t('runtimes.onlineNone')
+    }
   } catch (error) {
     message.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -110,10 +130,11 @@ async function checkOnlineRuntimes() {
   }
 }
 
-async function downloadOnlineRuntime() {
-  const artifact = onlineArtifact.value
+async function downloadOnlineRuntime(
+  artifact: RuntimeUpdateArtifact | null = onlineArtifact.value
+): Promise<RuntimeUpdateOperation | null> {
   if (!artifact) {
-    return
+    return null
   }
   const approved = await confirm(
     t('runtimes.onlineDownloadConfirm', {
@@ -129,14 +150,16 @@ async function downloadOnlineRuntime() {
     }
   )
   if (!approved) {
-    return
+    return null
   }
 
-  action.value = 'online-download'
+  action.value = `online-download:${artifact.version}`
   message.value = t('runtimes.onlineDownloading')
+  let completedOperation: RuntimeUpdateOperation | null = null
   try {
     let operation = await store.startRuntimeDownload(artifact.name, artifact.version)
     operation = await pollRuntimeDownload(operation)
+    completedOperation = operation
     if (operation.status === 'verified') {
       message.value = t('runtimes.onlineVerified', { version: operation.version })
     } else if (operation.status === 'cancelled') {
@@ -149,6 +172,7 @@ async function downloadOnlineRuntime() {
   } finally {
     action.value = null
   }
+  return completedOperation
 }
 
 async function pollRuntimeDownload(
@@ -174,11 +198,12 @@ async function cancelOnlineDownload() {
   }
 }
 
-async function installOnlineRuntime() {
-  const artifact = onlineArtifact.value
-  const operation = onlineOperation.value
+async function installOnlineRuntime(
+  artifact: RuntimeUpdateArtifact | null = onlineArtifact.value,
+  operation: RuntimeUpdateOperation | null = onlineOperation.value
+): Promise<boolean> {
   if (!artifact || !operation || operation.status !== 'verified') {
-    return
+    return false
   }
   const approved = await confirm(
     t('runtimes.onlineInstallConfirm', {
@@ -194,22 +219,53 @@ async function installOnlineRuntime() {
     }
   )
   if (!approved) {
-    return
+    return false
   }
 
-  action.value = 'online-install'
+  action.value = `online-install:${artifact.version}`
   message.value = t('runtimes.onlineInstalling')
   try {
     const installed = await store.installDownloadedRuntime(operation.operationId)
     if (installed.status === 'completed') {
       message.value = t('runtimes.onlineInstalled', { version: installed.version })
+      return true
     } else {
       throw new Error(installed.error ?? t('runtimes.onlineInstallFailed'))
     }
   } catch (error) {
     message.value = error instanceof Error ? error.message : String(error)
+    return false
   } finally {
     action.value = null
+  }
+}
+
+function operationForArtifact(artifact: RuntimeUpdateArtifact | null): RuntimeUpdateOperation | null {
+  const operation = onlineOperation.value
+  return artifact
+    && operation?.name === artifact.name
+    && operation.version === artifact.version
+    ? operation
+    : null
+}
+
+function operationProgress(artifact: RuntimeUpdateArtifact | null): number {
+  const operation = operationForArtifact(artifact)
+  return operation ? runtimeProgressPercent(operation.bytesDownloaded, operation.totalBytes) : 0
+}
+
+function operationStatusLabel(artifact: RuntimeUpdateArtifact | null): string {
+  const operation = operationForArtifact(artifact)
+  return operation ? t(`runtimes.onlineStatus.${operation.status}`) : ''
+}
+
+async function installOrUpdateOnlineRuntime(artifact: RuntimeUpdateArtifact) {
+  let operation = operationForArtifact(artifact)
+  if (operation?.status !== 'verified') {
+    operation = await downloadOnlineRuntime(artifact)
+  }
+  if (operation?.status === 'verified') {
+    await installOnlineRuntime(artifact, operation)
   }
 }
 
@@ -439,7 +495,7 @@ async function revealPhpIni() {
         </button>
       </div>
 
-      <div v-if="onlineArtifact" class="runtime-online-details">
+      <div v-if="!isWindows && onlineArtifact" class="runtime-online-details">
         <div class="runtime-online-version">
           <strong>PHP {{ onlineArtifact.version }}</strong>
           <span class="state-pill" data-state="warning">{{ t('runtimes.unsignedCommunity') }}</span>
@@ -480,7 +536,7 @@ async function revealPhpIni() {
             v-if="!onlineOperation || ['failed', 'cancelled'].includes(onlineOperation.status)"
             class="primary-button"
             :disabled="action !== null"
-            @click="downloadOnlineRuntime"
+            @click="downloadOnlineRuntime()"
           >
             {{ t('runtimes.onlineDownload') }}
           </button>
@@ -495,7 +551,7 @@ async function revealPhpIni() {
             v-if="onlineOperation?.status === 'verified'"
             class="primary-button"
             :disabled="action !== null"
-            @click="installOnlineRuntime"
+            @click="installOnlineRuntime()"
           >
             {{ t('runtimes.onlineInstall') }}
           </button>
@@ -522,7 +578,118 @@ async function revealPhpIni() {
           </button>
         </div>
       </article>
-      <article v-for="row in rows" :key="row.runtime.version" class="runtime-card">
+      <article
+        v-for="row in isWindows ? windowsRows : []"
+        :key="`windows:${row.version}`"
+        class="runtime-card"
+      >
+        <div class="runtime-details">
+          <span class="runtime-version">{{ row.series }}</span>
+          <div>
+            <h2>PHP {{ row.version }}</h2>
+            <p>
+              Windows x64
+              <template v-if="row.state === 'update-available' && row.artifact">
+                {{ t('runtimes.updateTo', { version: row.artifact.version }) }}
+              </template>
+              <template v-else-if="row.runtime?.sites.length">
+                {{ t('runtimes.siteCount', {
+                  count: row.runtime.sites.length,
+                  sites: row.runtime.sites.join(', ')
+                }) }}
+              </template>
+              <template v-else-if="row.runtime">{{ t('runtimes.noSites') }}</template>
+              <template v-else-if="row.artifact">
+                {{ t('runtimes.onlinePackageSize', { size: formatRuntimeBytes(row.artifact.size) }) }}
+              </template>
+            </p>
+            <div
+              v-if="operationForArtifact(row.artifact)"
+              class="runtime-row-progress"
+            >
+              <progress
+                :value="operationForArtifact(row.artifact)?.bytesDownloaded ?? 0"
+                :max="operationForArtifact(row.artifact)?.totalBytes || 1"
+              />
+              <small>
+                {{ operationStatusLabel(row.artifact) }}
+                · {{ operationProgress(row.artifact) }}%
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <div class="runtime-actions">
+          <span
+            v-if="row.runtime && isBuiltInPhpSeries(row.series)"
+            class="state-pill"
+            data-state="installed"
+          >
+            {{ t('runtimes.builtIn') }}
+          </span>
+          <span v-if="row.runtime?.active" class="state-pill" data-state="running">
+            {{ t('runtimes.globalVersion') }}
+          </span>
+          <span
+            v-else-if="row.state === 'installed'"
+            class="state-pill"
+            data-state="installed"
+          >
+            {{ t('state.installed') }}
+          </span>
+          <span v-else-if="row.state === 'update-available'" class="state-pill" data-state="warning">
+            {{ t('runtimes.updateAvailable') }}
+          </span>
+          <span v-else class="state-pill">{{ t('state.notInstalled') }}</span>
+          <button
+            v-if="row.artifact && !isRuntimeDownloadActive(operationForArtifact(row.artifact)?.status ?? 'failed')"
+            class="primary-button"
+            :disabled="action !== null"
+            @click="installOrUpdateOnlineRuntime(row.artifact)"
+          >
+            {{ t(row.state === 'update-available' ? 'runtimes.update' : 'runtimes.install') }}
+          </button>
+          <button
+            v-if="row.artifact && isRuntimeDownloadActive(operationForArtifact(row.artifact)?.status ?? 'failed')"
+            class="danger-button"
+            @click="cancelOnlineDownload"
+          >
+            {{ t('runtimes.onlineCancelDownload') }}
+          </button>
+          <button
+            v-if="row.runtime"
+            class="secondary-button"
+            :disabled="action !== null"
+            @click="editPhpIni(row.runtime)"
+          >
+            php.ini
+          </button>
+          <button
+            v-if="row.runtime && !row.runtime.active"
+            class="secondary-button"
+            :disabled="action !== null"
+            @click="setGlobal(row.runtime)"
+          >
+            {{ action === `global:${row.runtime.version}` ? t('runtimes.switching') : t('runtimes.setGlobal') }}
+          </button>
+          <button
+            v-if="row.runtime"
+            class="danger-button"
+            :disabled="action !== null || row.runtime.active || row.runtime.sites.length > 0"
+            :title="
+              row.runtime.active
+                ? t('runtimes.switchGlobalFirst')
+                : row.runtime.sites.length
+                  ? t('runtimes.usedBySite')
+                  : t('runtimes.removeRuntime')
+            "
+            @click="removeRuntime(row.runtime)"
+          >
+            {{ action === `remove:${row.runtime.version}` ? t('runtimes.removing') : t('runtimes.remove') }}
+          </button>
+        </div>
+      </article>
+      <article v-for="row in isWindows ? [] : rows" :key="row.runtime.version" class="runtime-card">
         <div class="runtime-details">
           <span class="runtime-version">{{ row.series }}</span>
           <div>

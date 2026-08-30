@@ -1886,8 +1886,14 @@ async fn install_downloaded_runtime_inner(
   state: &AgentState,
   operation: &RuntimeUpdateOperation,
 ) -> Result<()> {
-  if operation.name != "php" || operation.version != "8.4.24" {
-    bail!("online Runtime installation only supports PHP 8.4.24");
+  if operation.name != "php"
+    || !online_php_runtime_supported(&operation.platform, &operation.version)
+  {
+    bail!(
+      "online Runtime installation does not support PHP {} for {}",
+      operation.version,
+      operation.platform
+    );
   }
   let downloaded =
     fabdev_updater::verified_cached_runtime_update(fabdev_updater::RuntimeDownloadRequest {
@@ -2607,12 +2613,28 @@ fn php_series(version: &str) -> Result<String> {
   Ok(format!("{}.{}", parts[0], parts[1]))
 }
 
+fn online_php_runtime_supported(platform: &str, version: &str) -> bool {
+  match platform {
+    "windows" => php_series(version)
+      .ok()
+      .and_then(|series| series.parse::<PhpVersion>().ok())
+      .is_some(),
+    "macos" => version == "8.4.24",
+    _ => false,
+  }
+}
+
 fn validate_php_release(release: &RuntimeRelease, artifact: &std::path::Path) -> Result<()> {
   if release.name != "php" {
     bail!("Runtime package must contain PHP, got {}", release.name);
   }
   let series = php_series(&release.version)?;
-  if !matches!(series.as_str(), "7.4" | "8.2" | "8.3" | "8.4") {
+  let supported = if release.platform == "windows" {
+    series.parse::<PhpVersion>().is_ok()
+  } else {
+    matches!(series.as_str(), "7.4" | "8.2" | "8.3" | "8.4")
+  };
+  if !supported {
     bail!("unsupported PHP Runtime series: {series}");
   }
   validate_release_target(release, artifact)
@@ -2966,6 +2988,16 @@ mod tests {
 
     validate_php_release(&release, &artifact).expect("accept PHP 8.4 package");
     std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn supports_future_windows_online_php_without_changing_macos_policy() {
+    assert!(online_php_runtime_supported("windows", "7.4.33"));
+    assert!(online_php_runtime_supported("windows", "8.2.34"));
+    assert!(online_php_runtime_supported("windows", "9.1.2"));
+    assert!(!online_php_runtime_supported("windows", "6.4.1"));
+    assert!(online_php_runtime_supported("macos", "8.4.24"));
+    assert!(!online_php_runtime_supported("macos", "9.1.2"));
   }
 
   #[test]

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildRuntimeRows,
+  buildWindowsRuntimeRows,
   formatRuntimeBytes,
   installedPhpSeries,
   isBuiltInPhpSeries,
@@ -25,6 +26,21 @@ const installed = [
   }
 ]
 
+function onlinePhp(version: string) {
+  return {
+    name: 'php',
+    version,
+    platform: 'windows',
+    architecture: 'x64',
+    minimumOsVersion: '11.0',
+    fileName: `php-${version}-windows-x64-community.tar.gz`,
+    size: 1024,
+    sha256: 'a'.repeat(64),
+    unsignedCommunityBuild: true,
+    installed: false
+  }
+}
+
 describe('PHP Runtime presentation', () => {
   it('builds only installed Runtime rows in version order', () => {
     const rows = buildRuntimeRows(installed)
@@ -32,6 +48,48 @@ describe('PHP Runtime presentation', () => {
     expect(rows.map((row) => row.series)).toEqual(['8.2', '7.4'])
     expect(rows.find((row) => row.series === '8.2')?.runtime?.version).toBe('8.2.33')
     expect(rows.find((row) => row.series === '8.4')).toBeUndefined()
+  })
+
+  it('adds every uninstalled Windows PHP series offered by the Catalog', () => {
+    const rows = buildWindowsRuntimeRows(installed, [onlinePhp('8.4.24'), onlinePhp('9.0.1')])
+
+    expect(rows.map((row) => row.version)).toEqual(['9.0.1', '8.4.24', '8.2.33', '7.4.33'])
+    expect(rows.find((row) => row.version === '8.4.24')).toMatchObject({
+      state: 'not-installed',
+      runtime: null,
+      series: '8.4'
+    })
+  })
+
+  it('marks the newest installed patch when a newer Windows patch is available', () => {
+    const installedPatches = [
+      ...installed,
+      { version: '8.2.31', series: '8.2', active: false, sites: [] }
+    ]
+    const rows = buildWindowsRuntimeRows(installedPatches, [onlinePhp('8.2.34')])
+
+    expect(rows.find((row) => row.version === '8.2.33')).toMatchObject({
+      state: 'update-available',
+      artifact: { version: '8.2.34' }
+    })
+    expect(rows.find((row) => row.version === '8.2.31')).toMatchObject({
+      state: 'installed',
+      artifact: null
+    })
+  })
+
+  it('does not offer an update when the installed Windows patch is current or newer', () => {
+    const rows = buildWindowsRuntimeRows(installed, [
+      onlinePhp('8.2.33'),
+      onlinePhp('8.2.32'),
+      { ...onlinePhp('24.19.0'), name: 'node' }
+    ])
+
+    expect(rows).toHaveLength(2)
+    expect(rows.find((row) => row.series === '8.2')).toMatchObject({
+      state: 'installed',
+      artifact: null
+    })
   })
 
   it('derives unique installed series and the global series', () => {
