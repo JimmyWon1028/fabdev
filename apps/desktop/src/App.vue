@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { onMounted, onUnmounted, ref } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
 
 import fabDevIconUrl from '../src-tauri/icons/fabdev-app-icon.svg?url'
 import HelpManual from './components/HelpManual.vue'
@@ -11,10 +11,14 @@ import { isHelpShortcut } from './utils/help'
 import { useI18n } from './utils/i18n'
 
 const store = useAppStore()
+const router = useRouter()
 const { t } = useI18n()
 const unlisteners: UnlistenFn[] = []
 const isQuitting = ref(false)
 const showHelp = ref(false)
+const availableAppVersion = computed(() =>
+  store.appUpdate?.updateAvailable ? store.appUpdate.latestVersion : null
+)
 
 function handleGlobalKeydown(event: KeyboardEvent) {
   if (!isHelpShortcut(event)) {
@@ -33,6 +37,9 @@ onMounted(async () => {
       'fabdev://app-update-download-progress',
       (event) => store.setAppUpdateDownloadProgress(event.payload)
     ),
+    await listen('fabdev://check-for-updates', () => {
+      void router.push('/settings').then(() => store.checkAppUpdate()).catch(() => undefined)
+    }),
     await listen('fabdev://quit-started', () => {
       isQuitting.value = true
     }),
@@ -94,6 +101,20 @@ onUnmounted(() => {
     </aside>
 
     <main class="content">
+      <aside
+        v-if="availableAppVersion"
+        class="app-update-notice"
+        role="status"
+        aria-live="polite"
+      >
+        <div>
+          <strong>{{ t('app.updateAvailableTitle') }}</strong>
+          <span>{{ t('app.updateAvailableDescription', { version: availableAppVersion }) }}</span>
+        </div>
+        <RouterLink class="secondary-button" to="/settings">
+          {{ t('app.viewUpdate') }}
+        </RouterLink>
+      </aside>
       <RouterView />
     </main>
 

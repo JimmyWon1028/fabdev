@@ -32,8 +32,7 @@ import {
   loadLastUpdateCheck,
   saveAutoCheckUpdates,
   saveAutoStartServices,
-  saveLastUpdateCheck,
-  shouldAutomaticallyCheckUpdates
+  saveLastUpdateCheck
 } from '../utils/preferences'
 import {
   areAllServicesRunning,
@@ -141,6 +140,9 @@ export const useAppStore = defineStore('fabdev', {
         if (!update.updateAvailable || this.downloadedAppUpdate?.version !== update.latestVersion) {
           this.downloadedAppUpdate = null
         }
+        await invoke<void>('set_app_update_menu_state', {
+          latestVersion: update.updateAvailable ? update.latestVersion : null
+        })
         return update
       } catch (error) {
         this.appUpdateError = error instanceof Error ? error.message : String(error)
@@ -150,12 +152,7 @@ export const useAppStore = defineStore('fabdev', {
       }
     },
     async checkAppUpdateOnLaunch() {
-      if (
-        !shouldAutomaticallyCheckUpdates(
-          this.autoCheckUpdates,
-          this.lastUpdateCheck
-        )
-      ) {
+      if (!this.autoCheckUpdates) {
         return
       }
       try {

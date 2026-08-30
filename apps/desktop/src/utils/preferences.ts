@@ -2,7 +2,6 @@ const AUTO_START_SERVICES_KEY = 'fabdev.preferences.autoStartServices'
 const AUTO_CHECK_UPDATES_KEY = 'fabdev.preferences.autoCheckUpdates'
 const LAST_UPDATE_CHECK_KEY = 'fabdev.preferences.lastUpdateCheck'
 const LANGUAGE_KEY = 'fabdev.preferences.language'
-const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 export const supportedLanguages = ['en', 'zh-TW', 'zh-CN'] as const
 export type Language = (typeof supportedLanguages)[number]
@@ -75,18 +74,6 @@ export function saveLastUpdateCheck(
     return
   }
   storage.setItem(LAST_UPDATE_CHECK_KEY, checkedAt)
-}
-
-export function shouldAutomaticallyCheckUpdates(
-  enabled: boolean,
-  lastChecked: string | null,
-  now = Date.now()
-): boolean {
-  if (!enabled || !lastChecked) {
-    return enabled
-  }
-  const checkedAt = Date.parse(lastChecked)
-  return !Number.isFinite(checkedAt) || now - checkedAt >= UPDATE_CHECK_INTERVAL_MS
 }
 
 export function loadLanguage(storage = browserStorage()): Language {

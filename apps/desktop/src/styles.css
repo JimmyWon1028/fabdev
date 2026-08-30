@@ -447,6 +447,35 @@ button {
   overflow: hidden;
 }
 
+.app-update-notice {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  color: #174b35;
+  background: #e4f5ea;
+  border: 1px solid #b8dfc8;
+  border-radius: 12px;
+}
+
+.app-update-notice div {
+  display: grid;
+  gap: 3px;
+}
+
+.app-update-notice span {
+  color: #4f6b5d;
+  font-size: 13px;
+}
+
+.app-update-notice a {
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
 .page-header {
   position: relative;
   z-index: 2;
@@ -2057,6 +2086,11 @@ button:disabled {
 @media (max-width: 980px) {
   .content {
     padding: 36px 32px;
+  }
+
+  .app-update-notice {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .service-grid {

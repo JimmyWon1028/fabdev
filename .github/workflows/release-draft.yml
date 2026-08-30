@@ -123,131 +123,6 @@ jobs:
           test "$VERSION" = "$cargo_version"
           node --test scripts/generate-app-release-manifest.test.mjs
 
-  build-macos:
-    name: Build macOS ARM64 Community DMG
-    needs: validate
-    runs-on: macos-15
-    timeout-minutes: 180
-    permissions:
-      contents: read
-    env:
-      VERSION: ${{ inputs.version }}
-      MACOSX_DEPLOYMENT_TARGET: "13.0"
-    steps:
-      - name: Check out the existing release tag
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: v${{ inputs.version }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Verify ARM64 runner
-        shell: bash
-        run: test "$(uname -m)" = "arm64"
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Install Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-        with:
-          components: rustfmt, clippy
-
-      - name: Install macOS Runtime build dependencies
-        shell: bash
-        run: |
-          brew install \
-            autoconf \
-            bison \
-            curl \
-            freetype \
-            gettext \
-            gnupg \
-            icu4c@78 \
-            imagemagick \
-            jpeg-turbo \
-            libiconv \
-            libpng \
-            libxml2 \
-            libsodium \
-            libxslt \
-            libzip \
-            oniguruma \
-            openssl@3 \
-            pcre2 \
-            pkgconf \
-            re2c \
-            readline \
-            sqlite \
-            tidy-html5 \
-            xz \
-            zlib
-
-      - name: Install JavaScript dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build verified bundled macOS Runtimes
-        shell: bash
-        run: |
-          ./scripts/build-dnsmasq-runtime.sh
-          ./scripts/build-nginx-runtime.sh
-          PHP_VERSION=7.4.33 ./scripts/build-php-runtime.sh
-          PHP_VERSION=8.2.33 ./scripts/build-php-runtime.sh
-          FABDEV_ARTIFACT_DIR="$GITHUB_WORKSPACE/runtime-artifacts" \
-            PHP_VERSION=8.4.24 \
-            ./scripts/build-php-runtime.sh
-
-      - name: Prepare Desktop sidecars
-        run: node scripts/build-desktop-bundle-assets.mjs
-
-      - name: Configure deterministic Swift lint
-        shell: bash
-        run: |
-          printf '%s\n' \
-            '{"rules":{"DontRepeatTypeInStaticProperties":false},"version":1}' \
-            > helpers/macos/.swift-format
-
-      - name: Run tests and lint
-        shell: bash
-        run: |
-          pnpm test
-          pnpm lint
-
-      - name: Build unsigned Community DMG
-        run: pnpm run build:community:macos
-
-      - name: Stage macOS installer
-        shell: bash
-        run: |
-          set -euo pipefail
-          source_path="artifacts/fabDev-Community-$VERSION-macos-arm64.dmg"
-          test -f "$source_path"
-          test -s "$source_path"
-          mkdir -p release-input
-          cp "$source_path" release-input/macos-installer.dmg
-          runtime_source="runtime-artifacts/php-8.4.24-macos-arm64-dev.tar.gz"
-          runtime_descriptor="runtime-artifacts/php-8.4.24-macos-arm64-dev.json"
-          test -s "$runtime_source"
-          test "$(jq -r '.sha256' "$runtime_descriptor")" = "$(shasum -a 256 "$runtime_source" | awk '{print $1}')"
-          cp "$runtime_source" release-input/php-8.4.24-macos-arm64-community.tar.gz
-
-      - name: Upload macOS assets
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: draft-macos-arm64
-          path: release-input/*
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 0
-
   build-windows:
     name: Build Windows x64 Community installer
     needs: validate
@@ -344,7 +219,6 @@ jobs:
     name: Create GitHub Draft Release
     needs:
       - validate
-      - build-macos
       - build-windows
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -373,12 +247,6 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
 
-      - name: Download macOS installer
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: draft-macos-arm64
-          path: release-input/macos
-
       - name: Download Windows assets
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -392,19 +260,16 @@ jobs:
             --version "$VERSION" \
             --published-at "$PUBLISHED_AT" \
             --output-dir "$GITHUB_WORKSPACE/release-assets" \
-            --macos-arm64 "$GITHUB_WORKSPACE/release-input/macos/macos-installer.dmg" \
             --windows-x64 "$GITHUB_WORKSPACE/release-input/windows/windows-installer.exe" \
             --windows-connect-x64 "$GITHUB_WORKSPACE/release-input/windows/fabdev-connect.exe" \
-            --runtime-macos-arm64 "$GITHUB_WORKSPACE/release-input/macos/php-8.4.24-macos-arm64-community.tar.gz" \
             --runtime-windows-x64 "$GITHUB_WORKSPACE/release-input/windows/php-8.4.24-windows-x64-community.tar.gz"
           cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
-            generate \
+            generate-windows \
             "$VERSION" \
             "$RUNTIME_CATALOG_SEQUENCE" \
             "$PUBLISHED_AT" \
             "$RUNTIME_CATALOG_EXPIRES_AT" \
             "$VERSION" \
-            "$GITHUB_WORKSPACE/release-assets/php-8.4.24-macos-arm64-community.tar.gz" \
             "$GITHUB_WORKSPACE/release-assets/php-8.4.24-windows-x64-community.tar.gz" \
             "$GITHUB_WORKSPACE/release-assets/fabdev-runtime-v1.json"
           cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
@@ -414,7 +279,7 @@ jobs:
           (
             cd release-assets
             sha256sum --check SHA256SUMS
-            test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "14"
+            test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "10"
           )
 
       - name: Create release notes skeleton
@@ -424,14 +289,13 @@ jobs:
             printf '# fabDev %s\n\n' "$VERSION"
             printf '> Draft only - do not publish before clean-machine acceptance.\n\n'
             printf '## Unsigned Community Build\n\n'
-            printf 'This build does not use Apple Developer ID, notarization, or Windows Code Signing.\n\n'
+            printf 'This Windows-only build does not use Windows Code Signing.\n\n'
             printf 'Verify the downloaded installer against SHA256SUMS before installation.\n\n'
             printf '## Release checklist\n\n'
             printf -- '- [ ] Complete release notes and known limitations.\n'
-            printf -- '- [ ] Verify macOS ARM64 clean install, update, demo.test, and removal.\n'
             printf -- '- [ ] Verify Windows x64 clean install, update, demo.test, and removal.\n'
             printf -- '- [ ] Re-download every Draft asset and verify size and SHA-256.\n'
-            printf -- '- [ ] Validate both PHP 8.4.24 Runtime Archives and Runtime Catalog v1.\n'
+            printf -- '- [ ] Validate the Windows PHP 8.4.24 Runtime Archive and Runtime Catalog v1.\n'
             printf -- '- [ ] Verify side-by-side Runtime install without changing current PHP or Sites.\n'
             printf -- '- [ ] Obtain explicit Repository Owner approval before Publish.\n'
           } > "$RUNNER_TEMP/release-notes.md"

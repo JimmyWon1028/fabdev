@@ -132,6 +132,36 @@ test('rejects a release version that differs from project metadata', async (cont
   )
 })
 
+test('prepares a Windows-only release with a Windows-only Runtime package', async (context) => {
+  const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-windows-test-'))
+  context.after(async () => rm(testRoot, { force: true, recursive: true }))
+  const windowsSource = join(testRoot, 'input-setup.exe')
+  const connectSource = join(testRoot, 'input-connect.exe')
+  const runtimeSource = join(testRoot, 'input-runtime-windows.tar.gz')
+  const outputDir = join(testRoot, 'release')
+  await writeFile(windowsSource, 'Windows installer fixture')
+  await writeFile(connectSource, 'fabDev Connect fixture')
+  await writeFile(runtimeSource, 'Windows PHP Runtime fixture')
+
+  const result = await prepareAppRelease({
+    repoRoot,
+    version: projectVersion,
+    publishedAt: '2026-08-30T12:34:56Z',
+    outputDir,
+    windowsX64: windowsSource,
+    windowsConnectX64: connectSource,
+    runtimeWindowsX64: runtimeSource
+  })
+
+  assert.equal(result.manifest.artifacts.length, 1)
+  assert.equal(result.manifest.artifacts[0].platform, 'windows')
+  assert.equal(result.files.length, 9)
+  assert.equal(
+    result.files.some((fileName) => fileName.includes('macos')),
+    false
+  )
+})
+
 test('refuses to overwrite an existing output directory', async (context) => {
   const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-test-'))
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
@@ -185,35 +215,15 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.doesNotMatch(workflow, /releases\/tags\//)
   assert.doesNotMatch(workflow, /gh release edit|--draft=false|make_latest/)
   assert.doesNotMatch(workflow, /secrets\./)
-  assert.match(workflow, /PHP_VERSION=8\.4\.24/)
   assert.match(workflow, /build-windows-php-runtime\.ps1 -OutputDirectory release-input/)
   assert.match(workflow, /FABDEV_WINDOWS_RUNTIME_PACKAGE:/)
   assert.match(workflow, /installs_real_windows_php_archive/)
-  assert.match(workflow, /--runtime-macos-arm64/)
   assert.match(workflow, /--runtime-windows-x64/)
+  assert.doesNotMatch(workflow, /build-macos|--macos-arm64|--runtime-macos-arm64/)
+  assert.match(workflow, /generate-windows/)
   assert.match(workflow, /--bin fabdev-runtime-catalog/)
   assert.match(workflow, /release-assets\/fabdev-runtime-v1\.json/)
-  assert.match(workflow, /\)" = "14"/)
-
-  const runtimeBuildStart = workflow.indexOf(
-    '      - name: Build verified bundled macOS Runtimes'
-  )
-  const sidecarBuildStart = workflow.indexOf('      - name: Prepare Desktop sidecars')
-  const testStart = workflow.indexOf('      - name: Run tests and lint')
-  assert.notEqual(runtimeBuildStart, -1)
-  assert.notEqual(sidecarBuildStart, -1)
-  assert.notEqual(testStart, -1)
-  assert.ok(runtimeBuildStart < sidecarBuildStart)
-  assert.ok(sidecarBuildStart < testStart)
-  assert.match(
-    workflow,
-    /"DontRepeatTypeInStaticProperties":false/
-  )
-
-  const swiftFormatConfig = JSON.parse(
-    await readFile(join(repoRoot, 'helpers/macos/.swift-format'), 'utf8')
-  )
-  assert.equal(swiftFormatConfig.rules.DontRepeatTypeInStaticProperties, false)
+  assert.match(workflow, /\)" = "10"/)
 
   const usesLines = workflow
     .split('\n')

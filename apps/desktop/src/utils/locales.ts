@@ -4,6 +4,9 @@ const en = {
   'app.tagline': 'ERP Development',
   'app.quittingTitle': 'Closing fabDev…',
   'app.quittingDescription': 'Stopping managed services and cleaning up background processes. This may take a few seconds.',
+  'app.updateAvailableTitle': 'Update available',
+  'app.updateAvailableDescription': 'fabDev {version} is ready to download.',
+  'app.viewUpdate': 'View update',
   'nav.label': 'Main navigation',
   'nav.dashboard': 'Overview',
   'nav.mariadb': 'MariaDB',
@@ -386,9 +389,9 @@ const en = {
   'settings.autoStartEnabled': 'Enabled; fabDev will automatically start all services on the next launch.',
   'settings.autoStartDisabled': 'Disabled; fabDev will only show current status on the next launch.',
   'settings.autoCheckUpdatesTitle': 'Automatically check for updates',
-  'settings.autoCheckUpdatesDescription': 'Check the Stable channel when fabDev opens, at most once every 24 hours.',
+  'settings.autoCheckUpdatesDescription': 'Check the Stable channel every time fabDev opens.',
   'settings.autoCheckUpdatesHelp': 'A network failure never prevents fabDev or local services from starting.',
-  'settings.autoCheckUpdatesEnabled': 'Enabled; fabDev will check the Stable channel on launch when the last check is at least 24 hours old.',
+  'settings.autoCheckUpdatesEnabled': 'Enabled; fabDev will check the Stable channel every time it opens.',
   'settings.autoCheckUpdatesDisabled': 'Disabled; updates will only be checked when you choose Check now.',
   'settings.softwareUpdateTitle': 'Software update',
   'settings.softwareUpdateDescription': 'Check, download, and verify the full Community installer from GitHub Releases.',
@@ -422,7 +425,7 @@ type TranslationTable = Record<TranslationKey, string>
 
 const zhTW: TranslationTable = {
   ...en,
-  'app.tagline': 'ERP Development', 'app.quittingTitle': '正在關閉 fabDev…', 'app.quittingDescription': '正在停止受管服務並清理背景程序，可能需要幾秒鐘。', 'nav.label': '主要導覽', 'nav.dashboard': '總覽', 'nav.mariadb': 'MariaDB', 'nav.sites': 'Sites', 'nav.runtimes': 'PHP 設定', 'nav.nodejs': 'Node.js', 'nav.proxy': 'Proxy', 'nav.settings': '設定',
+  'app.tagline': 'ERP Development', 'app.quittingTitle': '正在關閉 fabDev…', 'app.quittingDescription': '正在停止受管服務並清理背景程序，可能需要幾秒鐘。', 'app.updateAvailableTitle': '有新版可以更新', 'app.updateAvailableDescription': 'fabDev {version} 已可下載。', 'app.viewUpdate': '查看更新', 'nav.label': '主要導覽', 'nav.dashboard': '總覽', 'nav.mariadb': 'MariaDB', 'nav.sites': 'Sites', 'nav.runtimes': 'PHP 設定', 'nav.nodejs': 'Node.js', 'nav.proxy': 'Proxy', 'nav.settings': '設定',
   'agent.connected': 'Agent 已連線', 'agent.disconnected': 'Agent 未連線', 'agent.waiting': '等待背景服務',
   'dashboard.eyebrow': 'Local environment', 'dashboard.title': '開發服務總覽', 'dashboard.description': '管理內建 DNS、Nginx、PHP Runtime、`.test` 網域與遠端 Proxy。', 'dashboard.startAll': '全部啟動', 'dashboard.stopAll': '全部停止', 'dashboard.startMariaDb': '啟動 MariaDB', 'dashboard.stopMariaDb': '停止 MariaDB', 'common.refresh': '重新整理', 'dashboard.notReady': '開發服務尚未就緒', 'dashboard.serviceStatus': '服務狀態', 'dashboard.phpNotInstalled': '尚未安裝 PHP', 'dashboard.phpFpmPoolMetrics': '運行 {active} · 閒置 {idle} · 排隊 {queue} · 慢請求 {slow}', 'dashboard.phpFpmMetricsUnavailable': '等待 PHP-FPM 指標', 'dashboard.phpFpmSaturated': 'PHP-FPM 容量警告', 'dashboard.phpFpmSaturatedDescription': '{versions} 有請求排隊或曾達到 Worker 上限；請先檢查 Slow Log，再決定是否增加容量。', 'dashboard.nodeRuntimeDetail': 'Node.js {version} LTS', 'dashboard.nodeRuntimeAvailable': 'Node.js {version} LTS', 'dashboard.proxyDetail': '運行 {running}／{total} · 異常 {issues}', 'dashboard.milestone': 'Milestone 02', 'dashboard.multiplePhp': '多版本 PHP Runtime', 'dashboard.multiplePhpDescription': 'PHP 7.4 與 8.2 由 fabDev 內建；PHP 8.4 等其他版本可另外安裝，每個 Site 可獨立指定版本。',
   'dashboard.installMariaDb': '安裝 MariaDB', 'dashboard.removeMariaDb': '移除 MariaDB', 'dashboard.installingMariaDb': '正在驗證並安裝 MariaDB…', 'dashboard.removingMariaDb': '正在移除 MariaDB…', 'dashboard.chooseMariaDbRelease': '選擇 MariaDB Runtime 描述檔', 'dashboard.chooseMariaDbArtifact': '選擇對應的 MariaDB Runtime 套件', 'dashboard.mariaDbInstalled': 'MariaDB {version} 已安裝', 'dashboard.mariaDbRemoved': 'MariaDB {version} 已移除；資料庫資料已保留', 'dashboard.removeMariaDbConfirm': '確定要移除 fabDev 管理的 MariaDB Runtime？\n\nMariaDB 必須先停止。資料庫設定、資料與 Log 都會保留。', 'dashboard.removeMariaDbTitle': '移除 MariaDB Runtime',
@@ -470,7 +473,7 @@ const zhTW: TranslationTable = {
   'runtimes.default': '預設', 'runtimes.defaultIniTitle': '預設 php.ini', 'runtimes.defaultIniDescription': '以目前 PHP 8.2 設定建立；按「ERP 參數」時才會載入此範本。', 'runtimes.defaultIniHelp': '新安裝的 PHP 會保持空白；修改此範本不會覆蓋各版本的 php.ini。', 'runtimes.defaultIniSaved': '預設 php.ini 範本已儲存',
   'node.eyebrow': 'Optional runtime', 'node.description': '安裝或移除 fabDev 獨立管理的穩定版 Node.js LTS；預設不安裝。', 'node.listLabel': 'Node.js Runtime', 'node.notInstalledDescription': '預設未安裝；專案需要 Node.js 時再安裝對應的 fabDev Runtime Package。', 'node.installedDescription': '已安裝，可作為 fabDev 獨立管理的 Node.js Runtime 使用。', 'node.chooseRelease': '選擇 Node.js Runtime 描述檔', 'node.chooseArtifact': '選擇對應的 Node.js Runtime 套件', 'node.install': '安裝穩定 LTS', 'node.installing': '正在驗證並安裝 Node.js Runtime…', 'node.installingShort': '安裝中…', 'node.installed': 'Node.js {version} LTS 已安裝', 'node.remove': '移除', 'node.removing': '移除中…', 'node.removeTitle': '移除 Node.js Runtime', 'node.removeConfirm': '確定要移除 fabDev 管理的 Node.js Runtime？\n\n只會刪除 Runtime，不會刪除 Site 或專案檔案。', 'node.removed': 'Node.js {version} 已移除', 'node.isolationNote': '此 Runtime 僅儲存在 fabDev 內，不會取代或修改 Homebrew、nvm、Herd 或系統 Node.js。',
   'settings.eyebrow': 'Preferences', 'settings.title': '設定', 'settings.description': '設定 fabDev App 的顯示語言、啟動行為與軟體更新。', 'settings.label': 'fabDev 設定', 'settings.languageTitle': '顯示語言', 'settings.languageDescription': '選擇 fabDev 使用的介面語言。', 'settings.languageHelp': '變更會立即套用，並保留至下次啟動。', 'settings.english': 'English', 'settings.traditionalChinese': '繁體中文', 'settings.simplifiedChinese': '简体中文', 'settings.autoStartTitle': 'App 開啟時自動啟動服務', 'settings.autoStartDescription': '自動啟動 DNS、Nginx 與 Sites 需要的 PHP-FPM。', 'settings.autoStartHelp': '關閉此選項不會停止目前正在運行的服務。', 'settings.autoStartEnabled': '已開啟；下次啟動 fabDev 時會自動啟動所有服務。', 'settings.autoStartDisabled': '已關閉；下次啟動 fabDev 時只會顯示目前狀態。',
-  'settings.autoCheckUpdatesTitle': '自動檢查更新', 'settings.autoCheckUpdatesDescription': 'fabDev 開啟時檢查 Stable Channel，每 24 小時最多一次。', 'settings.autoCheckUpdatesHelp': '網路失敗不會阻止 fabDev 或本機服務啟動。', 'settings.autoCheckUpdatesEnabled': '已開啟；距離上次檢查滿 24 小時後，fabDev 會在啟動時檢查 Stable Channel。', 'settings.autoCheckUpdatesDisabled': '已關閉；只會在你按下「立即檢查」時連線。',
+  'settings.autoCheckUpdatesTitle': '自動檢查更新', 'settings.autoCheckUpdatesDescription': 'fabDev 每次開啟時都會檢查 Stable Channel。', 'settings.autoCheckUpdatesHelp': '網路失敗不會阻止 fabDev 或本機服務啟動。', 'settings.autoCheckUpdatesEnabled': '已開啟；fabDev 每次啟動時都會檢查 Stable Channel。', 'settings.autoCheckUpdatesDisabled': '已關閉；只會在你按下「立即檢查」時連線。',
   'settings.softwareUpdateTitle': '軟體更新', 'settings.softwareUpdateDescription': '從 GitHub Releases 檢查、下載並驗證完整 Community 安裝包。', 'settings.checkNow': '立即檢查', 'settings.checkingUpdates': '檢查中…', 'settings.currentVersion': '目前版本', 'settings.latestVersion': '最新版本', 'settings.channel': 'Channel', 'settings.lastChecked': '上次檢查', 'settings.notChecked': '尚未檢查', 'settings.unsignedCommunityWarning': 'Unsigned Community Build：開啟前會驗證 SHA-256；Gatekeeper 或 SmartScreen 仍可能顯示警告。', 'settings.downloadingUpdate': '下載並驗證中…', 'settings.releaseNotes': 'Release Notes', 'settings.downloadUpdate': '下載更新', 'settings.downloadVerified': '{fileName} 已下載完成，檔案大小與 SHA-256 驗證通過。', 'settings.updateAvailable': 'fabDev {version} 可以下載。', 'settings.upToDate': 'fabDev {version} 已是最新版本。', 'settings.updateError': '無法更新：{error}', 'settings.installUpdateTitle': '開啟已驗證安裝包', 'settings.installUpdateConfirm': 'fabDev 將開啟已驗證的完整安裝包、停止受管服務並退出。安裝程序會保留 Sites、Runtime 設定與使用者資料。', 'settings.quitAndOpenInstaller': '退出並開啟安裝包', 'settings.preparingInstaller': '正在重新驗證安裝包，接著會停止服務並退出 fabDev…', 'settings.saveError': '無法儲存設定：{error}',
   'errors.mariaDbCurrentPassword': '無法以 MariaDB root 身分驗證，請確認目前密碼。', 'errors.mariaDbPasswordRejected': 'MariaDB 拒絕變更 root 密碼（錯誤 {code}）。', 'errors.systemIngressUnavailable': '系統入口無法使用 DNS 連接埠 {dnsPort}、HTTP 連接埠 {httpPort} 或 HTTPS 連接埠 {httpsPort}。'
 }
@@ -609,11 +612,14 @@ const zhCNHomeCopy = {
 } satisfies Partial<TranslationTable>
 
 const zhCNUpdateCopy = {
+  'app.updateAvailableTitle': '有新版本可以更新',
+  'app.updateAvailableDescription': 'fabDev {version} 已可下载。',
+  'app.viewUpdate': '查看更新',
   'settings.description': '设置 fabDev App 的显示语言、启动行为与软件更新。',
   'settings.autoCheckUpdatesTitle': '自动检查更新',
-  'settings.autoCheckUpdatesDescription': 'fabDev 打开时检查 Stable Channel，每 24 小时最多一次。',
+  'settings.autoCheckUpdatesDescription': 'fabDev 每次打开时都会检查 Stable Channel。',
   'settings.autoCheckUpdatesHelp': '网络失败不会阻止 fabDev 或本机服务启动。',
-  'settings.autoCheckUpdatesEnabled': '已开启；距离上次检查满 24 小时后，fabDev 会在启动时检查 Stable Channel。',
+  'settings.autoCheckUpdatesEnabled': '已开启；fabDev 每次启动时都会检查 Stable Channel。',
   'settings.autoCheckUpdatesDisabled': '已关闭；只会在你按下“立即检查”时联网。',
   'settings.softwareUpdateTitle': '软件更新',
   'settings.softwareUpdateDescription': '从 GitHub Releases 检查、下载并验证完整 Community 安装包。',

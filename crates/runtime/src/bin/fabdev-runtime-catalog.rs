@@ -10,7 +10,7 @@ use fabdev_runtime::{
 };
 
 fn usage() -> &'static str {
-  "Usage:\n  fabdev-runtime-catalog generate <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <macos-package> <windows-package> <output>\n  fabdev-runtime-catalog validate <catalog> <current-app-version>"
+  "Usage:\n  fabdev-runtime-catalog generate <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <macos-package> <windows-package> <output>\n  fabdev-runtime-catalog generate-windows <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <windows-package> <output>\n  fabdev-runtime-catalog validate <catalog> <current-app-version>"
 }
 
 fn now_unix_seconds() -> Result<i64, Box<dyn Error>> {
@@ -28,11 +28,39 @@ fn generate(args: &[String]) -> Result<(), Box<dyn Error>> {
     generated_at: &args[2],
     expires_at: &args[3],
     minimum_app_version: &args[4],
-    macos_arm64_package: Path::new(&args[5]),
-    windows_x64_package: Path::new(&args[6]),
+    macos_arm64_package: Some(Path::new(&args[5])),
+    windows_x64_package: Some(Path::new(&args[6])),
     now_unix_seconds: now_unix_seconds()?,
   })?;
   let output = Path::new(&args[7]);
+  if let Some(parent) = output.parent() {
+    std::fs::create_dir_all(parent)?;
+  }
+  let mut file = OpenOptions::new()
+    .write(true)
+    .create_new(true)
+    .open(output)?;
+  file.write_all(&contents)?;
+  println!("Generated {}", output.display());
+  Ok(())
+}
+
+fn generate_windows(args: &[String]) -> Result<(), Box<dyn Error>> {
+  if args.len() != 7 {
+    return Err(usage().into());
+  }
+  let sequence = args[1].parse::<u64>()?;
+  let contents = generate_community_php_catalog(&CommunityPhpCatalogInput {
+    release_version: &args[0],
+    catalog_sequence: sequence,
+    generated_at: &args[2],
+    expires_at: &args[3],
+    minimum_app_version: &args[4],
+    macos_arm64_package: None,
+    windows_x64_package: Some(Path::new(&args[5])),
+    now_unix_seconds: now_unix_seconds()?,
+  })?;
+  let output = Path::new(&args[6]);
   if let Some(parent) = output.parent() {
     std::fs::create_dir_all(parent)?;
   }
@@ -74,6 +102,7 @@ fn main() -> Result<(), Box<dyn Error>> {
   let command = args.remove(0);
   match command.as_str() {
     "generate" => generate(&args),
+    "generate-windows" => generate_windows(&args),
     "validate" => validate(&args),
     "--help" | "-h" => {
       println!("{}", usage());

@@ -33,6 +33,7 @@ const TRAY_ICON_PNG: &[u8] = include_bytes!("../icons/tray/fabdev-tray-44.png");
 const MACOS_APP_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
 const SERVICE_STATE_CHANGED_EVENT: &str = "fabdev://service-state-changed";
 const AGENT_ERROR_EVENT: &str = "fabdev://agent-error";
+const APP_UPDATE_CHECK_REQUESTED_EVENT: &str = "fabdev://check-for-updates";
 const APP_UPDATE_DOWNLOAD_PROGRESS_EVENT: &str = "fabdev://app-update-download-progress";
 const APP_QUIT_STARTED_EVENT: &str = "fabdev://quit-started";
 const APP_QUIT_FAILED_EVENT: &str = "fabdev://quit-failed";
@@ -86,6 +87,7 @@ struct TrayMenuItems {
   service_state: std::sync::Mutex<TrayServiceState>,
   mariadb_toggle: MenuItem<tauri::Wry>,
   mariadb_state: std::sync::Mutex<TrayMariaDbState>,
+  app_update: MenuItem<tauri::Wry>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -114,6 +116,7 @@ enum TrayAction {
   Open,
   ToggleAll,
   ToggleMariaDb,
+  CheckForUpdates,
   Quit,
 }
 
@@ -123,6 +126,7 @@ impl TrayAction {
       "open-fabdev" => Some(Self::Open),
       "toggle-all" => Some(Self::ToggleAll),
       "toggle-mariadb" => Some(Self::ToggleMariaDb),
+      "check-for-updates" => Some(Self::CheckForUpdates),
       "quit-fabdev" | "quit-fabdev-app" => Some(Self::Quit),
       _ => None,
     }
@@ -216,6 +220,15 @@ async fn check_app_update() -> Result<fabdev_updater::AppUpdateCheck, String> {
   fabdev_updater::check_for_app_update(env!("CARGO_PKG_VERSION"), platform, architecture)
     .await
     .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn set_app_update_menu_state(app: AppHandle, latest_version: Option<String>) {
+  let Some(items) = app.try_state::<TrayMenuItems>() else {
+    return;
+  };
+  let label = tray_app_update_label(latest_version.as_deref());
+  let _ = items.app_update.set_text(label);
 }
 
 #[tauri::command]
@@ -1382,6 +1395,12 @@ fn tray_mariadb_toggle_label(state: TrayMariaDbState) -> &'static str {
   }
 }
 
+fn tray_app_update_label(latest_version: Option<&str>) -> String {
+  latest_version
+    .map(|version| format!("Update Available — v{version}"))
+    .unwrap_or_else(|| "Check for Updates…".to_owned())
+}
+
 fn tray_toggle_request(app: &AppHandle) -> AgentRequest {
   let state = app
     .try_state::<TrayMenuItems>()
@@ -1469,6 +1488,10 @@ fn handle_tray_action(app: &AppHandle, id: &str) {
       tray_mariadb_toggle_request(app),
       TrayActionTarget::MariaDb,
     ),
+    Some(TrayAction::CheckForUpdates) => {
+      show_main_window(app);
+      let _ = app.emit(APP_UPDATE_CHECK_REQUESTED_EVENT, ());
+    }
     Some(TrayAction::Quit) => request_app_quit(app.clone()),
     None => {}
   }
@@ -1509,11 +1532,25 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
     false,
     None::<&str>,
   )?;
+  let app_update = MenuItem::with_id(
+    app,
+    "check-for-updates",
+    "Check for Updates…",
+    true,
+    None::<&str>,
+  )?;
   let separator = PredefinedMenuItem::separator(app)?;
   let quit = MenuItem::with_id(app, "quit-fabdev", "Quit fabDev", true, None::<&str>)?;
   let menu = Menu::with_items(
     app,
-    &[&open, &service_toggle, &mariadb_toggle, &separator, &quit],
+    &[
+      &open,
+      &service_toggle,
+      &mariadb_toggle,
+      &app_update,
+      &separator,
+      &quit,
+    ],
   )?;
   let icon = Image::from_bytes(TRAY_ICON_PNG)?;
 
@@ -1522,6 +1559,7 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
     service_state: std::sync::Mutex::new(TrayServiceState::Mixed),
     mariadb_toggle: mariadb_toggle.clone(),
     mariadb_state: std::sync::Mutex::new(TrayMariaDbState::NotInstalled),
+    app_update: app_update.clone(),
   });
 
   TrayIconBuilder::with_id("fabdev")
@@ -1573,6 +1611,7 @@ pub fn run() {
       open_site,
       open_proxy_in_chrome,
       check_app_update,
+      set_app_update_menu_state,
       download_app_update,
       install_downloaded_app_update,
       open_app_release_notes,
@@ -1610,8 +1649,8 @@ mod tests {
   use super::{
     default_php_ini_path, is_system_ingress_error, mariadb_toggle_request, php_ini_path, proxy_url,
     read_config_transfer_file, resolve_agent_executable_from, services_to_restart, site_url,
-    status_has_running_services, tray_mariadb_state, tray_mariadb_toggle_label, tray_service_state,
-    tray_toggle_label, write_config_transfer_file,
+    status_has_running_services, tray_app_update_label, tray_mariadb_state,
+    tray_mariadb_toggle_label, tray_service_state, tray_toggle_label, write_config_transfer_file,
   };
   #[cfg(unix)]
   use super::{remove_stale_agent_socket, send_request_with_timeout, shutdown_agent_at};
@@ -1630,12 +1669,25 @@ mod tests {
       TrayAction::from_id("toggle-mariadb"),
       Some(TrayAction::ToggleMariaDb)
     );
+    assert_eq!(
+      TrayAction::from_id("check-for-updates"),
+      Some(TrayAction::CheckForUpdates)
+    );
     assert_eq!(TrayAction::from_id("quit-fabdev"), Some(TrayAction::Quit));
     assert_eq!(
       TrayAction::from_id("quit-fabdev-app"),
       Some(TrayAction::Quit)
     );
     assert_eq!(TrayAction::from_id("unknown"), None);
+  }
+
+  #[test]
+  fn labels_the_tray_update_action() {
+    assert_eq!(tray_app_update_label(None), "Check for Updates…");
+    assert_eq!(
+      tray_app_update_label(Some("0.1.7")),
+      "Update Available — v0.1.7"
+    );
   }
 
   #[cfg(target_os = "macos")]

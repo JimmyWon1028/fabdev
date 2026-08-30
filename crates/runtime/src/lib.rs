@@ -112,8 +112,8 @@ pub struct CommunityPhpCatalogInput<'a> {
   pub generated_at: &'a str,
   pub expires_at: &'a str,
   pub minimum_app_version: &'a str,
-  pub macos_arm64_package: &'a Path,
-  pub windows_x64_package: &'a Path,
+  pub macos_arm64_package: Option<&'a Path>,
+  pub windows_x64_package: Option<&'a Path>,
   pub now_unix_seconds: i64,
 }
 
@@ -237,14 +237,59 @@ pub fn generate_community_php_catalog(
 ) -> Result<Vec<u8>, RuntimeCatalogBuildError> {
   let macos_file_name = "php-8.4.24-macos-arm64-community.tar.gz";
   let windows_file_name = "php-8.4.24-windows-x64-community.tar.gz";
-  let (macos_size, macos_sha256) = file_size_and_sha256(input.macos_arm64_package)?;
-  let (windows_size, windows_sha256) = file_size_and_sha256(input.windows_x64_package)?;
   let release_url = |file_name: &str| {
     format!(
       "{RELEASE_DOWNLOAD_PREFIX}{}/{file_name}",
       input.release_version
     )
   };
+  let mut runtimes = Vec::new();
+  if let Some(package) = input.macos_arm64_package {
+    let (size, sha256) = file_size_and_sha256(package)?;
+    runtimes.push(RuntimeRelease {
+      name: "php".to_owned(),
+      version: "8.4.24".to_owned(),
+      platform: "macos".to_owned(),
+      architecture: "arm64".to_owned(),
+      minimum_os_version: Some("13.0".to_owned()),
+      file_name: Some(macos_file_name.to_owned()),
+      url: release_url(macos_file_name),
+      size,
+      sha256,
+      signature: None,
+      source_verification: Some(RuntimeSourceVerification {
+        method: "pgp".to_owned(),
+        fingerprint: Some(PHP_SOURCE_SIGNING_FINGERPRINT.to_owned()),
+        upstream_sha256: PHP_84_MACOS_SOURCE_SHA256.to_owned(),
+      }),
+      archive_format: Some("tar.gz".to_owned()),
+      install_mode: Some("side-by-side".to_owned()),
+      health_check_profile: Some("php-runtime-v1".to_owned()),
+    });
+  }
+  if let Some(package) = input.windows_x64_package {
+    let (size, sha256) = file_size_and_sha256(package)?;
+    runtimes.push(RuntimeRelease {
+      name: "php".to_owned(),
+      version: "8.4.24".to_owned(),
+      platform: "windows".to_owned(),
+      architecture: "x64".to_owned(),
+      minimum_os_version: Some("11.0".to_owned()),
+      file_name: Some(windows_file_name.to_owned()),
+      url: release_url(windows_file_name),
+      size,
+      sha256,
+      signature: None,
+      source_verification: Some(RuntimeSourceVerification {
+        method: "official-sha256".to_owned(),
+        fingerprint: None,
+        upstream_sha256: PHP_84_WINDOWS_SOURCE_SHA256.to_owned(),
+      }),
+      archive_format: Some("tar.gz".to_owned()),
+      install_mode: Some("side-by-side".to_owned()),
+      health_check_profile: Some("php-runtime-v1".to_owned()),
+    });
+  }
   let catalog = RuntimeCatalog {
     schema_version: RUNTIME_CATALOG_SCHEMA_VERSION,
     product: RUNTIME_CATALOG_PRODUCT.to_owned(),
@@ -259,48 +304,7 @@ pub fn generate_community_php_catalog(
       minimum_agent_protocol_version: RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
     },
     signature: None,
-    runtimes: vec![
-      RuntimeRelease {
-        name: "php".to_owned(),
-        version: "8.4.24".to_owned(),
-        platform: "macos".to_owned(),
-        architecture: "arm64".to_owned(),
-        minimum_os_version: Some("13.0".to_owned()),
-        file_name: Some(macos_file_name.to_owned()),
-        url: release_url(macos_file_name),
-        size: macos_size,
-        sha256: macos_sha256,
-        signature: None,
-        source_verification: Some(RuntimeSourceVerification {
-          method: "pgp".to_owned(),
-          fingerprint: Some(PHP_SOURCE_SIGNING_FINGERPRINT.to_owned()),
-          upstream_sha256: PHP_84_MACOS_SOURCE_SHA256.to_owned(),
-        }),
-        archive_format: Some("tar.gz".to_owned()),
-        install_mode: Some("side-by-side".to_owned()),
-        health_check_profile: Some("php-runtime-v1".to_owned()),
-      },
-      RuntimeRelease {
-        name: "php".to_owned(),
-        version: "8.4.24".to_owned(),
-        platform: "windows".to_owned(),
-        architecture: "x64".to_owned(),
-        minimum_os_version: Some("11.0".to_owned()),
-        file_name: Some(windows_file_name.to_owned()),
-        url: release_url(windows_file_name),
-        size: windows_size,
-        sha256: windows_sha256,
-        signature: None,
-        source_verification: Some(RuntimeSourceVerification {
-          method: "official-sha256".to_owned(),
-          fingerprint: None,
-          upstream_sha256: PHP_84_WINDOWS_SOURCE_SHA256.to_owned(),
-        }),
-        archive_format: Some("tar.gz".to_owned()),
-        install_mode: Some("side-by-side".to_owned()),
-        health_check_profile: Some("php-runtime-v1".to_owned()),
-      },
-    ],
+    runtimes,
   };
   let validation = RuntimeCatalogValidation {
     current_app_version: input.minimum_app_version,
@@ -1128,8 +1132,8 @@ mod tests {
       generated_at: "2026-08-30T00:00:00Z",
       expires_at: "2027-02-26T00:00:00Z",
       minimum_app_version: "0.1.4",
-      macos_arm64_package: &macos_package,
-      windows_x64_package: &windows_package,
+      macos_arm64_package: Some(&macos_package),
+      windows_x64_package: Some(&windows_package),
       now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
     })
     .expect("generate Community PHP Catalog");
@@ -1167,6 +1171,36 @@ mod tests {
   }
 
   #[test]
+  fn generates_a_windows_only_community_php_catalog() {
+    let root = std::env::temp_dir().join(format!(
+      "fabdev-runtime-catalog-windows-{}",
+      uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&root).expect("create Catalog fixture");
+    let windows_package = root.join("windows.tar.gz");
+    std::fs::write(&windows_package, b"windows runtime").expect("write Windows package");
+
+    let contents = generate_community_php_catalog(&CommunityPhpCatalogInput {
+      release_version: "0.1.4",
+      catalog_sequence: 2,
+      generated_at: "2026-08-30T00:00:00Z",
+      expires_at: "2027-02-26T00:00:00Z",
+      minimum_app_version: "0.1.4",
+      macos_arm64_package: None,
+      windows_x64_package: Some(&windows_package),
+      now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
+    })
+    .expect("generate Windows-only Community PHP Catalog");
+    let catalog: RuntimeCatalog = serde_json::from_slice(&contents).expect("parse Catalog");
+
+    assert_eq!(catalog.catalog_sequence, 2);
+    assert_eq!(catalog.runtimes.len(), 1);
+    assert_eq!(catalog.runtimes[0].platform, "windows");
+    assert_eq!(catalog.runtimes[0].architecture, "x64");
+    std::fs::remove_dir_all(root).expect("remove Catalog fixture");
+  }
+
+  #[test]
   fn rejects_an_empty_community_php_package() {
     let root = std::env::temp_dir().join(format!(
       "fabdev-runtime-catalog-empty-{}",
@@ -1184,8 +1218,8 @@ mod tests {
       generated_at: "2026-08-30T00:00:00Z",
       expires_at: "2027-02-26T00:00:00Z",
       minimum_app_version: "0.1.4",
-      macos_arm64_package: &macos_package,
-      windows_x64_package: &windows_package,
+      macos_arm64_package: Some(&macos_package),
+      windows_x64_package: Some(&windows_package),
       now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
     })
     .expect_err("reject empty package");

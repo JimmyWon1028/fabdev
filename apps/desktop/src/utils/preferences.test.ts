@@ -8,7 +8,6 @@ import {
   saveAutoCheckUpdates,
   saveAutoStartServices,
   saveLastUpdateCheck,
-  shouldAutomaticallyCheckUpdates,
   saveLanguage
 } from './preferences'
 
@@ -72,16 +71,5 @@ describe('app update preferences', () => {
     expect(loadLastUpdateCheck(storage)).toBeNull()
     saveLastUpdateCheck('2026-08-29T00:00:00.000Z', storage)
     expect(loadLastUpdateCheck(storage)).toBe('2026-08-29T00:00:00.000Z')
-  })
-
-  it('checks at most once per 24 hours', () => {
-    const lastChecked = '2026-08-29T00:00:00.000Z'
-    expect(
-      shouldAutomaticallyCheckUpdates(true, lastChecked, Date.parse('2026-08-29T23:59:00.000Z'))
-    ).toBe(false)
-    expect(
-      shouldAutomaticallyCheckUpdates(true, lastChecked, Date.parse('2026-08-30T00:00:00.000Z'))
-    ).toBe(true)
-    expect(shouldAutomaticallyCheckUpdates(false, null)).toBe(false)
   })
 })
