@@ -387,6 +387,20 @@ https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.3
 - Release 只有預期的 Community DMG、Windows Setup、Connect、Checksum 與兩份 Manifest，沒有 Actions 暫存 Artifact、Log、內部 Runtime 開發包或客戶資料。
 - 發布後已由 Windows 封裝版 App 完成 `0.1.2 → 0.1.3` Stable 線上更新；下載檔 SHA-256 與公開 Asset 一致，安全 Quit 會先結束 Desktop、Agent、Nginx 與 PHP，再開啟完整 Setup。
 
+### 9.3 `v0.1.11` Windows Stable Publish 執行結果
+
+Repository Owner 明確核准後，Commit `83f2ba9d88bed940000aaefb68a81de61b1b315e`、annotated Tag `v0.1.11` 與 Windows-only Draft Release 已建立，Windows x64 Workflow 與 Draft Release Workflow 全數通過。16 個 Draft Assets 重新下載後通過大小、總表、個別 SHA-256、Manifest、Runtime Catalog 與 Archive 完整性驗證。
+
+```text
+https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.11
+```
+
+- Release 已發布為 `draft=false`、`prerelease=false` 的最新 Stable；未登入頁面回傳 HTTP 200。
+- 公開 Stable Manifest 與 Runtime Catalog 回傳 HTTP 200，分別固定為 App `0.1.11`／Agent Protocol 36，以及 Runtime Catalog sequence 5／minimum App `0.1.11`。
+- 公開 Windows Setup 為 49,305,659 bytes，SHA-256 `3c12f1b24ffbd7675bc325b87c41f20459924a1ba14e6e3f58e9a41cbfb0c3ee`；匿名完整下載與兩個 8 MiB Range `206` 均通過。
+- Windows VM 以 Tag 內相同的 `fabdev-updater` 程式碼完成公開 Feed 版本判斷、四路分段下載、整包 SHA-256 與 pending installer 驗證；本機候選的 `/UPDATE /P /R` 原地覆蓋、App 自動重啟、資料保留與 `demo.test` HTTP 200 已先行通過。
+- 這是 Windows x64 Unsigned Community Release；Windows 11 ARM x64 相容模式與 GitHub native x64 runner 已驗證，實體 Windows x64、SmartScreen 信譽及 IIS／Herd 共存仍列為已知邊界。
+
 ## 10. 撤回與回復
 
 發布後發現問題時：
@@ -429,5 +443,6 @@ P0 發布基礎需依序完成：
 - [x] Publish `v0.1.1`，並以未登入公開 URL 重新下載 9 個 Assets，完成大小、SHA-256、Manifest、Draft 位元組與固定 Tag 驗證。
 - [x] 建立 `v0.1.3` Draft、完成 macOS／Windows 覆蓋與資料保留驗收，並由 Repository Owner 明確核准 Stable Publish。
 - [x] Publish `v0.1.3`，完成 9 個公開 Assets、Stable／App Manifest、匿名下載、固定 Tag 與 Windows App 內 `0.1.2 → 0.1.3` 更新驗收。
+- [x] Publish Windows-only `v0.1.11`，完成 16 個公開 Assets、App／Runtime Manifest、匿名完整下載、Range 分段與 Windows VM 原生 Updater 驗收。
 
-`v0.1.3` 是目前可供公開下載的正式 Stable Release；P0 公開發布基礎與 P1 App 內檢查、下載、完整性驗證、安全 Quit 及完整安裝包更新均已完成。下一階段為 P2 Runtime 線上安裝；第一版不做背景靜默覆蓋或正式發布者簽章。
+`v0.1.11` 是目前可供公開下載的 Windows x64 正式 Stable Release；P0 公開發布基礎、P1 App 內更新，以及 Windows x64 的 P2 PHP／MariaDB／Node.js Runtime Catalog 與線上下載均已完成。macOS 發布流程與正式發布者簽章依目前範圍保留後續處理。

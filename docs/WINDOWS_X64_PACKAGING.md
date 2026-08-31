@@ -293,7 +293,11 @@ Windows x64 未簽章本機候選 Setup 為 49,295,735 bytes，SHA-256 `8c6bffb7
 
 Parallels Windows 11 ARM 的 x64 相容環境由既有 `0.1.10` 使用 `/UPDATE /P /R` 原地覆蓋；Installer exit code 為 0，沒有先執行舊版移除程序，完成後 App 自動重新啟動。登錄、Agent 與 Protocol 分別更新為 `0.1.11`、`0.1.11` 與 36，安裝後 Agent／Helper SHA-256 與候選 sidecar 一致。
 
-更新前後唯一 `demo.test` 的 Site ID、路徑、Site Home、PHP 8.2 與空白 Proxy 均相同；MariaDB `my.ini` 與 Connect 設定 SHA-256 保持不變。`demo.test` 回傳 HTTP 200／PHP 8.2.33，Stop 後 Nginx／PHP 與 80／443 全部清理，重新 Start 後再次回傳 HTTP 200。此階段尚未驗證 GitHub Draft Asset 與 App 內分段下載，後者必須在 Draft 建立後另行完成。
+更新前後唯一 `demo.test` 的 Site ID、路徑、Site Home、PHP 8.2 與空白 Proxy 均相同；MariaDB `my.ini` 與 Connect 設定 SHA-256 保持不變。`demo.test` 回傳 HTTP 200／PHP 8.2.33，Stop 後 Nginx／PHP 與 80／443 全部清理，重新 Start 後再次回傳 HTTP 200。
+
+Tag `v0.1.11` 的 GitHub Actions Windows x64 與 Draft Release Jobs 全數通過。16 個 Draft Assets 共 263 MiB，重新下載後通過 `SHA256SUMS`、六份個別 checksum、兩份逐位元一致的 App Manifest、Runtime Catalog sequence 5 與四個 Runtime Archive gzip 完整性；CI Setup 為 49,305,659 bytes，SHA-256 `3c12f1b24ffbd7675bc325b87c41f20459924a1ba14e6e3f58e9a41cbfb0c3ee`，NSIS 3 Unicode 內含 214 個檔案。
+
+Publish 後以未帶 GitHub Token 的公開 URL 重新取得 Release 頁、Stable Manifest、Runtime Catalog 與完整 Setup，均為 HTTP 200，內容與 Draft 驗收版本一致。兩個實際 8 MiB Range 均回傳 206；Windows VM 再以 `v0.1.11` 的 `fabdev-updater` 讀取公開 Feed，正確判定 `0.1.10 -> 0.1.11` 可更新與 `0.1.11` 無新版，並完成四路分段下載、大小、整包 SHA-256 及 pending installer 驗證。
 
 ## 常見問題快速對照
 
@@ -313,6 +317,6 @@ Parallels Windows 11 ARM 的 x64 相容環境由既有 `0.1.10` 使用 `/UPDATE 
 
 ## 發佈邊界
 
-目前是 Unsigned Community Build。對外正式散布前仍需規劃 Windows code signing、下載來源、checksum 發佈與更新機制。VM 驗收不能完全取代乾淨的實體 Windows x64 測試，也不能省略與 IIS、Herd、其他 Nginx／PHP 共存的測試。
+目前公開版本是 Unsigned Community Build，下載來源與 checksum 固定使用 GitHub Releases；未購買 Windows code signing 憑證，因此仍會有 SmartScreen 警告。VM 驗收不能完全取代乾淨的實體 Windows x64 測試，也不能省略與 IIS、Herd、其他 Nginx／PHP 共存的測試。
 
 任何安裝包都不得包含 Token、私鑰、真實 Site、使用者 SQLite、絕對使用者路徑或建置環境資料。

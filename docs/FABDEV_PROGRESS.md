@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-08-31
-> 目前階段：專案版本 `0.1.11`；Windows x64 App 原地更新與 GitHub 分段續傳已完成原始碼、Windows VM 測試及未提交、未發布的 Windows x64 本機候選包
+> 目前階段：專案版本 `0.1.11`；Windows x64 App 原地更新、GitHub 分段續傳、Runtime Catalog v1 與 Stable Release 已完成發布及公開下載驗收，macOS 更新保留後續處理
 
 ## 已完成
 
@@ -36,13 +36,15 @@
 - Windows x64 App／Runtime GitHub Artifact 下載新增 8 MiB 分段、最多 4 路並行、4 次退避重試、跨 App 重啟續傳、完成後整包 SHA-256，以及設定頁速度／預估剩餘時間；macOS 下載與安裝流程保持不變。
 - 本輪 Desktop 66 項、Release 規則 9 項、Updater 15 項、Vue production build、rustfmt、Updater Clippy 與 `git diff --check` 通過；Parallels Windows 11 的 x64 target Desktop 編譯及 Updater 15 項原生測試通過。公開 `v0.1.10` Windows Setup 的單 Byte Range 實測回傳 `206`、`Content-Range: bytes 0-0/49258503`。
 - Windows x64 `0.1.11` 未簽章本機候選 NSIS 已完成，大小 49,295,735 bytes，SHA-256 `8c6bffb7099cfe1e8730eaa34012a973b402551e17f268d1421ab1311c5dc1c7`；PE／NSIS、File Version、Product Version、Desktop、Agent、Helper 與內建 PHP 7.4.33／8.2.33、Nginx 內容靜態檢查通過。
-- Parallels Windows 11 ARM 的 x64 相容環境已由安裝版 `0.1.10` 使用 `/UPDATE /P /R` 原地更新至 `0.1.11`，Installer exit code 0 且 App 自動重新啟動。唯一 `demo.test` Site ID、Site Home、PHP 8.2、空白 Proxy、MariaDB 與 Connect 設定雜湊均保持不變；Agent 版本 `0.1.11`／Protocol 36、HTTP 200／PHP 8.2.33、Stop → Start 與 80／443 清理回歸通過。尚未提交、推送或發布。
+- Parallels Windows 11 ARM 的 x64 相容環境已由安裝版 `0.1.10` 使用 `/UPDATE /P /R` 原地更新至 `0.1.11`，Installer exit code 0 且 App 自動重新啟動。唯一 `demo.test` Site ID、Site Home、PHP 8.2、空白 Proxy、MariaDB 與 Connect 設定雜湊均保持不變；Agent 版本 `0.1.11`／Protocol 36、HTTP 200／PHP 8.2.33、Stop → Start 與 80／443 清理回歸通過。
 - 2026-08-31：Windows x64 Node.js 20.20.2／24.20.0 與 MariaDB 12.3.2 已接入 Runtime Catalog v1、Agent Protocol 36 與 Desktop。Node 兩個 major 會各自顯示安裝／更新狀態，Node 20 顯示 EOL 警告；下載支援進度、取消、大小／SHA-256 與安裝前重新驗證。
 - Node.js 安裝後驗證 `node.exe` 與 `npm.cmd`，但不自動切換全域或 PATH；按「設為全域」後才啟用 `node`／`npm`／`npx`／`corepack` shim。MariaDB 必須停止才能安裝或升級，成功後保留既有 data／config／log 並重新套用 PHP MariaDB 連線，失敗時恢復原 active Runtime。
 - Windows Runtime 產包腳本已改為可在 macOS／Ubuntu 重跑並可只建置指定 Runtime；以本機已下載的固定上游檔案實際完成 MariaDB（約 99 MB）與 Node.js（約 36 MB）SHA-256、官方 PGP 完整 Fingerprint、單一版本根目錄及 descriptor 驗證。
 - Parallels Windows 11 已用 x64 MSVC target 從目前 workspace 編譯 Agent 測試，並以真實 Node.js 20.20.2／24.20.0 Package 完成解壓、並存安裝、active 切換、動態 `node.cmd` shim 與 `node.exe`／`npm.cmd` 健康檢查；1 項原生整合測試通過。本輪 VM 編譯目錄與 Mac 驗收 Package 已清除。
-- Draft Release workflow 已加入兩版 Node.js／MariaDB 的獨立 verified build job、Windows 原生真實 Archive 安裝／binary 健康檢查，以及四 Runtime Catalog 與 16 個 Release Assets 契約。正式 Windows CI、封裝 App 與 Publish 後匿名 Feed 尚待後續經授權的發布流程執行。
+- Draft Release workflow 已加入兩版 Node.js／MariaDB 的獨立 verified build job、Windows 原生真實 Archive 安裝／binary 健康檢查，以及四 Runtime Catalog 與 16 個 Release Assets 契約。`v0.1.11` Windows CI、封裝 App、Draft 與 Publish 後匿名 Feed 驗收均已完成。
 - 本輪本機驗證：Desktop 64 項測試、Vue production build、Runtime 20 項與 Agent 18 項測試、Rust workspace、Release Script 8 項、workflow 與 shell syntax 均通過；另以 Windows VM 原生 x64 target 完成 Node.js 20／24 真實 Archive 驗收。
+- `v0.1.11` 已發布為最新 Stable Release：<https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.11>。16 個 Draft Assets 全數重新下載並通過總表、個別 SHA-256、Manifest 與 NSIS 完整性；Publish 後匿名 Release 頁、Stable Manifest、Runtime Catalog 與完整 Windows Setup 均為 HTTP 200，公開 Setup SHA-256 為 `3c12f1b24ffbd7675bc325b87c41f20459924a1ba14e6e3f58e9a41cbfb0c3ee`。
+- Windows VM 使用 `v0.1.11` 實際 Updater 程式碼讀取公開 Stable Feed：由 `0.1.10` 判定 `0.1.11` 可更新、由 `0.1.11` 判定無新版，並以四路 8 MiB Range 下載 49,305,659 bytes Setup、完成整包 SHA-256 與 pending installer 驗證；公開 Range 實測回傳 `206`。
 
 - `v0.1.3` 已發布為最新 Stable Release：<https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.3>。Release `379130930` 為非 Draft、非 Pre-release，共 9 個公開 Assets；遠端 annotated Tag、`main` 與 `origin/main` 均固定在 Commit `1d6625d42e16e65e2b188a5da2c4c4774f784f74`。
 - 9 個 `v0.1.3` 公開 Assets 已由匿名 URL 重新下載；DMG、Windows Setup、Connect、`SHA256SUMS`、三份個別 checksum 與兩份逐位元一致的 Manifest 全數通過。公開 Stable Manifest 為 `0.1.3`、Agent Protocol 32、`requiresFullInstaller=true`，Unsigned Community 簽章欄位維持 `null`。
@@ -180,9 +182,9 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 
 ### P2：選裝與跨平台
 
-- [ ] 依 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md) 完成 Runtime Catalog v1、Agent Protocol 33 與 PHP 8.4.24 兩平台 Side-by-side 線上安裝；P2.1～P2.3、`v0.1.5` Draft 靜態驗證、macOS 與 Windows App 覆蓋驗收已完成，Windows Runtime mtime 修正待新版 CI 與實機重驗，Publish 後匿名 Feed 驗收仍待執行。
+- [ ] 依 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md) 完成 Runtime Catalog v1 與 PHP 8.4.24 兩平台 Side-by-side 線上安裝；Windows x64 已由 `v0.1.11` 完成 CI、封裝、Publish 與匿名 Feed，macOS 發布流程依目前範圍保留後續處理。
 - [x] 單一穩定版 Node.js LTS 獨立選裝、顯示狀態及移除。
-- [ ] 完成 Windows x64 Node.js／MariaDB 線上安裝與升級的發布驗收；Catalog、Agent、Desktop、可重現產包與 Draft workflow 已完成，尚待 Windows CI、封裝版 App 及 Publish 後匿名 Feed。
+- [x] 完成 Windows x64 Node.js／MariaDB 線上安裝與升級的發布驗收；`v0.1.11` Catalog、Agent、Desktop、可重現產包、Windows CI、封裝版 App、Stable Publish 與匿名 Feed 均已完成。
 - [ ] Node.js 多版本、全域版本、`.nvmrc`／`fabdev.yml` 與選用的專案感知 CLI shim。
 - [x] macOS ARM64 MariaDB 選裝服務。
 - [ ] Windows MariaDB 安裝版與 Portable 版的 Runtime、資料及升級策略。
