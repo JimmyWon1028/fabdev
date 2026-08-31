@@ -74,12 +74,12 @@ const services = computed<ServiceCard[]>(() => {
     },
     {
       name: 'Node.js',
-      detail: store.nodeRuntime.installedVersion
+      detail: store.nodeRuntime.activeVersion
         ? t('dashboard.nodeRuntimeDetail', {
-            version: store.nodeRuntime.installedVersion
+            version: store.nodeRuntime.activeVersion
           })
-        : t('dashboard.nodeRuntimeAvailable', { version: store.nodeRuntime.stableVersion }),
-      state: store.nodeRuntime.installedVersion ? 'installed' : 'notInstalled'
+        : t('dashboard.nodeRuntimeAvailable', { version: '20 / 24' }),
+      state: store.nodeRuntime.installed.length ? 'installed' : 'notInstalled'
     },
     {
       name: 'MariaDB',

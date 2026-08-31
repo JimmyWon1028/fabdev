@@ -8,12 +8,16 @@ use anyhow::{bail, Context, Result};
 use clap::Parser;
 use fabdev_core::{
   create_site, default_site_domain, default_site_home, edit_site, AgentEndpoint, AgentRequest,
-  AgentResponse, AgentStatus, AppPaths, LanShareInfo, LanShareSiteInfo, NodeRuntimeState,
-  PhpRuntimeInfo, PhpRuntimeState, PhpVersion, RuntimeUpdateArtifact, RuntimeUpdateCheck,
-  RuntimeUpdateOperation, RuntimeUpdateOperationStatus, ServiceState, Site, SiteHomeSettings,
-  SiteInput, SiteRepository, TerminalPhpState, PROTOCOL_VERSION, STABLE_NODE_VERSION,
+  AgentResponse, AgentStatus, AppPaths, LanShareInfo, LanShareSiteInfo, NodeRuntimeInfo,
+  NodeRuntimeState, PhpRuntimeInfo, PhpRuntimeState, PhpVersion, RuntimeUpdateArtifact,
+  RuntimeUpdateCheck, RuntimeUpdateOperation, RuntimeUpdateOperationStatus, ServiceState, Site,
+  SiteHomeSettings, SiteInput, SiteRepository, TerminalNodeState, TerminalPhpState,
+  PROTOCOL_VERSION, SUPPORTED_NODE_VERSIONS,
 };
-use fabdev_platform::{disable_terminal_php, enable_terminal_php, terminal_php_state};
+use fabdev_platform::{
+  disable_terminal_node, disable_terminal_php, enable_terminal_node, enable_terminal_php,
+  terminal_node_state, terminal_php_state,
+};
 use fabdev_proxy::ProxyManager;
 use fabdev_runtime::{
   active_version, deactivate_runtime, install_tar_gz_with_activation,
@@ -1393,7 +1397,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
           &release.name,
           &release.version,
           runtime_root,
-          true,
+          false,
         )?;
         Ok(())
       })
@@ -1410,19 +1414,96 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
         Err(error) => internal_error(error),
       }
     }
-    AgentRequest::RemoveNodeRuntime => {
+    AgentRequest::SetGlobalNode { version } => {
       let runtime_root = state.paths.runtimes.clone();
+      let data_root = state.paths.root.clone();
       let result = tokio::task::spawn_blocking(move || -> Result<()> {
-        let version = deactivate_runtime(&runtime_root, "node")?
-          .context("fabDev Node.js Runtime is not installed")?;
-        if version != STABLE_NODE_VERSION {
-          set_active_version(&runtime_root, "node", &version)?;
-          bail!("unsupported installed Node.js Runtime version: {version}");
+        if !node_runtime_binary(&runtime_root, &version).is_file() {
+          bail!("Node.js Runtime {version} is not installed");
+        }
+        let active_before = active_version(&runtime_root, "node")?;
+        set_active_version(&runtime_root, "node", &version)?;
+        if let Err(error) = enable_terminal_node(&data_root) {
+          restore_active_runtime(&runtime_root, "node", active_before.as_deref())?;
+          return Err(error.into());
+        }
+        Ok(())
+      })
+      .await;
+      match result {
+        Ok(Ok(())) => match node_runtime_state(state).await {
+          Ok(runtime_state) => AgentResponse::GlobalNodeChanged(runtime_state),
+          Err(error) => internal_error(error),
+        },
+        Ok(Err(error)) => AgentResponse::Error {
+          code: "global_node_change_failed".to_owned(),
+          message: error.to_string(),
+        },
+        Err(error) => internal_error(error),
+      }
+    }
+    AgentRequest::EnableTerminalNode => {
+      let runtime_root = state.paths.runtimes.clone();
+      let data_root = state.paths.root.clone();
+      let result = tokio::task::spawn_blocking(move || -> Result<()> {
+        let version = active_version(&runtime_root, "node")?
+          .context("select a global Node.js version before enabling terminal integration")?;
+        if !node_runtime_binary(&runtime_root, &version).is_file() {
+          bail!("global Node.js Runtime {version} is missing node");
+        }
+        enable_terminal_node(data_root)?;
+        Ok(())
+      })
+      .await;
+      match result {
+        Ok(Ok(())) => match node_runtime_state(state).await {
+          Ok(runtime_state) => AgentResponse::TerminalNode(runtime_state),
+          Err(error) => internal_error(error),
+        },
+        Ok(Err(error)) => AgentResponse::Error {
+          code: "terminal_node_integration_failed".to_owned(),
+          message: error.to_string(),
+        },
+        Err(error) => internal_error(error),
+      }
+    }
+    AgentRequest::DisableTerminalNode => {
+      let data_root = state.paths.root.clone();
+      let result = tokio::task::spawn_blocking(move || disable_terminal_node(data_root)).await;
+      match result {
+        Ok(Ok(_)) => match node_runtime_state(state).await {
+          Ok(runtime_state) => AgentResponse::TerminalNode(runtime_state),
+          Err(error) => internal_error(error),
+        },
+        Ok(Err(error)) => AgentResponse::Error {
+          code: "terminal_node_integration_failed".to_owned(),
+          message: error.to_string(),
+        },
+        Err(error) => internal_error(error),
+      }
+    }
+    AgentRequest::RemoveNodeRuntime { version } => {
+      let runtime_root = state.paths.runtimes.clone();
+      let data_root = state.paths.root.clone();
+      let result = tokio::task::spawn_blocking(move || -> Result<()> {
+        if !node_runtime_binary(&runtime_root, &version).is_file() {
+          bail!("installed Node.js Runtime is missing node: {version}");
+        }
+        let was_active = active_version(&runtime_root, "node")?.as_deref() == Some(&version);
+        if was_active {
+          deactivate_runtime(&runtime_root, "node")?;
+          if let Err(error) = disable_terminal_node(&data_root) {
+            set_active_version(&runtime_root, "node", &version)?;
+            return Err(error.into());
+          }
         }
         if let Err(error) = remove_installed_version(&runtime_root, "node", &version) {
-          set_active_version(&runtime_root, "node", &version).with_context(|| {
-            format!("unable to restore Node.js Runtime {version} after removal failed")
-          })?;
+          if was_active {
+            set_active_version(&runtime_root, "node", &version).with_context(|| {
+              format!("unable to restore Node.js Runtime {version} after removal failed")
+            })?;
+            enable_terminal_node(&data_root)?;
+          }
           return Err(error.into());
         }
         Ok(())
@@ -1886,14 +1967,21 @@ async fn install_downloaded_runtime_inner(
   state: &AgentState,
   operation: &RuntimeUpdateOperation,
 ) -> Result<()> {
-  if operation.name != "php"
-    || !online_php_runtime_supported(&operation.platform, &operation.version)
-  {
+  if !online_runtime_supported(&operation.name, &operation.platform, &operation.version) {
     bail!(
-      "online Runtime installation does not support PHP {} for {}",
+      "online Runtime installation does not support {} {} for {}",
+      operation.name,
       operation.version,
       operation.platform
     );
+  }
+  if operation.name == "mariadb"
+    && matches!(
+      state.services.lock().await.status().mariadb,
+      fabdev_core::ServiceState::Running
+    )
+  {
+    bail!("stop MariaDB before installing or updating its Runtime");
   }
   let downloaded =
     fabdev_updater::verified_cached_runtime_update(fabdev_updater::RuntimeDownloadRequest {
@@ -1908,6 +1996,18 @@ async fn install_downloaded_runtime_inner(
     .await
     .context("Runtime package revalidation failed before installation")?;
 
+  match downloaded.name.as_str() {
+    "php" => install_downloaded_php_runtime(state, &downloaded).await,
+    "node" => install_downloaded_node_runtime(state, &downloaded).await,
+    "mariadb" => install_downloaded_mariadb_runtime(state, &downloaded).await,
+    _ => bail!("unsupported downloaded Runtime: {}", downloaded.name),
+  }
+}
+
+async fn install_downloaded_php_runtime(
+  state: &AgentState,
+  downloaded: &fabdev_updater::DownloadedRuntimeUpdate,
+) -> Result<()> {
   let runtime_root = state.paths.runtimes.clone();
   let active_before = active_version(&runtime_root, "php")?;
   let runtime_destination = runtime_root.join("php").join(&downloaded.version);
@@ -1996,6 +2096,220 @@ async fn install_downloaded_runtime_inner(
       service_existed,
     )?;
     bail!("online Runtime installation changed the active PHP version");
+  }
+  Ok(())
+}
+
+async fn install_downloaded_node_runtime(
+  state: &AgentState,
+  downloaded: &fabdev_updater::DownloadedRuntimeUpdate,
+) -> Result<()> {
+  let runtime_root = state.paths.runtimes.clone();
+  let active_before = active_version(&runtime_root, "node")?;
+  let runtime_destination = runtime_root.join("node").join(&downloaded.version);
+  if runtime_destination.exists() {
+    bail!("Runtime node {} is already installed", downloaded.version);
+  }
+  let artifact_path = downloaded.path.clone();
+  let expected_sha256 = downloaded.sha256.clone();
+  let version = downloaded.version.clone();
+  let install_runtime_root = runtime_root.clone();
+  let install_version = version.clone();
+  let install_result = tokio::task::spawn_blocking(move || {
+    install_tar_gz_with_health_check(
+      artifact_path,
+      &expected_sha256,
+      "node",
+      &install_version,
+      install_runtime_root,
+      false,
+      |staged| validate_staged_node_runtime(staged, &install_version),
+    )
+  })
+  .await
+  .context("Node.js Runtime installation task failed")?;
+  if let Err(error) = install_result {
+    rollback_online_runtime_install(&runtime_root, "node", &version, active_before.as_deref())?;
+    return Err(error.into());
+  }
+  if active_version(&runtime_root, "node")? != active_before {
+    rollback_online_runtime_install(&runtime_root, "node", &version, active_before.as_deref())?;
+    bail!("online Node.js Runtime installation changed the selected global version");
+  }
+  Ok(())
+}
+
+async fn install_downloaded_mariadb_runtime(
+  state: &AgentState,
+  downloaded: &fabdev_updater::DownloadedRuntimeUpdate,
+) -> Result<()> {
+  let runtime_root = state.paths.runtimes.clone();
+  let active_before = active_version(&runtime_root, "mariadb")?;
+  let runtime_destination = runtime_root.join("mariadb").join(&downloaded.version);
+  if runtime_destination.exists() {
+    bail!(
+      "Runtime mariadb {} is already installed",
+      downloaded.version
+    );
+  }
+  let artifact_path = downloaded.path.clone();
+  let expected_sha256 = downloaded.sha256.clone();
+  let version = downloaded.version.clone();
+  let install_runtime_root = runtime_root.clone();
+  let install_version = version.clone();
+  let install_result = tokio::task::spawn_blocking(move || {
+    install_tar_gz_with_health_check(
+      artifact_path,
+      &expected_sha256,
+      "mariadb",
+      &install_version,
+      install_runtime_root,
+      true,
+      |staged| validate_staged_mariadb_runtime(staged, &install_version),
+    )
+  })
+  .await
+  .context("MariaDB Runtime installation task failed")?;
+  if let Err(error) = install_result {
+    rollback_online_runtime_install(&runtime_root, "mariadb", &version, active_before.as_deref())?;
+    return Err(error.into());
+  }
+  if active_version(&runtime_root, "mariadb")?.as_deref() != Some(version.as_str()) {
+    rollback_online_runtime_install(&runtime_root, "mariadb", &version, active_before.as_deref())?;
+    bail!("online MariaDB Runtime installation did not activate the new version");
+  }
+
+  let apply_result = {
+    let mut services = state.services.lock().await;
+    services.set_mariadb_runtime(runtime_destination.clone());
+    services.refresh_php_mariadb_connection().await
+  };
+  if let Err(error) = apply_result {
+    rollback_online_runtime_install(&runtime_root, "mariadb", &version, active_before.as_deref())?;
+    let restored_runtime = match active_before.as_deref() {
+      Some(previous) => runtime_root.join("mariadb").join(previous),
+      None => runtime_root.join("mariadb/current"),
+    };
+    let mut services = state.services.lock().await;
+    services.set_mariadb_runtime(restored_runtime);
+    services
+      .refresh_php_mariadb_connection()
+      .await
+      .context("unable to restore MariaDB connection after Runtime update failed")?;
+    return Err(error.context("unable to apply the installed MariaDB Runtime"));
+  }
+  Ok(())
+}
+
+fn validate_staged_node_runtime(
+  runtime: &Path,
+  expected_version: &str,
+) -> Result<(), RuntimeError> {
+  let node = if cfg!(windows) {
+    runtime.join("node.exe")
+  } else {
+    runtime.join("bin/node")
+  };
+  let npm = if cfg!(windows) {
+    runtime.join("npm.cmd")
+  } else {
+    runtime.join("bin/npm")
+  };
+  if !node.is_file() || !npm.is_file() {
+    return Err(RuntimeError::HealthCheckFailed(
+      "required Node.js and npm launchers are missing".to_owned(),
+    ));
+  }
+  let output = std::process::Command::new(&node)
+    .arg("--version")
+    .output()
+    .map_err(|error| RuntimeError::HealthCheckFailed(error.to_string()))?;
+  if !output.status.success()
+    || String::from_utf8_lossy(&output.stdout).trim() != format!("v{expected_version}")
+  {
+    return Err(RuntimeError::HealthCheckFailed(format!(
+      "Node.js did not report {expected_version}"
+    )));
+  }
+  let output = std::process::Command::new(&npm)
+    .arg("--version")
+    .output()
+    .map_err(|error| RuntimeError::HealthCheckFailed(error.to_string()))?;
+  if !output.status.success() {
+    return Err(RuntimeError::HealthCheckFailed(
+      "npm health check failed".to_owned(),
+    ));
+  }
+  Ok(())
+}
+
+fn validate_staged_mariadb_runtime(
+  runtime: &Path,
+  expected_version: &str,
+) -> Result<(), RuntimeError> {
+  let server = if cfg!(windows) {
+    runtime.join("bin/mariadbd.exe")
+  } else {
+    runtime.join("bin/mariadbd")
+  };
+  let client = if cfg!(windows) {
+    runtime.join("bin/mariadb.exe")
+  } else {
+    runtime.join("bin/mariadb")
+  };
+  for (label, binary) in [("MariaDB Server", server), ("MariaDB Client", client)] {
+    if !binary.is_file() {
+      return Err(RuntimeError::HealthCheckFailed(format!(
+        "required {label} binary is missing"
+      )));
+    }
+    let output = std::process::Command::new(&binary)
+      .arg("--version")
+      .output()
+      .map_err(|error| RuntimeError::HealthCheckFailed(error.to_string()))?;
+    let reported = format!(
+      "{}{}",
+      String::from_utf8_lossy(&output.stdout),
+      String::from_utf8_lossy(&output.stderr)
+    );
+    if !output.status.success() || !reported.contains(expected_version) {
+      return Err(RuntimeError::HealthCheckFailed(format!(
+        "{label} did not report {expected_version}"
+      )));
+    }
+  }
+  Ok(())
+}
+
+fn rollback_online_runtime_install(
+  runtime_root: &Path,
+  name: &str,
+  version: &str,
+  active_before: Option<&str>,
+) -> Result<()> {
+  match active_before {
+    Some(previous) => set_active_version(runtime_root, name, previous)?,
+    None => {
+      deactivate_runtime(runtime_root, name)?;
+    }
+  }
+  let destination = runtime_root.join(name).join(version);
+  if destination.exists() {
+    remove_online_runtime_directory(&destination)?;
+  }
+  Ok(())
+}
+
+fn restore_active_runtime(
+  runtime_root: &Path,
+  name: &str,
+  active_before: Option<&str>,
+) -> Result<()> {
+  match active_before {
+    Some(previous) => set_active_version(runtime_root, name, previous)?,
+    None => {
+      deactivate_runtime(runtime_root, name)?;
+    }
   }
   Ok(())
 }
@@ -2126,13 +2440,26 @@ fn runtime_update_artifacts(
   runtime_root: &Path,
 ) -> Result<Vec<RuntimeUpdateArtifact>> {
   let (platform, architecture) = runtime_update_target()?;
-  let installed_versions = list_installed_versions(runtime_root, "php")?;
+  let mut installed_versions = HashMap::<String, HashSet<String>>::new();
+  let mut active_versions = HashMap::<String, Option<String>>::new();
   let artifacts = catalog
     .catalog
     .runtimes
     .iter()
     .filter(|release| release.platform == platform && release.architecture == architecture)
     .map(|release| {
+      if !installed_versions.contains_key(&release.name) {
+        installed_versions.insert(
+          release.name.clone(),
+          list_installed_versions(runtime_root, &release.name)?
+            .into_iter()
+            .collect(),
+        );
+        active_versions.insert(
+          release.name.clone(),
+          active_version(runtime_root, &release.name)?,
+        );
+      }
       Ok(RuntimeUpdateArtifact {
         name: release.name.clone(),
         version: release.version.clone(),
@@ -2149,7 +2476,10 @@ fn runtime_update_artifacts(
         size: release.size,
         sha256: release.sha256.clone(),
         unsigned_community_build: catalog.catalog.unsigned_community_build,
-        installed: installed_versions.contains(&release.version),
+        installed: installed_versions
+          .get(&release.name)
+          .is_some_and(|versions| versions.contains(&release.version)),
+        active_version: active_versions.get(&release.name).cloned().flatten(),
       })
     })
     .collect::<Result<Vec<_>>>()?;
@@ -2511,18 +2841,32 @@ async fn php_runtime_state(state: &AgentState) -> Result<PhpRuntimeState> {
 
 async fn node_runtime_state(state: &AgentState) -> Result<NodeRuntimeState> {
   let runtime_root = state.paths.runtimes.clone();
-  tokio::task::spawn_blocking(move || build_node_runtime_state(&runtime_root))
+  let data_root = state.paths.root.clone();
+  tokio::task::spawn_blocking(move || build_node_runtime_state(&runtime_root, &data_root))
     .await
     .context("Node.js Runtime state task failed")?
 }
 
-fn build_node_runtime_state(runtime_root: &Path) -> Result<NodeRuntimeState> {
-  let installed_version = active_version(runtime_root, "node")?.filter(|version| {
-    version == STABLE_NODE_VERSION && node_runtime_binary(runtime_root, version).is_file()
-  });
+fn build_node_runtime_state(runtime_root: &Path, data_root: &Path) -> Result<NodeRuntimeState> {
+  let active_version = active_version(runtime_root, "node")?
+    .filter(|version| node_runtime_binary(runtime_root, version).is_file());
+  let installed = list_installed_versions(runtime_root, "node")?
+    .into_iter()
+    .filter(|version| node_runtime_binary(runtime_root, version).is_file())
+    .map(|version| NodeRuntimeInfo {
+      active: active_version.as_deref() == Some(version.as_str()),
+      version,
+    })
+    .collect();
+  let terminal = terminal_node_state(data_root)?;
   Ok(NodeRuntimeState {
-    stable_version: STABLE_NODE_VERSION.to_owned(),
-    installed_version,
+    active_version,
+    installed,
+    terminal: TerminalNodeState {
+      enabled: terminal.enabled,
+      bin_path: terminal.bin_path,
+      shim_paths: terminal.shim_paths,
+    },
   })
 }
 
@@ -2613,13 +2957,17 @@ fn php_series(version: &str) -> Result<String> {
   Ok(format!("{}.{}", parts[0], parts[1]))
 }
 
-fn online_php_runtime_supported(platform: &str, version: &str) -> bool {
-  match platform {
-    "windows" => php_series(version)
+fn online_runtime_supported(name: &str, platform: &str, version: &str) -> bool {
+  match (name, platform) {
+    ("php", "windows") => php_series(version)
       .ok()
       .and_then(|series| series.parse::<PhpVersion>().ok())
       .is_some(),
-    "macos" => version == "8.4.24",
+    ("php", "macos") => version == "8.4.24",
+    ("mariadb" | "node", "windows") => {
+      let parts = version.split('.').collect::<Vec<_>>();
+      parts.len() == 3 && parts.iter().all(|part| part.parse::<u16>().is_ok())
+    }
     _ => false,
   }
 }
@@ -2654,7 +3002,7 @@ fn validate_node_release(release: &RuntimeRelease, artifact: &Path) -> Result<()
   if release.name != "node" {
     bail!("Runtime package must contain Node.js, got {}", release.name);
   }
-  if release.version != STABLE_NODE_VERSION {
+  if !SUPPORTED_NODE_VERSIONS.contains(&release.version.as_str()) {
     bail!("unsupported Node.js Runtime version: {}", release.version);
   }
   validate_release_target(release, artifact)
@@ -2919,22 +3267,37 @@ mod tests {
 
   #[test]
   fn reports_optional_node_runtime_state() {
-    let root = std::env::temp_dir().join(format!("fabdev-agent-node-{}", Uuid::new_v4()));
-    let empty = build_node_runtime_state(&root).expect("build empty Node.js state");
-    assert_eq!(empty.stable_version, STABLE_NODE_VERSION);
-    assert_eq!(empty.installed_version, None);
+    let data_root = std::env::temp_dir().join(format!("fabdev-agent-node-{}", Uuid::new_v4()));
+    let runtime_root = data_root.join("runtimes");
+    let empty =
+      build_node_runtime_state(&runtime_root, &data_root).expect("build empty Node.js state");
+    assert_eq!(empty.active_version, None);
+    assert!(empty.installed.is_empty());
 
-    let binary = node_runtime_binary(&root, STABLE_NODE_VERSION);
-    std::fs::create_dir_all(binary.parent().expect("Node.js binary parent"))
-      .expect("create Node.js fixture");
-    std::fs::write(binary, "fixture").expect("write Node.js fixture");
-    set_active_version(&root, "node", STABLE_NODE_VERSION).expect("activate Node.js fixture");
-    let installed = build_node_runtime_state(&root).expect("build Node.js state");
+    for version in SUPPORTED_NODE_VERSIONS {
+      let binary = node_runtime_binary(&runtime_root, version);
+      std::fs::create_dir_all(binary.parent().expect("Node.js binary parent"))
+        .expect("create Node.js fixture");
+      std::fs::write(binary, "fixture").expect("write Node.js fixture");
+    }
+    set_active_version(&runtime_root, "node", SUPPORTED_NODE_VERSIONS[1])
+      .expect("activate Node.js fixture");
+    let installed =
+      build_node_runtime_state(&runtime_root, &data_root).expect("build Node.js state");
     assert_eq!(
-      installed.installed_version.as_deref(),
-      Some(STABLE_NODE_VERSION)
+      installed.active_version.as_deref(),
+      Some(SUPPORTED_NODE_VERSIONS[1])
     );
-    std::fs::remove_dir_all(root).expect("remove fixture");
+    assert_eq!(installed.installed.len(), 2);
+    assert!(installed
+      .installed
+      .iter()
+      .any(|runtime| { runtime.version == SUPPORTED_NODE_VERSIONS[1] && runtime.active }));
+    assert!(installed
+      .installed
+      .iter()
+      .any(|runtime| { runtime.version == SUPPORTED_NODE_VERSIONS[0] && !runtime.active }));
+    std::fs::remove_dir_all(data_root).expect("remove fixture");
   }
 
   #[test]
@@ -2991,24 +3354,113 @@ mod tests {
   }
 
   #[test]
-  fn supports_future_windows_online_php_without_changing_macos_policy() {
-    assert!(online_php_runtime_supported("windows", "7.4.33"));
-    assert!(online_php_runtime_supported("windows", "8.2.34"));
-    assert!(online_php_runtime_supported("windows", "9.1.2"));
-    assert!(!online_php_runtime_supported("windows", "6.4.1"));
-    assert!(online_php_runtime_supported("macos", "8.4.24"));
-    assert!(!online_php_runtime_supported("macos", "9.1.2"));
+  fn supports_windows_online_runtimes_without_changing_macos_policy() {
+    assert!(online_runtime_supported("php", "windows", "7.4.33"));
+    assert!(online_runtime_supported("php", "windows", "8.2.34"));
+    assert!(online_runtime_supported("php", "windows", "9.1.2"));
+    assert!(!online_runtime_supported("php", "windows", "6.4.1"));
+    assert!(online_runtime_supported("php", "macos", "8.4.24"));
+    assert!(!online_runtime_supported("php", "macos", "9.1.2"));
+    assert!(online_runtime_supported("mariadb", "windows", "12.3.2"));
+    assert!(online_runtime_supported("node", "windows", "20.20.2"));
+    assert!(online_runtime_supported("node", "windows", "24.20.0"));
+    assert!(!online_runtime_supported("mariadb", "macos", "12.3.2"));
+    assert!(!online_runtime_supported("node", "windows", "24.19"));
+  }
+
+  #[cfg(windows)]
+  #[test]
+  #[ignore = "requires the verified Windows Runtime packages built by the release workflow"]
+  fn installs_real_windows_online_service_runtime_archives() {
+    use sha2::{Digest, Sha256};
+
+    let node_packages = [
+      ("20.20.2", "FABDEV_WINDOWS_NODE20_RUNTIME_PACKAGE"),
+      ("24.20.0", "FABDEV_WINDOWS_NODE24_RUNTIME_PACKAGE"),
+    ];
+    let data_root =
+      std::env::temp_dir().join(format!("fabdev-online-service-runtimes-{}", Uuid::new_v4()));
+    let root = data_root.join("runtimes");
+
+    for (version, variable) in node_packages {
+      let artifact = PathBuf::from(
+        std::env::var(variable)
+          .unwrap_or_else(|_| panic!("{variable} must identify the release package")),
+      );
+      let checksum = hex::encode(Sha256::digest(
+        std::fs::read(&artifact).expect("read Windows Node.js Runtime package"),
+      ));
+      install_tar_gz_with_health_check(
+        &artifact,
+        &checksum,
+        "node",
+        version,
+        &root,
+        false,
+        |staged| validate_staged_node_runtime(staged, version),
+      )
+      .expect("install and validate packaged Windows Node.js Runtime");
+    }
+    assert_eq!(
+      active_version(&root, "node").expect("read inactive Node.js Runtime"),
+      None
+    );
+    set_active_version(&root, "node", "20.20.2").expect("select Node.js 20");
+    let terminal = enable_terminal_node(&data_root).expect("enable terminal Node.js");
+    let node_shim = terminal.bin_path.join("node.cmd");
+    let node20 = std::process::Command::new("cmd.exe")
+      .args(["/d", "/c"])
+      .arg(&node_shim)
+      .arg("--version")
+      .output()
+      .expect("run Node.js 20 shim");
+    assert!(String::from_utf8_lossy(&node20.stdout).contains("v20.20.2"));
+    set_active_version(&root, "node", "24.20.0").expect("switch to Node.js 24");
+    let node24 = std::process::Command::new("cmd.exe")
+      .args(["/d", "/c"])
+      .arg(&node_shim)
+      .arg("--version")
+      .output()
+      .expect("run Node.js 24 shim");
+    assert!(String::from_utf8_lossy(&node24.stdout).contains("v24.20.0"));
+    assert_eq!(
+      active_version(&root, "node").expect("read active Node.js Runtime"),
+      Some("24.20.0".to_owned())
+    );
+
+    if let Ok(path) = std::env::var("FABDEV_WINDOWS_MARIADB_RUNTIME_PACKAGE") {
+      let mariadb_artifact = PathBuf::from(path);
+      let mariadb_checksum = hex::encode(Sha256::digest(
+        std::fs::read(&mariadb_artifact).expect("read Windows MariaDB Runtime package"),
+      ));
+      install_tar_gz_with_health_check(
+        &mariadb_artifact,
+        &mariadb_checksum,
+        "mariadb",
+        "12.3.2",
+        &root,
+        true,
+        |staged| validate_staged_mariadb_runtime(staged, "12.3.2"),
+      )
+      .expect("install and validate packaged Windows MariaDB Runtime");
+      assert_eq!(
+        active_version(&root, "mariadb").expect("read active MariaDB Runtime"),
+        Some("12.3.2".to_owned())
+      );
+    }
+    disable_terminal_node(&data_root).expect("disable terminal Node.js");
+    std::fs::remove_dir_all(data_root).expect("remove Windows Runtime fixture");
   }
 
   #[test]
-  fn validates_only_the_pinned_node_runtime_release() {
+  fn validates_only_the_supported_node_runtime_releases() {
     let root = std::env::temp_dir().join(format!("fabdev-node-release-{}", Uuid::new_v4()));
     std::fs::create_dir_all(&root).expect("create fixture");
     let artifact = root.join("runtime.tar.gz");
     std::fs::write(&artifact, "fixture").expect("write artifact");
     let mut release = RuntimeRelease {
       name: "node".to_owned(),
-      version: STABLE_NODE_VERSION.to_owned(),
+      version: SUPPORTED_NODE_VERSIONS[0].to_owned(),
       platform: if cfg!(target_os = "macos") {
         "macos".to_owned()
       } else {
@@ -3026,7 +3478,9 @@ mod tests {
       ..RuntimeRelease::default()
     };
 
-    validate_node_release(&release, &artifact).expect("accept pinned Node.js package");
+    validate_node_release(&release, &artifact).expect("accept Node.js 20 package");
+    release.version = SUPPORTED_NODE_VERSIONS[1].to_owned();
+    validate_node_release(&release, &artifact).expect("accept Node.js 24 package");
     release.version = "24.18.0".to_owned();
     let error = validate_node_release(&release, &artifact).expect_err("reject stale Node.js");
     assert!(error.to_string().contains("unsupported Node.js Runtime"));

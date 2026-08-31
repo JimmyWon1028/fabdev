@@ -2,9 +2,9 @@
 
 > 規劃日期：2026-08-30
 >
-> 狀態：P2.1 Schema／Validator、P2.2 Agent 下載／操作狀態與 P2.3 PHP Runtime UI／Side-by-side 安裝已完成；公開 Feed 與兩平台封裝驗收留待 P2.4
+> 狀態：PHP 線上安裝已完成；Windows x64 Node.js／MariaDB 的 Catalog、Agent、UI 與 Release pipeline 已完成本機實作及產包驗證，待 Windows CI、封裝版 App 與公開 Feed 驗收
 >
-> 第一個目標：PHP 8.4.24，macOS ARM64 與 Windows x64，Side-by-side 線上安裝
+> 目前目標：Windows x64 的 PHP 8.4.24、Node.js 20.20.2／24.20.0 與 MariaDB 12.3.2 線上安裝及升級
 
 ## 1. 目標
 
@@ -18,16 +18,16 @@ Runtime 更新與 App 更新保持獨立操作：App 更新仍使用完整 DMG�
 
 - Runtime Catalog v1 的產生、解析與嚴格驗證。
 - 固定 GitHub Releases URL、平台原生 TLS、系統 Proxy 與系統信任庫。
-- PHP 8.4.24 macOS ARM64／Windows x64 Package 的新版偵測與 Side-by-side 安裝。
+- PHP 8.4.24 macOS ARM64／Windows x64，以及 Windows x64 Node.js 20.20.2／24.20.0、MariaDB 12.3.2 Package 的新版偵測、安裝與升級。
 - `.part` 下載、檔案大小與 SHA-256、原子改名、staging 解壓及固定健康檢查。
 - 使用者確認、下載進度、取消、失敗清理與安全重試。
-- 保留既有 PHP 版本、Site PHP 選擇、全域 PHP 與 `php.ini`。
+- 保留既有 PHP 版本、Site PHP 選擇、全域 PHP、`php.ini`、MariaDB 資料／設定，以及未被切換的舊 Node.js／MariaDB Runtime 版本目錄。
 
 不包含：
 
 - 背景靜默下載或自動安裝。
 - 自動切換 Site PHP、全域 PHP 或移除舊版本。
-- Nginx、dnsmasq、Node.js 與 MariaDB 線上更新。
+- Nginx 與 dnsmasq 線上更新。
 - 任意 Catalog URL、任意 Shell、Manifest 指定命令或提升 Helper 權限。
 - Apple Developer ID、Windows Code Signing、Tauri Updater 或 Runtime 發布者數位簽章。
 
@@ -40,16 +40,7 @@ Runtime 更新與 App 更新保持獨立操作：App 更新仍使用完整 DMG�
 - `.staging` 解壓、版本目錄安裝及 `current` 原子切換。
 - 已安裝版本列舉、啟用、停用、移除及使用者移除標記。
 
-目前 Agent 已可從本機 `artifactPath` 與 `releasePath` 安裝 PHP、Node.js 及 MariaDB Package，並驗證 Runtime 名稱、版本、平台、架構、檔案大小與 SHA-256。Desktop 的 PHP Runtime 畫面目前由使用者手動選擇 JSON 與 `.tar.gz`。
-
-線上安裝仍缺少：
-
-- 固定 Catalog URL 與官方 Artifact URL 白名單。
-- Product、Channel、Sequence、到期時間與 App／Agent 相容條件。
-- Catalog 與 Package 的快取及下載狀態。
-- 可輪詢的下載進度、取消及重試協定。
-- 安裝後固定健康檢查與失敗清理。
-- 將上游來源驗證與 fabDev Package 簽章明確分開的欄位。
+Agent 與 Desktop 已共用固定 Catalog URL、GitHub Asset Host 白名單、Sequence／到期／相容驗證、Package 快取、下載進度、取消／重試、安裝前重新驗證及固定健康檢查。Windows 的 PHP、Node.js 與 MariaDB 都由同一份 Catalog 呈現；Node.js 成功安裝後切換 fabDev 的 active Runtime，MariaDB 僅能在服務停止時安裝或升級，且只替換 Runtime，不修改資料、設定與 Log。
 
 ## 4. 發布與下載來源
 
@@ -120,6 +111,8 @@ Catalog 與 Runtime Packages 必須在同一個 App Draft Release 完成驗證�
 
 `size` 與 `sha256` 範例值必須由 Release 產生器替換，不得直接發布範例內容。
 
+上例保留 PHP-only Catalog 的 Protocol 33 相容範例；包含 Windows Node.js／MariaDB 的正式 Catalog 固定要求 Agent Protocol 36。
+
 ### 5.1 Catalog 欄位
 
 | 欄位 | 規則 |
@@ -138,9 +131,9 @@ Catalog 與 Runtime Packages 必須在同一個 App Draft Release 完成驗證�
 
 ### 5.2 Runtime 欄位
 
-- `name` 第一版只接受 `php`。
-- `version` 必須為三段數字版本，且第一版只接受 `8.4.24`。
-- 平台／架構只接受 `macos/arm64` 與 `windows/x64`。
+- `name` 接受 `php`、`node` 與 `mariadb`。
+- `version` 必須為不含 prerelease／build metadata 的三段穩定 SemVer；Windows PHP major 至少為 7、Node.js 至少為 20、MariaDB 至少為 10。macOS PHP Community v1 仍固定為 `8.4.24`。
+- PHP 平台／架構接受 `macos/arm64` 與 `windows/x64`；Node.js 與 MariaDB 目前只接受 `windows/x64`。
 - `fileName` 必須由名稱、版本、平台、架構及 `community` 固定組成。
 - `url` 必須與版本化 GitHub Release URL 及 `fileName` 完全一致。
 - `size` 必須大於 0，且不得超過 Runtime 類型的固定上限。
@@ -148,7 +141,7 @@ Catalog 與 Runtime Packages 必須在同一個 App Draft Release 完成驗證�
 - `signature` 第一版固定為 `null`。
 - `archiveFormat` 第一版固定為 `tar.gz`。
 - `installMode` 第一版固定為 `side-by-side`。
-- `healthCheckProfile` 只接受 Agent 內建的 `php-runtime-v1`；Agent 依平台執行固定 PHP CLI／FPM 或 CGI 檢查，Catalog 不得指定命令、參數或路徑。
+- `healthCheckProfile` 只接受與 Runtime 名稱對應的 `php-runtime-v1`、`node-runtime-v1` 或 `mariadb-runtime-v1`；Catalog 不得指定命令、參數或路徑。
 
 `sourceVerification` 只記錄建置時如何驗證上游 PHP 原始碼，不是 fabDev Runtime Package 的數位簽章，也不能取代 Package SHA-256。`method` 只接受 `pgp` 或 `official-sha256`；只有 `pgp` 可帶允許的完整 Fingerprint。
 
@@ -165,7 +158,7 @@ Unsigned Community v1 的 SHA-256 可偵測傳輸中斷或 Catalog 與 Package �
 
 未來正式簽章時新增可驗證的 Catalog detached signature 與 Package signature；不能改用描述字串填入既有 `signature` 欄位。
 
-## 7. Agent Protocol 33
+## 7. Agent Protocol 36
 
 線上 Runtime 更新由 Agent 負責；Desktop 只傳 Runtime 身分與使用者操作，不傳 URL 或檔案路徑。`crates/core/src/protocol.rs` 與 `packages/contracts/src/index.ts` 必須同步修改。
 
@@ -179,6 +172,8 @@ Unsigned Community v1 的 SHA-256 可偵測傳輸中斷或 Catalog 與 Package �
 
 Agent 每次安裝前必須重新讀取快取 Catalog，核對 Runtime identity、Artifact 大小與 SHA-256。App 重啟後不恢復進行中的網路工作；殘留 `.part` 在下次檢查時清除，已完整驗證的 Package 可再次使用。
 
+`RuntimeUpdateArtifact` 同時回傳 `installed` 與 `activeVersion`，讓 Desktop 能區分「未安裝」、「已安裝」及「目前 active 版本低於 Catalog，可更新」。
+
 既有本機 `InstallPhpRuntime { artifactPath, releasePath }` 保留給開發 CLI 與人工安裝，但線上 UI 不使用此入口。
 
 ## 8. 下載、安裝與失敗回復
@@ -186,7 +181,7 @@ Agent 每次安裝前必須重新讀取快取 Catalog，核對 Runtime identity�
 ```text
 取得固定 Catalog
   → 驗證 Schema、Product、Channel、Sequence、時間與相容條件
-  → 選擇目前 OS／CPU 的唯一 PHP 8.4.24 Package
+  → 選擇目前 OS／CPU 與 Runtime 名稱／版本相符的 Package
   → 使用者確認下載
   → 寫入 cache/runtime-updates/pending/*.part
   → 串流核對大小與 SHA-256
@@ -195,8 +190,8 @@ Agent 每次安裝前必須重新讀取快取 Catalog，核對 Runtime identity�
   → 開啟前再次核對快取 Catalog、大小與 SHA-256
   → 解壓至 Runtime .staging
   → 執行 Agent 內建健康檢查
-  → 移至 php/8.4.24 版本目錄
-  → 初始化獨立 php.ini
+  → 移至 <runtime>/<version> 版本目錄
+  → 依 Runtime 契約保留或切換 active 版本
   → 回傳新的 Runtime 狀態
 ```
 
@@ -208,11 +203,17 @@ PHP 8.4.24 採 Side-by-side 安裝：
 - 健康檢查失敗時刪除 staging／新版本目錄，不修改既有 Runtime、設定或 Site。
 - 相同版本已安裝時回傳明確狀態，不覆蓋現有目錄。
 
+Windows Node.js 與 MariaDB 的升級規則：
+
+- Node.js 在 `node.exe --version` 與 `npm.cmd --version` 通過後原子切換 active 版本；失敗時恢復原 active 版本並刪除本次新增版本。
+- MariaDB 必須先停止；`mariadbd.exe --version` 與 `mariadb.exe --version` 通過後切換 active Runtime，立即重新套用 PHP 的 MariaDB 連線設定。失敗時恢復原 Runtime 與連線設定。
+- MariaDB 升級不移動、不刪除也不重新初始化既有 data、config 或 log 目錄；不提供自動降版。
+
 ## 9. 發布流程
 
-1. 從固定 PHP 原始碼、SHA-256、PGP 簽章與 Fingerprint 建置兩平台 Package。
-2. 驗證 Package 只有單一版本根目錄，且不依賴未封裝的 Homebrew、Herd、nvm 或系統 Runtime。
-3. 以兩份 Runtime Package 產生 `fabdev-runtime-v1.json`；正式 Catalog 產生器拒絕重複項目、未知平台、錯誤檔名、零大小或非小寫 SHA-256，不發布舊格式 descriptor。
+1. 從固定上游 Archive、SHA-256、PGP 簽章與完整 Fingerprint 建置 Windows PHP、Node.js 與 MariaDB Package。
+2. 驗證每個 Package 只有單一版本根目錄，且不依賴未封裝的 Homebrew、Herd、nvm 或系統 Runtime。
+3. 以三份 Windows Runtime Package 產生 `fabdev-runtime-v1.json`；正式 Catalog 產生器拒絕重複項目、未知平台、錯誤檔名、零大小或非小寫 SHA-256，不發布舊格式 descriptor。
 4. 將 Catalog、Package 與個別 checksum 加入下一個 App Draft Release；不得加入 `*-dev` 產物。
 5. 從 Draft 重新下載兩平台 Package，核對大小、SHA-256、Catalog 及內容。
 6. 在隔離 macOS 與 Windows 完成檢查、下載、取消／重試、安裝、健康檢查及資料保留驗收。
@@ -230,7 +231,7 @@ PHP 8.4.24 採 Side-by-side 安裝：
 - 重複 Runtime、錯誤檔名、非官方 URL、Redirect 越界、零／超大檔案及無效 SHA-256。
 - 中斷下載、超出宣告大小、Checksum 錯誤、取消與安全重試。
 - 安裝前再次驗證、錯誤 Archive、staging 清理及相同版本拒絕覆蓋。
-- macOS／Windows 固定 PHP 健康檢查成功與失敗案例。
+- macOS／Windows 固定 PHP，以及 Windows Node.js／npm、MariaDB Server／Client 健康檢查成功與失敗案例。
 - 安裝後既有 Site ID、Site PHP、全域 PHP、`php.ini`、Proxy 與 MariaDB 狀態不變。
 
 封裝版端到端驗收：
@@ -267,16 +268,26 @@ P2.3 已完成程式、前端呈現與本機 fixture 驗證。公開 Runtime Cat
 
 ### P2.4：兩平台 Draft 驗收
 
-- 完整執行矩陣、Release tooling 缺口、14 個 Asset 契約、授權關卡與 Publish 後匿名 Feed 閘門見 [`P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md`](P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md)。
-- [x] 正式 Runtime Catalog v1 產生器、兩平台 Package checksum 納入總表，以及固定 14 個 Draft Asset 契約。
+- 完整執行矩陣、Release tooling 缺口、16 個 Asset 契約、授權關卡與 Publish 後匿名 Feed 閘門見 [`P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md`](P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md)。
+- [x] 正式 Runtime Catalog v1 產生器、兩平台 Package checksum 納入總表，以及固定 16 個 Draft Asset 契約。
 - [x] Windows PHP 8.4.24 專用來源 SHA-256、CLI／CGI／MySQL extensions 與單一 Archive 根目錄驗證腳本。
 - [x] Windows 空白使用者 `php.ini` 保留，內部服務設定自動載入 `mysqli`／`pdo_mysql` 的回歸修正。
 - 取得明確重新打包授權後才建立 Runtime Packages。
 - 建立 App Draft Release，重新下載並驗證所有 Runtime Assets。
 - macOS／Windows 端到端通過且 Repository Owner 核准後才 Publish。
 
-### P2.5：後續 Runtime
+### P2.5：Windows Node.js／MariaDB 線上安裝與升級
 
-- Node.js 採獨立安裝，不自動修改 Site 或 PATH。
+- [x] Catalog、Agent Protocol 36、Desktop 安裝／更新按鈕、進度、取消與重新驗證。
+- [x] Node.js 20／24 side-by-side 安裝、active 版本切換與健康檢查；安裝不改 PATH，明確設為全域時才啟用動態 terminal shim。
+- [x] MariaDB 停止閘門、Runtime 切換、資料／設定保留、PHP 連線設定重新套用與失敗回復。
+- [x] 固定 SHA-256／PGP Fingerprint 的可重現產包腳本、四 Runtime Catalog 項目與 Draft Release workflow。
+- [x] 在 Parallels Windows 11 的 x64 MSVC target 以真實 Archive 完成 Node.js／MariaDB 安裝、active 切換及 binary 健康檢查。
+- [ ] 在 Windows x64 CI 執行真實 Node.js／MariaDB Archive 安裝及 binary 健康檢查。
+- [ ] 在新版封裝 App 完成未安裝 → 安裝 → 啟動／使用 → 新版 Catalog → 更新 → 重啟持久性驗收。
+- [ ] Publish 後由匿名 `releases/latest` 完成 Catalog 與兩套 Runtime 的實際下載驗收。
+
+### P2.6：後續 Runtime
+
 - Nginx／dnsmasq 需先完成停止、原子切換、啟動健康檢查與上一版回復。
-- MariaDB 維持人工安裝，直到資料格式、備份與降版回復契約完成。
+- Node.js 多版本與專案感知、MariaDB 資料格式升級／備份／降版契約另行規劃。

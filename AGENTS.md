@@ -45,7 +45,7 @@ System／Homebrew MariaDB Socket 屬於內部連線細節，不顯示於一般 M
 - fabDev CA 應由互動中的目前使用者信任至 Login Keychain；root Helper 不負責產生、信任或搬移憑證。Site 私鑰只能保存在 fabDev Application Support，leaf certificate SAN 只能包含正規化後的目標 `.test` 網域。
 - MCP 應是既有版本化 Agent Protocol 的薄型轉接層，不可另建一套服務管理邏輯。預設唯讀並限制在明確 Site；輸出必須遮罩密碼、Token、私鑰與敏感 `.env`，所有變更工具採白名單及明確確認，且不得暴露任意 Shell、路徑、Port 或提升 Helper 權限。
 - Laravel 專用的 Query、Job、Dump 與 outgoing request tracing 不可直接假設適用一般 ERP／Legacy PHP；先完成 DNS → HTTP／HTTPS → Nginx → PHP-FPM → MariaDB 的通用診斷，再以選用 instrumentation 擴充框架層追蹤。
-- 專案用 Node.js 是預設未安裝的獨立選裝 Runtime，必須與 fabDev 建置用 Node、Homebrew、nvm、Herd、系統 Node.js 及使用者 PATH 分離。第一階段只接受 `STABLE_NODE_VERSION` 指定的單一 LTS；Site 可啟用或停用，仍有 Site 使用時不得移除 Runtime。
+- 專案用 Node.js 是預設未安裝的獨立選裝 Runtime，必須與 fabDev 建置用 Node、Homebrew、nvm、Herd 及系統 Node.js 分離。Windows x64 Catalog 固定提供 Node.js 20 與 24 並存安裝；安裝本身不得改變 PATH，只有使用者明確按「設為全域」時才建立 fabDev 的 `node`／`npm`／`npx`／`corepack` shim 並加入使用者 PATH。切換全域版本必須同步更新 shim 指向；完全未安裝時不得建立 Node shim 或修改 PATH。
 - Node.js Runtime 建置必須同時驗證固定的官方 Archive SHA-256、Node.js 發布者簽署的 `SHASUMS256.txt.asc` 與允許的完整 Key Fingerprint，再封裝成以版本為單一根目錄的 fabDev Runtime Package。未明確要求「重新打包」時，不得因此把 Node.js 納入 Community DMG。
 
 ## Commit、PR 與安全邊界

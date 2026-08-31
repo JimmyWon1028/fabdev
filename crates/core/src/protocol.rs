@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Site, SiteEditInput, SiteInput};
 
-pub const PROTOCOL_VERSION: u16 = 34;
-pub const STABLE_NODE_VERSION: &str = "24.19.0";
+pub const PROTOCOL_VERSION: u16 = 36;
+pub const SUPPORTED_NODE_VERSIONS: &[&str] = &["20.20.2", "24.20.0"];
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(
@@ -93,7 +93,14 @@ pub enum AgentRequest {
     artifact_path: PathBuf,
     release_path: PathBuf,
   },
-  RemoveNodeRuntime,
+  SetGlobalNode {
+    version: String,
+  },
+  EnableTerminalNode,
+  DisableTerminalNode,
+  RemoveNodeRuntime {
+    version: String,
+  },
   GetProxyManager,
   AddProxyConnection(ProxyConnectionInput),
   UpdateProxyConnection {
@@ -179,6 +186,8 @@ pub enum AgentResponse {
   },
   NodeRuntime(NodeRuntimeState),
   NodeRuntimeInstalled(NodeRuntimeState),
+  GlobalNodeChanged(NodeRuntimeState),
+  TerminalNode(NodeRuntimeState),
   NodeRuntimeRemoved(NodeRuntimeState),
   ProxyManager(ProxyManagerState),
   Started,
@@ -301,8 +310,24 @@ pub struct TerminalPhpState {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeRuntimeState {
-  pub stable_version: String,
-  pub installed_version: Option<String>,
+  pub active_version: Option<String>,
+  pub installed: Vec<NodeRuntimeInfo>,
+  pub terminal: TerminalNodeState,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeRuntimeInfo {
+  pub version: String,
+  pub active: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalNodeState {
+  pub enabled: bool,
+  pub bin_path: PathBuf,
+  pub shim_paths: Vec<PathBuf>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -328,6 +353,7 @@ pub struct RuntimeUpdateArtifact {
   pub sha256: String,
   pub unsigned_community_build: bool,
   pub installed: bool,
+  pub active_version: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -754,6 +780,27 @@ mod tests {
         }
       })
     );
+
+    assert_eq!(
+      serde_json::to_value(AgentRequest::SetGlobalNode {
+        version: "24.20.0".to_owned(),
+      })
+      .expect("serialize global Node.js switch"),
+      json!({
+        "type": "setGlobalNode",
+        "payload": { "version": "24.20.0" }
+      })
+    );
+    assert_eq!(
+      serde_json::to_value(AgentRequest::RemoveNodeRuntime {
+        version: "20.20.2".to_owned(),
+      })
+      .expect("serialize Node.js removal"),
+      json!({
+        "type": "removeNodeRuntime",
+        "payload": { "version": "20.20.2" }
+      })
+    );
   }
 
   #[test]
@@ -798,6 +845,51 @@ mod tests {
       json!({
         "type": "installDownloadedRuntime",
         "payload": { "operationId": "fabde000-0000-4000-8000-000000000033" }
+      })
+    );
+
+    let check = AgentResponse::RuntimeUpdates(RuntimeUpdateCheck {
+      catalog_sequence: 3,
+      generated_at: "2026-08-30T00:00:00Z".to_owned(),
+      expires_at: "2027-02-26T00:00:00Z".to_owned(),
+      unsigned_community_build: true,
+      artifacts: vec![RuntimeUpdateArtifact {
+        name: "node".to_owned(),
+        version: "24.19.0".to_owned(),
+        platform: "windows".to_owned(),
+        architecture: "x64".to_owned(),
+        minimum_os_version: "11.0".to_owned(),
+        file_name: "node-24.19.0-windows-x64-community.tar.gz".to_owned(),
+        size: 100,
+        sha256: "a".repeat(64),
+        unsigned_community_build: true,
+        installed: false,
+        active_version: Some("24.18.0".to_owned()),
+      }],
+    });
+    assert_eq!(
+      serde_json::to_value(check).expect("serialize Runtime update check"),
+      json!({
+        "type": "runtimeUpdates",
+        "payload": {
+          "catalogSequence": 3,
+          "generatedAt": "2026-08-30T00:00:00Z",
+          "expiresAt": "2027-02-26T00:00:00Z",
+          "unsignedCommunityBuild": true,
+          "artifacts": [{
+            "name": "node",
+            "version": "24.19.0",
+            "platform": "windows",
+            "architecture": "x64",
+            "minimumOsVersion": "11.0",
+            "fileName": "node-24.19.0-windows-x64-community.tar.gz",
+            "size": 100,
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "unsignedCommunityBuild": true,
+            "installed": false,
+            "activeVersion": "24.18.0"
+          }]
+        }
       })
     );
 

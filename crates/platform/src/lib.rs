@@ -3,7 +3,12 @@ use std::path::Path;
 use async_trait::async_trait;
 use thiserror::Error;
 
+mod terminal_node;
 mod terminal_php;
+
+pub use terminal_node::{
+  disable_terminal_node, enable_terminal_node, terminal_node_state, TerminalNodeIntegrationState,
+};
 
 pub use terminal_php::{
   disable_terminal_php, enable_terminal_php, terminal_php_state, TerminalPhpIntegrationState,

@@ -31,7 +31,10 @@ function parseArgs(argv) {
     ['--windows-x64', 'windowsX64'],
     ['--windows-connect-x64', 'windowsConnectX64'],
     ['--runtime-macos-arm64', 'runtimeMacosArm64'],
-    ['--runtime-windows-x64', 'runtimeWindowsX64']
+    ['--runtime-windows-x64', 'runtimeWindowsX64'],
+    ['--runtime-mariadb-windows-x64', 'runtimeMariaDbWindowsX64'],
+    ['--runtime-node20-windows-x64', 'runtimeNode20WindowsX64'],
+    ['--runtime-node24-windows-x64', 'runtimeNode24WindowsX64']
   ])
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -69,7 +72,10 @@ function printHelp() {
     [--windows-x64 <setup.exe>] \\
     [--windows-connect-x64 <fabdev-connect.exe>] \\
     [--runtime-macos-arm64 <php-runtime.tar.gz>] \\
-    [--runtime-windows-x64 <php-runtime.tar.gz>]
+    [--runtime-windows-x64 <php-runtime.tar.gz>] \\
+    [--runtime-mariadb-windows-x64 <mariadb-runtime.tar.gz>] \\
+    [--runtime-node20-windows-x64 <node-20-runtime.tar.gz>] \
+    [--runtime-node24-windows-x64 <node-24-runtime.tar.gz>]
 
 At least one App installer must be provided. The output directory must not exist.
 `)
@@ -219,6 +225,21 @@ function runtimePackageDefinitions(options) {
       source: options.runtimeWindowsX64,
       label: 'PHP 8.4.24 Windows x64 Runtime package',
       fileName: 'php-8.4.24-windows-x64-community.tar.gz'
+    },
+    {
+      source: options.runtimeMariaDbWindowsX64,
+      label: 'MariaDB 12.3.2 Windows x64 Runtime package',
+      fileName: 'mariadb-12.3.2-windows-x64-community.tar.gz'
+    },
+    {
+      source: options.runtimeNode20WindowsX64,
+      label: 'Node.js 20.20.2 Windows x64 Runtime package',
+      fileName: 'node-20.20.2-windows-x64-community.tar.gz'
+    },
+    {
+      source: options.runtimeNode24WindowsX64,
+      label: 'Node.js 24.20.0 Windows x64 Runtime package',
+      fileName: 'node-24.20.0-windows-x64-community.tar.gz'
     }
   ].filter((definition) => definition.source)
 }

@@ -134,7 +134,7 @@ site3.test：Isolated → PHP 8.4
 
 ## 6. 選用 Node.js
 
-Node.js 不一定安裝。未安裝 Node.js 時，PHP Site 與 fabDev 核心仍須正常運作。目前第一階段只提供一個經固定 SHA-256 與上游簽章驗證的 Node.js 24.19.0 LTS 選裝 Runtime；不隨 App 或 Community DMG 預設安裝。
+Node.js 不一定安裝。未安裝 Node.js 時，PHP Site 與 fabDev 核心仍須正常運作。Windows x64 Catalog 提供經固定 SHA-256 與上游簽章驗證的 Node.js 20.20.2 與 24.20.0 選裝 Runtime；兩者皆不隨 App 預設安裝，Node.js 20 必須標示為 EOL 相容版本。
 
 目前 Site 模式：
 
@@ -143,9 +143,9 @@ None
 fabDev Managed
 ```
 
-左側 Node.js 頁面獨立負責安裝、顯示狀態及移除單一穩定 LTS；Sites 不保存 Node.js 選擇，也不限制 Runtime 移除。Runtime 安裝於 fabDev Application Support 的 `runtimes/node/<version>`，不修改 Homebrew、nvm、Herd、系統 Node.js 或使用者 PATH。
+左側 Node.js 頁面獨立負責多版本並存安裝、顯示狀態、切換全域版本及個別移除；Sites 暫不保存 Node.js 選擇。Runtime 安裝於 fabDev Application Support 的 `runtimes/node/<version>`。單純安裝不修改 PATH；使用者明確設為全域時才建立動態 shim 並加入使用者 PATH，且不修改 Homebrew、nvm、Herd 或系統 Node.js。
 
-多版本、全域 Node、`.nvmrc`／`fabdev.yml` 自動選擇、更新通知，以及 Node、npm、npx、Corepack、pnpm 與 Yarn 的 Site-aware CLI shim 仍屬後續工作。是否由 fabDev 啟動及監控 `npm run dev` 尚待討論，預設不得自動執行專案 script。
+`.nvmrc`／`fabdev.yml` 的 Site 自動選擇、pnpm／Yarn 的 Site-aware shim，以及由 fabDev 啟動及監控 `npm run dev` 仍屬後續工作；預設不得自動執行專案 script。
 
 Desktop App 若使用內建 Node.js，其 Runtime 只供 fabDev 自身使用，不可當作專案的 Node.js 環境。
 

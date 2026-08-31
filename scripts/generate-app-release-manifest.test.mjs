@@ -90,7 +90,7 @@ test('prepares canonical release assets, checksums, and manifests', async (conte
   assert.equal(manifest.version, projectVersion)
   assert.equal(manifest.tag, `v${projectVersion}`)
   assert.equal(manifest.publishedAt, '2026-08-28T12:34:56Z')
-  assert.equal(manifest.compatibility.agentProtocolVersion, 34)
+  assert.equal(manifest.compatibility.agentProtocolVersion, 36)
   assert.equal(manifest.artifacts.length, 2)
   assert.equal(manifest.artifacts[0].fileName, macName)
   assert.equal(manifest.artifacts[0].sha256, digest(macContents))
@@ -138,10 +138,16 @@ test('prepares a Windows-only release with a Windows-only Runtime package', asyn
   const windowsSource = join(testRoot, 'input-setup.exe')
   const connectSource = join(testRoot, 'input-connect.exe')
   const runtimeSource = join(testRoot, 'input-runtime-windows.tar.gz')
+  const mariaDbRuntimeSource = join(testRoot, 'input-runtime-mariadb-windows.tar.gz')
+  const node20RuntimeSource = join(testRoot, 'input-runtime-node20-windows.tar.gz')
+  const node24RuntimeSource = join(testRoot, 'input-runtime-node24-windows.tar.gz')
   const outputDir = join(testRoot, 'release')
   await writeFile(windowsSource, 'Windows installer fixture')
   await writeFile(connectSource, 'fabDev Connect fixture')
   await writeFile(runtimeSource, 'Windows PHP Runtime fixture')
+  await writeFile(mariaDbRuntimeSource, 'Windows MariaDB Runtime fixture')
+  await writeFile(node20RuntimeSource, 'Windows Node.js 20 Runtime fixture')
+  await writeFile(node24RuntimeSource, 'Windows Node.js 24 Runtime fixture')
 
   const result = await prepareAppRelease({
     repoRoot,
@@ -150,12 +156,27 @@ test('prepares a Windows-only release with a Windows-only Runtime package', asyn
     outputDir,
     windowsX64: windowsSource,
     windowsConnectX64: connectSource,
-    runtimeWindowsX64: runtimeSource
+    runtimeWindowsX64: runtimeSource,
+    runtimeMariaDbWindowsX64: mariaDbRuntimeSource,
+    runtimeNode20WindowsX64: node20RuntimeSource,
+    runtimeNode24WindowsX64: node24RuntimeSource
   })
 
   assert.equal(result.manifest.artifacts.length, 1)
   assert.equal(result.manifest.artifacts[0].platform, 'windows')
-  assert.equal(result.files.length, 9)
+  assert.equal(result.files.length, 15)
+  assert.equal(
+    result.files.includes('mariadb-12.3.2-windows-x64-community.tar.gz'),
+    true
+  )
+  assert.equal(
+    result.files.includes('node-20.20.2-windows-x64-community.tar.gz'),
+    true
+  )
+  assert.equal(
+    result.files.includes('node-24.20.0-windows-x64-community.tar.gz'),
+    true
+  )
   assert.equal(
     result.files.some((fileName) => fileName.includes('macos')),
     false
@@ -219,11 +240,15 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.match(workflow, /FABDEV_WINDOWS_RUNTIME_PACKAGE:/)
   assert.match(workflow, /installs_real_windows_php_archive/)
   assert.match(workflow, /--runtime-windows-x64/)
+  assert.match(workflow, /FABDEV_WINDOWS_RUNTIME_NAMES: mariadb node/)
+  assert.match(workflow, /--runtime-mariadb-windows-x64/)
+  assert.match(workflow, /--runtime-node20-windows-x64/)
+  assert.match(workflow, /--runtime-node24-windows-x64/)
   assert.doesNotMatch(workflow, /build-macos|--macos-arm64|--runtime-macos-arm64/)
   assert.match(workflow, /generate-windows/)
   assert.match(workflow, /--bin fabdev-runtime-catalog/)
   assert.match(workflow, /release-assets\/fabdev-runtime-v1\.json/)
-  assert.match(workflow, /\)" = "10"/)
+  assert.match(workflow, /\)" = "16"/)
 
   const usesLines = workflow
     .split('\n')

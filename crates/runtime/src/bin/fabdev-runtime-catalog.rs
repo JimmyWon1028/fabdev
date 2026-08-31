@@ -5,12 +5,13 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use fabdev_runtime::{
-  generate_community_php_catalog, parse_and_validate_runtime_catalog, CommunityPhpCatalogInput,
+  generate_community_php_catalog, generate_community_windows_catalog,
+  parse_and_validate_runtime_catalog, CommunityPhpCatalogInput, CommunityWindowsCatalogInput,
   RuntimeCatalogValidation, RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
 };
 
 fn usage() -> &'static str {
-  "Usage:\n  fabdev-runtime-catalog generate <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <macos-package> <windows-package> <output>\n  fabdev-runtime-catalog generate-windows <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <windows-package> <output>\n  fabdev-runtime-catalog validate <catalog> <current-app-version>"
+  "Usage:\n  fabdev-runtime-catalog generate <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <macos-php-package> <windows-php-package> <output>\n  fabdev-runtime-catalog generate-windows <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <windows-php-package> <windows-mariadb-package> <windows-node20-package> <windows-node24-package> <output>\n  fabdev-runtime-catalog validate <catalog> <current-app-version>"
 }
 
 fn now_unix_seconds() -> Result<i64, Box<dyn Error>> {
@@ -46,21 +47,23 @@ fn generate(args: &[String]) -> Result<(), Box<dyn Error>> {
 }
 
 fn generate_windows(args: &[String]) -> Result<(), Box<dyn Error>> {
-  if args.len() != 7 {
+  if args.len() != 10 {
     return Err(usage().into());
   }
   let sequence = args[1].parse::<u64>()?;
-  let contents = generate_community_php_catalog(&CommunityPhpCatalogInput {
+  let contents = generate_community_windows_catalog(&CommunityWindowsCatalogInput {
     release_version: &args[0],
     catalog_sequence: sequence,
     generated_at: &args[2],
     expires_at: &args[3],
     minimum_app_version: &args[4],
-    macos_arm64_package: None,
-    windows_x64_package: Some(Path::new(&args[5])),
+    php_package: Path::new(&args[5]),
+    mariadb_package: Path::new(&args[6]),
+    node20_package: Path::new(&args[7]),
+    node24_package: Path::new(&args[8]),
     now_unix_seconds: now_unix_seconds()?,
   })?;
-  let output = Path::new(&args[6]);
+  let output = Path::new(&args[9]);
   if let Some(parent) = output.parent() {
     std::fs::create_dir_all(parent)?;
   }

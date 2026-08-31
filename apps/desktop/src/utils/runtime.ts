@@ -1,7 +1,9 @@
-import type {
-  PhpRuntimeInfo,
-  RuntimeUpdateArtifact,
-  RuntimeUpdateOperationStatus
+import {
+  supportedNodeVersions,
+  type NodeRuntimeInfo,
+  type PhpRuntimeInfo,
+  type RuntimeUpdateArtifact,
+  type RuntimeUpdateOperationStatus
 } from '@fabdev/contracts'
 
 export interface RuntimeRow {
@@ -10,11 +12,20 @@ export interface RuntimeRow {
 }
 
 export type WindowsRuntimeRowState = 'installed' | 'not-installed' | 'update-available'
+export type CatalogRuntimeState = 'installed' | 'not-installed' | 'update-available'
 
 export interface WindowsRuntimeRow {
   series: string
   version: string
   runtime: PhpRuntimeInfo | null
+  artifact: RuntimeUpdateArtifact | null
+  state: WindowsRuntimeRowState
+}
+
+export interface WindowsNodeRuntimeRow {
+  major: string
+  version: string
+  runtime: NodeRuntimeInfo | null
   artifact: RuntimeUpdateArtifact | null
   state: WindowsRuntimeRowState
 }
@@ -57,7 +68,7 @@ export function buildWindowsRuntimeRows(
       continue
     }
     const current = latestArtifactBySeries.get(series)
-    if (!current || comparePhpVersions(artifact.version, current.version) > 0) {
+    if (!current || compareRuntimeVersions(artifact.version, current.version) > 0) {
       latestArtifactBySeries.set(series, artifact)
     }
   }
@@ -65,7 +76,7 @@ export function buildWindowsRuntimeRows(
   const latestInstalledBySeries = new Map<string, PhpRuntimeInfo>()
   for (const runtime of installed) {
     const current = latestInstalledBySeries.get(runtime.series)
-    if (!current || comparePhpVersions(runtime.version, current.version) > 0) {
+    if (!current || compareRuntimeVersions(runtime.version, current.version) > 0) {
       latestInstalledBySeries.set(runtime.series, runtime)
     }
   }
@@ -75,7 +86,7 @@ export function buildWindowsRuntimeRows(
     const artifact = latestArtifactBySeries.get(runtime.series)
     const updateArtifact = latestInstalled?.version === runtime.version
       && artifact
-      && comparePhpVersions(artifact.version, runtime.version) > 0
+      && compareRuntimeVersions(artifact.version, runtime.version) > 0
       ? artifact
       : null
     return {
@@ -101,12 +112,113 @@ export function buildWindowsRuntimeRows(
   }
 
   return rows.sort((left, right) => {
-    const seriesOrder = comparePhpVersions(`${right.series}.0`, `${left.series}.0`)
-    return seriesOrder || comparePhpVersions(right.version, left.version)
+    const seriesOrder = compareRuntimeVersions(`${right.series}.0`, `${left.series}.0`)
+    return seriesOrder || compareRuntimeVersions(right.version, left.version)
   })
 }
 
-function comparePhpVersions(left: string, right: string): number {
+export function buildWindowsNodeRuntimeRows(
+  installed: NodeRuntimeInfo[],
+  artifacts: RuntimeUpdateArtifact[]
+): WindowsNodeRuntimeRow[] {
+  const supportedByMajor = new Map(
+    supportedNodeVersions.map((version) => [version.split('.')[0], version])
+  )
+  const nodeArtifacts = artifacts.filter((artifact) => {
+    const minimum = supportedByMajor.get(artifact.version.split('.')[0])
+    return artifact.name === 'node'
+      && minimum !== undefined
+      && compareRuntimeVersions(artifact.version, minimum) >= 0
+  })
+  const latestArtifactByMajor = new Map<string, RuntimeUpdateArtifact>()
+  for (const artifact of nodeArtifacts) {
+    const major = artifact.version.split('.')[0]
+    const current = latestArtifactByMajor.get(major)
+    if (!current || compareRuntimeVersions(artifact.version, current.version) > 0) {
+      latestArtifactByMajor.set(major, artifact)
+    }
+  }
+
+  const latestInstalledByMajor = new Map<string, NodeRuntimeInfo>()
+  for (const runtime of installed) {
+    const major = runtime.version.split('.')[0]
+    const current = latestInstalledByMajor.get(major)
+    if (!current || compareRuntimeVersions(runtime.version, current.version) > 0) {
+      latestInstalledByMajor.set(major, runtime)
+    }
+  }
+
+  const rows = installed.map<WindowsNodeRuntimeRow>((runtime) => {
+    const major = runtime.version.split('.')[0]
+    const artifact = latestArtifactByMajor.get(major)
+    const latestInstalled = latestInstalledByMajor.get(major)
+    const updateArtifact = latestInstalled?.version === runtime.version
+      && artifact
+      && compareRuntimeVersions(artifact.version, runtime.version) > 0
+      ? artifact
+      : null
+    return {
+      major,
+      version: runtime.version,
+      runtime,
+      artifact: updateArtifact,
+      state: updateArtifact ? 'update-available' : 'installed'
+    }
+  })
+
+  for (const [major, artifact] of latestArtifactByMajor) {
+    if (latestInstalledByMajor.has(major)) {
+      continue
+    }
+    rows.push({
+      major,
+      version: artifact.version,
+      runtime: null,
+      artifact,
+      state: 'not-installed'
+    })
+  }
+
+  for (const version of supportedNodeVersions) {
+    const major = version.split('.')[0]
+    if (latestInstalledByMajor.has(major) || latestArtifactByMajor.has(major)) {
+      continue
+    }
+    rows.push({
+      major,
+      version,
+      runtime: null,
+      artifact: null,
+      state: 'not-installed'
+    })
+  }
+
+  return rows.sort((left, right) => compareRuntimeVersions(right.version, left.version))
+}
+
+export function latestRuntimeArtifact(
+  artifacts: RuntimeUpdateArtifact[],
+  name: string
+): RuntimeUpdateArtifact | null {
+  return artifacts
+    .filter((artifact) => artifact.name === name)
+    .sort((left, right) => compareRuntimeVersions(right.version, left.version))[0] ?? null
+}
+
+export function catalogRuntimeState(
+  installedVersion: string | null,
+  artifact: RuntimeUpdateArtifact | null
+): CatalogRuntimeState {
+  if (!installedVersion) {
+    return 'not-installed'
+  }
+  if (!artifact || compareRuntimeVersions(artifact.version, installedVersion) <= 0) {
+    return 'installed'
+  }
+  return 'update-available'
+}
+
+export function compareRuntimeVersions(left: string, right: string): number {
   const leftParts = left.split('.').map((part) => Number.parseInt(part, 10))
   const rightParts = right.split('.').map((part) => Number.parseInt(part, 10))
   const length = Math.max(leftParts.length, rightParts.length)

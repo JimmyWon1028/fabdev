@@ -1,5 +1,4 @@
 import {
-  stableNodeVersion,
   type AgentRequest,
   type AgentResponse,
   type AgentStatus,
@@ -97,8 +96,13 @@ export const useAppStore = defineStore('fabdev', {
     runtimeUpdateCheck: null,
     runtimeUpdateOperation: null,
     nodeRuntime: {
-      stableVersion: stableNodeVersion,
-      installedVersion: null
+      activeVersion: null,
+      installed: [],
+      terminal: {
+        enabled: false,
+        binPath: '',
+        shimPaths: []
+      }
     },
     proxyManager: {
       connections: []
@@ -369,7 +373,13 @@ export const useAppStore = defineStore('fabdev', {
       if (response.type === 'runtimeUpdateOperation') {
         this.runtimeUpdateOperation = response.payload
         if (response.payload.status === 'completed') {
-          await this.loadPhpRuntimes()
+          if (response.payload.name === 'php') {
+            await this.loadPhpRuntimes()
+          } else if (response.payload.name === 'node') {
+            await this.loadNodeRuntime()
+          } else if (response.payload.name === 'mariadb') {
+            await this.refreshStatus()
+          }
         }
         return response.payload
       }
@@ -499,8 +509,44 @@ export const useAppStore = defineStore('fabdev', {
       }
       throw new Error('Agent returned an unexpected response')
     },
-    async removeNodeRuntime() {
-      const response = await sendRequest({ type: 'removeNodeRuntime' })
+    async setGlobalNode(version: string) {
+      const response = await sendRequest({ type: 'setGlobalNode', payload: { version } })
+      if (response.type === 'globalNodeChanged') {
+        this.nodeRuntime = response.payload
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async enableTerminalNode() {
+      const response = await sendRequest({ type: 'enableTerminalNode' })
+      if (response.type === 'terminalNode') {
+        this.nodeRuntime = response.payload
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async disableTerminalNode() {
+      const response = await sendRequest({ type: 'disableTerminalNode' })
+      if (response.type === 'terminalNode') {
+        this.nodeRuntime = response.payload
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async removeNodeRuntime(version: string) {
+      const response = await sendRequest({
+        type: 'removeNodeRuntime',
+        payload: { version }
+      })
       if (response.type === 'nodeRuntimeRemoved') {
         this.nodeRuntime = response.payload
         return response.payload

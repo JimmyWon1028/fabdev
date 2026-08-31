@@ -62,7 +62,7 @@ pub fn disable_terminal_php(
   platform_disable_terminal_php(data_root.as_ref())
 }
 
-fn terminal_bin_path(data_root: &Path) -> PathBuf {
+pub(crate) fn terminal_bin_path(data_root: &Path) -> PathBuf {
   data_root.join("bin")
 }
 
@@ -429,8 +429,18 @@ fn platform_disable_terminal_php(
   data_root: &Path,
 ) -> Result<TerminalPhpIntegrationState, PlatformError> {
   let bin_path = terminal_bin_path(data_root);
+  let shim_path = bin_path.join("php.cmd");
+  match std::fs::remove_file(&shim_path) {
+    Ok(()) => {}
+    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+    Err(error) => return Err(error.into()),
+  }
   let user_path = windows_user_path()?;
-  let without_fabdev = remove_path_entry(&user_path, &bin_path);
+  let without_fabdev = if windows_node_shims_exist(&bin_path) {
+    user_path.clone()
+  } else {
+    remove_path_entry(&user_path, &bin_path)
+  };
   let restored_herd = load_windows_herd_path_backup(data_root)?;
   let updated = restore_path_entries(&without_fabdev, &restored_herd);
   if updated != user_path {
@@ -438,12 +448,6 @@ fn platform_disable_terminal_php(
     broadcast_environment_change();
   }
   remove_windows_herd_path_backup(data_root)?;
-  let shim_path = bin_path.join("php.cmd");
-  match std::fs::remove_file(&shim_path) {
-    Ok(()) => {}
-    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-    Err(error) => return Err(error.into()),
-  }
   platform_terminal_php_state(data_root)
 }
 
@@ -454,7 +458,7 @@ fn write_windows_php_shim(shim_path: &Path) -> Result<(), PlatformError> {
 }
 
 #[cfg(windows)]
-fn windows_user_path() -> Result<String, PlatformError> {
+pub(crate) fn windows_user_path() -> Result<String, PlatformError> {
   use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
   use winreg::RegKey;
 
@@ -468,7 +472,7 @@ fn windows_user_path() -> Result<String, PlatformError> {
 }
 
 #[cfg(windows)]
-fn set_windows_user_path(value: &str) -> Result<(), PlatformError> {
+pub(crate) fn set_windows_user_path(value: &str) -> Result<(), PlatformError> {
   use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, REG_EXPAND_SZ, REG_SZ};
   use winreg::{RegKey, RegValue};
 
@@ -500,7 +504,7 @@ fn set_windows_user_path(value: &str) -> Result<(), PlatformError> {
 }
 
 #[cfg(windows)]
-fn broadcast_environment_change() {
+pub(crate) fn broadcast_environment_change() {
   use windows_sys::Win32::UI::WindowsAndMessaging::{
     SendMessageTimeoutW, HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
   };
@@ -595,7 +599,7 @@ fn normalize_path_entry(value: &str) -> String {
 }
 
 #[cfg(any(windows, test))]
-fn path_contains(value: &str, path: &Path) -> bool {
+pub(crate) fn path_contains(value: &str, path: &Path) -> bool {
   let expected = normalize_path_entry(&path.to_string_lossy());
   value
     .split(';')
@@ -649,7 +653,7 @@ fn restore_path_entries(value: &str, entries: &[(usize, String)]) -> String {
 }
 
 #[cfg(windows)]
-fn prepend_path_entry(value: &str, path: &Path) -> String {
+pub(crate) fn prepend_path_entry(value: &str, path: &Path) -> String {
   let path = path.to_string_lossy();
   if value.trim().is_empty() {
     path.into_owned()
@@ -659,7 +663,7 @@ fn prepend_path_entry(value: &str, path: &Path) -> String {
 }
 
 #[cfg(any(windows, test))]
-fn remove_path_entry(value: &str, path: &Path) -> String {
+pub(crate) fn remove_path_entry(value: &str, path: &Path) -> String {
   let expected = normalize_path_entry(&path.to_string_lossy());
   value
     .split(';')
@@ -667,6 +671,13 @@ fn remove_path_entry(value: &str, path: &Path) -> String {
     .filter(|entry| normalize_path_entry(entry) != expected)
     .collect::<Vec<_>>()
     .join(";")
+}
+
+#[cfg(windows)]
+fn windows_node_shims_exist(bin_path: &Path) -> bool {
+  ["node.cmd", "npm.cmd", "npx.cmd", "corepack.cmd"]
+    .iter()
+    .any(|name| bin_path.join(name).is_file())
 }
 
 #[cfg(not(any(target_os = "macos", windows)))]

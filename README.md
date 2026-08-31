@@ -60,7 +60,7 @@ Community 安裝程式會驗證 DMG 內的 `SHA256SUMS`，再要求一次管理�
 
 Windows x64 使用 Current User NSIS 單檔安裝程式；完整的建置環境、Runtime／sidecar 準備、Windows 11 驗收及除錯經驗整理在 [`docs/WINDOWS_X64_PACKAGING.md`](docs/WINDOWS_X64_PACKAGING.md)。
 
-Windows x64 的 PHP 8.4.24、MariaDB 12.3.2 與 Node.js 24.19.0 維持獨立選裝套件，可由 `./scripts/build-windows-runtime-packages.sh` 建立，輸出為 `artifacts/windows-x64/runtimes/` 下配對的 Release JSON 與 `.tar.gz`。MariaDB 與 Node.js 來源除了固定 SHA-256，也會驗證官方 PGP 簽章與完整 Fingerprint。
+Windows x64 的 PHP 8.4.24、MariaDB 12.3.2 與 Node.js 20.20.2／24.20.0 維持獨立選裝套件，可由 `./scripts/build-windows-runtime-packages.sh` 建立，輸出為 `artifacts/windows-x64/runtimes/` 下配對的 Release JSON 與 `.tar.gz`。MariaDB 與 Node.js 來源除了固定 SHA-256，也會驗證官方 PGP 簽章與完整 Fingerprint。
 
 ## Runtime 建置與安裝
 
@@ -116,7 +116,7 @@ PHP Runtime 安裝於 `runtimes/php/<major>.<minor>.<patch>/`。Agent 會為每�
 
 Sites 畫面可直接切換各 Site 的 PHP minor，或選擇 `-` 將 Site 設為不使用 PHP。純靜態 Site 只產生 Nginx 靜態檔案規則，不會啟動 PHP-FPM。切換 PHP 版本時，Agent 會先啟動目標 PHP-FPM、驗證並 reload Nginx，成功後才停止不再使用的舊版本；失敗時回復 Registry 與 Site 設定。Runtimes 畫面的 `php.ini` 按鈕可編輯各 minor 的持久設定，檔案位於既有 Application Support 資料目錄的 `config/php/<major>.<minor>/php.ini`。另有 `config/php/default/php.ini` 預設範本；首次由目前 PHP 8.2 設定建立，之後只供尚未建立專屬設定的 PHP minor 使用，不覆蓋既有設定。各 minor 儲存時會使用對應 PHP-FPM 驗證並安全重啟，無效設定不會取代原檔。
 
-左側倒數第二項的 Node.js 頁面提供選用的 Node.js 24.19.0 LTS，預設不安裝。安裝時選擇由 `build-node-runtime.sh` 產生的 Release JSON 與 `.tar.gz`，Agent 會驗證平台、架構、大小與 SHA-256；安裝、狀態與移除都由 Node.js 頁面獨立管理，不與 Site 綁定。此 Runtime 位於 `runtimes/node/24.19.0/`，與 fabDev 建置用 Node、Homebrew、nvm、Herd 及系統 Node.js 完全分離。
+左側倒數第二項的 Node.js 頁面在 Windows x64 提供 Node.js 20.20.2 與 24.20.0，預設均不安裝，並以 `runtimes/node/<version>/` 並存。Catalog 套件會核對平台、架構、大小、SHA-256 與上游發布者簽章；安裝不會自動改變 PATH。只有使用者按「設為全域」時，fabDev 才在使用者 PATH 啟用會動態讀取 `current.version` 的 `node`、`npm`、`npx` 與 `corepack` shim；切換版本無需 nvm，也不修改 Homebrew、Herd、系統 Node.js 或既有 nvm 安裝。Node.js 20 僅供舊專案相容，畫面會標示其已 EOL。
 
 每個 Site 可在 Sites 畫面獨立啟用 HTTPS。fabDev 會在 `config/tls` 建立自己的本機 CA，在 `config/tls/sites` 產生只包含該 `.test` 網域 SAN 的憑證，私鑰只保存在使用者的 fabDev Application Support。首次啟用會將固定名稱的 fabDev CA 加入目前使用者的 Login Keychain 信任；停用 Site HTTPS 會移除該 Site 憑證並恢復 HTTP，不會刪除仍供其他 Sites 使用的 CA。啟用後 Port 80 只做 HTTPS redirect，Nginx 的一般使用者 TLS listener 為 8443，System Helper 固定代理 `443→8443`。
 
@@ -130,12 +130,10 @@ cargo run -p fabdev-cli -- set-global-php 8.2.33
 cargo run -p fabdev-cli -- remove-php-runtime 7.4.33
 cargo run -p fabdev-cli -- set-site-php <site-id> 7.4
 cargo run -p fabdev-cli -- node-runtime
-cargo run -p fabdev-cli -- install-node-runtime \
-  artifacts/node-24.19.0-macos-arm64-dev.tar.gz \
-  artifacts/node-24.19.0-macos-arm64-dev.json
-cargo run -p fabdev-cli -- set-site-node <site-id> 24.19.0
-cargo run -p fabdev-cli -- unset-site-node <site-id>
-cargo run -p fabdev-cli -- remove-node-runtime
+cargo run -p fabdev-cli -- set-global-node 24.20.0
+cargo run -p fabdev-cli -- enable-terminal-node
+cargo run -p fabdev-cli -- disable-terminal-node
+cargo run -p fabdev-cli -- remove-node-runtime 20.20.2
 cargo run -p fabdev-cli -- secure <site-id>
 cargo run -p fabdev-cli -- unsecure <site-id>
 cargo run -p fabdev-cli -- php-ini 7.4

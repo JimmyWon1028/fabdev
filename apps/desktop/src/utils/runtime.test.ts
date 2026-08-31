@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildRuntimeRows,
+  buildWindowsNodeRuntimeRows,
   buildWindowsRuntimeRows,
+  catalogRuntimeState,
+  compareRuntimeVersions,
   formatRuntimeBytes,
   installedPhpSeries,
   isBuiltInPhpSeries,
   isRuntimeDownloadActive,
+  latestRuntimeArtifact,
   runtimeProgressPercent,
   phpSeriesFromVersion
 } from './runtime'
@@ -37,7 +41,8 @@ function onlinePhp(version: string) {
     size: 1024,
     sha256: 'a'.repeat(64),
     unsignedCommunityBuild: true,
-    installed: false
+    installed: false,
+    activeVersion: null
   }
 }
 
@@ -117,5 +122,67 @@ describe('PHP Runtime presentation', () => {
     expect(isRuntimeDownloadActive('downloading')).toBe(true)
     expect(isRuntimeDownloadActive('verified')).toBe(false)
     expect(isRuntimeDownloadActive('installing')).toBe(false)
+  })
+
+  it('selects the newest Catalog artifact for Node.js and MariaDB', () => {
+    const artifacts = [
+      { ...onlinePhp('24.18.0'), name: 'node' },
+      { ...onlinePhp('24.19.0'), name: 'node' },
+      { ...onlinePhp('12.3.2'), name: 'mariadb' }
+    ]
+
+    expect(latestRuntimeArtifact(artifacts, 'node')?.version).toBe('24.19.0')
+    expect(latestRuntimeArtifact(artifacts, 'mariadb')?.version).toBe('12.3.2')
+    expect(latestRuntimeArtifact(artifacts, 'php')).toBeNull()
+  })
+
+  it('shows Node.js 20 and 24 as separate installable rows', () => {
+    const rows = buildWindowsNodeRuntimeRows([], [
+      { ...onlinePhp('20.20.2'), name: 'node' },
+      { ...onlinePhp('24.20.0'), name: 'node' }
+    ])
+
+    expect(rows.map((row) => [row.version, row.state])).toEqual([
+      ['24.20.0', 'not-installed'],
+      ['20.20.2', 'not-installed']
+    ])
+  })
+
+  it('keeps Node.js 20 and 24 visible as uninstalled placeholders before Catalog publication', () => {
+    const rows = buildWindowsNodeRuntimeRows([], [])
+
+    expect(rows.map((row) => [row.version, row.state, row.artifact])).toEqual([
+      ['24.20.0', 'not-installed', null],
+      ['20.20.2', 'not-installed', null]
+    ])
+  })
+
+  it('keeps installed Node.js versions side by side and offers patch updates per major', () => {
+    const rows = buildWindowsNodeRuntimeRows([
+      { version: '20.20.1', active: false },
+      { version: '24.20.0', active: true }
+    ], [
+      { ...onlinePhp('20.20.2'), name: 'node' },
+      { ...onlinePhp('24.20.0'), name: 'node' }
+    ])
+
+    expect(rows.find((row) => row.major === '20')).toMatchObject({
+      state: 'update-available',
+      artifact: { version: '20.20.2' }
+    })
+    expect(rows.find((row) => row.major === '24')).toMatchObject({
+      state: 'installed',
+      runtime: { active: true }
+    })
+  })
+
+  it('distinguishes online install, current, and update states', () => {
+    const node = { ...onlinePhp('24.19.0'), name: 'node' }
+
+    expect(catalogRuntimeState(null, node)).toBe('not-installed')
+    expect(catalogRuntimeState('24.19.0', { ...node, installed: true })).toBe('installed')
+    expect(catalogRuntimeState('24.18.0', node)).toBe('update-available')
+    expect(catalogRuntimeState('24.20.0', node)).toBe('installed')
+    expect(compareRuntimeVersions('24.19.0', '24.18.9')).toBeGreaterThan(0)
   })
 })

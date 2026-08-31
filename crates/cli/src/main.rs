@@ -94,7 +94,14 @@ enum Command {
     artifact: PathBuf,
     release: PathBuf,
   },
-  RemoveNodeRuntime,
+  SetGlobalNode {
+    version: String,
+  },
+  EnableTerminalNode,
+  DisableTerminalNode,
+  RemoveNodeRuntime {
+    version: String,
+  },
   Proxies,
   AddProxy {
     id: String,
@@ -281,7 +288,10 @@ async fn main() -> Result<()> {
       artifact_path: artifact,
       release_path: release,
     },
-    Command::RemoveNodeRuntime => AgentRequest::RemoveNodeRuntime,
+    Command::SetGlobalNode { version } => AgentRequest::SetGlobalNode { version },
+    Command::EnableTerminalNode => AgentRequest::EnableTerminalNode,
+    Command::DisableTerminalNode => AgentRequest::DisableTerminalNode,
+    Command::RemoveNodeRuntime { version } => AgentRequest::RemoveNodeRuntime { version },
     Command::Proxies => AgentRequest::GetProxyManager,
     Command::AddProxy {
       id,

@@ -125,7 +125,9 @@ jobs:
 
   build-windows:
     name: Build Windows x64 Community installer
-    needs: validate
+    needs:
+      - validate
+      - build-windows-online-runtimes
     runs-on: windows-latest
     timeout-minutes: 90
     permissions:
@@ -160,6 +162,12 @@ jobs:
       - name: Install JavaScript dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Download Windows online Runtime assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: draft-windows-online-runtimes
+          path: release-input/runtimes
+
       - name: Run frontend tests
         run: pnpm -r --if-present test
 
@@ -182,6 +190,15 @@ jobs:
           FABDEV_WINDOWS_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/php-8.4.24-windows-x64-community.tar.gz
         run: >-
           cargo test -p fabdev-runtime installs_real_windows_php_archive
+          --target x86_64-pc-windows-msvc -- --ignored
+
+      - name: Validate packaged Windows Node.js and MariaDB Runtime installation
+        env:
+          FABDEV_WINDOWS_NODE20_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/runtimes/node-20.20.2-windows-x64.tar.gz
+          FABDEV_WINDOWS_NODE24_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/runtimes/node-24.20.0-windows-x64.tar.gz
+          FABDEV_WINDOWS_MARIADB_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/runtimes/mariadb-12.3.2-windows-x64.tar.gz
+        run: >-
+          cargo test -p fabdev-agent installs_real_windows_online_service_runtime_archives
           --target x86_64-pc-windows-msvc -- --ignored
 
       - name: Check Rust workspace
@@ -210,7 +227,45 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: draft-windows-x64
-          path: release-input/*
+          path: |
+            release-input/windows-installer.exe
+            release-input/fabdev-connect.exe
+            release-input/php-8.4.24-windows-x64-community.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  build-windows-online-runtimes:
+    name: Build verified Windows x64 Node.js and MariaDB Runtimes
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the existing release tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: v${{ inputs.version }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build verified Runtime packages
+        shell: bash
+        env:
+          FABDEV_BUILD_ROOT: ${{ runner.temp }}/windows-runtime-packages
+          FABDEV_ARTIFACT_DIR: ${{ github.workspace }}/release-input/runtimes
+          FABDEV_WINDOWS_RUNTIME_NAMES: mariadb node
+        run: ./scripts/build-windows-runtime-packages.sh
+
+      - name: Upload Runtime packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: draft-windows-online-runtimes
+          path: |
+            release-input/runtimes/mariadb-12.3.2-windows-x64.tar.gz
+            release-input/runtimes/node-20.20.2-windows-x64.tar.gz
+            release-input/runtimes/node-24.20.0-windows-x64.tar.gz
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
@@ -220,6 +275,7 @@ jobs:
     needs:
       - validate
       - build-windows
+      - build-windows-online-runtimes
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -253,6 +309,12 @@ jobs:
           name: draft-windows-x64
           path: release-input/windows
 
+      - name: Download Windows online Runtime assets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: draft-windows-online-runtimes
+          path: release-input/runtimes
+
       - name: Generate release assets and manifests
         shell: bash
         run: |
@@ -262,7 +324,10 @@ jobs:
             --output-dir "$GITHUB_WORKSPACE/release-assets" \
             --windows-x64 "$GITHUB_WORKSPACE/release-input/windows/windows-installer.exe" \
             --windows-connect-x64 "$GITHUB_WORKSPACE/release-input/windows/fabdev-connect.exe" \
-            --runtime-windows-x64 "$GITHUB_WORKSPACE/release-input/windows/php-8.4.24-windows-x64-community.tar.gz"
+            --runtime-windows-x64 "$GITHUB_WORKSPACE/release-input/windows/php-8.4.24-windows-x64-community.tar.gz" \
+            --runtime-mariadb-windows-x64 "$GITHUB_WORKSPACE/release-input/runtimes/mariadb-12.3.2-windows-x64.tar.gz" \
+            --runtime-node20-windows-x64 "$GITHUB_WORKSPACE/release-input/runtimes/node-20.20.2-windows-x64.tar.gz" \
+            --runtime-node24-windows-x64 "$GITHUB_WORKSPACE/release-input/runtimes/node-24.20.0-windows-x64.tar.gz"
           cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
             generate-windows \
             "$VERSION" \
@@ -271,6 +336,9 @@ jobs:
             "$RUNTIME_CATALOG_EXPIRES_AT" \
             "$VERSION" \
             "$GITHUB_WORKSPACE/release-assets/php-8.4.24-windows-x64-community.tar.gz" \
+            "$GITHUB_WORKSPACE/release-assets/mariadb-12.3.2-windows-x64-community.tar.gz" \
+            "$GITHUB_WORKSPACE/release-assets/node-20.20.2-windows-x64-community.tar.gz" \
+            "$GITHUB_WORKSPACE/release-assets/node-24.20.0-windows-x64-community.tar.gz" \
             "$GITHUB_WORKSPACE/release-assets/fabdev-runtime-v1.json"
           cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
             validate \
@@ -279,7 +347,7 @@ jobs:
           (
             cd release-assets
             sha256sum --check SHA256SUMS
-            test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "10"
+            test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "16"
           )
 
       - name: Create release notes skeleton
@@ -295,8 +363,8 @@ jobs:
             printf -- '- [ ] Complete release notes and known limitations.\n'
             printf -- '- [ ] Verify Windows x64 clean install, update, demo.test, and removal.\n'
             printf -- '- [ ] Re-download every Draft asset and verify size and SHA-256.\n'
-            printf -- '- [ ] Validate the Windows PHP 8.4.24 Runtime Archive and Runtime Catalog v1.\n'
-            printf -- '- [ ] Verify side-by-side Runtime install without changing current PHP or Sites.\n'
+            printf -- '- [ ] Validate the Windows PHP 8.4.24, MariaDB 12.3.2, and Node.js 20.20.2/24.20.0 Runtime Archives and Runtime Catalog v1.\n'
+            printf -- '- [ ] Verify side-by-side Runtime install and update without changing current PHP or Sites.\n'
             printf -- '- [ ] Obtain explicit Repository Owner approval before Publish.\n'
           } > "$RUNNER_TEMP/release-notes.md"
 

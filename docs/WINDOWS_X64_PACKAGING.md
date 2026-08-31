@@ -72,7 +72,8 @@ PHP 8.4、MariaDB 與 Node.js 不強制安裝在基礎 NSIS 內，使用以下�
 ```text
 php-8.4.24-windows-x64.{json,tar.gz}
 mariadb-12.3.2-windows-x64.{json,tar.gz}
-node-24.19.0-windows-x64.{json,tar.gz}
+node-20.20.2-windows-x64.{json,tar.gz}
+node-24.20.0-windows-x64.{json,tar.gz}
 ```
 
 建置流程固定並驗證官方 Windows Archive SHA-256；MariaDB 與 Node.js 另外驗證上游 PGP 簽章及允許的完整 Key Fingerprint。安裝時 Agent 會再次核對 Release 的平台、架構、大小與 Runtime Package SHA-256。
@@ -244,9 +245,9 @@ Get-FileHash -Algorithm SHA256 .\fabDev_0.1.0_x64-setup.exe
 - Windows x64 `fabdev-services` 35 個測試與 `fabdev-agent` 12 個測試全數通過。
 - 打包 sidecar 與覆蓋安裝後 Agent SHA-256 一致：`c24e7d1cb48a6f93ee57288b25511b78fca9fa6cf7d2a5ebb5b8319eaf48dca9`。
 - `demo.test` 回傳 HTTP 200，PHP 版本為 8.2.33。
-- PHP 8.4.24、Node.js 24.19.0 與 MariaDB 12.3.2 選裝 Runtime 均成功安裝，覆蓋安裝基礎 NSIS 後仍完整保留。
+- PHP 8.4.24、Node.js 20.20.2／24.20.0 與 MariaDB 12.3.2 選裝 Runtime 均成功安裝，覆蓋安裝基礎 NSIS 後仍完整保留。
 - MariaDB 狀態為 running，只監聽 `127.0.0.1:3306`，並以 root TCP 實際查詢到 `12.3.2-MariaDB`。
-- PHP 8.4.24 執行檔回報 NTS Visual C++ 2022 x64；Node.js 回報 `v24.19.0`，npm 回報 `11.17.0`。
+- PHP 8.4.24 執行檔回報 NTS Visual C++ 2022 x64；Node.js 20 與 24 必須各自回報 Catalog 固定版本，並驗證切換全域後 `node`／`npm` shim 立即跟隨。
 - 選裝 Runtime Package SHA-256：PHP 8.4 `d54f692f1126c05ea3710b84b78ac9a002ca030c7a62bba675e73da2f9772b14`、MariaDB `482b38fdaf9434393f051ad7669063193829625de76dd43878d52fb9001863ce`、Node.js `afb919956c008e8de3ac39454ef9fa06cdc041106ea209ee4794a4ea7a206451`。
 - Windows Site 列的 PHP Runtime 下拉框固定為 104px，使用跨平台一致的雙向箭頭，版面與 macOS 對齊。
 - Stop 後 Nginx／PHP 與 Port 80／443 均完成清理。

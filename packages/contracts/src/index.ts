@@ -1,5 +1,5 @@
-export const protocolVersion = 34
-export const stableNodeVersion = '24.19.0'
+export const protocolVersion = 36
+export const supportedNodeVersions = ['20.20.2', '24.20.0'] as const
 
 export type ServiceState =
   | 'notInstalled'
@@ -93,9 +93,21 @@ export interface TerminalPhpState {
   shimPath: string
 }
 
+export interface NodeRuntimeInfo {
+  version: string
+  active: boolean
+}
+
+export interface TerminalNodeState {
+  enabled: boolean
+  binPath: string
+  shimPaths: string[]
+}
+
 export interface NodeRuntimeState {
-  stableVersion: string
-  installedVersion: string | null
+  activeVersion: string | null
+  installed: NodeRuntimeInfo[]
+  terminal: TerminalNodeState
 }
 
 export interface RuntimeUpdateCheck {
@@ -117,6 +129,7 @@ export interface RuntimeUpdateArtifact {
   sha256: string
   unsignedCommunityBuild: boolean
   installed: boolean
+  activeVersion: string | null
 }
 
 export type RuntimeUpdateOperationStatus =
@@ -234,7 +247,10 @@ export type AgentRequest =
       type: 'installNodeRuntime'
       payload: { artifactPath: string; releasePath: string }
     }
-  | { type: 'removeNodeRuntime' }
+  | { type: 'setGlobalNode'; payload: { version: string } }
+  | { type: 'enableTerminalNode' }
+  | { type: 'disableTerminalNode' }
+  | { type: 'removeNodeRuntime'; payload: { version: string } }
   | { type: 'getProxyManager' }
   | { type: 'addProxyConnection'; payload: ProxyConnectionInput }
   | {
@@ -292,6 +308,8 @@ export type AgentResponse =
   | { type: 'erpPhpIni'; payload: { phpVersion: string | null; contents: string } }
   | { type: 'nodeRuntime'; payload: NodeRuntimeState }
   | { type: 'nodeRuntimeInstalled'; payload: NodeRuntimeState }
+  | { type: 'globalNodeChanged'; payload: NodeRuntimeState }
+  | { type: 'terminalNode'; payload: NodeRuntimeState }
   | { type: 'nodeRuntimeRemoved'; payload: NodeRuntimeState }
   | { type: 'proxyManager'; payload: ProxyManagerState }
   | { type: 'started' }

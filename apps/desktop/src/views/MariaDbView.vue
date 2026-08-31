@@ -1,12 +1,23 @@
 <script setup lang="ts">
-import type { ServiceState } from '@fabdev/contracts'
+import type {
+  RuntimeUpdateArtifact,
+  RuntimeUpdateOperation,
+  ServiceState
+} from '@fabdev/contracts'
 import { confirm, open } from '@tauri-apps/plugin-dialog'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { useAppStore } from '../stores/fabdev'
 import { translateError, useI18n } from '../utils/i18n'
 import { EMPTY_MARIADB_CONFIG, ERP_MARIADB_CONFIG } from '../utils/mariadb'
 import { formatPathForDisplay, isWindowsPlatform } from '../utils/path'
+import {
+  catalogRuntimeState,
+  formatRuntimeBytes,
+  isRuntimeDownloadActive,
+  latestRuntimeArtifact,
+  runtimeProgressPercent
+} from '../utils/runtime'
 
 const store = useAppStore()
 const { t } = useI18n()
@@ -14,7 +25,7 @@ const isWindows = isWindowsPlatform()
 const saving = ref(false)
 const configSaving = ref(false)
 const passwordSaving = ref(false)
-const runtimeAction = ref<'install' | 'remove' | null>(null)
+const runtimeAction = ref<string | null>(null)
 const message = ref('')
 const errorTitle = ref('')
 const port = ref('3306')
@@ -25,10 +36,38 @@ const configContents = ref(EMPTY_MARIADB_CONFIG)
 const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
+let mounted = true
 
 const mariaDbState = computed(() => store.status?.mariadb ?? 'notInstalled')
 const mariaDbRunning = computed(() => mariaDbState.value === 'running')
 const managedMariaDbAvailable = computed(() => mariaDbState.value !== 'notInstalled')
+const onlineArtifact = computed(() => latestRuntimeArtifact(
+  store.runtimeUpdateCheck?.artifacts ?? [],
+  'mariadb'
+))
+const runtimeState = computed(() => {
+  const artifact = onlineArtifact.value
+  if (!artifact) {
+    return managedMariaDbAvailable.value ? 'installed' : 'not-installed'
+  }
+  return catalogRuntimeState(artifact.activeVersion, artifact)
+})
+const onlineOperation = computed(() => {
+  const operation = store.runtimeUpdateOperation
+  const artifact = onlineArtifact.value
+  return artifact
+    && operation?.name === artifact.name
+    && operation.version === artifact.version
+    ? operation
+    : null
+})
+const onlineProgress = computed(() => onlineOperation.value
+  ? runtimeProgressPercent(
+      onlineOperation.value.bytesDownloaded,
+      onlineOperation.value.totalBytes
+    )
+  : 0
+)
 const localizedError = computed(() => store.error ? translateError(store.error) : '')
 const stateLabels = computed<Record<ServiceState, string>>(() => ({
   notInstalled: t('state.notInstalled'),
@@ -73,11 +112,26 @@ async function loadConfig() {
   }
 }
 
-onMounted(async () => {
-  await Promise.all([store.refreshStatus(), loadSettings(), loadConfig()])
+onMounted(() => {
+  void refreshPage()
 })
 
-async function installMariaDbRuntime() {
+onBeforeUnmount(() => {
+  mounted = false
+})
+
+async function refreshPage() {
+  await Promise.all([store.refreshStatus(), loadSettings(), loadConfig()])
+  if (isWindows) {
+    try {
+      await store.checkRuntimeUpdates()
+    } catch (error) {
+      store.setError(error instanceof Error ? error.message : String(error))
+    }
+  }
+}
+
+async function installLocalMariaDbRuntime() {
   const releasePath = await open({
     directory: false,
     multiple: false,
@@ -110,6 +164,111 @@ async function installMariaDbRuntime() {
   } finally {
     runtimeAction.value = null
   }
+}
+
+async function installOrUpdateOnlineRuntime() {
+  const artifact = onlineArtifact.value
+  if (!artifact || mariaDbRunning.value) {
+    return
+  }
+  let operation = onlineOperation.value
+  if (operation?.status !== 'verified') {
+    operation = await downloadOnlineRuntime(artifact)
+  }
+  if (operation?.status === 'verified') {
+    await installOnlineRuntime(artifact, operation)
+  }
+}
+
+async function downloadOnlineRuntime(
+  artifact: RuntimeUpdateArtifact
+): Promise<RuntimeUpdateOperation | null> {
+  const approved = await confirm(t('mariadb.onlineDownloadConfirm', {
+    version: artifact.version,
+    size: formatRuntimeBytes(artifact.size),
+    sha256: artifact.sha256
+  }), {
+    title: t('mariadb.onlineDownloadTitle'),
+    kind: 'warning',
+    okLabel: t('runtimes.onlineDownload'),
+    cancelLabel: t('runtimes.cancel')
+  })
+  if (!approved) {
+    return null
+  }
+
+  runtimeAction.value = `online-download:${artifact.version}`
+  message.value = t('mariadb.onlineDownloading')
+  store.clearError()
+  try {
+    let operation = await store.startRuntimeDownload(artifact.name, artifact.version)
+    while (mounted && isRuntimeDownloadActive(operation.status)) {
+      await new Promise((resolve) => window.setTimeout(resolve, 250))
+      operation = await store.getRuntimeUpdateOperation(operation.operationId)
+    }
+    if (operation.status === 'verified') {
+      message.value = t('mariadb.onlineVerified', { version: operation.version })
+      return operation
+    }
+    if (operation.status === 'failed') {
+      throw new Error(operation.error ?? t('runtimes.onlineDownloadFailed'))
+    }
+    message.value = t('runtimes.onlineCancelled')
+  } catch (error) {
+    message.value = ''
+    store.setError(error instanceof Error ? error.message : String(error))
+  } finally {
+    runtimeAction.value = null
+  }
+  return null
+}
+
+async function installOnlineRuntime(
+  artifact: RuntimeUpdateArtifact,
+  operation: RuntimeUpdateOperation
+) {
+  const updating = runtimeState.value === 'update-available'
+  const approved = await confirm(t('mariadb.onlineInstallConfirm', {
+    version: artifact.version,
+    size: formatRuntimeBytes(artifact.size),
+    sha256: artifact.sha256
+  }), {
+    title: t(updating ? 'mariadb.onlineUpdateTitle' : 'mariadb.onlineInstallTitle'),
+    kind: 'warning',
+    okLabel: t(updating ? 'runtimes.update' : 'dashboard.installMariaDb'),
+    cancelLabel: t('runtimes.cancel')
+  })
+  if (!approved) {
+    return
+  }
+
+  runtimeAction.value = `online-install:${artifact.version}`
+  message.value = t(updating ? 'mariadb.onlineUpdating' : 'mariadb.onlineInstalling')
+  store.clearError()
+  try {
+    const result = await store.installDownloadedRuntime(operation.operationId)
+    if (result.status !== 'completed') {
+      throw new Error(result.error ?? t('runtimes.onlineInstallFailed'))
+    }
+    await Promise.all([store.refreshStatus(), loadSettings(), loadConfig()])
+    message.value = t(updating ? 'mariadb.onlineUpdated' : 'mariadb.onlineInstalled', {
+      version: result.version
+    })
+    await store.checkRuntimeUpdates()
+  } catch (error) {
+    message.value = ''
+    store.setError(error instanceof Error ? error.message : String(error))
+  } finally {
+    runtimeAction.value = null
+  }
+}
+
+async function cancelOnlineDownload() {
+  const operation = onlineOperation.value
+  if (!operation || !isRuntimeDownloadActive(operation.status)) {
+    return
+  }
+  await store.cancelRuntimeDownload(operation.operationId)
 }
 
 async function removeMariaDbRuntime() {
@@ -226,10 +385,10 @@ async function changeRootPassword() {
     </div>
     <div class="header-actions">
       <button
-        v-if="mariaDbState === 'notInstalled'"
+        v-if="!isWindows && mariaDbState === 'notInstalled'"
         class="primary-button"
         :disabled="store.busy || runtimeAction !== null"
-        @click="installMariaDbRuntime"
+        @click="installLocalMariaDbRuntime"
       >
         {{ runtimeAction === 'install' ? t('dashboard.installingMariaDb') : t('dashboard.installMariaDb') }}
       </button>
@@ -242,7 +401,7 @@ async function changeRootPassword() {
         {{ t('dashboard.stopMariaDb') }}
       </button>
       <button
-        v-else
+        v-else-if="managedMariaDbAvailable"
         class="primary-button"
         :disabled="store.busy || runtimeAction !== null"
         @click="store.startMariaDb"
@@ -257,7 +416,7 @@ async function changeRootPassword() {
       >
         {{ runtimeAction === 'remove' ? t('dashboard.removingMariaDb') : t('dashboard.removeMariaDb') }}
       </button>
-      <button class="secondary-button" :disabled="store.busy" @click="store.refreshStatus">
+      <button class="secondary-button" :disabled="store.busy" @click="refreshPage">
         {{ t('common.refresh') }}
       </button>
     </div>
@@ -272,6 +431,65 @@ async function changeRootPassword() {
     <div v-if="message" class="notice">
       <span>{{ message }}</span>
     </div>
+
+    <section v-if="isWindows && onlineArtifact" class="runtime-list">
+      <article class="runtime-card">
+        <div class="runtime-details">
+          <span class="runtime-version">DB</span>
+          <div>
+            <h2>MariaDB {{ onlineArtifact.version }}</h2>
+            <p>
+              Windows x64 · {{ formatRuntimeBytes(onlineArtifact.size) }}
+              <template v-if="runtimeState === 'update-available' && onlineArtifact.activeVersion">
+                · {{ t('mariadb.updateFrom', {
+                  current: onlineArtifact.activeVersion,
+                  version: onlineArtifact.version
+                }) }}
+              </template>
+            </p>
+            <div v-if="onlineOperation" class="runtime-row-progress">
+              <progress
+                :value="onlineOperation.bytesDownloaded"
+                :max="onlineOperation.totalBytes || 1"
+              />
+              <small>
+                {{ t(`runtimes.onlineStatus.${onlineOperation.status}`) }} · {{ onlineProgress }}%
+              </small>
+            </div>
+          </div>
+        </div>
+        <div class="runtime-actions">
+          <span
+            class="state-pill"
+            :data-state="runtimeState === 'update-available' ? 'warning' : managedMariaDbAvailable ? 'installed' : undefined"
+          >
+            {{ runtimeState === 'update-available'
+              ? t('runtimes.updateAvailable')
+              : managedMariaDbAvailable
+                ? t('state.installed')
+                : t('state.notInstalled') }}
+          </span>
+          <button
+            v-if="runtimeState !== 'installed' && !isRuntimeDownloadActive(onlineOperation?.status ?? 'failed')"
+            class="primary-button"
+            :disabled="store.busy || runtimeAction !== null || mariaDbRunning"
+            :title="mariaDbRunning ? t('mariadb.stopBeforeUpdate') : undefined"
+            @click="installOrUpdateOnlineRuntime"
+          >
+            {{ runtimeState === 'update-available'
+              ? t('runtimes.update')
+              : t('dashboard.installMariaDb') }}
+          </button>
+          <button
+            v-if="isRuntimeDownloadActive(onlineOperation?.status ?? 'failed')"
+            class="danger-button"
+            @click="cancelOnlineDownload"
+          >
+            {{ t('runtimes.onlineCancelDownload') }}
+          </button>
+        </div>
+      </article>
+    </section>
 
     <section v-if="managedMariaDbAvailable" class="form-card mariadb-settings-card">
       <div class="mariadb-settings-heading">

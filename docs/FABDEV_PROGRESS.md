@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
-> 更新日期：2026-08-30
-> 目前階段：Unsigned Community Build `v0.1.3` 已發布；`v0.1.5` 保留為未發布失敗候選，Windows Runtime mtime 與終端機 PHP 修正已通過未標記 Windows CI，正式候選版升為 `0.1.6`
+> 更新日期：2026-08-31
+> 目前階段：專案版本 `0.1.10`；Windows x64 Node.js／MariaDB 線上安裝與升級已完成程式、產包及 Windows VM 驗證，進入正式發布流程
 
 ## 已完成
 
@@ -16,7 +16,7 @@
 - PHP 7.4.33、8.2.33、8.4.24 並行 FPM、全域 PHP、Runtime 安裝／移除與持久 `php.ini`；上傳限制為 64M。
 - PHP 設定提供由目前 PHP 8.2 設定初始化的預設 `php.ini` 範本，只套用到尚未建立專屬設定的 PHP minor。
 - PHP 7.4 與 8.2 內建 Runtime 可安全移除；仍保留全域版本與 Site 使用中保護，明確移除後不會在下次啟動自動補回。
-- 左側倒數第二項 Node.js 頁面、預設不安裝的 Node.js 24.19.0 LTS 選裝 Runtime，以及 Agent 安裝、狀態與移除；Node.js 與 Sites 分離，也不接管 Homebrew、nvm、Herd 或系統 Node.js。
+- 左側倒數第二項 Node.js 頁面提供 Windows x64 Node.js 20.20.2／24.20.0 並存選裝；預設均未安裝，支援每個版本安裝／更新／移除、明確設為全域及動態 terminal shim，不使用 nvm，也不接管外部 Node.js。
 - 左側 Proxy Manager、Agent／CLI 的新增／移除、全部與單獨啟動／停止；全新安裝的 Proxy 清單為空，使用者設定與啟動狀態保存在 SQLite，所有 Listener 只綁 loopback，Port 衝突與上游故障互相隔離。
 - 設定頁可持久開關「App 開啟時自動啟動服務」；預設開啟，已運行不重啟，部分異常會先清理再啟動。
 - Community DMG 讓 App 內建 DNS、Nginx、PHP 7.4／8.2，並含 Helper、安裝／移除程序與唯一 `demo.test`；PHP 8.4、MariaDB 維持獨立選裝套件。
@@ -31,6 +31,13 @@
 - Windows `fabdev-connect.exe`：UAC 後自動管理多個有明確標記的 `.test` hosts，以非同步 Client `127.0.0.1:80` 代理轉送到主機，保存最後使用的主機與 Sites，並在從 Parallels Shared Folders 啟動時自動轉存本機 Runtime，再要求 UAC。
 
 ## 最近驗證
+
+- 2026-08-31：Windows x64 Node.js 20.20.2／24.20.0 與 MariaDB 12.3.2 已接入 Runtime Catalog v1、Agent Protocol 36 與 Desktop。Node 兩個 major 會各自顯示安裝／更新狀態，Node 20 顯示 EOL 警告；下載支援進度、取消、大小／SHA-256 與安裝前重新驗證。
+- Node.js 安裝後驗證 `node.exe` 與 `npm.cmd`，但不自動切換全域或 PATH；按「設為全域」後才啟用 `node`／`npm`／`npx`／`corepack` shim。MariaDB 必須停止才能安裝或升級，成功後保留既有 data／config／log 並重新套用 PHP MariaDB 連線，失敗時恢復原 active Runtime。
+- Windows Runtime 產包腳本已改為可在 macOS／Ubuntu 重跑並可只建置指定 Runtime；以本機已下載的固定上游檔案實際完成 MariaDB（約 99 MB）與 Node.js（約 36 MB）SHA-256、官方 PGP 完整 Fingerprint、單一版本根目錄及 descriptor 驗證。
+- Parallels Windows 11 已用 x64 MSVC target 從目前 workspace 編譯 Agent 測試，並以真實 Node.js 20.20.2／24.20.0 Package 完成解壓、並存安裝、active 切換、動態 `node.cmd` shim 與 `node.exe`／`npm.cmd` 健康檢查；1 項原生整合測試通過。本輪 VM 編譯目錄與 Mac 驗收 Package 已清除。
+- Draft Release workflow 已加入兩版 Node.js／MariaDB 的獨立 verified build job、Windows 原生真實 Archive 安裝／binary 健康檢查，以及四 Runtime Catalog 與 16 個 Release Assets 契約。正式 Windows CI、封裝 App 與 Publish 後匿名 Feed 尚待後續經授權的發布流程執行。
+- 本輪本機驗證：Desktop 64 項測試、Vue production build、Runtime 20 項與 Agent 18 項測試、Rust workspace、Release Script 8 項、workflow 與 shell syntax 均通過；另以 Windows VM 原生 x64 target 完成 Node.js 20／24 真實 Archive 驗收。
 
 - `v0.1.3` 已發布為最新 Stable Release：<https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.3>。Release `379130930` 為非 Draft、非 Pre-release，共 9 個公開 Assets；遠端 annotated Tag、`main` 與 `origin/main` 均固定在 Commit `1d6625d42e16e65e2b188a5da2c4c4774f784f74`。
 - 9 個 `v0.1.3` 公開 Assets 已由匿名 URL 重新下載；DMG、Windows Setup、Connect、`SHA256SUMS`、三份個別 checksum 與兩份逐位元一致的 Manifest 全數通過。公開 Stable Manifest 為 `0.1.3`、Agent Protocol 32、`requiresFullInstaller=true`，Unsigned Community 簽章欄位維持 `null`。
@@ -170,6 +177,7 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 
 - [ ] 依 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md) 完成 Runtime Catalog v1、Agent Protocol 33 與 PHP 8.4.24 兩平台 Side-by-side 線上安裝；P2.1～P2.3、`v0.1.5` Draft 靜態驗證、macOS 與 Windows App 覆蓋驗收已完成，Windows Runtime mtime 修正待新版 CI 與實機重驗，Publish 後匿名 Feed 驗收仍待執行。
 - [x] 單一穩定版 Node.js LTS 獨立選裝、顯示狀態及移除。
+- [ ] 完成 Windows x64 Node.js／MariaDB 線上安裝與升級的發布驗收；Catalog、Agent、Desktop、可重現產包與 Draft workflow 已完成，尚待 Windows CI、封裝版 App 及 Publish 後匿名 Feed。
 - [ ] Node.js 多版本、全域版本、`.nvmrc`／`fabdev.yml` 與選用的專案感知 CLI shim。
 - [x] macOS ARM64 MariaDB 選裝服務。
 - [ ] Windows MariaDB 安裝版與 Portable 版的 Runtime、資料及升級策略。
