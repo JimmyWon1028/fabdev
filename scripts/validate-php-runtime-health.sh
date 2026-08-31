@@ -155,7 +155,7 @@ fi
 
   [$headers, $body] = array_pad(explode("\r\n\r\n", $stdout, 2), 2, "");
   $payload = json_decode($body, true);
-  if (!str_contains($headers, "X-FabDev-Runtime: php-fpm")
+  if (strpos($headers, "X-FabDev-Runtime: php-fpm") === false
     || !is_array($payload)
     || ($payload["sapi"] ?? null) !== "fpm-fcgi"
     || ($payload["sum"] ?? null) !== 2

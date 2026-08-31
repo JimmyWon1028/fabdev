@@ -456,6 +456,8 @@ test('pins and prepares every macOS ARM64 online Runtime package', async () => {
   assert.match(phpPackage, /validate-php-runtime-health\.sh/)
   assert.match(phpHealthCheck, /stream_socket_client\("unix:\/\/"/)
   assert.match(phpHealthCheck, /"fpm-fcgi"/)
+  assert.match(phpHealthCheck, /strpos\(\$headers,/)
+  assert.doesNotMatch(phpHealthCheck, /str_contains/)
   assert.match(phpHealthCheck, /PHP-FPM FastCGI request passed/)
   assert.match(phpSiteHealthCheck, /fastcgi_pass unix:/)
   assert.match(phpSiteHealthCheck, /Host: \$SITE_DOMAIN/)
