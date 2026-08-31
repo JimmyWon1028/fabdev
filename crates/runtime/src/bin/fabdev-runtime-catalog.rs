@@ -7,7 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use fabdev_runtime::{
   generate_community_php_catalog, generate_community_windows_catalog,
   parse_and_validate_runtime_catalog, CommunityPhpCatalogInput, CommunityWindowsCatalogInput,
-  RuntimeCatalogValidation, RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+  RuntimeCatalogValidation, WINDOWS_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
 };
 
 fn usage() -> &'static str {
@@ -85,7 +85,7 @@ fn validate(args: &[String]) -> Result<(), Box<dyn Error>> {
     &contents,
     &RuntimeCatalogValidation {
       current_app_version: &args[1],
-      current_agent_protocol_version: RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+      current_agent_protocol_version: WINDOWS_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
       now_unix_seconds: now_unix_seconds()?,
       accepted_catalog: None,
     },
