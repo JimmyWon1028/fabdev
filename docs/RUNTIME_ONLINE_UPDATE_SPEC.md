@@ -255,7 +255,7 @@ Windows Node.js 與 MariaDB 的升級規則：
 - [x] 升級 Agent Protocol 33，加入背景操作與輪詢。
 - [x] 完成取消、重試、快取與錯誤清理。
 
-P2.2 已完成程式與本機 fixture 驗證；公開 GitHub Runtime Catalog／Package 尚未發布，因此固定 `releases/latest` Feed 的匿名實際下載留待 P2.4 Draft 驗收。`InstallDownloadedRuntime` 已保留於 Protocol 33，但在 P2.3 完成健康檢查與 Side-by-side 安裝前固定拒絕執行。
+P2.2 的背景下載、取消、快取與狀態輪詢已由 Windows x64 `v0.1.12` 的公開 `releases/latest` Feed 實際驗證；`InstallDownloadedRuntime` 只在下載完成、大小與 SHA-256 驗證通過後進入 P2.3 的固定健康檢查與 Side-by-side 安裝。
 
 ### P2.3：PHP Runtime UI 與安裝
 
@@ -265,17 +265,18 @@ P2.2 已完成程式與本機 fixture 驗證；公開 GitHub Runtime Catalog／P
 - [x] 解壓 staging 後執行固定 PHP CLI／版本檢查，安裝後驗證必要 MySQL extensions 及 macOS FPM／Windows CGI 設定。
 - [x] PHP 8.4.24 採 Side-by-side 安裝，不自動切換 Site、全域 PHP 或 `current`；失敗時清除本次新增的 Runtime、設定及 staging。
 
-P2.3 已完成程式、前端呈現與本機 fixture 驗證。公開 Runtime Catalog／Package 尚未發布，因此實際 GitHub 下載、真實 PHP 8.4.24 binary 健康檢查、Site HTTP 200、重啟持久性及 Windows x64 驗收仍屬 P2.4。
+P2.3 已完成程式、前端呈現、本機 fixture 與 Windows x64 公開 Runtime 驗證。`v0.1.12` 已由公開 Catalog 實際移除後重新下載安裝 PHP 7.4.33／8.2.33，CLI、`mysqli`、`pdo_mysql`、移除標記清除、Site PHP 恢復與 HTTP 200 均通過；PHP 8.4.24 的真實 Package 健康檢查由 CI 與既有 VM 安裝驗收通過。macOS 公開發布與重啟持久性仍屬後續 P2.4 範圍。
 
-### P2.4：兩平台 Draft 驗收
+### P2.4：兩平台 Draft 與 Stable 驗收
 
 - `v0.1.11` 的完整執行矩陣、Release tooling 缺口、16 個 Asset 契約、授權關卡與 Publish 後匿名 Feed 閘門見 [`P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md`](P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md)。
 - [x] 正式 Runtime Catalog v1 產生器、Package checksum 納入總表；`v0.1.11` 使用 16 個 Draft Assets，加入 Windows PHP 7.4／8.2 後的下一版 Windows-only 契約為 20 個 Assets。
 - [x] Windows PHP 8.4.24 專用來源 SHA-256、CLI／CGI／MySQL extensions 與單一 Archive 根目錄驗證腳本。
 - [x] Windows 空白使用者 `php.ini` 保留，內部服務設定自動載入 `mysqli`／`pdo_mysql` 的回歸修正。
-- 取得明確重新打包授權後才建立 Runtime Packages。
-- 建立 App Draft Release，重新下載並驗證所有 Runtime Assets。
-- macOS／Windows 端到端通過且 Repository Owner 核准後才 Publish。
+- [x] 取得明確重新打包授權後建立 Windows PHP 7.4／8.2／8.4、MariaDB 及 Node.js 20／24 Runtime Packages。
+- [x] 建立 `v0.1.12` Windows-only Draft Release，重新下載並驗證 20 個 Runtime／App Assets。
+- [x] Windows VM 端到端與 Repository Owner 核准後 Publish；匿名 Stable Feed 與 PHP 7.4／8.2 移除後線上重裝通過。
+- [ ] 完成 macOS ARM64 公開 Draft、端到端與 Stable Publish；不得以 Windows 驗收取代。
 
 ### P2.5：Windows Node.js／MariaDB 線上安裝與升級
 
@@ -284,9 +285,9 @@ P2.3 已完成程式、前端呈現與本機 fixture 驗證。公開 Runtime Cat
 - [x] MariaDB 停止閘門、Runtime 切換、資料／設定保留、PHP 連線設定重新套用與失敗回復。
 - [x] 固定 SHA-256／PGP Fingerprint 的可重現產包腳本、六個 Windows Runtime Catalog 項目與 Draft Release workflow。
 - [x] 在 Parallels Windows 11 的 x64 MSVC target 以真實 Archive 完成 Node.js／MariaDB 安裝、active 切換及 binary 健康檢查。
-- [ ] 在 Windows x64 CI 執行真實 Node.js／MariaDB Archive 安裝及 binary 健康檢查。
+- [x] 在 Windows x64 CI 執行真實 Node.js／MariaDB Archive 安裝及 binary 健康檢查。
 - [ ] 在新版封裝 App 完成未安裝 → 安裝 → 啟動／使用 → 新版 Catalog → 更新 → 重啟持久性驗收。
-- [ ] Publish 後由匿名 `releases/latest` 完成 Catalog 與兩套 Runtime 的實際下載驗收。
+- [x] Publish 後由匿名 `releases/latest` 完成 Catalog、Node.js 與 MariaDB Runtime 公開下載端點驗收。
 
 ### P2.6：後續 Runtime
 

@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-08-31
-> 目前階段：專案版本 `0.1.11`；Windows x64 App 原地更新、GitHub 分段續傳、Runtime Catalog v1 與 Stable Release 已完成發布及公開下載驗收，macOS 更新保留後續處理
+> 目前階段：專案版本 `0.1.12`；Windows x64 App 原地更新、GitHub 分段續傳、PHP 7.4／8.2／8.4 Runtime Catalog v1 與 Stable Release 已完成發布及公開下載驗收，macOS 更新保留後續處理
 
 ## 已完成
 
@@ -32,7 +32,8 @@
 
 ## 最近驗證
 
-- 2026-08-31：Windows x64 PHP Runtime Catalog 已由單一 PHP 8.4 擴充為 PHP 7.4.33／8.2.33／8.4.24。三份官方 Windows Archive 均以固定 SHA-256 建立單一版本根目錄 Package，CLI、CGI 與 `mysqli`／`pdo_mysql` 載入驗證通過；Parallels Windows 11 的 x64 MSVC 測試已逐版先建立使用者移除標記，再以真實 Package 重新安裝，確認 Runtime 檔案完整且移除標記清除。Desktop Catalog 測試亦確認移除後顯示「未安裝」並保留安裝 Artifact。下一步由 `v0.1.12` Windows-only Draft workflow、封裝 App 與公開 Feed 完成發布驗收。
+- 2026-08-31：`v0.1.12` 已發布為最新 Windows x64 Stable Release：<https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.12>。GitHub Actions Run `33389051643` 全數通過；20 個 Draft Assets 約 321 MiB，重新下載後通過總表、八份個別 SHA-256、App Manifest、Runtime Catalog sequence 6 與六個 Runtime Archive 完整性驗證。公開 Stable／Runtime Feed、Setup、PHP 7.4／8.2 端點均由匿名 URL 驗證成功。
+- Windows VM 已由 `0.1.11` 使用 `/UPDATE /P /R` 原地覆蓋至 `0.1.12` 並自動重新啟動；唯一 `demo.test`、Site ID、PHP 8.2、全域 PHP 8.2.33 與設定檔雜湊均保留，Agent `0.1.12`／Protocol 36 與 HTTP 200 通過。Publish 後再實際移除並由公開 Catalog 重新下載安裝 PHP 7.4.33／8.2.33，兩版大小、SHA-256、CLI、`mysqli`、`pdo_mysql` 及移除標記清除均通過，最後恢復全域與 Site PHP 8.2。
 - 2026-08-31：Windows x64 App 更新已改為安全退出後使用 Tauri NSIS `/UPDATE /P /R` 原地覆蓋並自動重新啟動，不走舊版移除流程；設定頁文字已同步說明 Sites、Runtime 與使用者資料會保留。
 - Windows x64 App／Runtime GitHub Artifact 下載新增 8 MiB 分段、最多 4 路並行、4 次退避重試、跨 App 重啟續傳、完成後整包 SHA-256，以及設定頁速度／預估剩餘時間；macOS 下載與安裝流程保持不變。
 - 本輪 Desktop 66 項、Release 規則 9 項、Updater 15 項、Vue production build、rustfmt、Updater Clippy 與 `git diff --check` 通過；Parallels Windows 11 的 x64 target Desktop 編譯及 Updater 15 項原生測試通過。公開 `v0.1.10` Windows Setup 的單 Byte Range 實測回傳 `206`、`Content-Range: bytes 0-0/49258503`。
@@ -44,7 +45,7 @@
 - Parallels Windows 11 已用 x64 MSVC target 從目前 workspace 編譯 Agent 測試，並以真實 Node.js 20.20.2／24.20.0 Package 完成解壓、並存安裝、active 切換、動態 `node.cmd` shim 與 `node.exe`／`npm.cmd` 健康檢查；1 項原生整合測試通過。本輪 VM 編譯目錄與 Mac 驗收 Package 已清除。
 - Draft Release workflow 已加入兩版 Node.js／MariaDB 的獨立 verified build job、Windows 原生真實 Archive 安裝／binary 健康檢查，以及四 Runtime Catalog 與 16 個 Release Assets 契約。`v0.1.11` Windows CI、封裝 App、Draft 與 Publish 後匿名 Feed 驗收均已完成。
 - 本輪本機驗證：Desktop 64 項測試、Vue production build、Runtime 20 項與 Agent 18 項測試、Rust workspace、Release Script 8 項、workflow 與 shell syntax 均通過；另以 Windows VM 原生 x64 target 完成 Node.js 20／24 真實 Archive 驗收。
-- `v0.1.11` 已發布為最新 Stable Release：<https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.11>。16 個 Draft Assets 全數重新下載並通過總表、個別 SHA-256、Manifest 與 NSIS 完整性；Publish 後匿名 Release 頁、Stable Manifest、Runtime Catalog 與完整 Windows Setup 均為 HTTP 200，公開 Setup SHA-256 為 `3c12f1b24ffbd7675bc325b87c41f20459924a1ba14e6e3f58e9a41cbfb0c3ee`。
+- `v0.1.11` 歷史 Stable Release：<https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.11>。16 個 Draft Assets 全數重新下載並通過總表、個別 SHA-256、Manifest 與 NSIS 完整性；Publish 後匿名 Release 頁、Stable Manifest、Runtime Catalog 與完整 Windows Setup 均為 HTTP 200，公開 Setup SHA-256 為 `3c12f1b24ffbd7675bc325b87c41f20459924a1ba14e6e3f58e9a41cbfb0c3ee`。
 - Windows VM 使用 `v0.1.11` 實際 Updater 程式碼讀取公開 Stable Feed：由 `0.1.10` 判定 `0.1.11` 可更新、由 `0.1.11` 判定無新版，並以四路 8 MiB Range 下載 49,305,659 bytes Setup、完成整包 SHA-256 與 pending installer 驗證；公開 Range 實測回傳 `206`。
 
 - `v0.1.3` 已發布為最新 Stable Release：<https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.3>。Release `379130930` 為非 Draft、非 Pre-release，共 9 個公開 Assets；遠端 annotated Tag、`main` 與 `origin/main` 均固定在 Commit `1d6625d42e16e65e2b188a5da2c4c4774f784f74`。
@@ -183,7 +184,7 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 
 ### P2：選裝與跨平台
 
-- [ ] 依 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md) 完成 Runtime Catalog v1 與 PHP 8.4.24 兩平台 Side-by-side 線上安裝；Windows x64 已由 `v0.1.11` 完成 CI、封裝、Publish 與匿名 Feed，macOS 發布流程依目前範圍保留後續處理。
+- [ ] 依 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md) 完成 Runtime Catalog v1 與 PHP 8.4.24 兩平台 Side-by-side 線上安裝；Windows x64 已由 `v0.1.12` 完成 PHP 7.4／8.2／8.4 的 CI、封裝、Publish、匿名 Feed 與 PHP 7.4／8.2 真實線上重裝，macOS 發布流程依目前範圍保留後續處理。
 - [x] 單一穩定版 Node.js LTS 獨立選裝、顯示狀態及移除。
 - [x] 完成 Windows x64 Node.js／MariaDB 線上安裝與升級的發布驗收；`v0.1.11` Catalog、Agent、Desktop、可重現產包、Windows CI、封裝版 App、Stable Publish 與匿名 Feed 均已完成。
 - [ ] Node.js 多版本、全域版本、`.nvmrc`／`fabdev.yml` 與選用的專案感知 CLI shim。

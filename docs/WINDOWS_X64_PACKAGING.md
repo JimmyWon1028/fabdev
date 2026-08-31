@@ -301,6 +301,16 @@ Tag `v0.1.11` 的 GitHub Actions Windows x64 與 Draft Release Jobs 全數通過
 
 Publish 後以未帶 GitHub Token 的公開 URL 重新取得 Release 頁、Stable Manifest、Runtime Catalog 與完整 Setup，均為 HTTP 200，內容與 Draft 驗收版本一致。兩個實際 8 MiB Range 均回傳 206；Windows VM 再以 `v0.1.11` 的 `fabdev-updater` 讀取公開 Feed，正確判定 `0.1.10 -> 0.1.11` 可更新與 `0.1.11` 無新版，並完成四路分段下載、大小、整包 SHA-256 及 pending installer 驗證。
 
+## 2026-08-31 `0.1.12` PHP 7.4／8.2 線上重裝驗收
+
+Commit `9c86342dd81e006991bae49b612cac32dc1beb0d` 與 annotated Tag `v0.1.12` 已推送；GitHub Actions Run `33389051643` 的前端測試、Rust workspace、格式、Clippy、Connect、NSIS 與六個 Windows Runtime Package 工作均通過。Release 共 20 個 Assets、約 321 MiB；重新下載後 `SHA256SUMS`、八份個別 checksum、兩份逐位元一致的 App Manifest、Runtime Catalog sequence 6 與六個單一版本根目錄 Archive 均通過。
+
+公開 Setup 為 49,305,664 bytes，SHA-256 `0287677c041ed4556db6d93cab99777d90aa2f0baecfec4fd5aa7a65d7a63173`。Parallels Windows 11 ARM 的 x64 相容環境由 `0.1.11` 使用 `/UPDATE /P /R` 原地更新至 `0.1.12` 並自動重新啟動；Desktop／Agent 為 `0.1.12`、Protocol 36。唯一 `demo.test` 的 Site ID、路徑、PHP 8.2、全域 PHP 8.2.33 及 PHP／MariaDB／Site 設定雜湊保持不變，HTTP 200 與 PHP 8.2.33 通過。
+
+Publish 後以未帶 GitHub Token 的 Latest Manifest 與 Runtime Catalog 取得 `0.1.12`／sequence 6；Release 頁、Setup、PHP 7.4.33 與 PHP 8.2.33 端點均可匿名 Range 下載。Windows VM 再依序移除兩個 PHP Runtime，確認 Catalog 回報未安裝後從公開 GitHub 分段下載並安裝；下載檔分別為 26,931,928／34,436,103 bytes，SHA-256 `a9065253af91e75dfa8376ff5a49ae24948f48269d0da02eae6bd0b328799101`／`2e9f425144ad7e80434890e30ef218f733962d710724111750b7a2c88b7bccb2`。兩版 CLI、`mysqli`、`pdo_mysql` 與移除標記清除通過，最後恢復全域與 `demo.test` 為 PHP 8.2，HTTP 200。
+
+切換 Site PHP 版本會重啟 PHP-CGI；驗收中最後一次切換後的第一個立即請求曾短暫回傳 502，服務就緒後重試為 HTTP 200。這不影響安裝完整性，但呼叫端與 UI 應在切換期間顯示重新啟動狀態並允許重試。
+
 ## 常見問題快速對照
 
 | 症狀 | 優先檢查 |

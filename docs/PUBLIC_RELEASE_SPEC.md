@@ -401,6 +401,20 @@ https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.11
 - Windows VM 以 Tag 內相同的 `fabdev-updater` 程式碼完成公開 Feed 版本判斷、四路分段下載、整包 SHA-256 與 pending installer 驗證；本機候選的 `/UPDATE /P /R` 原地覆蓋、App 自動重啟、資料保留與 `demo.test` HTTP 200 已先行通過。
 - 這是 Windows x64 Unsigned Community Release；Windows 11 ARM x64 相容模式與 GitHub native x64 runner 已驗證，實體 Windows x64、SmartScreen 信譽及 IIS／Herd 共存仍列為已知邊界。
 
+### 9.4 `v0.1.12` Windows PHP Runtime Stable Publish 執行結果
+
+Repository Owner 明確核准後，Commit `9c86342dd81e006991bae49b612cac32dc1beb0d`、annotated Tag `v0.1.12` 與 Windows-only Draft Release 已建立。GitHub Actions Run `33389051643` 全數通過，20 個 Draft Assets 約 321 MiB；全部重新下載後通過總表、八份個別 SHA-256、App Manifest、Runtime Catalog sequence 6 與六個 Runtime Archive 驗證。
+
+```text
+https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.12
+```
+
+- Release 已發布為 `draft=false`、`prerelease=false` 的 Latest Stable；發布後沒有殘留 Draft Release。
+- 公開 Stable Manifest 與 Runtime Catalog 固定為 App `0.1.12`／Agent Protocol 36，以及 Catalog sequence 6／minimum App `0.1.12`；匿名下載與 Draft 驗收檔逐位元一致。
+- 公開 Windows Setup 為 49,305,664 bytes，SHA-256 `0287677c041ed4556db6d93cab99777d90aa2f0baecfec4fd5aa7a65d7a63173`；Release 頁、Setup、PHP 7.4.33 與 PHP 8.2.33 端點的匿名 Range 請求均通過。
+- Windows VM 由 `0.1.11` 使用 `/UPDATE /P /R` 原地更新至 `0.1.12` 並自動重新啟動；Site、全域 PHP 與設定雜湊保留，Agent `0.1.12`、Protocol 36 與 `demo.test` HTTP 200 通過。
+- Publish 後在 VM 依序移除 PHP 7.4.33／8.2.33，再由公開 Catalog 重新下載安裝；兩版 Archive 大小與 SHA-256、CLI、`mysqli`、`pdo_mysql`、移除標記清除與最後恢復 PHP 8.2 均通過。
+
 ## 10. 撤回與回復
 
 發布後發現問題時：
@@ -444,5 +458,6 @@ P0 發布基礎需依序完成：
 - [x] 建立 `v0.1.3` Draft、完成 macOS／Windows 覆蓋與資料保留驗收，並由 Repository Owner 明確核准 Stable Publish。
 - [x] Publish `v0.1.3`，完成 9 個公開 Assets、Stable／App Manifest、匿名下載、固定 Tag 與 Windows App 內 `0.1.2 → 0.1.3` 更新驗收。
 - [x] Publish Windows-only `v0.1.11`，完成 16 個公開 Assets、App／Runtime Manifest、匿名完整下載、Range 分段與 Windows VM 原生 Updater 驗收。
+- [x] Publish Windows-only `v0.1.12`，完成 20 個公開 Assets、PHP 7.4／8.2／8.4 Runtime Catalog、匿名下載，以及 Windows VM 的 PHP 7.4／8.2 移除後公開線上重裝驗收。
 
-`v0.1.11` 是目前可供公開下載的 Windows x64 正式 Stable Release；P0 公開發布基礎、P1 App 內更新，以及 Windows x64 的 P2 PHP／MariaDB／Node.js Runtime Catalog 與線上下載均已完成。macOS 發布流程與正式發布者簽章依目前範圍保留後續處理。
+`v0.1.12` 是目前可供公開下載的 Windows x64 正式 Stable Release；P0 公開發布基礎、P1 App 內更新，以及 Windows x64 的 P2 PHP／MariaDB／Node.js Runtime Catalog 與線上下載均已完成。macOS 發布流程與正式發布者簽章依目前範圍保留後續處理。
