@@ -187,7 +187,9 @@ jobs:
 
       - name: Validate packaged Windows PHP Runtime installation
         env:
-          FABDEV_WINDOWS_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/php-8.4.24-windows-x64-community.tar.gz
+          FABDEV_WINDOWS_PHP74_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/php-7.4.33-windows-x64-community.tar.gz
+          FABDEV_WINDOWS_PHP82_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/php-8.2.33-windows-x64-community.tar.gz
+          FABDEV_WINDOWS_PHP84_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/php-8.4.24-windows-x64-community.tar.gz
         run: >-
           cargo test -p fabdev-runtime installs_real_windows_php_archive
           --target x86_64-pc-windows-msvc -- --ignored
@@ -230,6 +232,8 @@ jobs:
           path: |
             release-input/windows-installer.exe
             release-input/fabdev-connect.exe
+            release-input/php-7.4.33-windows-x64-community.tar.gz
+            release-input/php-8.2.33-windows-x64-community.tar.gz
             release-input/php-8.4.24-windows-x64-community.tar.gz
           if-no-files-found: error
           retention-days: 7
@@ -324,6 +328,8 @@ jobs:
             --output-dir "$GITHUB_WORKSPACE/release-assets" \
             --windows-x64 "$GITHUB_WORKSPACE/release-input/windows/windows-installer.exe" \
             --windows-connect-x64 "$GITHUB_WORKSPACE/release-input/windows/fabdev-connect.exe" \
+            --runtime-php74-windows-x64 "$GITHUB_WORKSPACE/release-input/windows/php-7.4.33-windows-x64-community.tar.gz" \
+            --runtime-php82-windows-x64 "$GITHUB_WORKSPACE/release-input/windows/php-8.2.33-windows-x64-community.tar.gz" \
             --runtime-windows-x64 "$GITHUB_WORKSPACE/release-input/windows/php-8.4.24-windows-x64-community.tar.gz" \
             --runtime-mariadb-windows-x64 "$GITHUB_WORKSPACE/release-input/runtimes/mariadb-12.3.2-windows-x64.tar.gz" \
             --runtime-node20-windows-x64 "$GITHUB_WORKSPACE/release-input/runtimes/node-20.20.2-windows-x64.tar.gz" \
@@ -335,6 +341,8 @@ jobs:
             "$PUBLISHED_AT" \
             "$RUNTIME_CATALOG_EXPIRES_AT" \
             "$VERSION" \
+            "$GITHUB_WORKSPACE/release-assets/php-7.4.33-windows-x64-community.tar.gz" \
+            "$GITHUB_WORKSPACE/release-assets/php-8.2.33-windows-x64-community.tar.gz" \
             "$GITHUB_WORKSPACE/release-assets/php-8.4.24-windows-x64-community.tar.gz" \
             "$GITHUB_WORKSPACE/release-assets/mariadb-12.3.2-windows-x64-community.tar.gz" \
             "$GITHUB_WORKSPACE/release-assets/node-20.20.2-windows-x64-community.tar.gz" \
@@ -347,7 +355,7 @@ jobs:
           (
             cd release-assets
             sha256sum --check SHA256SUMS
-            test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "16"
+            test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "20"
           )
 
       - name: Create release notes skeleton
@@ -363,7 +371,7 @@ jobs:
             printf -- '- [ ] Complete release notes and known limitations.\n'
             printf -- '- [ ] Verify Windows x64 clean install, update, demo.test, and removal.\n'
             printf -- '- [ ] Re-download every Draft asset and verify size and SHA-256.\n'
-            printf -- '- [ ] Validate the Windows PHP 8.4.24, MariaDB 12.3.2, and Node.js 20.20.2/24.20.0 Runtime Archives and Runtime Catalog v1.\n'
+            printf -- '- [ ] Validate the Windows PHP 7.4.33/8.2.33/8.4.24, MariaDB 12.3.2, and Node.js 20.20.2/24.20.0 Runtime Archives and Runtime Catalog v1.\n'
             printf -- '- [ ] Verify side-by-side Runtime install and update without changing current PHP or Sites.\n'
             printf -- '- [ ] Obtain explicit Repository Owner approval before Publish.\n'
           } > "$RUNNER_TEMP/release-notes.md"

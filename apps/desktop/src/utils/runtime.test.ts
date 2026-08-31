@@ -66,6 +66,15 @@ describe('PHP Runtime presentation', () => {
     })
   })
 
+  it('offers online reinstall after bundled PHP 7.4 and 8.2 are removed', () => {
+    const rows = buildWindowsRuntimeRows([], [onlinePhp('7.4.33'), onlinePhp('8.2.33')])
+
+    expect(rows.map((row) => [row.version, row.state, row.artifact?.version])).toEqual([
+      ['8.2.33', 'not-installed', '8.2.33'],
+      ['7.4.33', 'not-installed', '7.4.33']
+    ])
+  })
+
   it('marks the newest installed patch when a newer Windows patch is available', () => {
     const installedPatches = [
       ...installed,

@@ -61,7 +61,7 @@ distribution/windows/runtime/
 
 ## 選裝 Runtime Package
 
-PHP 8.4、MariaDB 與 Node.js 不強制安裝在基礎 NSIS 內，使用以下指令建立三組 Windows x64 選裝套件：
+PHP 7.4／8.2／8.4、MariaDB 與 Node.js 可建立為 Windows x64 線上安裝套件；其中 PHP 7.4／8.2 同時存在於基礎 NSIS，讓使用者移除後仍可重新下載安裝：
 
 ```bash
 ./scripts/build-windows-runtime-packages.sh
@@ -70,6 +70,8 @@ PHP 8.4、MariaDB 與 Node.js 不強制安裝在基礎 NSIS 內，使用以下�
 輸出位於 `artifacts/windows-x64/runtimes/`，每個 Runtime 都包含配對的 Release JSON 與 `.tar.gz`：
 
 ```text
+php-7.4.33-windows-x64.{json,tar.gz}
+php-8.2.33-windows-x64.{json,tar.gz}
 php-8.4.24-windows-x64.{json,tar.gz}
 mariadb-12.3.2-windows-x64.{json,tar.gz}
 node-20.20.2-windows-x64.{json,tar.gz}
@@ -78,7 +80,7 @@ node-24.20.0-windows-x64.{json,tar.gz}
 
 建置流程固定並驗證官方 Windows Archive SHA-256；MariaDB 與 Node.js 另外驗證上游 PGP 簽章及允許的完整 Key Fingerprint。安裝時 Agent 會再次核對 Release 的平台、架構、大小與 Runtime Package SHA-256。
 
-在 Windows UI 分別由 PHP 設定、MariaDB 與 Node.js 頁面選擇同一 Runtime 的 JSON 與 `.tar.gz`。PHP 8.4、MariaDB、Node.js 仍維持選裝，不會在更新基礎 NSIS 時覆蓋或自動移除。
+在 Windows UI 分別由 PHP 設定、MariaDB 與 Node.js 頁面選擇同一 Runtime 的 JSON 與 `.tar.gz`。PHP 7.4／8.2 被移除後仍由 Catalog 顯示為未安裝，重新安裝成功會清除移除標記；PHP 8.4、MariaDB、Node.js 維持選裝，不會在更新基礎 NSIS 時覆蓋或自動移除。
 
 ## Sidecar 必須與本次程式碼一致
 

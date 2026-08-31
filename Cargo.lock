@@ -899,7 +899,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-agent"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "clap",
@@ -919,7 +919,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-cli"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "clap",
@@ -932,7 +932,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-connect"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "serde",
@@ -943,7 +943,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-core"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "directories",
  "rusqlite",
@@ -955,7 +955,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-desktop"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "fabdev-core",
@@ -976,7 +976,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-platform"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "async-trait",
  "directories",
@@ -987,7 +987,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-proxy"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1000,7 +1000,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-runtime"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "flate2",
  "hex",
@@ -1015,7 +1015,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-services"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "fabdev-core",
@@ -1032,7 +1032,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-share"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "clap",
@@ -1041,7 +1041,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-sites"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "fabdev-core",
  "thiserror 2.0.20",
@@ -1050,7 +1050,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-updater"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "fabdev-runtime",
@@ -1067,7 +1067,7 @@ dependencies = [
 
 [[package]]
 name = "fabdev-windows-helper"
-version = "0.1.11"
+version = "0.1.12"
 dependencies = [
  "anyhow",
  "clap",

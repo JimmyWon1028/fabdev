@@ -31,6 +31,8 @@ function parseArgs(argv) {
     ['--windows-x64', 'windowsX64'],
     ['--windows-connect-x64', 'windowsConnectX64'],
     ['--runtime-macos-arm64', 'runtimeMacosArm64'],
+    ['--runtime-php74-windows-x64', 'runtimePhp74WindowsX64'],
+    ['--runtime-php82-windows-x64', 'runtimePhp82WindowsX64'],
     ['--runtime-windows-x64', 'runtimeWindowsX64'],
     ['--runtime-mariadb-windows-x64', 'runtimeMariaDbWindowsX64'],
     ['--runtime-node20-windows-x64', 'runtimeNode20WindowsX64'],
@@ -72,6 +74,8 @@ function printHelp() {
     [--windows-x64 <setup.exe>] \\
     [--windows-connect-x64 <fabdev-connect.exe>] \\
     [--runtime-macos-arm64 <php-runtime.tar.gz>] \\
+    [--runtime-php74-windows-x64 <php-7.4-runtime.tar.gz>] \\
+    [--runtime-php82-windows-x64 <php-8.2-runtime.tar.gz>] \\
     [--runtime-windows-x64 <php-runtime.tar.gz>] \\
     [--runtime-mariadb-windows-x64 <mariadb-runtime.tar.gz>] \\
     [--runtime-node20-windows-x64 <node-20-runtime.tar.gz>] \
@@ -220,6 +224,16 @@ function runtimePackageDefinitions(options) {
       source: options.runtimeMacosArm64,
       label: 'PHP 8.4.24 macOS ARM64 Runtime package',
       fileName: 'php-8.4.24-macos-arm64-community.tar.gz'
+    },
+    {
+      source: options.runtimePhp74WindowsX64,
+      label: 'PHP 7.4.33 Windows x64 Runtime package',
+      fileName: 'php-7.4.33-windows-x64-community.tar.gz'
+    },
+    {
+      source: options.runtimePhp82WindowsX64,
+      label: 'PHP 8.2.33 Windows x64 Runtime package',
+      fileName: 'php-8.2.33-windows-x64-community.tar.gz'
     },
     {
       source: options.runtimeWindowsX64,

@@ -4,8 +4,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PHP_VERSION="${PHP_VERSION:-8.4.24}"
-PHP_SHA256="${PHP_SHA256:-86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb}"
+PHP74_VERSION="${PHP74_VERSION:-7.4.33}"
+PHP74_SHA256="${PHP74_SHA256:-14ae3250d4447c8ccfc4c45a70d90adfbcd61e728d85f0be56a7ddf8f9c8aace}"
+PHP82_VERSION="${PHP82_VERSION:-8.2.33}"
+PHP82_SHA256="${PHP82_SHA256:-d0bd189522fa50255ee94ed4b340ed4330f5ae33a90a74205275b0f0b221d388}"
+PHP84_VERSION="${PHP84_VERSION:-8.4.24}"
+PHP84_SHA256="${PHP84_SHA256:-86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb}"
 MARIADB_VERSION="${MARIADB_VERSION:-12.3.2}"
 MARIADB_SHA256="${MARIADB_SHA256:-67347c129eb9c5923d002ea34fbfa27c60eb95d36dd73b85af2651cdeceecac5}"
 MARIADB_RELEASE_FINGERPRINT="${MARIADB_RELEASE_FINGERPRINT:-177F4010FE56CA3336300305F1656F24C74CD1D8}"
@@ -145,19 +149,30 @@ package_runtime() {
 
 mkdir -p "$DOWNLOAD_DIR" "$EXPANDED_DIR" "$RUNTIME_DIR" "$ARTIFACT_DIR"
 
-if should_build "php"; then
-  php_archive="$DOWNLOAD_DIR/php-$PHP_VERSION-nts-Win32-vs17-x64.zip"
+build_php_runtime() {
+  local php_version="$1"
+  local php_toolset="$2"
+  local php_sha256="$3"
+  local php_archive="$DOWNLOAD_DIR/php-$php_version-nts-Win32-$php_toolset-x64.zip"
   download \
-    "https://windows.php.net/downloads/releases/archives/$(basename "$php_archive")" \
+    "https://downloads.php.net/~windows/releases/archives/$(basename "$php_archive")" \
     "$php_archive"
-  verify_sha256 "$php_archive" "$PHP_SHA256"
-  rm -rf "$EXPANDED_DIR/php-$PHP_VERSION" "$RUNTIME_DIR/php/$PHP_VERSION"
-  mkdir -p "$EXPANDED_DIR/php-$PHP_VERSION" "$RUNTIME_DIR/php/$PHP_VERSION"
-  unzip -q "$php_archive" -d "$EXPANDED_DIR/php-$PHP_VERSION"
-  cp -R "$EXPANDED_DIR/php-$PHP_VERSION/." "$RUNTIME_DIR/php/$PHP_VERSION/"
-  [[ -f "$RUNTIME_DIR/php/$PHP_VERSION/php.exe" ]]
-  [[ -f "$RUNTIME_DIR/php/$PHP_VERSION/php-cgi.exe" ]]
-  package_runtime "php" "$PHP_VERSION" "official-archive-sha256"
+  verify_sha256 "$php_archive" "$php_sha256"
+  rm -rf "$EXPANDED_DIR/php-$php_version" "$RUNTIME_DIR/php/$php_version"
+  mkdir -p "$EXPANDED_DIR/php-$php_version" "$RUNTIME_DIR/php/$php_version"
+  unzip -q "$php_archive" -d "$EXPANDED_DIR/php-$php_version"
+  cp -R "$EXPANDED_DIR/php-$php_version/." "$RUNTIME_DIR/php/$php_version/"
+  [[ -f "$RUNTIME_DIR/php/$php_version/php.exe" ]]
+  [[ -f "$RUNTIME_DIR/php/$php_version/php-cgi.exe" ]]
+  [[ -f "$RUNTIME_DIR/php/$php_version/ext/php_mysqli.dll" ]]
+  [[ -f "$RUNTIME_DIR/php/$php_version/ext/php_pdo_mysql.dll" ]]
+  package_runtime "php" "$php_version" "official-archive-sha256"
+}
+
+if should_build "php"; then
+  build_php_runtime "$PHP74_VERSION" "vc15" "$PHP74_SHA256"
+  build_php_runtime "$PHP82_VERSION" "vs16" "$PHP82_SHA256"
+  build_php_runtime "$PHP84_VERSION" "vs17" "$PHP84_SHA256"
 fi
 
 if should_build "mariadb"; then

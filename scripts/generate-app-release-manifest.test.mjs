@@ -137,14 +137,18 @@ test('prepares a Windows-only release with a Windows-only Runtime package', asyn
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
   const windowsSource = join(testRoot, 'input-setup.exe')
   const connectSource = join(testRoot, 'input-connect.exe')
-  const runtimeSource = join(testRoot, 'input-runtime-windows.tar.gz')
+  const php74RuntimeSource = join(testRoot, 'input-runtime-php74-windows.tar.gz')
+  const php82RuntimeSource = join(testRoot, 'input-runtime-php82-windows.tar.gz')
+  const php84RuntimeSource = join(testRoot, 'input-runtime-php84-windows.tar.gz')
   const mariaDbRuntimeSource = join(testRoot, 'input-runtime-mariadb-windows.tar.gz')
   const node20RuntimeSource = join(testRoot, 'input-runtime-node20-windows.tar.gz')
   const node24RuntimeSource = join(testRoot, 'input-runtime-node24-windows.tar.gz')
   const outputDir = join(testRoot, 'release')
   await writeFile(windowsSource, 'Windows installer fixture')
   await writeFile(connectSource, 'fabDev Connect fixture')
-  await writeFile(runtimeSource, 'Windows PHP Runtime fixture')
+  await writeFile(php74RuntimeSource, 'Windows PHP 7.4 Runtime fixture')
+  await writeFile(php82RuntimeSource, 'Windows PHP 8.2 Runtime fixture')
+  await writeFile(php84RuntimeSource, 'Windows PHP 8.4 Runtime fixture')
   await writeFile(mariaDbRuntimeSource, 'Windows MariaDB Runtime fixture')
   await writeFile(node20RuntimeSource, 'Windows Node.js 20 Runtime fixture')
   await writeFile(node24RuntimeSource, 'Windows Node.js 24 Runtime fixture')
@@ -156,7 +160,9 @@ test('prepares a Windows-only release with a Windows-only Runtime package', asyn
     outputDir,
     windowsX64: windowsSource,
     windowsConnectX64: connectSource,
-    runtimeWindowsX64: runtimeSource,
+    runtimePhp74WindowsX64: php74RuntimeSource,
+    runtimePhp82WindowsX64: php82RuntimeSource,
+    runtimeWindowsX64: php84RuntimeSource,
     runtimeMariaDbWindowsX64: mariaDbRuntimeSource,
     runtimeNode20WindowsX64: node20RuntimeSource,
     runtimeNode24WindowsX64: node24RuntimeSource
@@ -164,7 +170,19 @@ test('prepares a Windows-only release with a Windows-only Runtime package', asyn
 
   assert.equal(result.manifest.artifacts.length, 1)
   assert.equal(result.manifest.artifacts[0].platform, 'windows')
-  assert.equal(result.files.length, 15)
+  assert.equal(result.files.length, 19)
+  assert.equal(
+    result.files.includes('php-7.4.33-windows-x64-community.tar.gz'),
+    true
+  )
+  assert.equal(
+    result.files.includes('php-8.2.33-windows-x64-community.tar.gz'),
+    true
+  )
+  assert.equal(
+    result.files.includes('php-8.4.24-windows-x64-community.tar.gz'),
+    true
+  )
   assert.equal(
     result.files.includes('mariadb-12.3.2-windows-x64-community.tar.gz'),
     true
@@ -237,8 +255,12 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.doesNotMatch(workflow, /gh release edit|--draft=false|make_latest/)
   assert.doesNotMatch(workflow, /secrets\./)
   assert.match(workflow, /build-windows-php-runtime\.ps1 -OutputDirectory release-input/)
-  assert.match(workflow, /FABDEV_WINDOWS_RUNTIME_PACKAGE:/)
+  assert.match(workflow, /FABDEV_WINDOWS_PHP74_RUNTIME_PACKAGE:/)
+  assert.match(workflow, /FABDEV_WINDOWS_PHP82_RUNTIME_PACKAGE:/)
+  assert.match(workflow, /FABDEV_WINDOWS_PHP84_RUNTIME_PACKAGE:/)
   assert.match(workflow, /installs_real_windows_php_archive/)
+  assert.match(workflow, /--runtime-php74-windows-x64/)
+  assert.match(workflow, /--runtime-php82-windows-x64/)
   assert.match(workflow, /--runtime-windows-x64/)
   assert.match(workflow, /FABDEV_WINDOWS_RUNTIME_NAMES: mariadb node/)
   assert.match(workflow, /--runtime-mariadb-windows-x64/)
@@ -248,7 +270,7 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.match(workflow, /generate-windows/)
   assert.match(workflow, /--bin fabdev-runtime-catalog/)
   assert.match(workflow, /release-assets\/fabdev-runtime-v1\.json/)
-  assert.match(workflow, /\)" = "16"/)
+  assert.match(workflow, /\)" = "20"/)
 
   const usesLines = workflow
     .split('\n')
@@ -274,16 +296,26 @@ test('launches the Windows updater only after fabDev exits', async () => {
   assert.match(desktopSource, /\.arg\(std::process::id\(\)\.to_string\(\)\)/)
 })
 
-test('pins and verifies the Windows PHP 8.4 online Runtime package', async () => {
+test('pins and verifies all Windows online PHP Runtime packages', async () => {
   const script = await readFile(
     join(repoRoot, 'scripts/build-windows-php-runtime.ps1'),
     'utf8'
   )
 
-  assert.match(script, /\$phpVersion = "8\.4\.24"/)
+  assert.match(script, /Version = "7\.4\.33"/)
   assert.match(
     script,
-    /\$phpSha256 = "86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb"/
+    /Sha256 = "14ae3250d4447c8ccfc4c45a70d90adfbcd61e728d85f0be56a7ddf8f9c8aace"/
+  )
+  assert.match(script, /Version = "8\.2\.33"/)
+  assert.match(
+    script,
+    /Sha256 = "d0bd189522fa50255ee94ed4b340ed4330f5ae33a90a74205275b0f0b221d388"/
+  )
+  assert.match(script, /Version = "8\.4\.24"/)
+  assert.match(
+    script,
+    /Sha256 = "86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb"/
   )
   assert.match(script, /php-\$phpVersion-windows-x64-community\.tar\.gz/)
   assert.match(script, /ext\/php_mysqli\.dll/)
@@ -291,6 +323,7 @@ test('pins and verifies the Windows PHP 8.4 online Runtime package', async () =>
   assert.match(script, /extension_loaded\('mysqli'\)/)
   assert.match(script, /extension_loaded\('pdo_mysql'\)/)
   assert.match(script, /tar\.exe -tzf/)
+  assert.match(script, /foreach \(\$runtime in \$phpRuntimes\)/)
   assert.doesNotMatch(script, /mariadb|node/i)
 })
 

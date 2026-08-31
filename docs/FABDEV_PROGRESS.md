@@ -32,6 +32,7 @@
 
 ## 最近驗證
 
+- 2026-08-31：Windows x64 PHP Runtime Catalog 已由單一 PHP 8.4 擴充為 PHP 7.4.33／8.2.33／8.4.24。三份官方 Windows Archive 均以固定 SHA-256 建立單一版本根目錄 Package，CLI、CGI 與 `mysqli`／`pdo_mysql` 載入驗證通過；Parallels Windows 11 的 x64 MSVC 測試已逐版先建立使用者移除標記，再以真實 Package 重新安裝，確認 Runtime 檔案完整且移除標記清除。Desktop Catalog 測試亦確認移除後顯示「未安裝」並保留安裝 Artifact。下一步由 `v0.1.12` Windows-only Draft workflow、封裝 App 與公開 Feed 完成發布驗收。
 - 2026-08-31：Windows x64 App 更新已改為安全退出後使用 Tauri NSIS `/UPDATE /P /R` 原地覆蓋並自動重新啟動，不走舊版移除流程；設定頁文字已同步說明 Sites、Runtime 與使用者資料會保留。
 - Windows x64 App／Runtime GitHub Artifact 下載新增 8 MiB 分段、最多 4 路並行、4 次退避重試、跨 App 重啟續傳、完成後整包 SHA-256，以及設定頁速度／預估剩餘時間；macOS 下載與安裝流程保持不變。
 - 本輪 Desktop 66 項、Release 規則 9 項、Updater 15 項、Vue production build、rustfmt、Updater Clippy 與 `git diff --check` 通過；Parallels Windows 11 的 x64 target Desktop 編譯及 Updater 15 項原生測試通過。公開 `v0.1.10` Windows Setup 的單 Byte Range 實測回傳 `206`、`Content-Range: bytes 0-0/49258503`。

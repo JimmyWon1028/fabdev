@@ -2,9 +2,9 @@
 
 > 規劃日期：2026-08-30
 >
-> 狀態：PHP 線上安裝已完成；Windows x64 Node.js／MariaDB 的 Catalog、Agent、UI 與 Release pipeline 已完成本機實作及產包驗證，待 Windows CI、封裝版 App 與公開 Feed 驗收
+> 狀態：Windows x64 PHP 7.4／8.2／8.4、Node.js 與 MariaDB 的 Catalog、Agent、UI 與 Release pipeline 已完成本機實作及產包驗證；PHP 7.4／8.2 待新版 Windows CI、封裝版 App 與公開 Feed 驗收
 >
-> 目前目標：Windows x64 的 PHP 8.4.24、Node.js 20.20.2／24.20.0 與 MariaDB 12.3.2 線上安裝及升級
+> 目前目標：Windows x64 的 PHP 7.4.33／8.2.33／8.4.24、Node.js 20.20.2／24.20.0 與 MariaDB 12.3.2 線上安裝及升級
 
 ## 1. 目標
 
@@ -18,7 +18,7 @@ Runtime 更新與 App 更新保持獨立操作：App 更新仍使用完整 DMG�
 
 - Runtime Catalog v1 的產生、解析與嚴格驗證。
 - 固定 GitHub Releases URL、平台原生 TLS、系統 Proxy 與系統信任庫。
-- PHP 8.4.24 macOS ARM64／Windows x64，以及 Windows x64 Node.js 20.20.2／24.20.0、MariaDB 12.3.2 Package 的新版偵測、安裝與升級。
+- PHP 8.4.24 macOS ARM64，以及 Windows x64 PHP 7.4.33／8.2.33／8.4.24、Node.js 20.20.2／24.20.0、MariaDB 12.3.2 Package 的新版偵測、安裝與升級。
 - `.part` 下載、檔案大小與 SHA-256、原子改名、staging 解壓及固定健康檢查。
 - 使用者確認、下載進度、取消、失敗清理與安全重試。
 - 保留既有 PHP 版本、Site PHP 選擇、全域 PHP、`php.ini`、MariaDB 資料／設定，以及未被切換的舊 Node.js／MariaDB Runtime 版本目錄。
@@ -195,13 +195,14 @@ Agent 每次安裝前必須重新讀取快取 Catalog，核對 Runtime identity�
   → 回傳新的 Runtime 狀態
 ```
 
-PHP 8.4.24 採 Side-by-side 安裝：
+PHP 採 Side-by-side 安裝：
 
-- 已有 PHP 7.4／8.2 時，不切換 `current`、全域 PHP 或任何 Site。
+- 線上安裝 PHP 7.4／8.2／8.4 時，不切換 `current`、全域 PHP 或任何 Site。
 - 沒有任何 PHP Runtime 時，仍不得由線上更新自動成為 Site 使用版本；由使用者另行選擇。
 - 健康檢查至少包含固定路徑的 PHP CLI 版本、必要 Extension，以及 macOS PHP-FPM 設定測試或 Windows PHP-CGI 啟動檢查。
 - 健康檢查失敗時刪除 staging／新版本目錄，不修改既有 Runtime、設定或 Site。
 - 相同版本已安裝時回傳明確狀態，不覆蓋現有目錄。
+- 使用者移除 Windows 內建 PHP 7.4／8.2 後，Catalog 仍顯示該版本為「未安裝」並提供「安裝」；重新安裝成功後必須清除使用者移除標記，後續啟動不得誤判為仍已移除。
 
 Windows Node.js 與 MariaDB 的升級規則：
 
@@ -211,9 +212,9 @@ Windows Node.js 與 MariaDB 的升級規則：
 
 ## 9. 發布流程
 
-1. 從固定上游 Archive、SHA-256、PGP 簽章與完整 Fingerprint 建置 Windows PHP、Node.js 與 MariaDB Package。
+1. 從固定上游 Archive、SHA-256、PGP 簽章與完整 Fingerprint 建置 Windows PHP 7.4／8.2／8.4、Node.js 20／24 與 MariaDB Package。
 2. 驗證每個 Package 只有單一版本根目錄，且不依賴未封裝的 Homebrew、Herd、nvm 或系統 Runtime。
-3. 以三份 Windows Runtime Package 產生 `fabdev-runtime-v1.json`；正式 Catalog 產生器拒絕重複項目、未知平台、錯誤檔名、零大小或非小寫 SHA-256，不發布舊格式 descriptor。
+3. 以六份 Windows Runtime Package 產生 `fabdev-runtime-v1.json`；正式 Catalog 產生器拒絕重複項目、未知平台、錯誤檔名、零大小或非小寫 SHA-256，不發布舊格式 descriptor。
 4. 將 Catalog、Package 與個別 checksum 加入下一個 App Draft Release；不得加入 `*-dev` 產物。
 5. 從 Draft 重新下載兩平台 Package，核對大小、SHA-256、Catalog 及內容。
 6. 在隔離 macOS 與 Windows 完成檢查、下載、取消／重試、安裝、健康檢查及資料保留驗收。
@@ -268,8 +269,8 @@ P2.3 已完成程式、前端呈現與本機 fixture 驗證。公開 Runtime Cat
 
 ### P2.4：兩平台 Draft 驗收
 
-- 完整執行矩陣、Release tooling 缺口、16 個 Asset 契約、授權關卡與 Publish 後匿名 Feed 閘門見 [`P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md`](P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md)。
-- [x] 正式 Runtime Catalog v1 產生器、兩平台 Package checksum 納入總表，以及固定 16 個 Draft Asset 契約。
+- `v0.1.11` 的完整執行矩陣、Release tooling 缺口、16 個 Asset 契約、授權關卡與 Publish 後匿名 Feed 閘門見 [`P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md`](P2_4_RUNTIME_DRAFT_ACCEPTANCE_PLAN.md)。
+- [x] 正式 Runtime Catalog v1 產生器、Package checksum 納入總表；`v0.1.11` 使用 16 個 Draft Assets，加入 Windows PHP 7.4／8.2 後的下一版 Windows-only 契約為 20 個 Assets。
 - [x] Windows PHP 8.4.24 專用來源 SHA-256、CLI／CGI／MySQL extensions 與單一 Archive 根目錄驗證腳本。
 - [x] Windows 空白使用者 `php.ini` 保留，內部服務設定自動載入 `mysqli`／`pdo_mysql` 的回歸修正。
 - 取得明確重新打包授權後才建立 Runtime Packages。
@@ -281,7 +282,7 @@ P2.3 已完成程式、前端呈現與本機 fixture 驗證。公開 Runtime Cat
 - [x] Catalog、Agent Protocol 36、Desktop 安裝／更新按鈕、進度、取消與重新驗證。
 - [x] Node.js 20／24 side-by-side 安裝、active 版本切換與健康檢查；安裝不改 PATH，明確設為全域時才啟用動態 terminal shim。
 - [x] MariaDB 停止閘門、Runtime 切換、資料／設定保留、PHP 連線設定重新套用與失敗回復。
-- [x] 固定 SHA-256／PGP Fingerprint 的可重現產包腳本、四 Runtime Catalog 項目與 Draft Release workflow。
+- [x] 固定 SHA-256／PGP Fingerprint 的可重現產包腳本、六個 Windows Runtime Catalog 項目與 Draft Release workflow。
 - [x] 在 Parallels Windows 11 的 x64 MSVC target 以真實 Archive 完成 Node.js／MariaDB 安裝、active 切換及 binary 健康檢查。
 - [ ] 在 Windows x64 CI 執行真實 Node.js／MariaDB Archive 安裝及 binary 健康檢查。
 - [ ] 在新版封裝 App 完成未安裝 → 安裝 → 啟動／使用 → 新版 Catalog → 更新 → 重啟持久性驗收。

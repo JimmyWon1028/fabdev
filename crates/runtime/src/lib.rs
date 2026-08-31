@@ -26,6 +26,10 @@ const MAX_SAFE_JSON_INTEGER: u64 = 9_007_199_254_740_991;
 const PHP_SOURCE_SIGNING_FINGERPRINT: &str = "9D7F99A0CB8F05C8A6958D6256A97AF7600A39A6";
 const PHP_84_MACOS_SOURCE_SHA256: &str =
   "e127be09a8506f4327c5cfa78a614b00d210714484ec215ce0011b4a03c00731";
+const PHP_74_WINDOWS_SOURCE_SHA256: &str =
+  "14ae3250d4447c8ccfc4c45a70d90adfbcd61e728d85f0be56a7ddf8f9c8aace";
+const PHP_82_WINDOWS_SOURCE_SHA256: &str =
+  "d0bd189522fa50255ee94ed4b340ed4330f5ae33a90a74205275b0f0b221d388";
 const PHP_84_WINDOWS_SOURCE_SHA256: &str =
   "86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb";
 const MARIADB_SOURCE_SIGNING_FINGERPRINT: &str = "177F4010FE56CA3336300305F1656F24C74CD1D8";
@@ -135,7 +139,9 @@ pub struct CommunityWindowsCatalogInput<'a> {
   pub generated_at: &'a str,
   pub expires_at: &'a str,
   pub minimum_app_version: &'a str,
-  pub php_package: &'a Path,
+  pub php74_package: &'a Path,
+  pub php82_package: &'a Path,
+  pub php84_package: &'a Path,
   pub mariadb_package: &'a Path,
   pub node20_package: &'a Path,
   pub node24_package: &'a Path,
@@ -389,8 +395,24 @@ pub fn generate_community_windows_catalog(
   let runtimes = vec![
     package(
       "php",
+      "7.4.33",
+      input.php74_package,
+      None,
+      PHP_74_WINDOWS_SOURCE_SHA256,
+      "php-runtime-v1",
+    )?,
+    package(
+      "php",
+      "8.2.33",
+      input.php82_package,
+      None,
+      PHP_82_WINDOWS_SOURCE_SHA256,
+      "php-runtime-v1",
+    )?,
+    package(
+      "php",
       "8.4.24",
-      input.php_package,
+      input.php84_package,
       None,
       PHP_84_WINDOWS_SOURCE_SHA256,
       "php-runtime-v1",
@@ -1441,11 +1463,15 @@ mod tests {
       uuid::Uuid::new_v4()
     ));
     std::fs::create_dir_all(&root).expect("create Catalog fixture");
-    let php_package = root.join("php.tar.gz");
+    let php74_package = root.join("php74.tar.gz");
+    let php82_package = root.join("php82.tar.gz");
+    let php84_package = root.join("php84.tar.gz");
     let mariadb_package = root.join("mariadb.tar.gz");
     let node20_package = root.join("node20.tar.gz");
     let node24_package = root.join("node24.tar.gz");
-    std::fs::write(&php_package, b"php runtime").expect("write PHP package");
+    std::fs::write(&php74_package, b"php 7.4 runtime").expect("write PHP 7.4 package");
+    std::fs::write(&php82_package, b"php 8.2 runtime").expect("write PHP 8.2 package");
+    std::fs::write(&php84_package, b"php 8.4 runtime").expect("write PHP 8.4 package");
     std::fs::write(&mariadb_package, b"mariadb runtime").expect("write MariaDB package");
     std::fs::write(&node20_package, b"node 20 runtime").expect("write Node.js 20 package");
     std::fs::write(&node24_package, b"node 24 runtime").expect("write Node.js 24 package");
@@ -1456,7 +1482,9 @@ mod tests {
       generated_at: "2026-08-30T00:00:00Z",
       expires_at: "2027-02-26T00:00:00Z",
       minimum_app_version: "0.1.9",
-      php_package: &php_package,
+      php74_package: &php74_package,
+      php82_package: &php82_package,
+      php84_package: &php84_package,
       mariadb_package: &mariadb_package,
       node20_package: &node20_package,
       node24_package: &node24_package,
@@ -1470,28 +1498,33 @@ mod tests {
       catalog.compatibility.minimum_agent_protocol_version,
       WINDOWS_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION
     );
-    assert_eq!(catalog.runtimes.len(), 4);
+    assert_eq!(catalog.runtimes.len(), 6);
     assert_eq!(catalog.runtimes[0].name, "php");
-    assert_eq!(catalog.runtimes[1].name, "mariadb");
-    assert_eq!(catalog.runtimes[2].name, "node");
+    assert_eq!(catalog.runtimes[0].version, "7.4.33");
+    assert_eq!(catalog.runtimes[1].name, "php");
+    assert_eq!(catalog.runtimes[1].version, "8.2.33");
+    assert_eq!(catalog.runtimes[2].name, "php");
+    assert_eq!(catalog.runtimes[2].version, "8.4.24");
+    assert_eq!(catalog.runtimes[3].name, "mariadb");
+    assert_eq!(catalog.runtimes[4].name, "node");
     assert_eq!(
-      catalog.runtimes[1].file_name.as_deref(),
+      catalog.runtimes[3].file_name.as_deref(),
       Some("mariadb-12.3.2-windows-x64-community.tar.gz")
     );
     assert_eq!(
-      catalog.runtimes[1].health_check_profile.as_deref(),
+      catalog.runtimes[3].health_check_profile.as_deref(),
       Some("mariadb-runtime-v1")
     );
     assert_eq!(
-      catalog.runtimes[2]
+      catalog.runtimes[4]
         .source_verification
         .as_ref()
         .and_then(|source| source.fingerprint.as_deref()),
       Some(NODE_20_SOURCE_SIGNING_FINGERPRINT)
     );
-    assert_eq!(catalog.runtimes[3].version, "24.20.0");
+    assert_eq!(catalog.runtimes[5].version, "24.20.0");
     assert_eq!(
-      catalog.runtimes[3]
+      catalog.runtimes[5]
         .source_verification
         .as_ref()
         .and_then(|source| source.fingerprint.as_deref()),
@@ -1854,25 +1887,36 @@ mod tests {
   #[test]
   #[ignore = "requires the verified Windows PHP package built by the release workflow"]
   fn installs_real_windows_php_archive() {
-    let artifact = PathBuf::from(
-      std::env::var("FABDEV_WINDOWS_RUNTIME_PACKAGE")
-        .expect("FABDEV_WINDOWS_RUNTIME_PACKAGE must identify the release package"),
-    );
-    let checksum = hex::encode(Sha256::digest(
-      std::fs::read(&artifact).expect("read Windows PHP Runtime package"),
-    ));
-    let root = std::env::temp_dir().join(format!(
-      "fabdev-runtime-windows-package-{}",
-      uuid::Uuid::new_v4()
-    ));
+    for (environment, version) in [
+      ("FABDEV_WINDOWS_PHP74_RUNTIME_PACKAGE", "7.4.33"),
+      ("FABDEV_WINDOWS_PHP82_RUNTIME_PACKAGE", "8.2.33"),
+      ("FABDEV_WINDOWS_PHP84_RUNTIME_PACKAGE", "8.4.24"),
+    ] {
+      let artifact = PathBuf::from(
+        std::env::var(environment)
+          .unwrap_or_else(|_| panic!("{environment} must identify the release package")),
+      );
+      let checksum = hex::encode(Sha256::digest(
+        std::fs::read(&artifact).expect("read Windows PHP Runtime package"),
+      ));
+      let root = std::env::temp_dir().join(format!(
+        "fabdev-runtime-windows-package-{}",
+        uuid::Uuid::new_v4()
+      ));
+      mark_runtime_removed(&root, "php", version).expect("mark PHP Runtime removed");
+      assert!(is_runtime_marked_removed(&root, "php", version).expect("read removed marker"));
 
-    install_tar_gz_with_activation(&artifact, &checksum, "php", "8.4.24", &root, false)
-      .expect("install packaged Windows PHP Runtime");
+      install_tar_gz_with_activation(&artifact, &checksum, "php", version, &root, false)
+        .expect("install packaged Windows PHP Runtime");
 
-    assert!(root.join("php/8.4.24/php.exe").is_file());
-    assert!(root.join("php/8.4.24/php-cgi.exe").is_file());
-    assert!(!root.join("php/current.version").exists());
-    std::fs::remove_dir_all(root).expect("remove Windows Runtime fixture");
+      assert!(root.join("php").join(version).join("php.exe").is_file());
+      assert!(root.join("php").join(version).join("php-cgi.exe").is_file());
+      assert!(!root.join("php/current.version").exists());
+      assert!(
+        !is_runtime_marked_removed(&root, "php", version).expect("verify removed marker cleared")
+      );
+      std::fs::remove_dir_all(root).expect("remove Windows Runtime fixture");
+    }
   }
 
   #[test]
