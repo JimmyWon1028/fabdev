@@ -259,6 +259,21 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   }
 })
 
+test('launches the Windows updater only after fabDev exits', async () => {
+  const desktopSource = await readFile(
+    join(repoRoot, 'apps/desktop/src-tauri/src/lib.rs'),
+    'utf8'
+  )
+
+  assert.match(
+    desktopSource,
+    /const WINDOWS_UPDATE_INSTALLER_ARGUMENTS: \[&str; 3\] = \["\/UPDATE", "\/P", "\/R"\]/
+  )
+  assert.match(desktopSource, /Wait-Process -Id \$args\[0\]/)
+  assert.match(desktopSource, /Start-Process -FilePath \$args\[1\]/)
+  assert.match(desktopSource, /\.arg\(std::process::id\(\)\.to_string\(\)\)/)
+})
+
 test('pins and verifies the Windows PHP 8.4 online Runtime package', async () => {
   const script = await readFile(
     join(repoRoot, 'scripts/build-windows-php-runtime.ps1'),

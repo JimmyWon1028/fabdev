@@ -170,7 +170,7 @@ Unsigned Community v1 的 SHA-256 可偵測傳輸中斷或 Catalog 與 Package �
 - `CancelRuntimeDownload { operationId }`：取消下載並刪除 `.part`。
 - `InstallDownloadedRuntime { operationId }`：在使用者確認後安裝已驗證 Package。
 
-Agent 每次安裝前必須重新讀取快取 Catalog，核對 Runtime identity、Artifact 大小與 SHA-256。App 重啟後不恢復進行中的網路工作；殘留 `.part` 在下次檢查時清除，已完整驗證的 Package 可再次使用。
+Agent 每次安裝前必須重新讀取快取 Catalog，核對 Runtime identity、Artifact 大小與 SHA-256。App 重啟後不恢復進行中的網路工作；一般平台殘留 `.part` 在下次檢查時清除，已完整驗證的 Package 可再次使用。Windows x64 另外使用 8 MiB `.resume` 分段，最多 4 路並行及 4 次退避重試；網路中斷保留已完成且大小正確的分段供下次續傳，明確取消、Checksum 失敗或完成安裝包重組時會清除。重組後仍必須核對整包大小與 SHA-256，不能以單一分段完成取代整包驗證。
 
 `RuntimeUpdateArtifact` 同時回傳 `installed` 與 `activeVersion`，讓 Desktop 能區分「未安裝」、「已安裝」及「目前 active 版本低於 Catalog，可更新」。
 

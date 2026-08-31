@@ -361,8 +361,11 @@ Visibility 改為 Public 後，即使稍後改回 Private，也不能假設先�
 - 已完成啟動後每日自動檢查與設定頁手動檢查；檢查失敗不阻止 App 啟動。
 - 已完成新版、安裝包、Release Notes、上次檢查時間及下載進度顯示。
 - 已完成固定 Stable Manifest、官方 GitHub URL 白名單、平台原生 TLS、`.part` 下載、大小／SHA-256 驗證、原子改名及開啟前再次驗證。
-- 已完成使用者確認後走安全 Quit，再開啟完整 DMG／Setup.exe；不做背景自動覆蓋安裝。
+- macOS 維持使用者確認後安全 Quit，再開啟完整 DMG。Windows x64 已改為安全 Quit 後以 NSIS `/UPDATE /P /R` 原地覆蓋並自動重新啟動，不執行舊版移除流程；Sites、Runtime 與使用者資料不在 App 更新範圍內。
+- Windows x64 的 App 與 Runtime Artifact 下載採 8 MiB 分段、最多 4 路並行、最多 4 次退避重試及跨 App 重啟續傳；伺服器必須回傳可驗證的 `206 Content-Range`，完成後仍重組整包並核對大小與 SHA-256。設定頁同步顯示下載速度與預估剩餘時間。
 - 已完成封裝版端到端驗收：Windows 由 App 內執行 `0.1.2 → 0.1.3` 偵測、下載、SHA-256 驗證、安全 Quit、開啟 Setup 與覆蓋安裝；macOS 完成 `0.1.1 → 0.1.3` 覆蓋更新及大小寫不敏感磁碟的安裝器回歸。
+
+上述 Windows 原地更新與加速下載已完成原始碼、本機測試及 Parallels Windows 11 x64 target 編譯／Updater 測試；尚未重新打包，因此既有公開安裝包仍是舊流程。
 
 ### P2：Runtime 線上安裝
 

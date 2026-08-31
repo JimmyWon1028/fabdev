@@ -42,6 +42,10 @@ const AGENT_START_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const AGENT_RESPONSE_TIMEOUT: Duration = Duration::from_secs(30);
 const AGENT_INSTALL_RESPONSE_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const SYSTEM_INGRESS_ERROR_PREFIX: &str = "system ingress is unavailable on DNS port ";
+#[cfg(target_os = "windows")]
+const WINDOWS_UPDATE_INSTALLER_ARGUMENTS: [&str; 3] = ["/UPDATE", "/P", "/R"];
+#[cfg(target_os = "windows")]
+const WINDOWS_UPDATE_LAUNCH_SCRIPT: &str = "Wait-Process -Id $args[0] -ErrorAction SilentlyContinue; Start-Process -FilePath $args[1] -ArgumentList $args[2..($args.Length - 1)]";
 
 static AGENT_START_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 static APP_UPDATE_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
@@ -508,9 +512,28 @@ fn open_url_in_chrome(url: &str) -> anyhow::Result<()> {
 
 #[cfg(target_os = "windows")]
 fn open_update_installer(path: &Path) -> anyhow::Result<()> {
-  Command::new(path)
+  use std::os::windows::process::CommandExt;
+
+  let mut command = Command::new("powershell.exe");
+  command.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
+  command
+    .args([
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-WindowStyle",
+      "Hidden",
+      "-Command",
+      WINDOWS_UPDATE_LAUNCH_SCRIPT,
+    ])
+    .arg(std::process::id().to_string())
+    .arg(path)
+    .args(WINDOWS_UPDATE_INSTALLER_ARGUMENTS)
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
     .spawn()
-    .context("unable to open the Windows app update installer")?;
+    .context("unable to schedule the Windows app update installer")?;
   Ok(())
 }
 

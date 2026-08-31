@@ -23,8 +23,10 @@ import { defineStore } from 'pinia'
 import type {
   AppUpdateCheck,
   AppUpdateDownloadProgress,
+  AppUpdateDownloadRateSample,
   DownloadedAppUpdate
 } from '../utils/app-update'
+import { estimateUpdateDownload } from '../utils/app-update'
 import {
   loadAutoCheckUpdates,
   loadAutoStartServices,
@@ -50,6 +52,9 @@ interface StoreState {
   appUpdateError: string | null
   appUpdate: AppUpdateCheck | null
   appUpdateDownload: AppUpdateDownloadProgress | null
+  appUpdateDownloadRateSample: AppUpdateDownloadRateSample | null
+  appUpdateDownloadBytesPerSecond: number
+  appUpdateDownloadRemainingSeconds: number | null
   downloadedAppUpdate: DownloadedAppUpdate | null
   status: AgentStatus | null
   lanShare: LanShareInfo | null
@@ -81,6 +86,9 @@ export const useAppStore = defineStore('fabdev', {
     appUpdateError: null,
     appUpdate: null,
     appUpdateDownload: null,
+    appUpdateDownloadRateSample: null,
+    appUpdateDownloadBytesPerSecond: 0,
+    appUpdateDownloadRemainingSeconds: null,
     downloadedAppUpdate: null,
     status: null,
     lanShare: null,
@@ -130,7 +138,15 @@ export const useAppStore = defineStore('fabdev', {
       this.autoCheckUpdates = enabled
     },
     setAppUpdateDownloadProgress(progress: AppUpdateDownloadProgress) {
+      const estimate = estimateUpdateDownload(
+        this.appUpdateDownloadRateSample,
+        progress,
+        Date.now()
+      )
       this.appUpdateDownload = progress
+      this.appUpdateDownloadRateSample = estimate.sample
+      this.appUpdateDownloadBytesPerSecond = estimate.bytesPerSecond
+      this.appUpdateDownloadRemainingSeconds = estimate.remainingSeconds
     },
     async checkAppUpdate() {
       this.appUpdateBusy = true
@@ -169,6 +185,9 @@ export const useAppStore = defineStore('fabdev', {
       this.appUpdateBusy = true
       this.appUpdateError = null
       this.appUpdateDownload = null
+      this.appUpdateDownloadRateSample = null
+      this.appUpdateDownloadBytesPerSecond = 0
+      this.appUpdateDownloadRemainingSeconds = null
       try {
         const download = await invoke<DownloadedAppUpdate>('download_app_update')
         this.downloadedAppUpdate = download

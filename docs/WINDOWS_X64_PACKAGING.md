@@ -121,6 +121,16 @@ distribution
 
 更新測試不需要先移除舊版。先從 fabDev 停止所有服務並關閉 Desktop／Agent，再覆蓋安裝，才能同時驗證資料保留與更新流程。
 
+App 內更新會先驗證完整 Setup、停止服務並退出 Desktop，再由隱藏的 PowerShell 等待舊程序完全結束，最後以以下參數啟動 Current User NSIS：
+
+```powershell
+Start-Process -FilePath .\fabDev_x64-setup.exe -ArgumentList "/UPDATE", "/P", "/R"
+```
+
+`/UPDATE` 讓 Tauri NSIS 直接覆蓋既有安裝而不執行舊版移除流程，`/P` 使用被動模式，`/R` 完成後重新啟動 App。安裝前後需比對 Site Registry、Runtime 目錄、MariaDB data／config／log 與 Proxy 設定，確認都保持不變。
+
+Windows x64 App 與 Runtime 從 GitHub Releases 下載時，使用 8 MiB 分段、最多 4 路並行、退避重試與 `.resume` 續傳。驗收需包含中斷後重試、設定頁速度／剩餘時間、最終整包大小／SHA-256，以及完成或明確取消後不殘留分段檔。
+
 遠端或自動化測試請用 PowerShell 等待 NSIS 完成：
 
 ```powershell
@@ -277,6 +287,14 @@ Connect 從 Parallels Shared Folder 啟動後，成功把自己轉存為本機 `
 
 此結果不能取代乾淨實體 Windows x64、SmartScreen 簽章信譽、IIS／Herd 共存與企業安全軟體環境驗證。
 
+## 2026-08-31 `0.1.11` 本機原地更新驗收
+
+Windows x64 未簽章本機候選 Setup 為 49,295,735 bytes，SHA-256 `8c6bffb7099cfe1e8730eaa34012a973b402551e17f268d1421ab1311c5dc1c7`。7-Zip 完整性、NSIS 3 Unicode、File／Product Version `0.1.11`、Desktop、Agent、Helper、PHP 7.4.33／8.2.33 與 Nginx 封裝內容均通過靜態檢查。
+
+Parallels Windows 11 ARM 的 x64 相容環境由既有 `0.1.10` 使用 `/UPDATE /P /R` 原地覆蓋；Installer exit code 為 0，沒有先執行舊版移除程序，完成後 App 自動重新啟動。登錄、Agent 與 Protocol 分別更新為 `0.1.11`、`0.1.11` 與 36，安裝後 Agent／Helper SHA-256 與候選 sidecar 一致。
+
+更新前後唯一 `demo.test` 的 Site ID、路徑、Site Home、PHP 8.2 與空白 Proxy 均相同；MariaDB `my.ini` 與 Connect 設定 SHA-256 保持不變。`demo.test` 回傳 HTTP 200／PHP 8.2.33，Stop 後 Nginx／PHP 與 80／443 全部清理，重新 Start 後再次回傳 HTTP 200。此階段尚未驗證 GitHub Draft Asset 與 App 內分段下載，後者必須在 Draft 建立後另行完成。
+
 ## 常見問題快速對照
 
 | 症狀 | 優先檢查 |
@@ -289,6 +307,8 @@ Connect 從 Parallels Shared Folder 啟動後，成功把自己轉存為本機 `
 | MariaDB 啟動回報 Unable to get private key | Windows Managed 設定是否包含 loopback 專用的 `skip-ssl` |
 | 修正已打包但行為仍舊 | 安裝包是否封裝舊 Agent sidecar；比對 SHA-256 |
 | 靜默安裝後立刻啟動失敗 | 是否用 `Start-Process -Wait` 等待 NSIS 完成 |
+| App 更新仍出現移除／安裝選擇頁 | 啟動參數是否同時包含 `/UPDATE /P /R`，以及舊 Desktop PID 是否已完全退出 |
+| GitHub 下載中斷後從 0 開始 | Pending 目錄的 `.resume` 分段是否仍存在，伺服器是否正確回傳 `206 Content-Range` |
 | Runtime 突然消失 | `robocopy /MIR` 是否刪除 `distribution/windows/runtime` |
 
 ## 發佈邊界

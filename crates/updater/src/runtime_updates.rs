@@ -138,15 +138,32 @@ where
   on_progress(0, release.size);
 
   let client = runtime_http_client()?;
-  let result = download_runtime_artifact(
-    &client,
-    &release,
-    &partial,
-    &target,
-    &mut on_progress,
-    &is_cancelled,
-  )
-  .await;
+  let windows_x64 = request.platform == "windows" && request.architecture == "x64";
+  let result = if windows_x64 {
+    crate::windows_download::download_windows_artifact(
+      crate::windows_download::WindowsArtifactDownload {
+        client: &client,
+        url: &release.url,
+        size: release.size,
+        sha256: &release.sha256,
+        partial: &partial,
+        target: &target,
+      },
+      &mut on_progress,
+      &is_cancelled,
+    )
+    .await
+  } else {
+    download_runtime_artifact(
+      &client,
+      &release,
+      &partial,
+      &target,
+      &mut on_progress,
+      &is_cancelled,
+    )
+    .await
+  };
   if result.is_err() {
     let _ = remove_file_if_exists(&partial).await;
   }

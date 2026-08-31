@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-08-31
-> 目前階段：專案版本 `0.1.10`；Windows x64 Node.js／MariaDB 線上安裝與升級已完成程式、產包及 Windows VM 驗證，進入正式發布流程
+> 目前階段：專案版本 `0.1.11`；Windows x64 App 原地更新與 GitHub 分段續傳已完成原始碼、Windows VM 測試及未提交、未發布的 Windows x64 本機候選包
 
 ## 已完成
 
@@ -32,6 +32,11 @@
 
 ## 最近驗證
 
+- 2026-08-31：Windows x64 App 更新已改為安全退出後使用 Tauri NSIS `/UPDATE /P /R` 原地覆蓋並自動重新啟動，不走舊版移除流程；設定頁文字已同步說明 Sites、Runtime 與使用者資料會保留。
+- Windows x64 App／Runtime GitHub Artifact 下載新增 8 MiB 分段、最多 4 路並行、4 次退避重試、跨 App 重啟續傳、完成後整包 SHA-256，以及設定頁速度／預估剩餘時間；macOS 下載與安裝流程保持不變。
+- 本輪 Desktop 66 項、Release 規則 9 項、Updater 15 項、Vue production build、rustfmt、Updater Clippy 與 `git diff --check` 通過；Parallels Windows 11 的 x64 target Desktop 編譯及 Updater 15 項原生測試通過。公開 `v0.1.10` Windows Setup 的單 Byte Range 實測回傳 `206`、`Content-Range: bytes 0-0/49258503`。
+- Windows x64 `0.1.11` 未簽章本機候選 NSIS 已完成，大小 49,295,735 bytes，SHA-256 `8c6bffb7099cfe1e8730eaa34012a973b402551e17f268d1421ab1311c5dc1c7`；PE／NSIS、File Version、Product Version、Desktop、Agent、Helper 與內建 PHP 7.4.33／8.2.33、Nginx 內容靜態檢查通過。
+- Parallels Windows 11 ARM 的 x64 相容環境已由安裝版 `0.1.10` 使用 `/UPDATE /P /R` 原地更新至 `0.1.11`，Installer exit code 0 且 App 自動重新啟動。唯一 `demo.test` Site ID、Site Home、PHP 8.2、空白 Proxy、MariaDB 與 Connect 設定雜湊均保持不變；Agent 版本 `0.1.11`／Protocol 36、HTTP 200／PHP 8.2.33、Stop → Start 與 80／443 清理回歸通過。尚未提交、推送或發布。
 - 2026-08-31：Windows x64 Node.js 20.20.2／24.20.0 與 MariaDB 12.3.2 已接入 Runtime Catalog v1、Agent Protocol 36 與 Desktop。Node 兩個 major 會各自顯示安裝／更新狀態，Node 20 顯示 EOL 警告；下載支援進度、取消、大小／SHA-256 與安裝前重新驗證。
 - Node.js 安裝後驗證 `node.exe` 與 `npm.cmd`，但不自動切換全域或 PATH；按「設為全域」後才啟用 `node`／`npm`／`npx`／`corepack` shim。MariaDB 必須停止才能安裝或升級，成功後保留既有 data／config／log 並重新套用 PHP MariaDB 連線，失敗時恢復原 active Runtime。
 - Windows Runtime 產包腳本已改為可在 macOS／Ubuntu 重跑並可只建置指定 Runtime；以本機已下載的固定上游檔案實際完成 MariaDB（約 99 MB）與 Node.js（約 36 MB）SHA-256、官方 PGP 完整 Fingerprint、單一版本根目錄及 descriptor 驗證。

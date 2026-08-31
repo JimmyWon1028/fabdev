@@ -12,6 +12,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use fabdev_runtime::{RuntimeCatalog, RuntimeRelease};
 
 mod runtime_updates;
+mod windows_download;
 
 pub use runtime_updates::{
   cached_runtime_catalog, check_for_runtime_updates, cleanup_runtime_update_partials,
@@ -172,7 +173,24 @@ where
   remove_file_if_exists(&partial).await?;
   on_progress(0, artifact.size);
 
-  let result = download_artifact(&client, artifact, &partial, &target, &mut on_progress).await;
+  let windows_x64 = platform == "windows" && architecture == "x64";
+  let result = if windows_x64 {
+    windows_download::download_windows_artifact(
+      windows_download::WindowsArtifactDownload {
+        client: &client,
+        url: &artifact.url,
+        size: artifact.size,
+        sha256: &artifact.sha256,
+        partial: &partial,
+        target: &target,
+      },
+      &mut on_progress,
+      &|| false,
+    )
+    .await
+  } else {
+    download_artifact(&client, artifact, &partial, &target, &mut on_progress).await
+  };
   if result.is_err() {
     let _ = remove_file_if_exists(&partial).await;
   }

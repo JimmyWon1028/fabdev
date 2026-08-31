@@ -4,7 +4,11 @@ import { confirm } from '@tauri-apps/plugin-dialog'
 import { computed, onMounted, ref } from 'vue'
 
 import { useAppStore } from '../stores/fabdev'
-import { formatUpdateBytes, updateDownloadPercent } from '../utils/app-update'
+import {
+  formatUpdateBytes,
+  formatUpdateDuration,
+  updateDownloadPercent
+} from '../utils/app-update'
 import { useI18n } from '../utils/i18n'
 import type { Language } from '../utils/preferences'
 
@@ -20,6 +24,19 @@ const downloadedSize = computed(() =>
 const totalSize = computed(() =>
   formatUpdateBytes(store.appUpdateDownload?.totalBytes ?? store.appUpdate?.artifact.size ?? 0)
 )
+const downloadRateLabel = computed(() => {
+  if (
+    store.appUpdateDownloadBytesPerSecond <= 0 ||
+    store.appUpdateDownloadRemainingSeconds === null ||
+    store.appUpdateDownloadRemainingSeconds <= 0
+  ) {
+    return ''
+  }
+  return t('settings.downloadRateEta', {
+    speed: formatUpdateBytes(store.appUpdateDownloadBytesPerSecond),
+    eta: formatUpdateDuration(store.appUpdateDownloadRemainingSeconds)
+  })
+})
 const lastUpdateCheckLabel = computed(() =>
   store.lastUpdateCheck
     ? new Date(store.lastUpdateCheck).toLocaleString(language.value)
@@ -229,6 +246,7 @@ async function installUpdate() {
               <span>{{ t('settings.downloadingUpdate') }}</span>
               <span>{{ downloadedSize }}／{{ totalSize }} · {{ downloadPercent }}%</span>
             </div>
+            <small v-if="downloadRateLabel">{{ downloadRateLabel }}</small>
             <progress :value="downloadPercent" max="100" />
           </div>
 
