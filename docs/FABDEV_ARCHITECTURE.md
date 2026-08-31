@@ -294,6 +294,8 @@ macOS 發布前：補齊 Intel x86_64
 暫不納入：Windows ARM64、Linux
 ```
 
+macOS Intel 的雙機開發、功能分支、原生打包與實機驗收流程見 [`MACOS_INTEL_DEVELOPMENT_TEST_WORKFLOW.md`](MACOS_INTEL_DEVELOPMENT_TEST_WORKFLOW.md)。
+
 macOS 使用 WKWebView，Windows 使用 WebView2。UI 必須避免實驗性 Web API，並在兩平台執行互動與視覺測試。Windows Installer 預設檢查並安裝 WebView2；企業離線需求可另提供內含 WebView2 的安裝包。
 
 ## 11. 建議 Monorepo

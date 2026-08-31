@@ -96,6 +96,27 @@ impl RuntimePaths {
       })
       .unwrap_or(false)
   }
+
+  fn installed_php_versions(&self) -> BTreeSet<PhpVersion> {
+    std::fs::read_dir(&self.php)
+      .map(|entries| {
+        entries
+          .filter_map(|entry| entry.ok())
+          .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let mut parts = name.split('.');
+            let major = parts.next()?.parse::<u8>().ok()?;
+            let minor = parts.next()?.parse::<u8>().ok()?;
+            parts.next()?.parse::<u16>().ok()?;
+            if parts.next().is_some() || major < 7 || !php_server_binary(&entry.path()).is_file() {
+              return None;
+            }
+            Some(PhpVersion { major, minor })
+          })
+          .collect()
+      })
+      .unwrap_or_default()
+  }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -397,24 +418,24 @@ impl ServiceSupervisor {
   ) -> Result<MariaDbSettings> {
     let previous = self.mariadb_settings()?;
     let settings = self.save_mariadb_settings(settings)?;
-    if self.expected_php_versions.is_empty() {
-      return Ok(settings);
-    }
-
-    let active_versions = self.expected_php_versions.clone();
-    if let Err(error) = self.restart_php_versions(&active_versions).await {
+    if let Err(error) = self.refresh_php_mariadb_connection().await {
       save_mariadb_settings_file(&self.paths, &previous)?;
-      let _ = self.restart_php_versions(&active_versions).await;
+      let _ = self.refresh_php_mariadb_connection().await;
       return Err(error.context("unable to apply MariaDB connection to PHP-FPM"));
     }
     Ok(settings)
   }
 
   pub async fn refresh_php_mariadb_connection(&mut self) -> Result<()> {
-    if self.expected_php_versions.is_empty() {
+    let active_versions = self.expected_php_versions.clone();
+    let installed_versions = self.runtimes.installed_php_versions();
+    for version in installed_versions.difference(&active_versions) {
+      generate_php_config(&self.paths, &self.runtimes, version)
+        .with_context(|| format!("unable to refresh inactive PHP {version} MariaDB connection"))?;
+    }
+    if active_versions.is_empty() {
       return Ok(());
     }
-    let active_versions = self.expected_php_versions.clone();
     self
       .restart_php_versions(&active_versions)
       .await
@@ -4279,6 +4300,61 @@ mod tests {
       managed_socket.display()
     )));
     assert!(!php_pool.contains("system/mysql.sock"));
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn refreshes_inactive_installed_php_configs_when_mariadb_connection_changes() {
+    let fixture_id = Uuid::new_v4().simple().to_string();
+    let root = std::env::temp_dir().join(format!("fdmi-{}", &fixture_id[..8]));
+    let paths = AppPaths::from_root(root.join("data"));
+    let runtimes = RuntimePaths {
+      dnsmasq: root.join("runtimes/dnsmasq"),
+      nginx: root.join("runtimes/nginx"),
+      php: root.join("runtimes/php"),
+      mariadb: root.join("runtimes/mariadb"),
+    };
+    add_php_runtime(&runtimes.php, "8.2.33");
+    add_php_runtime(&runtimes.php, "8.4.24");
+    for version in ["8.2", "8.4"] {
+      generate_php_config(
+        &paths,
+        &runtimes,
+        &version.parse().expect("parse PHP version"),
+      )
+      .expect("generate stopped Managed MariaDB PHP config");
+    }
+
+    let managed_socket = paths.services.join("mariadb/mariadb.sock");
+    std::fs::create_dir_all(managed_socket.parent().expect("Managed Socket parent"))
+      .expect("create Managed Socket directory");
+    let _managed_listener = std::os::unix::net::UnixListener::bind(&managed_socket)
+      .expect("bind running Managed MariaDB Socket");
+    let mut supervisor =
+      ServiceSupervisor::new(paths.clone(), runtimes.clone(), ServicePorts::system());
+
+    supervisor
+      .refresh_php_mariadb_connection()
+      .await
+      .expect("refresh every installed PHP config");
+
+    for version in ["8.2", "8.4"] {
+      let php_pool = std::fs::read_to_string(
+        paths
+          .services
+          .join(format!("php/{version}/php-fpm.d/www.conf")),
+      )
+      .expect("read refreshed inactive PHP-FPM pool");
+      assert!(php_pool.contains(&format!(
+        "php_admin_value[mysqli.default_socket] = {}",
+        managed_socket.display()
+      )));
+      assert!(php_pool.contains(&format!(
+        "php_admin_value[pdo_mysql.default_socket] = {}",
+        managed_socket.display()
+      )));
+    }
     std::fs::remove_dir_all(root).expect("remove fixture");
   }
 

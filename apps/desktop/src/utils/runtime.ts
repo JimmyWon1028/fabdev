@@ -11,23 +11,23 @@ export interface RuntimeRow {
   runtime: PhpRuntimeInfo
 }
 
-export type WindowsRuntimeRowState = 'installed' | 'not-installed' | 'update-available'
+export type CatalogRuntimeRowState = 'installed' | 'not-installed' | 'update-available'
 export type CatalogRuntimeState = 'installed' | 'not-installed' | 'update-available'
 
-export interface WindowsRuntimeRow {
+export interface CatalogRuntimeRow {
   series: string
   version: string
   runtime: PhpRuntimeInfo | null
   artifact: RuntimeUpdateArtifact | null
-  state: WindowsRuntimeRowState
+  state: CatalogRuntimeRowState
 }
 
-export interface WindowsNodeRuntimeRow {
+export interface NodeRuntimeRow {
   major: string
   version: string
   runtime: NodeRuntimeInfo | null
   artifact: RuntimeUpdateArtifact | null
-  state: WindowsRuntimeRowState
+  state: CatalogRuntimeRowState
 }
 
 export const BUILT_IN_PHP_SERIES = ['7.4', '8.2'] as const
@@ -54,10 +54,10 @@ export function buildRuntimeRows(installed: PhpRuntimeInfo[]): RuntimeRow[] {
   )
 }
 
-export function buildWindowsRuntimeRows(
+export function buildCatalogRuntimeRows(
   installed: PhpRuntimeInfo[],
   artifacts: RuntimeUpdateArtifact[]
-): WindowsRuntimeRow[] {
+): CatalogRuntimeRow[] {
   const latestArtifactBySeries = new Map<string, RuntimeUpdateArtifact>()
   for (const artifact of artifacts) {
     if (artifact.name !== 'php') {
@@ -81,7 +81,7 @@ export function buildWindowsRuntimeRows(
     }
   }
 
-  const rows = installed.map<WindowsRuntimeRow>((runtime) => {
+  const rows = installed.map<CatalogRuntimeRow>((runtime) => {
     const latestInstalled = latestInstalledBySeries.get(runtime.series)
     const artifact = latestArtifactBySeries.get(runtime.series)
     const updateArtifact = latestInstalled?.version === runtime.version
@@ -117,10 +117,10 @@ export function buildWindowsRuntimeRows(
   })
 }
 
-export function buildWindowsNodeRuntimeRows(
+export function buildNodeRuntimeRows(
   installed: NodeRuntimeInfo[],
   artifacts: RuntimeUpdateArtifact[]
-): WindowsNodeRuntimeRow[] {
+): NodeRuntimeRow[] {
   const supportedByMajor = new Map(
     supportedNodeVersions.map((version) => [version.split('.')[0], version])
   )
@@ -148,7 +148,7 @@ export function buildWindowsNodeRuntimeRows(
     }
   }
 
-  const rows = installed.map<WindowsNodeRuntimeRow>((runtime) => {
+  const rows = installed.map<NodeRuntimeRow>((runtime) => {
     const major = runtime.version.split('.')[0]
     const artifact = latestArtifactByMajor.get(major)
     const latestInstalled = latestInstalledByMajor.get(major)
@@ -229,6 +229,20 @@ export function compareRuntimeVersions(left: string, right: string): number {
     }
   }
   return 0
+}
+
+export function formatRuntimeTarget(platform: string, architecture: string): string {
+  const platformLabel = platform === 'macos'
+    ? 'macOS'
+    : platform === 'windows'
+      ? 'Windows'
+      : platform
+  const architectureLabel = architecture === 'arm64'
+    ? 'ARM64'
+    : architecture === 'x64'
+      ? 'x64'
+      : architecture
+  return `${platformLabel} ${architectureLabel}`
 }
 
 export function formatRuntimeBytes(bytes: number): string {

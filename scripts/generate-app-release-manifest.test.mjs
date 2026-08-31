@@ -201,6 +201,44 @@ test('prepares a Windows-only release with a Windows-only Runtime package', asyn
   )
 })
 
+test('prepares a macOS ARM64 release with all online Runtime packages', async (context) => {
+  const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-macos-test-'))
+  context.after(async () => rm(testRoot, { force: true, recursive: true }))
+  const macSource = join(testRoot, 'input.dmg')
+  const phpRuntimeSource = join(testRoot, 'input-runtime-php-macos.tar.gz')
+  const mariaDbRuntimeSource = join(testRoot, 'input-runtime-mariadb-macos.tar.gz')
+  const node20RuntimeSource = join(testRoot, 'input-runtime-node20-macos.tar.gz')
+  const node24RuntimeSource = join(testRoot, 'input-runtime-node24-macos.tar.gz')
+  const outputDir = join(testRoot, 'release')
+  await writeFile(macSource, 'macOS installer fixture')
+  await writeFile(phpRuntimeSource, 'macOS PHP Runtime fixture')
+  await writeFile(mariaDbRuntimeSource, 'macOS MariaDB Runtime fixture')
+  await writeFile(node20RuntimeSource, 'macOS Node.js 20 Runtime fixture')
+  await writeFile(node24RuntimeSource, 'macOS Node.js 24 Runtime fixture')
+
+  const result = await prepareAppRelease({
+    repoRoot,
+    version: projectVersion,
+    publishedAt: '2026-08-31T06:00:00Z',
+    outputDir,
+    macosArm64: macSource,
+    runtimeMacosArm64: phpRuntimeSource,
+    runtimeMariaDbMacosArm64: mariaDbRuntimeSource,
+    runtimeNode20MacosArm64: node20RuntimeSource,
+    runtimeNode24MacosArm64: node24RuntimeSource
+  })
+
+  assert.equal(result.manifest.artifacts.length, 1)
+  assert.equal(result.manifest.artifacts[0].platform, 'macos')
+  assert.equal(result.manifest.artifacts[0].architecture, 'arm64')
+  assert.equal(result.files.length, 13)
+  assert.equal(result.files.includes('php-8.4.24-macos-arm64-community.tar.gz'), true)
+  assert.equal(result.files.includes('mariadb-12.3.2-macos-arm64-community.tar.gz'), true)
+  assert.equal(result.files.includes('node-20.20.2-macos-arm64-community.tar.gz'), true)
+  assert.equal(result.files.includes('node-24.20.0-macos-arm64-community.tar.gz'), true)
+  assert.equal(result.files.some((fileName) => fileName.includes('windows')), false)
+})
+
 test('refuses to overwrite an existing output directory', async (context) => {
   const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-test-'))
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
@@ -266,11 +304,19 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.match(workflow, /--runtime-mariadb-windows-x64/)
   assert.match(workflow, /--runtime-node20-windows-x64/)
   assert.match(workflow, /--runtime-node24-windows-x64/)
-  assert.doesNotMatch(workflow, /build-macos|--macos-arm64|--runtime-macos-arm64/)
-  assert.match(workflow, /generate-windows/)
+  assert.match(workflow, /build-macos:/)
+  assert.match(workflow, /draft-macos-arm64/)
+  assert.match(workflow, /draft-macos-online-runtimes/)
+  assert.match(workflow, /build-macos-online-runtime-packages\.sh/)
+  assert.match(workflow, /--macos-arm64/)
+  assert.match(workflow, /--runtime-macos-arm64/)
+  assert.match(workflow, /--runtime-mariadb-macos-arm64/)
+  assert.match(workflow, /--runtime-node20-macos-arm64/)
+  assert.match(workflow, /--runtime-node24-macos-arm64/)
+  assert.match(workflow, /generate-community/)
   assert.match(workflow, /--bin fabdev-runtime-catalog/)
   assert.match(workflow, /release-assets\/fabdev-runtime-v1\.json/)
-  assert.match(workflow, /\)" = "20"/)
+  assert.match(workflow, /\)" = "30"/)
 
   const usesLines = workflow
     .split('\n')
@@ -325,6 +371,113 @@ test('pins and verifies all Windows online PHP Runtime packages', async () => {
   assert.match(script, /tar\.exe -tzf/)
   assert.match(script, /foreach \(\$runtime in \$phpRuntimes\)/)
   assert.doesNotMatch(script, /mariadb|node/i)
+})
+
+test('pins and prepares every macOS ARM64 online Runtime package', async () => {
+  const nodeBuild = await readFile(join(repoRoot, 'scripts/build-node-runtime.sh'), 'utf8')
+  const phpBuild = await readFile(join(repoRoot, 'scripts/build-php-runtime.sh'), 'utf8')
+  const mariaDbBuild = await readFile(
+    join(repoRoot, 'scripts/build-mariadb-runtime.sh'),
+    'utf8'
+  )
+  const releaseBuild = await readFile(
+    join(repoRoot, 'scripts/build-macos-online-runtime-packages.sh'),
+    'utf8'
+  )
+  const phpPackage = await readFile(join(repoRoot, 'scripts/package-php-runtime.sh'), 'utf8')
+  const phpHealthCheck = await readFile(
+    join(repoRoot, 'scripts/validate-php-runtime-health.sh'),
+    'utf8'
+  )
+  const phpSiteHealthCheck = await readFile(
+    join(repoRoot, 'scripts/validate-php-runtime-site.sh'),
+    'utf8'
+  )
+  const phpOnlineFlowCheck = await readFile(
+    join(repoRoot, 'scripts/validate-macos-php-online-flow.sh'),
+    'utf8'
+  )
+  const mariaDbPackage = await readFile(
+    join(repoRoot, 'scripts/package-mariadb-runtime.sh'),
+    'utf8'
+  )
+  const mariaDbHealthCheck = await readFile(
+    join(repoRoot, 'scripts/validate-mariadb-runtime-health.sh'),
+    'utf8'
+  )
+  const nodePackage = await readFile(join(repoRoot, 'scripts/package-node-runtime.sh'), 'utf8')
+  const minimumVersionCheck = await readFile(
+    join(repoRoot, 'scripts/validate-macos-runtime-minimum.sh'),
+    'utf8'
+  )
+  const dependencyBuild = await readFile(
+    join(repoRoot, 'scripts/build-macos-runtime-dependencies.sh'),
+    'utf8'
+  )
+  const dylibBundle = await readFile(
+    join(repoRoot, 'scripts/bundle-macos-dylibs.sh'),
+    'utf8'
+  )
+
+  assert.match(nodeBuild, /20\.20\.2\)/)
+  assert.match(nodeBuild, /466e05f3477c20dfb723054dfebffe55bc74660ee77f612166fca121dacb65b6/)
+  assert.match(nodeBuild, /24\.20\.0\)/)
+  assert.match(nodeBuild, /40e5607e5ecb3db9192723776da2d75d966260fc74a7a9e731c1bd67dda96bc8/)
+  assert.match(phpBuild, /MACOS_TARGET="\$\{MACOSX_DEPLOYMENT_TARGET:-13\.0\}"/)
+  assert.match(phpBuild, /build-macos-runtime-dependencies\.sh" php/)
+  assert.match(phpBuild, /FABDEV_RUNTIME_DEPENDENCY_PREFIX/)
+  assert.match(phpBuild, /--with-iconv="\$DEPENDENCY_PREFIX"/)
+  assert.match(mariaDbBuild, /MACOS_TARGET="\$\{MACOSX_DEPLOYMENT_TARGET:-13\.0\}"/)
+  assert.match(mariaDbBuild, /OPENSSL_USE_STATIC_LIBS=TRUE/)
+  assert.match(mariaDbBuild, /PLUGIN_MROONGA=NO/)
+  assert.match(mariaDbBuild, /CLIENT_PLUGIN_ZSTD=OFF/)
+  assert.match(dependencyBuild, /OPENSSL_VERSION="3\.6\.3"/)
+  assert.match(dependencyBuild, /--openssldir=\/etc\/ssl/)
+  assert.match(dependencyBuild, /243a86649cf6f23eeb6a2ff2456e09e5d77dd9018a54d3d96b0c6bdd6ba6c7f1/)
+  assert.match(dependencyBuild, /PCRE2_VERSION="10\.47"/)
+  assert.match(dependencyBuild, /47fe8c99461250d42f89e6e8fdaeba9da057855d06eb7fc08d9ca03fd08d7bc7/)
+  assert.match(dependencyBuild, /LIBICONV_VERSION="1\.19"/)
+  assert.match(dependencyBuild, /88dd96a8c0464eca144fc791ae60cd31cd8ee78321e67397e25fc095c4a19aa6/)
+  assert.match(dependencyBuild, /IMAGEMAGICK_VERSION="7\.1\.2-30"/)
+  assert.match(dependencyBuild, /--with-modules=no/)
+  assert.match(dependencyBuild, /macOS SDK zlib/)
+  assert.match(dependencyBuild, /"\$INSTALL_PREFIX\/sbin"/)
+  assert.match(dylibBundle, /Mach-O dependency is outside the Runtime and allowed prefixes/)
+  assert.match(releaseBuild, /FABDEV_RUNTIME_PACKAGE_VARIANT=community/)
+  assert.match(releaseBuild, /PHP_VERSION=8\.4\.24/)
+  assert.match(releaseBuild, /MARIADB_VERSION=12\.3\.2/)
+  assert.match(releaseBuild, /for node_version in 20\.20\.2 24\.20\.0/)
+  assert.match(releaseBuild, /generate-macos/)
+  assert.match(releaseBuild, /fabdev-runtime-v1\.json/)
+  assert.match(releaseBuild, /pwd -P/)
+  assert.doesNotMatch(releaseBuild, /gh release|--draft|--publish/)
+  assert.match(phpPackage, /validate-macos-runtime-minimum\.sh/)
+  assert.match(phpPackage, /FABDEV_RUNTIME_DEPENDENCY_PREFIX/)
+  assert.match(phpPackage, /validate-php-runtime-health\.sh/)
+  assert.match(phpHealthCheck, /stream_socket_client\("unix:\/\/"/)
+  assert.match(phpHealthCheck, /"fpm-fcgi"/)
+  assert.match(phpHealthCheck, /PHP-FPM FastCGI request passed/)
+  assert.match(phpSiteHealthCheck, /fastcgi_pass unix:/)
+  assert.match(phpSiteHealthCheck, /Host: \$SITE_DOMAIN/)
+  assert.match(phpSiteHealthCheck, /Nginx Site HTTP passed with PHP/)
+  assert.match(phpSiteHealthCheck, /PHP Runtime Site HTTP health check passed/)
+  assert.match(phpOnlineFlowCheck, /FABDEV_MACOS_PHP_RUNTIME_PACKAGE/)
+  assert.match(
+    phpOnlineFlowCheck,
+    /streams_the_real_macos_php_package_over_loopback/
+  )
+  assert.match(
+    phpOnlineFlowCheck,
+    /installs_real_macos_php_through_the_online_agent_protocol/
+  )
+  assert.match(mariaDbPackage, /validate-macos-runtime-minimum\.sh/)
+  assert.match(mariaDbPackage, /validate-mariadb-runtime-health\.sh/)
+  assert.match(mariaDbHealthCheck, /mariadb-install-db/)
+  assert.match(mariaDbHealthCheck, /SELECT VERSION\(\), @@version_comment, 1 \+ 1/)
+  assert.match(mariaDbHealthCheck, /mariadb-admin/)
+  assert.match(nodePackage, /validate-macos-runtime-minimum\.sh/)
+  assert.match(minimumVersionCheck, /vtool -show-build/)
+  assert.match(minimumVersionCheck, /incompatible Mach-O minimum version declaration/)
 })
 
 test('removes every exact stale fabDev CA without requiring user data', async () => {

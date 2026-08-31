@@ -3,8 +3,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context};
 use futures_util::StreamExt;
+use reqwest::header::{CONTENT_RANGE, RANGE};
 use reqwest::redirect::Policy;
-use reqwest::Client;
+use reqwest::{Client, StatusCode, Url};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -19,6 +20,8 @@ const RUNTIME_UPDATE_PENDING_DIRECTORY: &str = "pending";
 const RUNTIME_CATALOG_FILE: &str = "fabdev-runtime-v1.json";
 const ACCEPTED_CATALOG_FILE: &str = "accepted-catalog.json";
 const MAX_REDIRECTS: usize = 10;
+#[cfg(debug_assertions)]
+const RUNTIME_TEST_BASE_URL_ENV: &str = "FABDEV_RUNTIME_TEST_BASE_URL";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DownloadedRuntimeUpdate {
@@ -55,8 +58,14 @@ pub async fn check_for_runtime_updates(
   current_app_version: &str,
   current_agent_protocol_version: u16,
 ) -> anyhow::Result<ValidatedRuntimeCatalog> {
-  let client = runtime_http_client()?;
-  let contents = fetch_runtime_catalog(&client).await?;
+  let test_base_url = runtime_test_base_url()?;
+  let client = runtime_http_client(test_base_url.as_ref())?;
+  let catalog_url = runtime_transport_url(
+    test_base_url.as_ref(),
+    RUNTIME_CATALOG_URL,
+    RUNTIME_CATALOG_FILE,
+  )?;
+  let contents = fetch_runtime_catalog(&client, catalog_url.as_str()).await?;
   let accepted = load_accepted_catalog(cache_directory).await?;
   let validation = runtime_catalog_validation(
     current_app_version,
@@ -134,16 +143,24 @@ where
 
   remove_file_if_exists(&target).await?;
   let partial = pending_directory.join(format!("{file_name}.part"));
-  remove_file_if_exists(&partial).await?;
   on_progress(0, release.size);
 
-  let client = runtime_http_client()?;
+  let test_base_url = runtime_test_base_url()?;
+  let client = runtime_http_client(test_base_url.as_ref())?;
+  let transport_url = runtime_transport_url(
+    test_base_url.as_ref(),
+    &release.url,
+    release
+      .file_name
+      .as_deref()
+      .context("the cached Runtime entry is missing its file name")?,
+  )?;
   let windows_x64 = request.platform == "windows" && request.architecture == "x64";
   let result = if windows_x64 {
     crate::windows_download::download_windows_artifact(
       crate::windows_download::WindowsArtifactDownload {
         client: &client,
-        url: &release.url,
+        url: transport_url.as_str(),
         size: release.size,
         sha256: &release.sha256,
         partial: &partial,
@@ -154,9 +171,11 @@ where
     )
     .await
   } else {
+    let mut transport_release = release.clone();
+    transport_release.url = transport_url.to_string();
     download_runtime_artifact(
       &client,
-      &release,
+      &transport_release,
       &partial,
       &target,
       &mut on_progress,
@@ -164,9 +183,6 @@ where
     )
     .await
   };
-  if result.is_err() {
-    let _ = remove_file_if_exists(&partial).await;
-  }
   result?;
   Ok(downloaded_runtime_update(&release, target))
 }
@@ -205,24 +221,88 @@ pub async fn cleanup_runtime_update_partials(cache_directory: &Path) -> anyhow::
   Ok(removed)
 }
 
-fn runtime_http_client() -> anyhow::Result<Client> {
+fn runtime_http_client(test_base_url: Option<&Url>) -> anyhow::Result<Client> {
+  let test_origin = test_base_url.map(|url| {
+    (
+      url.scheme().to_owned(),
+      url
+        .host_str()
+        .expect("test URL host was validated")
+        .to_owned(),
+      url.port(),
+    )
+  });
   Client::builder()
     .user_agent(format!("fabDev/{}", env!("CARGO_PKG_VERSION")))
     .connect_timeout(Duration::from_secs(15))
     .timeout(Duration::from_secs(30 * 60))
-    .https_only(true)
-    .redirect(Policy::custom(|attempt| {
+    .https_only(test_base_url.is_none())
+    .redirect(Policy::custom(move |attempt| {
       if attempt.previous().len() >= MAX_REDIRECTS {
         return attempt.error("Runtime update exceeded the redirect limit");
       }
       let url = attempt.url();
-      if url.scheme() != "https" || !is_allowed_runtime_update_host(url.host_str()) {
+      let allowed = match &test_origin {
+        Some((scheme, host, port)) => {
+          url.scheme() == scheme && url.host_str() == Some(host.as_str()) && url.port() == *port
+        }
+        None => url.scheme() == "https" && is_allowed_runtime_update_host(url.host_str()),
+      };
+      if !allowed {
         return attempt.error("Runtime update redirect left the HTTPS GitHub asset allowlist");
       }
       attempt.follow()
     }))
     .build()
     .context("unable to initialize the Runtime update HTTPS client")
+}
+
+fn runtime_test_base_url() -> anyhow::Result<Option<Url>> {
+  #[cfg(debug_assertions)]
+  {
+    let Some(value) = std::env::var_os(RUNTIME_TEST_BASE_URL_ENV) else {
+      return Ok(None);
+    };
+    let value = value
+      .into_string()
+      .map_err(|_| anyhow::anyhow!("{RUNTIME_TEST_BASE_URL_ENV} must be valid UTF-8"))?;
+    parse_runtime_test_base_url(&value).map(Some)
+  }
+
+  #[cfg(not(debug_assertions))]
+  Ok(None)
+}
+
+#[cfg(debug_assertions)]
+fn parse_runtime_test_base_url(value: &str) -> anyhow::Result<Url> {
+  let url = Url::parse(value).context("unable to parse the Runtime test base URL")?;
+  let valid = url.scheme() == "http"
+    && url.host_str() == Some("127.0.0.1")
+    && url.port().is_some()
+    && url.username().is_empty()
+    && url.password().is_none()
+    && url.query().is_none()
+    && url.fragment().is_none()
+    && url.path() == "/";
+  if !valid {
+    bail!(
+      "{RUNTIME_TEST_BASE_URL_ENV} must be an http://127.0.0.1:<port> origin without credentials, path, query, or fragment"
+    );
+  }
+  Ok(url)
+}
+
+fn runtime_transport_url(
+  test_base_url: Option<&Url>,
+  production_url: &str,
+  file_name: &str,
+) -> anyhow::Result<Url> {
+  match test_base_url {
+    Some(base_url) => base_url
+      .join(file_name)
+      .context("unable to construct the Runtime test transport URL"),
+    None => Url::parse(production_url).context("unable to parse the Runtime transport URL"),
+  }
 }
 
 fn is_allowed_runtime_update_host(host: Option<&str>) -> bool {
@@ -237,9 +317,9 @@ fn is_allowed_runtime_update_host(host: Option<&str>) -> bool {
   )
 }
 
-async fn fetch_runtime_catalog(client: &Client) -> anyhow::Result<Vec<u8>> {
+async fn fetch_runtime_catalog(client: &Client, url: &str) -> anyhow::Result<Vec<u8>> {
   let response = client
-    .get(RUNTIME_CATALOG_URL)
+    .get(url)
     .timeout(Duration::from_secs(30))
     .send()
     .await
@@ -279,35 +359,108 @@ where
   if is_cancelled() {
     bail!("Runtime download was cancelled");
   }
-  let response = client
-    .get(&release.url)
+  let (mut downloaded, mut hasher) = resumable_runtime_partial(partial, release).await?;
+  if downloaded == release.size {
+    if let Err(error) = verify_runtime_artifact(partial, release).await {
+      remove_file_if_exists(partial).await?;
+      return Err(error).context("the completed Runtime partial failed verification");
+    }
+    tokio::fs::rename(partial, target)
+      .await
+      .context("unable to finalize the verified Runtime package")?;
+    on_progress(downloaded, release.size);
+    return Ok(());
+  }
+
+  on_progress(downloaded, release.size);
+  let mut request = client.get(&release.url);
+  if downloaded > 0 {
+    request = request.header(RANGE, format!("bytes={downloaded}-"));
+  }
+  let response = request
     .send()
     .await
-    .context("unable to download the Runtime package")?
-    .error_for_status()
-    .context("the Runtime package returned an unsuccessful status")?;
+    .context("unable to download the Runtime package")?;
+  let append = if downloaded == 0 {
+    response
+      .error_for_status_ref()
+      .context("the Runtime package returned an unsuccessful status")?;
+    if response.status() != StatusCode::OK {
+      bail!(
+        "Runtime package returned an invalid initial response: HTTP {}",
+        response.status()
+      );
+    }
+    false
+  } else if response.status() == StatusCode::PARTIAL_CONTENT {
+    validate_runtime_content_range(&response, downloaded, release.size)?;
+    true
+  } else if response.status() == StatusCode::OK {
+    downloaded = 0;
+    hasher = Sha256::new();
+    false
+  } else {
+    response
+      .error_for_status_ref()
+      .context("the Runtime package returned an unsuccessful status")?;
+    bail!(
+      "Runtime package returned an invalid resume response: HTTP {}",
+      response.status()
+    );
+  };
+
+  let expected_length = release
+    .size
+    .checked_sub(downloaded)
+    .context("Runtime package resume offset exceeds the Catalog size")?;
   if response
     .content_length()
-    .is_some_and(|length| length != release.size)
+    .is_some_and(|length| length != expected_length)
   {
+    if append {
+      remove_file_if_exists(partial).await?;
+    }
     bail!("Runtime package size does not match the Catalog");
   }
 
-  let mut file = tokio::fs::File::create(partial)
-    .await
-    .context("unable to create the partial Runtime package")?;
-  let mut hasher = Sha256::new();
-  let mut downloaded = 0_u64;
+  let mut file = if append {
+    tokio::fs::OpenOptions::new()
+      .append(true)
+      .open(partial)
+      .await
+      .context("unable to reopen the partial Runtime package")?
+  } else {
+    tokio::fs::File::create(partial)
+      .await
+      .context("unable to create the partial Runtime package")?
+  };
   let mut stream = response.bytes_stream();
-  while let Some(chunk) = stream.next().await {
+  while let Some(result) = stream.next().await {
     if is_cancelled() {
+      drop(file);
+      remove_file_if_exists(partial).await?;
       bail!("Runtime download was cancelled");
     }
-    let chunk = chunk.context("unable to read the Runtime package download")?;
+    let chunk = match result {
+      Ok(chunk) => chunk,
+      Err(error) => {
+        file
+          .flush()
+          .await
+          .context("unable to flush the interrupted Runtime package")?;
+        file
+          .sync_all()
+          .await
+          .context("unable to sync the interrupted Runtime package")?;
+        return Err(error).context("unable to read the Runtime package download");
+      }
+    };
     downloaded = downloaded
       .checked_add(chunk.len() as u64)
       .context("Runtime package size overflow")?;
     if downloaded > release.size {
+      drop(file);
+      remove_file_if_exists(partial).await?;
       bail!("Runtime package exceeds the Catalog size");
     }
     file
@@ -328,12 +481,14 @@ where
   drop(file);
 
   if is_cancelled() {
+    remove_file_if_exists(partial).await?;
     bail!("Runtime download was cancelled");
   }
   if downloaded != release.size {
     bail!("Runtime package download is incomplete");
   }
   if hex::encode(hasher.finalize()) != release.sha256 {
+    remove_file_if_exists(partial).await?;
     bail!("Runtime package SHA-256 does not match the Catalog");
   }
   tokio::fs::rename(partial, target)
@@ -365,6 +520,58 @@ async fn verify_runtime_artifact(path: &Path, release: &RuntimeRelease) -> anyho
   }
   if hex::encode(hasher.finalize()) != release.sha256 {
     bail!("downloaded Runtime package SHA-256 does not match the Catalog");
+  }
+  Ok(())
+}
+
+async fn resumable_runtime_partial(
+  partial: &Path,
+  release: &RuntimeRelease,
+) -> anyhow::Result<(u64, Sha256)> {
+  let metadata = match tokio::fs::symlink_metadata(partial).await {
+    Ok(metadata) => metadata,
+    Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok((0, Sha256::new())),
+    Err(error) => return Err(error).context("unable to inspect the partial Runtime package"),
+  };
+  if !metadata.file_type().is_file() || metadata.len() > release.size {
+    remove_file_if_exists(partial).await?;
+    return Ok((0, Sha256::new()));
+  }
+
+  let mut file = tokio::fs::File::open(partial)
+    .await
+    .context("unable to open the partial Runtime package")?;
+  let mut buffer = vec![0_u8; 64 * 1024];
+  let mut hasher = Sha256::new();
+  loop {
+    let count = file
+      .read(&mut buffer)
+      .await
+      .context("unable to read the partial Runtime package")?;
+    if count == 0 {
+      break;
+    }
+    hasher.update(&buffer[..count]);
+  }
+  Ok((metadata.len(), hasher))
+}
+
+fn validate_runtime_content_range(
+  response: &reqwest::Response,
+  start: u64,
+  total: u64,
+) -> anyhow::Result<()> {
+  let end = total
+    .checked_sub(1)
+    .context("Runtime package has an invalid zero size")?;
+  let expected = format!("bytes {start}-{end}/{total}");
+  if response
+    .headers()
+    .get(CONTENT_RANGE)
+    .and_then(|value| value.to_str().ok())
+    != Some(expected.as_str())
+  {
+    bail!("Runtime package returned an invalid Content-Range");
   }
   Ok(())
 }
@@ -584,6 +791,51 @@ mod tests {
     }
   }
 
+  #[test]
+  fn restricts_the_debug_runtime_feed_to_an_explicit_loopback_origin() {
+    assert_eq!(
+      parse_runtime_test_base_url("http://127.0.0.1:48123/")
+        .expect("accept loopback origin")
+        .as_str(),
+      "http://127.0.0.1:48123/"
+    );
+    for invalid in [
+      "https://127.0.0.1:48123/",
+      "http://localhost:48123/",
+      "http://127.0.0.1/",
+      "http://127.0.0.1:48123/feed/",
+      "http://user@127.0.0.1:48123/",
+      "http://127.0.0.1:48123/?source=test",
+    ] {
+      assert!(
+        parse_runtime_test_base_url(invalid).is_err(),
+        "reject {invalid}"
+      );
+    }
+  }
+
+  #[test]
+  fn rewrites_only_the_debug_runtime_transport_location() {
+    let base =
+      parse_runtime_test_base_url("http://127.0.0.1:48123/").expect("parse loopback origin");
+    assert_eq!(
+      runtime_transport_url(
+        Some(&base),
+        RUNTIME_CATALOG_URL,
+        "php-8.4.24-macos-arm64-community.tar.gz"
+      )
+      .expect("rewrite transport URL")
+      .as_str(),
+      "http://127.0.0.1:48123/php-8.4.24-macos-arm64-community.tar.gz"
+    );
+    assert_eq!(
+      runtime_transport_url(None, RUNTIME_CATALOG_URL, RUNTIME_CATALOG_FILE)
+        .expect("keep production URL")
+        .as_str(),
+      RUNTIME_CATALOG_URL
+    );
+  }
+
   #[tokio::test]
   async fn persists_and_reloads_the_validated_runtime_catalog() {
     let root = std::env::temp_dir().join(format!("fabdev-runtime-cache-{}", Uuid::new_v4()));
@@ -800,6 +1052,265 @@ mod tests {
     assert_eq!(
       tokio::fs::read(&target).await.expect("read target"),
       b"payload"
+    );
+    assert!(!partial.exists());
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[tokio::test]
+  async fn resumes_an_interrupted_runtime_package_with_a_valid_range() {
+    let payload = b"payload";
+    let first_listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+      .await
+      .expect("bind interrupted fixture server");
+    let first_address = first_listener.local_addr().expect("read fixture address");
+    let first_server = tokio::spawn(async move {
+      let (mut stream, _) = first_listener
+        .accept()
+        .await
+        .expect("accept interrupted fixture request");
+      let mut request = [0_u8; 1024];
+      let _ = tokio::io::AsyncReadExt::read(&mut stream, &mut request)
+        .await
+        .expect("read interrupted fixture request");
+      tokio::io::AsyncWriteExt::write_all(
+        &mut stream,
+        b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nConnection: close\r\n\r\npay",
+      )
+      .await
+      .expect("write interrupted fixture response");
+    });
+
+    let root = std::env::temp_dir().join(format!("fabdev-runtime-resume-{}", Uuid::new_v4()));
+    tokio::fs::create_dir_all(&root)
+      .await
+      .expect("create resume fixture");
+    let partial = root.join("runtime.tar.gz.part");
+    let target = root.join("runtime.tar.gz");
+    let mut release = catalog().runtimes.remove(0);
+    release.url = format!("http://{first_address}/runtime.tar.gz");
+    let client = Client::builder().build().expect("build fixture client");
+
+    let error = download_runtime_artifact(
+      &client,
+      &release,
+      &partial,
+      &target,
+      &mut |_, _| {},
+      &|| false,
+    )
+    .await
+    .expect_err("interrupt Runtime fixture");
+    first_server.await.expect("join interrupted fixture server");
+    assert!(error.to_string().contains("unable to read"));
+    assert_eq!(
+      tokio::fs::read(&partial)
+        .await
+        .expect("read resumable partial"),
+      b"pay"
+    );
+
+    let second_listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+      .await
+      .expect("bind resume fixture server");
+    let second_address = second_listener.local_addr().expect("read resume address");
+    let second_server = tokio::spawn(async move {
+      let (mut stream, _) = second_listener
+        .accept()
+        .await
+        .expect("accept resume fixture request");
+      let mut request = [0_u8; 1024];
+      let count = tokio::io::AsyncReadExt::read(&mut stream, &mut request)
+        .await
+        .expect("read resume fixture request");
+      tokio::io::AsyncWriteExt::write_all(
+        &mut stream,
+        b"HTTP/1.1 206 Partial Content\r\nContent-Length: 4\r\nContent-Range: bytes 3-6/7\r\nConnection: close\r\n\r\nload",
+      )
+      .await
+      .expect("write resume fixture response");
+      String::from_utf8_lossy(&request[..count]).into_owned()
+    });
+    release.url = format!("http://{second_address}/runtime.tar.gz");
+    let mut progress = Vec::new();
+    download_runtime_artifact(
+      &client,
+      &release,
+      &partial,
+      &target,
+      &mut |downloaded, _| progress.push(downloaded),
+      &|| false,
+    )
+    .await
+    .expect("resume Runtime fixture");
+    let request = second_server.await.expect("join resume fixture server");
+
+    assert!(request
+      .lines()
+      .any(|line| line.eq_ignore_ascii_case("range: bytes=3-")));
+    assert_eq!(progress.first(), Some(&3));
+    assert_eq!(progress.last(), Some(&7));
+    assert_eq!(
+      tokio::fs::read(&target).await.expect("read resumed target"),
+      payload
+    );
+    assert!(!partial.exists());
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[tokio::test]
+  async fn restarts_safely_when_a_runtime_server_ignores_range() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+      .await
+      .expect("bind fallback fixture server");
+    let address = listener.local_addr().expect("read fixture address");
+    let server = tokio::spawn(async move {
+      let (mut stream, _) = listener.accept().await.expect("accept fixture request");
+      let mut request = [0_u8; 1024];
+      let count = tokio::io::AsyncReadExt::read(&mut stream, &mut request)
+        .await
+        .expect("read fallback fixture request");
+      tokio::io::AsyncWriteExt::write_all(
+        &mut stream,
+        b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nConnection: close\r\n\r\npayload",
+      )
+      .await
+      .expect("write fallback fixture response");
+      String::from_utf8_lossy(&request[..count]).into_owned()
+    });
+
+    let root = std::env::temp_dir().join(format!("fabdev-runtime-fallback-{}", Uuid::new_v4()));
+    tokio::fs::create_dir_all(&root)
+      .await
+      .expect("create fallback fixture");
+    let partial = root.join("runtime.tar.gz.part");
+    let target = root.join("runtime.tar.gz");
+    tokio::fs::write(&partial, b"pay")
+      .await
+      .expect("write fallback partial");
+    let mut release = catalog().runtimes.remove(0);
+    release.url = format!("http://{address}/runtime.tar.gz");
+    let client = Client::builder().build().expect("build fixture client");
+
+    download_runtime_artifact(
+      &client,
+      &release,
+      &partial,
+      &target,
+      &mut |_, _| {},
+      &|| false,
+    )
+    .await
+    .expect("restart Runtime fixture");
+    let request = server.await.expect("join fallback fixture server");
+
+    assert!(request
+      .lines()
+      .any(|line| line.eq_ignore_ascii_case("range: bytes=3-")));
+    assert_eq!(
+      tokio::fs::read(&target)
+        .await
+        .expect("read fallback target"),
+      b"payload"
+    );
+    assert!(!partial.exists());
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[cfg(target_os = "macos")]
+  #[tokio::test]
+  #[ignore = "requires a verified macOS PHP Runtime package"]
+  async fn streams_the_real_macos_php_package_over_loopback() {
+    let artifact = PathBuf::from(
+      std::env::var("FABDEV_MACOS_PHP_RUNTIME_PACKAGE")
+        .expect("FABDEV_MACOS_PHP_RUNTIME_PACKAGE must point to the verified package"),
+    );
+    assert_eq!(
+      artifact.file_name().and_then(|name| name.to_str()),
+      Some("php-8.4.24-macos-arm64-community.tar.gz")
+    );
+    let artifact_size = tokio::fs::metadata(&artifact)
+      .await
+      .expect("read Runtime package metadata")
+      .len();
+    let artifact_sha256 = hex::encode(Sha256::digest(
+      tokio::fs::read(&artifact)
+        .await
+        .expect("read Runtime package"),
+    ));
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+      .await
+      .expect("bind fixture server");
+    let address = listener.local_addr().expect("read fixture address");
+    let server_artifact = artifact.clone();
+    let server = tokio::spawn(async move {
+      let (mut stream, _) = listener.accept().await.expect("accept fixture request");
+      let mut request = [0_u8; 4096];
+      let _ = tokio::io::AsyncReadExt::read(&mut stream, &mut request)
+        .await
+        .expect("read fixture request");
+      tokio::io::AsyncWriteExt::write_all(
+        &mut stream,
+        format!("HTTP/1.1 200 OK\r\nContent-Length: {artifact_size}\r\nConnection: close\r\n\r\n")
+          .as_bytes(),
+      )
+      .await
+      .expect("write fixture response headers");
+
+      let mut file = tokio::fs::File::open(server_artifact)
+        .await
+        .expect("open fixture Runtime package");
+      let mut buffer = vec![0_u8; 64 * 1024];
+      loop {
+        let count = tokio::io::AsyncReadExt::read(&mut file, &mut buffer)
+          .await
+          .expect("read fixture Runtime package");
+        if count == 0 {
+          break;
+        }
+        tokio::io::AsyncWriteExt::write_all(&mut stream, &buffer[..count])
+          .await
+          .expect("stream fixture Runtime package");
+      }
+    });
+
+    let root = std::env::temp_dir().join(format!("fabdev-runtime-real-network-{}", Uuid::new_v4()));
+    tokio::fs::create_dir_all(&root)
+      .await
+      .expect("create fixture");
+    let partial = root.join("php-runtime.tar.gz.part");
+    let target = root.join("php-runtime.tar.gz");
+    let mut release = catalog().runtimes.remove(0);
+    release.url = format!("http://{address}/php-runtime.tar.gz");
+    release.size = artifact_size;
+    release.sha256 = artifact_sha256;
+    let progress = Arc::new(AtomicU64::new(0));
+    let reported = Arc::clone(&progress);
+    let client = Client::builder().build().expect("build fixture client");
+
+    download_runtime_artifact(
+      &client,
+      &release,
+      &partial,
+      &target,
+      &mut |downloaded, _| reported.store(downloaded, Ordering::Relaxed),
+      &|| false,
+    )
+    .await
+    .expect("download real Runtime fixture");
+    server.await.expect("join fixture server");
+
+    assert_eq!(progress.load(Ordering::Relaxed), artifact_size);
+    verify_runtime_artifact(&target, &release)
+      .await
+      .expect("verify downloaded Runtime package");
+    assert_eq!(
+      tokio::fs::metadata(&target)
+        .await
+        .expect("read downloaded Runtime package metadata")
+        .len(),
+      artifact_size
     );
     assert!(!partial.exists());
     std::fs::remove_dir_all(root).expect("remove fixture");

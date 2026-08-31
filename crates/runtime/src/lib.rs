@@ -15,7 +15,7 @@ pub const RUNTIME_CATALOG_PRODUCT: &str = "fabdev-runtime";
 pub const RUNTIME_CATALOG_CHANNEL: &str = "community";
 pub const RUNTIME_CATALOG_SCHEMA_VERSION: u16 = 1;
 pub const RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION: u16 = 33;
-pub const WINDOWS_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION: u16 = 36;
+pub const COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION: u16 = 36;
 pub const RUNTIME_CATALOG_URL: &str =
   "https://github.com/JimmyWon1028/fabdev/releases/latest/download/fabdev-runtime-v1.json";
 
@@ -33,12 +33,18 @@ const PHP_82_WINDOWS_SOURCE_SHA256: &str =
 const PHP_84_WINDOWS_SOURCE_SHA256: &str =
   "86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb";
 const MARIADB_SOURCE_SIGNING_FINGERPRINT: &str = "177F4010FE56CA3336300305F1656F24C74CD1D8";
+const MARIADB_123_MACOS_SOURCE_SHA256: &str =
+  "82798714baf2f3456ed2f311fc803dc120f2bf3b82358e773847d628cdb4b670";
 const MARIADB_123_WINDOWS_SOURCE_SHA256: &str =
   "67347c129eb9c5923d002ea34fbfa27c60eb95d36dd73b85af2651cdeceecac5";
 const NODE_20_SOURCE_SIGNING_FINGERPRINT: &str = "CC68F5A3106FF448322E48ED27F5E38D5B0A215F";
 const NODE_24_SOURCE_SIGNING_FINGERPRINT: &str = "5BE8A3F6C8A5C01D106C0AD820B1A390B168D356";
+const NODE_2020_MACOS_SOURCE_SHA256: &str =
+  "466e05f3477c20dfb723054dfebffe55bc74660ee77f612166fca121dacb65b6";
 const NODE_2020_WINDOWS_SOURCE_SHA256: &str =
   "dc3700fdd57a63eedb8fd7e3c7baaa32e6a740a1b904167ff4204bc68ed8bf77";
+const NODE_2420_MACOS_SOURCE_SHA256: &str =
+  "40e5607e5ecb3db9192723776da2d75d966260fc74a7a9e731c1bd67dda96bc8";
 const NODE_2420_WINDOWS_SOURCE_SHA256: &str =
   "6cac9ffbca8f6a47091e4b5c772e0606049c3871cb67d900c0cedde630e545ba";
 
@@ -145,6 +151,40 @@ pub struct CommunityWindowsCatalogInput<'a> {
   pub mariadb_package: &'a Path,
   pub node20_package: &'a Path,
   pub node24_package: &'a Path,
+  pub now_unix_seconds: i64,
+}
+
+#[derive(Clone, Debug)]
+pub struct CommunityMacosCatalogInput<'a> {
+  pub release_version: &'a str,
+  pub catalog_sequence: u64,
+  pub generated_at: &'a str,
+  pub expires_at: &'a str,
+  pub minimum_app_version: &'a str,
+  pub php_package: &'a Path,
+  pub mariadb_package: &'a Path,
+  pub node20_package: &'a Path,
+  pub node24_package: &'a Path,
+  pub now_unix_seconds: i64,
+}
+
+#[derive(Clone, Debug)]
+pub struct CommunityCatalogInput<'a> {
+  pub release_version: &'a str,
+  pub catalog_sequence: u64,
+  pub generated_at: &'a str,
+  pub expires_at: &'a str,
+  pub minimum_app_version: &'a str,
+  pub windows_php74_package: &'a Path,
+  pub windows_php82_package: &'a Path,
+  pub windows_php84_package: &'a Path,
+  pub windows_mariadb_package: &'a Path,
+  pub windows_node20_package: &'a Path,
+  pub windows_node24_package: &'a Path,
+  pub macos_php_package: &'a Path,
+  pub macos_mariadb_package: &'a Path,
+  pub macos_node20_package: &'a Path,
+  pub macos_node24_package: &'a Path,
   pub now_unix_seconds: i64,
 }
 
@@ -453,17 +493,165 @@ pub fn generate_community_windows_catalog(
     integrity: "sha256".to_owned(),
     compatibility: RuntimeCatalogCompatibility {
       minimum_app_version: input.minimum_app_version.to_owned(),
-      minimum_agent_protocol_version: WINDOWS_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+      minimum_agent_protocol_version: COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
     },
     signature: None,
     runtimes,
   };
   let validation = RuntimeCatalogValidation {
     current_app_version: input.minimum_app_version,
-    current_agent_protocol_version: WINDOWS_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+    current_agent_protocol_version: COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
     now_unix_seconds: input.now_unix_seconds,
     accepted_catalog: None,
   };
+  let contents = generate_runtime_catalog(&catalog, &validation)?;
+  parse_and_validate_runtime_catalog(&contents, &validation)?;
+  Ok(contents)
+}
+
+pub fn generate_community_macos_catalog(
+  input: &CommunityMacosCatalogInput<'_>,
+) -> Result<Vec<u8>, RuntimeCatalogBuildError> {
+  let release_url = |file_name: &str| {
+    format!(
+      "{RELEASE_DOWNLOAD_PREFIX}{}/{file_name}",
+      input.release_version
+    )
+  };
+  let package = |name: &str,
+                 version: &str,
+                 path: &Path,
+                 minimum_os_version: &str,
+                 fingerprint: &str,
+                 upstream_sha256: &str,
+                 health_check_profile: &str|
+   -> Result<RuntimeRelease, std::io::Error> {
+    let file_name = format!("{name}-{version}-macos-arm64-community.tar.gz");
+    let (size, sha256) = file_size_and_sha256(path)?;
+    Ok(RuntimeRelease {
+      name: name.to_owned(),
+      version: version.to_owned(),
+      platform: "macos".to_owned(),
+      architecture: "arm64".to_owned(),
+      minimum_os_version: Some(minimum_os_version.to_owned()),
+      file_name: Some(file_name.clone()),
+      url: release_url(&file_name),
+      size,
+      sha256,
+      signature: None,
+      source_verification: Some(RuntimeSourceVerification {
+        method: "pgp".to_owned(),
+        fingerprint: Some(fingerprint.to_owned()),
+        upstream_sha256: upstream_sha256.to_owned(),
+      }),
+      archive_format: Some("tar.gz".to_owned()),
+      install_mode: Some("side-by-side".to_owned()),
+      health_check_profile: Some(health_check_profile.to_owned()),
+    })
+  };
+  let runtimes = vec![
+    package(
+      "php",
+      "8.4.24",
+      input.php_package,
+      "13.0",
+      PHP_SOURCE_SIGNING_FINGERPRINT,
+      PHP_84_MACOS_SOURCE_SHA256,
+      "php-runtime-v1",
+    )?,
+    package(
+      "mariadb",
+      "12.3.2",
+      input.mariadb_package,
+      "13.0",
+      MARIADB_SOURCE_SIGNING_FINGERPRINT,
+      MARIADB_123_MACOS_SOURCE_SHA256,
+      "mariadb-runtime-v1",
+    )?,
+    package(
+      "node",
+      "20.20.2",
+      input.node20_package,
+      "13.0",
+      NODE_20_SOURCE_SIGNING_FINGERPRINT,
+      NODE_2020_MACOS_SOURCE_SHA256,
+      "node-runtime-v1",
+    )?,
+    package(
+      "node",
+      "24.20.0",
+      input.node24_package,
+      "13.5",
+      NODE_24_SOURCE_SIGNING_FINGERPRINT,
+      NODE_2420_MACOS_SOURCE_SHA256,
+      "node-runtime-v1",
+    )?,
+  ];
+  let catalog = RuntimeCatalog {
+    schema_version: RUNTIME_CATALOG_SCHEMA_VERSION,
+    product: RUNTIME_CATALOG_PRODUCT.to_owned(),
+    channel: RUNTIME_CATALOG_CHANNEL.to_owned(),
+    catalog_sequence: input.catalog_sequence,
+    generated_at: input.generated_at.to_owned(),
+    expires_at: input.expires_at.to_owned(),
+    unsigned_community_build: true,
+    integrity: "sha256".to_owned(),
+    compatibility: RuntimeCatalogCompatibility {
+      minimum_app_version: input.minimum_app_version.to_owned(),
+      minimum_agent_protocol_version: COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+    },
+    signature: None,
+    runtimes,
+  };
+  let validation = RuntimeCatalogValidation {
+    current_app_version: input.minimum_app_version,
+    current_agent_protocol_version: COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+    now_unix_seconds: input.now_unix_seconds,
+    accepted_catalog: None,
+  };
+  let contents = generate_runtime_catalog(&catalog, &validation)?;
+  parse_and_validate_runtime_catalog(&contents, &validation)?;
+  Ok(contents)
+}
+
+pub fn generate_community_catalog(
+  input: &CommunityCatalogInput<'_>,
+) -> Result<Vec<u8>, RuntimeCatalogBuildError> {
+  let validation = RuntimeCatalogValidation {
+    current_app_version: input.minimum_app_version,
+    current_agent_protocol_version: COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+    now_unix_seconds: input.now_unix_seconds,
+    accepted_catalog: None,
+  };
+  let windows_contents = generate_community_windows_catalog(&CommunityWindowsCatalogInput {
+    release_version: input.release_version,
+    catalog_sequence: input.catalog_sequence,
+    generated_at: input.generated_at,
+    expires_at: input.expires_at,
+    minimum_app_version: input.minimum_app_version,
+    php74_package: input.windows_php74_package,
+    php82_package: input.windows_php82_package,
+    php84_package: input.windows_php84_package,
+    mariadb_package: input.windows_mariadb_package,
+    node20_package: input.windows_node20_package,
+    node24_package: input.windows_node24_package,
+    now_unix_seconds: input.now_unix_seconds,
+  })?;
+  let macos_contents = generate_community_macos_catalog(&CommunityMacosCatalogInput {
+    release_version: input.release_version,
+    catalog_sequence: input.catalog_sequence,
+    generated_at: input.generated_at,
+    expires_at: input.expires_at,
+    minimum_app_version: input.minimum_app_version,
+    php_package: input.macos_php_package,
+    mariadb_package: input.macos_mariadb_package,
+    node20_package: input.macos_node20_package,
+    node24_package: input.macos_node24_package,
+    now_unix_seconds: input.now_unix_seconds,
+  })?;
+  let mut catalog = parse_and_validate_runtime_catalog(&windows_contents, &validation)?.catalog;
+  let macos_catalog = parse_and_validate_runtime_catalog(&macos_contents, &validation)?.catalog;
+  catalog.runtimes.extend(macos_catalog.runtimes);
   let contents = generate_runtime_catalog(&catalog, &validation)?;
   parse_and_validate_runtime_catalog(&contents, &validation)?;
   Ok(contents)
@@ -623,7 +811,9 @@ fn validate_catalog_release(
     ),
     ("php", "macos", "arm64")
       | ("php", "windows", "x64")
+      | ("mariadb", "macos", "arm64")
       | ("mariadb", "windows", "x64")
+      | ("node", "macos", "arm64")
       | ("node", "windows", "x64")
   );
   require_catalog_value(
@@ -1496,7 +1686,7 @@ mod tests {
     assert_eq!(catalog.catalog_sequence, 3);
     assert_eq!(
       catalog.compatibility.minimum_agent_protocol_version,
-      WINDOWS_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION
+      COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION
     );
     assert_eq!(catalog.runtimes.len(), 6);
     assert_eq!(catalog.runtimes[0].name, "php");
@@ -1530,6 +1720,145 @@ mod tests {
         .and_then(|source| source.fingerprint.as_deref()),
       Some(NODE_24_SOURCE_SIGNING_FINGERPRINT)
     );
+    std::fs::remove_dir_all(root).expect("remove Catalog fixture");
+  }
+
+  #[test]
+  fn generates_the_complete_macos_community_catalog() {
+    let root = std::env::temp_dir().join(format!(
+      "fabdev-runtime-catalog-macos-complete-{}",
+      uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&root).expect("create Catalog fixture");
+    let php_package = root.join("php.tar.gz");
+    let mariadb_package = root.join("mariadb.tar.gz");
+    let node20_package = root.join("node20.tar.gz");
+    let node24_package = root.join("node24.tar.gz");
+    std::fs::write(&php_package, b"php runtime").expect("write PHP package");
+    std::fs::write(&mariadb_package, b"mariadb runtime").expect("write MariaDB package");
+    std::fs::write(&node20_package, b"node 20 runtime").expect("write Node.js 20 package");
+    std::fs::write(&node24_package, b"node 24 runtime").expect("write Node.js 24 package");
+
+    let contents = generate_community_macos_catalog(&CommunityMacosCatalogInput {
+      release_version: "0.1.12",
+      catalog_sequence: 4,
+      generated_at: "2026-08-31T00:00:00Z",
+      expires_at: "2027-02-27T00:00:00Z",
+      minimum_app_version: "0.1.12",
+      php_package: &php_package,
+      mariadb_package: &mariadb_package,
+      node20_package: &node20_package,
+      node24_package: &node24_package,
+      now_unix_seconds: parse_rfc3339_utc("2026-08-31T00:01:00Z", "test").expect("parse test time"),
+    })
+    .expect("generate complete macOS Community Catalog");
+    let catalog: RuntimeCatalog = serde_json::from_slice(&contents).expect("parse Catalog");
+
+    assert_eq!(catalog.catalog_sequence, 4);
+    assert_eq!(
+      catalog.compatibility.minimum_agent_protocol_version,
+      COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION
+    );
+    assert_eq!(catalog.runtimes.len(), 4);
+    assert!(catalog
+      .runtimes
+      .iter()
+      .all(|runtime| runtime.platform == "macos" && runtime.architecture == "arm64"));
+    assert_eq!(catalog.runtimes[0].name, "php");
+    assert_eq!(catalog.runtimes[1].name, "mariadb");
+    assert_eq!(catalog.runtimes[2].version, "20.20.2");
+    assert_eq!(catalog.runtimes[3].version, "24.20.0");
+    assert_eq!(
+      catalog.runtimes[3].minimum_os_version.as_deref(),
+      Some("13.5")
+    );
+    assert_eq!(
+      catalog.runtimes[1].file_name.as_deref(),
+      Some("mariadb-12.3.2-macos-arm64-community.tar.gz")
+    );
+    assert_eq!(
+      catalog.runtimes[2]
+        .source_verification
+        .as_ref()
+        .map(|source| source.upstream_sha256.as_str()),
+      Some(NODE_2020_MACOS_SOURCE_SHA256)
+    );
+    assert_eq!(
+      catalog.runtimes[3]
+        .source_verification
+        .as_ref()
+        .map(|source| source.upstream_sha256.as_str()),
+      Some(NODE_2420_MACOS_SOURCE_SHA256)
+    );
+    std::fs::remove_dir_all(root).expect("remove Catalog fixture");
+  }
+
+  #[test]
+  fn generates_the_complete_cross_platform_community_catalog() {
+    let root = std::env::temp_dir().join(format!(
+      "fabdev-runtime-catalog-community-complete-{}",
+      uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&root).expect("create Catalog fixture");
+    let package = |name: &str| {
+      let path = root.join(format!("{name}.tar.gz"));
+      std::fs::write(&path, format!("{name} runtime")).expect("write Runtime package");
+      path
+    };
+    let windows_php74 = package("windows-php74");
+    let windows_php82 = package("windows-php82");
+    let windows_php84 = package("windows-php84");
+    let windows_mariadb = package("windows-mariadb");
+    let windows_node20 = package("windows-node20");
+    let windows_node24 = package("windows-node24");
+    let macos_php = package("macos-php");
+    let macos_mariadb = package("macos-mariadb");
+    let macos_node20 = package("macos-node20");
+    let macos_node24 = package("macos-node24");
+
+    let contents = generate_community_catalog(&CommunityCatalogInput {
+      release_version: "0.1.12",
+      catalog_sequence: 7,
+      generated_at: "2026-08-31T14:31:13Z",
+      expires_at: "2027-02-28T23:59:59Z",
+      minimum_app_version: "0.1.12",
+      windows_php74_package: &windows_php74,
+      windows_php82_package: &windows_php82,
+      windows_php84_package: &windows_php84,
+      windows_mariadb_package: &windows_mariadb,
+      windows_node20_package: &windows_node20,
+      windows_node24_package: &windows_node24,
+      macos_php_package: &macos_php,
+      macos_mariadb_package: &macos_mariadb,
+      macos_node20_package: &macos_node20,
+      macos_node24_package: &macos_node24,
+      now_unix_seconds: parse_rfc3339_utc("2026-08-31T14:32:00Z", "test").expect("parse test time"),
+    })
+    .expect("generate complete cross-platform Community Catalog");
+    let catalog: RuntimeCatalog = serde_json::from_slice(&contents).expect("parse Catalog");
+
+    assert_eq!(catalog.catalog_sequence, 7);
+    assert_eq!(catalog.runtimes.len(), 10);
+    assert_eq!(
+      catalog
+        .runtimes
+        .iter()
+        .filter(|runtime| runtime.platform == "windows" && runtime.architecture == "x64")
+        .count(),
+      6
+    );
+    assert_eq!(
+      catalog
+        .runtimes
+        .iter()
+        .filter(|runtime| runtime.platform == "macos" && runtime.architecture == "arm64")
+        .count(),
+      4
+    );
+    assert!(catalog
+      .runtimes
+      .iter()
+      .all(|runtime| runtime.url.contains("/releases/download/v0.1.12/")));
     std::fs::remove_dir_all(root).expect("remove Catalog fixture");
   }
 

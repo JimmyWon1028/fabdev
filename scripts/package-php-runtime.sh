@@ -12,7 +12,15 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RUNTIME_ROOT="$1"
 PHP_VERSION="$2"
 ARTIFACT_DIR="$3"
-ARCHIVE_NAME="php-$PHP_VERSION-macos-arm64-dev.tar.gz"
+PACKAGE_VARIANT="${FABDEV_RUNTIME_PACKAGE_VARIANT:-dev}"
+case "$PACKAGE_VARIANT" in
+  dev|community) ;;
+  *)
+    echo "Unsupported Runtime Package variant: $PACKAGE_VARIANT" >&2
+    exit 1
+    ;;
+esac
+ARCHIVE_NAME="php-$PHP_VERSION-macos-arm64-$PACKAGE_VARIANT.tar.gz"
 
 if [[ ! -x "$RUNTIME_ROOT/bin/php" || ! -x "$RUNTIME_ROOT/sbin/php-fpm" ]]; then
   echo "Runtime does not contain PHP CLI and FPM binaries: $RUNTIME_ROOT" >&2
@@ -20,7 +28,17 @@ if [[ ! -x "$RUNTIME_ROOT/bin/php" || ! -x "$RUNTIME_ROOT/sbin/php-fpm" ]]; then
 fi
 
 mkdir -p "$ARTIFACT_DIR"
-"$SCRIPT_DIR/bundle-macos-dylibs.sh" "$RUNTIME_ROOT"
+if [[ "$PACKAGE_VARIANT" == "community" ]]; then
+  if [[ -z "${FABDEV_RUNTIME_DEPENDENCY_PREFIX:-}" ]]; then
+    echo "Community Runtime packaging requires FABDEV_RUNTIME_DEPENDENCY_PREFIX" >&2
+    exit 1
+  fi
+  "$SCRIPT_DIR/bundle-macos-dylibs.sh" \
+    "$RUNTIME_ROOT" \
+    "$FABDEV_RUNTIME_DEPENDENCY_PREFIX"
+else
+  "$SCRIPT_DIR/bundle-macos-dylibs.sh" "$RUNTIME_ROOT"
+fi
 
 "$RUNTIME_ROOT/bin/php" --ini
 "$RUNTIME_ROOT/bin/php" -v
@@ -54,7 +72,13 @@ fi
   }
   echo "Imagick PNG, IMAP, and Tidy functional checks passed\n";
 '
-"$RUNTIME_ROOT/sbin/php-fpm" --fpm-config "$RUNTIME_ROOT/etc/php-fpm.conf" --test
+"$SCRIPT_DIR/validate-php-runtime-health.sh" "$RUNTIME_ROOT"
+
+if [[ "$PACKAGE_VARIANT" == "community" ]]; then
+  "$SCRIPT_DIR/validate-macos-runtime-minimum.sh" \
+    "$RUNTIME_ROOT" \
+    "${FABDEV_MINIMUM_MACOS_VERSION:-13.0}"
+fi
 
 COPYFILE_DISABLE=1 tar -czf "$ARTIFACT_DIR/$ARCHIVE_NAME" -C "$(dirname "$RUNTIME_ROOT")" "$(basename "$RUNTIME_ROOT")"
 archive_root="$(basename "$RUNTIME_ROOT")"
@@ -67,15 +91,20 @@ done < <(tar -tzf "$ARTIFACT_DIR/$ARCHIVE_NAME")
 artifact_sha256="$(shasum -a 256 "$ARTIFACT_DIR/$ARCHIVE_NAME" | awk '{print $1}')"
 artifact_size="$(stat -f '%z' "$ARTIFACT_DIR/$ARCHIVE_NAME")"
 
-sed \
-  -e "s|@NAME@|php|g" \
-  -e "s|@VERSION@|$PHP_VERSION|g" \
-  -e "s|@ARCHIVE@|$ARCHIVE_NAME|g" \
-  -e "s|@SIZE@|$artifact_size|g" \
-  -e "s|@SHA256@|$artifact_sha256|g" \
-  -e "s|@SIGNATURE@|development-ad-hoc|g" \
-  "$PROJECT_DIR/resources/runtime/release.template.json" \
-  > "$ARTIFACT_DIR/php-$PHP_VERSION-macos-arm64-dev.json"
+if [[ "$PACKAGE_VARIANT" == "dev" ]]; then
+  sed \
+    -e "s|@NAME@|php|g" \
+    -e "s|@VERSION@|$PHP_VERSION|g" \
+    -e "s|@ARCHIVE@|$ARCHIVE_NAME|g" \
+    -e "s|@SIZE@|$artifact_size|g" \
+    -e "s|@SHA256@|$artifact_sha256|g" \
+    -e "s|@SIGNATURE@|development-ad-hoc|g" \
+    "$PROJECT_DIR/resources/runtime/release.template.json" \
+    > "$ARTIFACT_DIR/php-$PHP_VERSION-macos-arm64-dev.json"
+else
+  printf '%s  %s\n' "$artifact_sha256" "$ARCHIVE_NAME" \
+    > "$ARTIFACT_DIR/$ARCHIVE_NAME.sha256"
+fi
 
 echo "Created $ARTIFACT_DIR/$ARCHIVE_NAME"
 echo "SHA-256: $artifact_sha256"

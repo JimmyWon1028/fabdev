@@ -38,6 +38,15 @@ System／Homebrew MariaDB Socket 屬於內部連線細節，不顯示於一般 M
 
 新功能至少測試成功路徑與一個錯誤或邊界案例；缺陷修正需加入回歸測試。前端測試命名為 `*.test.ts`，Rust 測試放在所屬模組的 `#[cfg(test)]`。提交前執行 `pnpm test`、`pnpm lint` 及 `git diff --check`；服務改動還需驗證 Start → HTTP/PHP → Stop，並確認沒有殘留 Port、PID 或 Socket。macOS Helper 位於 `helpers/macos/`，以 `pnpm run test:helper:macos` 測試；所有 Proxy listener 必須只綁 loopback，不得新增可由 XPC 傳入的 Port、路徑或任意命令。
 
+後續版本若安裝與更新程序沒有改變，發布驗收沿用先前已通過的程序結果：
+
+1. 不重新執行 macOS 安裝／啟動／移除。
+2. 不重新執行 Windows 安裝／啟動／移除。
+3. 不重跑 PHP、MariaDB、Node.js、HTTPS 完整人工流程。
+4. Windows 不做實機 smoke test，沿用先前安裝程序驗收結果。
+
+此規則只免除上述重複人工流程；版本、建置、自動測試、Manifest、Runtime Catalog、Release Assets 與 SHA-256 完整性仍須依發布流程驗證。若安裝或更新程序後續有變更，則必須恢復相應的人工回歸驗收。
+
 ## HTTPS、Helper 與 MCP 開發經驗
 
 - 修改 macOS Helper 的固定 Proxy、plist、簽章或 bundle identifier 後，只重啟 App／Agent 不會更新已安裝的 LaunchDaemon；必須先重新建置，再使用專案安裝程序替換 Helper，並驗證實際載入版本與 53／80／443 listener。

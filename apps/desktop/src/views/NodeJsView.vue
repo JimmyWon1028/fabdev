@@ -8,8 +8,9 @@ import { useI18n } from '../utils/i18n'
 import type { TranslationKey } from '../utils/locales'
 import { isWindowsPlatform } from '../utils/path'
 import {
-  buildWindowsNodeRuntimeRows,
+  buildNodeRuntimeRows,
   formatRuntimeBytes,
+  formatRuntimeTarget,
   isRuntimeDownloadActive,
   runtimeProgressPercent
 } from '../utils/runtime'
@@ -21,10 +22,16 @@ const action = ref<string | null>(null)
 const message = ref('')
 let mounted = true
 
-const rows = computed(() => buildWindowsNodeRuntimeRows(
+const rows = computed(() => buildNodeRuntimeRows(
   store.nodeRuntime.installed,
   store.runtimeUpdateCheck?.artifacts ?? []
 ))
+
+function targetLabel(artifact: RuntimeUpdateArtifact | null) {
+  return artifact
+    ? formatRuntimeTarget(artifact.platform, artifact.architecture)
+    : formatRuntimeTarget(isWindows ? 'windows' : 'macos', isWindows ? 'x64' : 'arm64')
+}
 
 onMounted(() => void refresh())
 onBeforeUnmount(() => { mounted = false })
@@ -55,9 +62,7 @@ async function refresh() {
   message.value = ''
   try {
     await store.loadNodeRuntime()
-    if (isWindows) {
-      await store.checkRuntimeUpdates()
-    }
+    await store.checkRuntimeUpdates()
   } catch (error) {
     message.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -249,6 +254,7 @@ async function removeRuntime(version: string) {
             <p v-else-if="row.state === 'update-available'">{{ t('node.updateDescription', { version: row.artifact?.version ?? row.version }) }}</p>
             <p v-else-if="row.runtime">{{ t('node.installedDescription') }}</p>
             <p v-else>{{ t('node.notInstalledDescription') }}</p>
+            <small>{{ targetLabel(row.artifact) }}</small>
             <div v-if="operationFor(row.artifact)" class="runtime-row-progress">
               <progress :value="operationFor(row.artifact)?.bytesDownloaded ?? 0" :max="operationFor(row.artifact)?.totalBytes || 1" />
               <small>{{ operationStatusLabel(row.artifact) }} · {{ operationProgress(row.artifact) }}%</small>

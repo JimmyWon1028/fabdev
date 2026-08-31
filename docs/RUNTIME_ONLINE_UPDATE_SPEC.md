@@ -155,6 +155,7 @@ Unsigned Community v1 的 SHA-256 可偵測傳輸中斷或 Catalog 與 Package �
 - Catalog Sequence 與到期時間只防止操作錯誤及一般回退，不宣稱能抵抗已控制發布來源的攻擊者。
 - 建置流程仍必須驗證 PHP 官方 SHA-256、PGP 簽章與允許的完整 Fingerprint。
 - Agent 不接受 UI 傳入 URL、Shell、任意健康檢查或任意安裝路徑。
+- `FABDEV_RUNTIME_TEST_BASE_URL` 只在 Rust debug build 生效，且只接受不含帳密、路徑、Query 或 Fragment 的 `http://127.0.0.1:<明確高位 Port>/`；Catalog 仍必須通過正式 GitHub URL 契約，只在驗收傳輸時改寫為同源 loopback URL。Release build 完全忽略此環境變數，正式 HTTPS 與 GitHub Redirect Host 白名單不變。
 
 未來正式簽章時新增可驗證的 Catalog detached signature 與 Package signature；不能改用描述字串填入既有 `signature` 欄位。
 

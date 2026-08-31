@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildCatalogRuntimeRows,
+  buildNodeRuntimeRows,
   buildRuntimeRows,
-  buildWindowsNodeRuntimeRows,
-  buildWindowsRuntimeRows,
   catalogRuntimeState,
   compareRuntimeVersions,
   formatRuntimeBytes,
+  formatRuntimeTarget,
   installedPhpSeries,
   isBuiltInPhpSeries,
   isRuntimeDownloadActive,
@@ -55,8 +56,8 @@ describe('PHP Runtime presentation', () => {
     expect(rows.find((row) => row.series === '8.4')).toBeUndefined()
   })
 
-  it('adds every uninstalled Windows PHP series offered by the Catalog', () => {
-    const rows = buildWindowsRuntimeRows(installed, [onlinePhp('8.4.24'), onlinePhp('9.0.1')])
+  it('adds every uninstalled PHP series offered by the current platform Catalog', () => {
+    const rows = buildCatalogRuntimeRows(installed, [onlinePhp('8.4.24'), onlinePhp('9.0.1')])
 
     expect(rows.map((row) => row.version)).toEqual(['9.0.1', '8.4.24', '8.2.33', '7.4.33'])
     expect(rows.find((row) => row.version === '8.4.24')).toMatchObject({
@@ -67,7 +68,7 @@ describe('PHP Runtime presentation', () => {
   })
 
   it('offers online reinstall after bundled PHP 7.4 and 8.2 are removed', () => {
-    const rows = buildWindowsRuntimeRows([], [onlinePhp('7.4.33'), onlinePhp('8.2.33')])
+    const rows = buildCatalogRuntimeRows([], [onlinePhp('7.4.33'), onlinePhp('8.2.33')])
 
     expect(rows.map((row) => [row.version, row.state, row.artifact?.version])).toEqual([
       ['8.2.33', 'not-installed', '8.2.33'],
@@ -75,12 +76,12 @@ describe('PHP Runtime presentation', () => {
     ])
   })
 
-  it('marks the newest installed patch when a newer Windows patch is available', () => {
+  it('marks the newest installed patch when a newer Catalog patch is available', () => {
     const installedPatches = [
       ...installed,
       { version: '8.2.31', series: '8.2', active: false, sites: [] }
     ]
-    const rows = buildWindowsRuntimeRows(installedPatches, [onlinePhp('8.2.34')])
+    const rows = buildCatalogRuntimeRows(installedPatches, [onlinePhp('8.2.34')])
 
     expect(rows.find((row) => row.version === '8.2.33')).toMatchObject({
       state: 'update-available',
@@ -92,8 +93,8 @@ describe('PHP Runtime presentation', () => {
     })
   })
 
-  it('does not offer an update when the installed Windows patch is current or newer', () => {
-    const rows = buildWindowsRuntimeRows(installed, [
+  it('does not offer an update when the installed patch is current or newer', () => {
+    const rows = buildCatalogRuntimeRows(installed, [
       onlinePhp('8.2.33'),
       onlinePhp('8.2.32'),
       { ...onlinePhp('24.19.0'), name: 'node' }
@@ -126,6 +127,11 @@ describe('PHP Runtime presentation', () => {
     expect(runtimeProgressPercent(1, 0)).toBe(0)
   })
 
+  it('formats Runtime targets without Windows-only labels', () => {
+    expect(formatRuntimeTarget('macos', 'arm64')).toBe('macOS ARM64')
+    expect(formatRuntimeTarget('windows', 'x64')).toBe('Windows x64')
+  })
+
   it('allows cancellation only while the download is active', () => {
     expect(isRuntimeDownloadActive('queued')).toBe(true)
     expect(isRuntimeDownloadActive('downloading')).toBe(true)
@@ -146,7 +152,7 @@ describe('PHP Runtime presentation', () => {
   })
 
   it('shows Node.js 20 and 24 as separate installable rows', () => {
-    const rows = buildWindowsNodeRuntimeRows([], [
+    const rows = buildNodeRuntimeRows([], [
       { ...onlinePhp('20.20.2'), name: 'node' },
       { ...onlinePhp('24.20.0'), name: 'node' }
     ])
@@ -158,7 +164,7 @@ describe('PHP Runtime presentation', () => {
   })
 
   it('keeps Node.js 20 and 24 visible as uninstalled placeholders before Catalog publication', () => {
-    const rows = buildWindowsNodeRuntimeRows([], [])
+    const rows = buildNodeRuntimeRows([], [])
 
     expect(rows.map((row) => [row.version, row.state, row.artifact])).toEqual([
       ['24.20.0', 'not-installed', null],
@@ -167,7 +173,7 @@ describe('PHP Runtime presentation', () => {
   })
 
   it('keeps installed Node.js versions side by side and offers patch updates per major', () => {
-    const rows = buildWindowsNodeRuntimeRows([
+    const rows = buildNodeRuntimeRows([
       { version: '20.20.1', active: false },
       { version: '24.20.0', active: true }
     ], [
@@ -183,6 +189,27 @@ describe('PHP Runtime presentation', () => {
       state: 'installed',
       runtime: { active: true }
     })
+  })
+
+  it('builds PHP and Node.js rows from macOS ARM64 Catalog artifacts', () => {
+    const macosPhp = {
+      ...onlinePhp('8.4.24'),
+      platform: 'macos',
+      architecture: 'arm64',
+      minimumOsVersion: '13.0',
+      fileName: 'php-8.4.24-macos-arm64-community.tar.gz'
+    }
+    const macosNode = {
+      ...macosPhp,
+      name: 'node',
+      version: '24.20.0',
+      fileName: 'node-24.20.0-macos-arm64-community.tar.gz'
+    }
+
+    expect(buildCatalogRuntimeRows(installed, [macosPhp]))
+      .toContainEqual(expect.objectContaining({ version: '8.4.24', state: 'not-installed' }))
+    expect(buildNodeRuntimeRows([], [macosNode]))
+      .toContainEqual(expect.objectContaining({ version: '24.20.0', state: 'not-installed' }))
   })
 
   it('distinguishes online install, current, and update states', () => {

@@ -50,12 +50,21 @@ DOWNLOAD_DIR="$BUILD_ROOT/downloads"
 SOURCE_DIR="$BUILD_ROOT/source/php-$PHP_VERSION"
 RUNTIME_ROOT="${FABDEV_RUNTIME_PREFIX:-$BUILD_ROOT/runtime/php/$PHP_VERSION}"
 ARTIFACT_DIR="${FABDEV_ARTIFACT_DIR:-$PROJECT_DIR/artifacts}"
-MACOS_TARGET="${MACOSX_DEPLOYMENT_TARGET:-$(sw_vers -productVersion | cut -d. -f1).0}"
-ARCHIVE_NAME="php-$PHP_VERSION-macos-arm64-dev.tar.gz"
+PACKAGE_VARIANT="${FABDEV_RUNTIME_PACKAGE_VARIANT:-dev}"
+case "$PACKAGE_VARIANT" in
+  dev|community) ;;
+  *)
+    echo "Unsupported Runtime Package variant: $PACKAGE_VARIANT" >&2
+    exit 1
+    ;;
+esac
+MACOS_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
+MACOS_SDK="${SDKROOT:-$(xcrun --sdk macosx --show-sdk-path)}"
+DEPENDENCY_PREFIX="${FABDEV_RUNTIME_DEPENDENCY_PREFIX:-$BUILD_ROOT/dependencies/macos-$MACOS_TARGET}"
 SOURCE_ARCHIVE="$DOWNLOAD_DIR/php-$PHP_VERSION.tar.xz"
 SOURCE_SIGNATURE="$SOURCE_ARCHIVE.asc"
 KEYRING="$DOWNLOAD_DIR/php-keyring.gpg"
-GNUPG_HOME="$DOWNLOAD_DIR/gnupg"
+GNUPG_HOME=""
 IMAGICK_ARCHIVE="$DOWNLOAD_DIR/imagick-$IMAGICK_VERSION.tgz"
 IMAP_ARCHIVE="$DOWNLOAD_DIR/imap-$IMAP_VERSION.tgz"
 CCLIENT_ARCHIVE="$DOWNLOAD_DIR/uw-imap-$CCLIENT_COMMIT.tar.gz"
@@ -75,12 +84,21 @@ download_verified_archive() {
 }
 
 cleanup_gnupg() {
-  gpgconf --homedir "$GNUPG_HOME" --kill all >/dev/null 2>&1 || true
+  if [[ -n "$GNUPG_HOME" && -d "$GNUPG_HOME" ]]; then
+    gpgconf --homedir "$GNUPG_HOME" --kill all >/dev/null 2>&1 || true
+    rm -rf -- "$GNUPG_HOME"
+  fi
 }
 trap cleanup_gnupg EXIT
 
 required_commands=(brew curl gpg gpgconf make patch pkg-config shasum tar xcrun)
-required_formulae=(autoconf bison curl freetype gettext icu4c@78 imagemagick jpeg-turbo libiconv libpng libxml2 libsodium libxslt libzip oniguruma openssl@3 pkgconf re2c readline sqlite tidy-html5 xz)
+required_formulae=(autoconf bison pkgconf re2c)
+if [[ "$PACKAGE_VARIANT" == "community" ]]; then
+  required_commands+=(cmake 7zz)
+  required_formulae+=(sevenzip)
+else
+  required_formulae+=(curl freetype gettext icu4c@78 imagemagick jpeg-turbo libiconv libpng libxml2 libsodium libxslt libzip oniguruma openssl@3 readline sqlite tidy-html5 xz)
+fi
 
 for command_name in "${required_commands[@]}"; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
@@ -90,11 +108,23 @@ for command_name in "${required_commands[@]}"; do
 done
 
 for formula in "${required_formulae[@]}"; do
-  if ! brew --prefix "$formula" >/dev/null 2>&1; then
+  formula_prefix="$(brew --prefix "$formula" 2>/dev/null || true)"
+  if [[ -z "$formula_prefix" || ! -d "$formula_prefix" ]]; then
     echo "Missing Homebrew build dependency: $formula" >&2
     exit 1
   fi
 done
+
+BUILD_JOBS="${FABDEV_BUILD_JOBS:-}"
+if [[ -z "$BUILD_JOBS" ]]; then
+  BUILD_JOBS="$(sysctl -n hw.logicalcpu 2>/dev/null || true)"
+fi
+if [[ ! "$BUILD_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+  BUILD_JOBS="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
+fi
+if [[ ! "$BUILD_JOBS" =~ ^[1-9][0-9]*$ ]]; then
+  BUILD_JOBS=4
+fi
 
 mkdir -p "$DOWNLOAD_DIR" "$ARTIFACT_DIR"
 
@@ -128,8 +158,9 @@ if [[ ! -f "$KEYRING" ]]; then
 fi
 
 echo "$PHP_SHA256  $SOURCE_ARCHIVE" | shasum -a 256 --check
-rm -rf "$GNUPG_HOME"
-mkdir -m 0700 "$GNUPG_HOME"
+GNUPG_HOME="$(mktemp -d /private/tmp/fabdev-php-gnupg.XXXXXX)"
+chmod 0700 "$GNUPG_HOME"
+gpgconf --homedir "$GNUPG_HOME" --launch gpg-agent
 gpg --batch --homedir "$GNUPG_HOME" --import "$KEYRING"
 gpg_status="$(gpg --batch --homedir "$GNUPG_HOME" --status-fd 1 --verify "$SOURCE_SIGNATURE" "$SOURCE_ARCHIVE" 2>&1)"
 echo "$gpg_status"
@@ -151,21 +182,80 @@ if [[ "$PHP_REGENERATE_CONFIGURE" -eq 1 ]]; then
   (cd "$SOURCE_DIR" && ./buildconf --force)
 fi
 
-brew_prefixes=(openssl@3 curl icu4c@78 imagemagick libzip oniguruma libiconv libxml2 libxslt sqlite libsodium freetype jpeg-turbo libpng gettext readline tidy-html5)
-pkg_config_paths=()
-include_paths=()
-library_paths=()
-for formula in "${brew_prefixes[@]}"; do
-  formula_prefix="$(brew --prefix "$formula")"
-  pkg_config_paths+=("$formula_prefix/lib/pkgconfig")
-  include_paths+=("-I$formula_prefix/include")
-  library_paths+=("-L$formula_prefix/lib")
-done
-
-export PATH="$(brew --prefix bison)/bin:$(brew --prefix re2c)/bin:$(brew --prefix curl)/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-export PKG_CONFIG_PATH="$(IFS=:; echo "${pkg_config_paths[*]}")"
-export CPPFLAGS="${include_paths[*]}"
-export LDFLAGS="${library_paths[*]}"
+if [[ "$PACKAGE_VARIANT" == "community" ]]; then
+  if [[ "${FABDEV_SKIP_RUNTIME_DEPENDENCY_BUILD:-0}" != "1" ]]; then
+    MACOSX_DEPLOYMENT_TARGET="$MACOS_TARGET" \
+    FABDEV_BUILD_JOBS="$BUILD_JOBS" \
+      "$SCRIPT_DIR/build-macos-runtime-dependencies.sh" php "$DEPENDENCY_PREFIX"
+  fi
+  if [[ ! -e "$DEPENDENCY_PREFIX/lib/libssl.dylib" \
+    || ! -e "$DEPENDENCY_PREFIX/lib/libMagickWand-7.Q16HDRI.dylib" ]]
+  then
+    echo "PHP Community Runtime dependency prefix is incomplete: $DEPENDENCY_PREFIX" >&2
+    exit 1
+  fi
+  OPENSSL_PREFIX="$DEPENDENCY_PREFIX"
+  IMAGEMAGICK_PREFIX="$DEPENDENCY_PREFIX"
+  SDK_PKG_CONFIG_DIR="$BUILD_ROOT/sdk-pkgconfig"
+  ZLIB_VERSION="$(sed -n 's/^#define ZLIB_VERSION "\([^"]*\)"/\1/p' "$MACOS_SDK/usr/include/zlib.h")"
+  if [[ -z "$ZLIB_VERSION" ]]; then
+    echo "Unable to determine the macOS SDK zlib version" >&2
+    exit 1
+  fi
+  mkdir -p "$SDK_PKG_CONFIG_DIR"
+  printf '%s\n' \
+    "prefix=$MACOS_SDK/usr" \
+    'exec_prefix=${prefix}' \
+    'libdir=${exec_prefix}/lib' \
+    'includedir=${prefix}/include' \
+    '' \
+    'Name: zlib' \
+    'Description: macOS SDK zlib' \
+    "Version: $ZLIB_VERSION" \
+    'Libs: -L${libdir} -lz' \
+    'Cflags: -I${includedir}' \
+    > "$SDK_PKG_CONFIG_DIR/zlib.pc"
+  export PATH="$(brew --prefix bison)/bin:$(brew --prefix re2c)/bin:$DEPENDENCY_PREFIX/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  export PKG_CONFIG_PATH="$SDK_PKG_CONFIG_DIR:$DEPENDENCY_PREFIX/lib/pkgconfig:$DEPENDENCY_PREFIX/share/pkgconfig"
+  export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH:$MACOS_SDK/usr/lib/pkgconfig"
+  export CPPFLAGS="-I$DEPENDENCY_PREFIX/include"
+  export LDFLAGS="-L$DEPENDENCY_PREFIX/lib -Wl,-headerpad_max_install_names"
+  export SQLITE_CFLAGS="-I$MACOS_SDK/usr/include"
+  export SQLITE_LIBS="-L$MACOS_SDK/usr/lib -lsqlite3"
+  export ZLIB_CFLAGS="-I$MACOS_SDK/usr/include"
+  export ZLIB_LIBS="-L$MACOS_SDK/usr/lib -lz"
+  export EDIT_CFLAGS="-I$MACOS_SDK/usr/include"
+  export EDIT_LIBS="-L$MACOS_SDK/usr/lib -ledit"
+  PHP_PLATFORM_CONFIGURE_ARGS=(
+    --with-gettext="$DEPENDENCY_PREFIX"
+    --with-iconv="$DEPENDENCY_PREFIX"
+    --with-libedit
+    --with-tidy="$DEPENDENCY_PREFIX"
+  )
+else
+  brew_prefixes=(openssl@3 curl icu4c@78 imagemagick libzip oniguruma libiconv libxml2 libxslt sqlite libsodium freetype jpeg-turbo libpng gettext readline tidy-html5)
+  pkg_config_paths=()
+  include_paths=()
+  library_paths=()
+  for formula in "${brew_prefixes[@]}"; do
+    formula_prefix="$(brew --prefix "$formula")"
+    pkg_config_paths+=("$formula_prefix/lib/pkgconfig")
+    include_paths+=("-I$formula_prefix/include")
+    library_paths+=("-L$formula_prefix/lib")
+  done
+  OPENSSL_PREFIX="$(brew --prefix openssl@3)"
+  IMAGEMAGICK_PREFIX="$(brew --prefix imagemagick)"
+  export PATH="$(brew --prefix bison)/bin:$(brew --prefix re2c)/bin:$(brew --prefix curl)/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  export PKG_CONFIG_PATH="$(IFS=:; echo "${pkg_config_paths[*]}")"
+  export CPPFLAGS="${include_paths[*]}"
+  export LDFLAGS="${library_paths[*]}"
+  PHP_PLATFORM_CONFIGURE_ARGS=(
+    --with-gettext="$(brew --prefix gettext)"
+    --with-iconv="$(brew --prefix libiconv)"
+    --with-readline="$(brew --prefix readline)"
+    --with-tidy="$(brew --prefix tidy-html5)"
+  )
+fi
 export MACOSX_DEPLOYMENT_TARGET="$MACOS_TARGET"
 if [[ -n "$PHP_CFLAGS" ]]; then
   export CFLAGS="$PHP_CFLAGS"
@@ -195,24 +285,21 @@ cd "$SOURCE_DIR"
   --enable-sockets \
   --with-curl \
   --with-freetype \
-  --with-gettext="$(brew --prefix gettext)" \
-  --with-iconv="$(brew --prefix libiconv)" \
   --with-jpeg \
   --with-mysqli=mysqlnd \
   --with-openssl \
   --with-pdo-mysql=mysqlnd \
   --with-pdo-sqlite \
-  --with-readline="$(brew --prefix readline)" \
   --with-sodium \
-  --with-tidy="$(brew --prefix tidy-html5)" \
   --with-xsl \
   --with-zip \
-  --with-zlib
+  --with-zlib \
+  "${PHP_PLATFORM_CONFIGURE_ARGS[@]}"
 
 if [[ -n "${PHP_MAKE_ARGS[*]:-}" ]]; then
-  make -j "$(sysctl -n hw.logicalcpu)" "${PHP_MAKE_ARGS[@]}"
+  make -j "$BUILD_JOBS" "${PHP_MAKE_ARGS[@]}"
 else
-  make -j "$(sysctl -n hw.logicalcpu)"
+  make -j "$BUILD_JOBS"
 fi
 make install
 
@@ -225,9 +312,9 @@ tar -xzf "$CCLIENT_ARCHIVE" -C "$CCLIENT_SOURCE_DIR" --strip-components=1
   make -C c-client osx \
     CC=clang \
     EXTRACFLAGS="-fPIC -Wno-deprecated-declarations -Wno-error=incompatible-function-pointer-types -DMAC_OSX_KLUDGE=1 -include poll.h -include time.h -include utime.h" \
-    EXTRALDFLAGS="-L$(brew --prefix openssl@3)/lib" \
-    SSLINCLUDE="$(brew --prefix openssl@3)/include" \
-    SSLLIB="$(brew --prefix openssl@3)/lib" \
+    EXTRALDFLAGS="-L$OPENSSL_PREFIX/lib" \
+    SSLINCLUDE="$OPENSSL_PREFIX/include" \
+    SSLLIB="$OPENSSL_PREFIX/lib" \
     SSLCERTS="/etc/ssl/certs" \
     SSLKEYS="/etc/ssl/private" \
     SSLTYPE=nopwd \
@@ -244,7 +331,7 @@ build_shared_extension() {
   cd "$extension_source"
   "$RUNTIME_ROOT/bin/phpize"
   ./configure --with-php-config="$RUNTIME_ROOT/bin/php-config" "$@"
-  make -j "$(sysctl -n hw.logicalcpu)"
+  make -j "$BUILD_JOBS"
   make install
 }
 
@@ -259,7 +346,7 @@ patch --directory="$imagick_source" --strip=1 \
 build_shared_extension \
   imagick \
   "$imagick_source" \
-  --with-imagick="$(brew --prefix imagemagick)"
+  --with-imagick="$IMAGEMAGICK_PREFIX"
 
 imap_source="$EXTENSION_BUILD_ROOT/imap"
 if [[ "$PHP_VERSION" == 8.4.* ]]; then
@@ -275,30 +362,30 @@ build_shared_extension \
   --with-imap-ssl \
   --with-kerberos=no
 
-imagemagick_prefix="$(brew --prefix imagemagick)"
-mkdir -p \
-  "$RUNTIME_ROOT/etc/ImageMagick-7" \
-  "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/coders" \
-  "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/filters" \
-  "$RUNTIME_ROOT/share/ImageMagick-7"
-cp "$imagemagick_prefix/etc/ImageMagick-7/"*.xml "$RUNTIME_ROOT/etc/ImageMagick-7/"
-cp "$imagemagick_prefix/lib/ImageMagick/modules-Q16HDRI/coders/"*.so \
-  "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/coders/"
-cp "$imagemagick_prefix/lib/ImageMagick/modules-Q16HDRI/coders/"*.la \
-  "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/coders/"
-cp "$imagemagick_prefix/lib/ImageMagick/modules-Q16HDRI/filters/"*.so \
-  "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/filters/"
-cp "$imagemagick_prefix/lib/ImageMagick/modules-Q16HDRI/filters/"*.la \
-  "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/filters/"
-cp "$imagemagick_prefix/share/ImageMagick-7/"*.xml "$RUNTIME_ROOT/share/ImageMagick-7/"
-for module_metadata in \
-  "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/coders/"*.la \
-  "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/filters/"*.la; do
-  sed -i '' \
-    -e "s|^dependency_libs=.*|dependency_libs=''|" \
-    -e "s|^libdir=.*|libdir='.'|" \
-    "$module_metadata"
-done
+mkdir -p "$RUNTIME_ROOT/etc/ImageMagick-7" "$RUNTIME_ROOT/share/ImageMagick-7"
+cp "$IMAGEMAGICK_PREFIX/etc/ImageMagick-7/"*.xml "$RUNTIME_ROOT/etc/ImageMagick-7/"
+cp "$IMAGEMAGICK_PREFIX/share/ImageMagick-7/"*.xml "$RUNTIME_ROOT/share/ImageMagick-7/"
+if [[ "$PACKAGE_VARIANT" == "dev" ]]; then
+  mkdir -p \
+    "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/coders" \
+    "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/filters"
+  cp "$IMAGEMAGICK_PREFIX/lib/ImageMagick/modules-Q16HDRI/coders/"*.so \
+    "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/coders/"
+  cp "$IMAGEMAGICK_PREFIX/lib/ImageMagick/modules-Q16HDRI/coders/"*.la \
+    "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/coders/"
+  cp "$IMAGEMAGICK_PREFIX/lib/ImageMagick/modules-Q16HDRI/filters/"*.so \
+    "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/filters/"
+  cp "$IMAGEMAGICK_PREFIX/lib/ImageMagick/modules-Q16HDRI/filters/"*.la \
+    "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/filters/"
+  for module_metadata in \
+    "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/coders/"*.la \
+    "$RUNTIME_ROOT/lib/ImageMagick/modules-Q16HDRI/filters/"*.la; do
+    sed -i '' \
+      -e "s|^dependency_libs=.*|dependency_libs=''|" \
+      -e "s|^libdir=.*|libdir='.'|" \
+      "$module_metadata"
+  done
+fi
 
 opcache_path="$(find "$RUNTIME_ROOT/lib/php/extensions" -type f -name opcache.so -print -quit)"
 if [[ -z "$opcache_path" ]]; then
@@ -315,4 +402,6 @@ cp "$PROJECT_DIR/resources/php/php.ini" "$RUNTIME_ROOT/etc/php.ini.template"
 cp "$PROJECT_DIR/resources/php/php-fpm.conf" "$RUNTIME_ROOT/etc/php-fpm.conf.template"
 cp "$PROJECT_DIR/resources/php/www.conf" "$RUNTIME_ROOT/etc/www.conf.template"
 
-"$SCRIPT_DIR/package-php-runtime.sh" "$RUNTIME_ROOT" "$PHP_VERSION" "$ARTIFACT_DIR"
+FABDEV_MINIMUM_MACOS_VERSION="$MACOS_TARGET" \
+FABDEV_RUNTIME_DEPENDENCY_PREFIX="$DEPENDENCY_PREFIX" \
+  "$SCRIPT_DIR/package-php-runtime.sh" "$RUNTIME_ROOT" "$PHP_VERSION" "$ARTIFACT_DIR"

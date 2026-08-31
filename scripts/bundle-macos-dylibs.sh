@@ -2,14 +2,55 @@
 
 set -euo pipefail
 
-if [[ $# -ne 1 ]]; then
-  echo "Usage: $0 <runtime-root>" >&2
+if [[ $# -lt 1 ]]; then
+  echo "Usage: $0 <runtime-root> [allowed-dependency-prefix ...]" >&2
   exit 1
 fi
 
 RUNTIME_ROOT="$1"
+shift
+if [[ $# -eq 0 ]]; then
+  ALLOWED_DEPENDENCY_PREFIXES=(/opt/homebrew)
+else
+  ALLOWED_DEPENDENCY_PREFIXES=("$@")
+fi
 LIB_DIR="$RUNTIME_ROOT/lib"
 mkdir -p "$LIB_DIR"
+
+for allowed_prefix in "${ALLOWED_DEPENDENCY_PREFIXES[@]}"; do
+  if [[ "$allowed_prefix" != /* || "$allowed_prefix" == "/" ]]; then
+    echo "Allowed dependency prefix must be a non-root absolute path: $allowed_prefix" >&2
+    exit 1
+  fi
+done
+
+is_allowed_dependency() {
+  local dependency="$1"
+  local allowed_prefix
+
+  for allowed_prefix in "${ALLOWED_DEPENDENCY_PREFIXES[@]}"; do
+    if [[ "$dependency" == "$allowed_prefix/"* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+validate_dependency() {
+  local mach_file="$1"
+  local dependency="$2"
+
+  case "$dependency" in
+    @*|/usr/lib/*|/System/Library/*|"$RUNTIME_ROOT/"*)
+      return 0
+      ;;
+  esac
+  if is_allowed_dependency "$dependency"; then
+    return 0
+  fi
+  echo "Mach-O dependency is outside the Runtime and allowed prefixes: $mach_file -> $dependency" >&2
+  return 1
+}
 
 collect_mach_files() {
   local search_paths=()
@@ -42,10 +83,10 @@ copy_dependency() {
     chmod u+w "$destination"
 
     while IFS= read -r nested_dependency; do
-      case "$nested_dependency" in
-        /opt/homebrew/*)
-          copy_dependency "$nested_dependency"
-          ;;
+      if is_allowed_dependency "$nested_dependency"; then
+        copy_dependency "$nested_dependency"
+      else
+        case "$nested_dependency" in
         @loader_path/*)
           nested_source="$(dirname "$dependency")/${nested_dependency#@loader_path/}"
           if [[ -f "$nested_source" ]]; then
@@ -74,7 +115,8 @@ copy_dependency() {
             )
           fi
           ;;
-      esac
+        esac
+      fi
     done < <(otool -L "$dependency" | tail -n +2 | awk '{print $1}')
   fi
 }
@@ -104,15 +146,14 @@ while true; do
   copied=0
   while IFS= read -r mach_file; do
     while IFS= read -r dependency; do
-      case "$dependency" in
-        /opt/homebrew/*)
-          destination="$LIB_DIR/$(basename "$dependency")"
-          if [[ ! -f "$destination" ]]; then
-            copy_dependency "$dependency"
-            copied=1
-          fi
-          ;;
-      esac
+      validate_dependency "$mach_file" "$dependency"
+      if is_allowed_dependency "$dependency"; then
+        destination="$LIB_DIR/$(basename "$dependency")"
+        if [[ ! -f "$destination" ]]; then
+          copy_dependency "$dependency"
+          copied=1
+        fi
+      fi
     done < <(otool -L "$mach_file" | tail -n +2 | awk '{print $1}')
   done < <(collect_mach_files)
   if [[ "$copied" -eq 0 ]]; then
@@ -126,11 +167,9 @@ while IFS= read -r mach_file; do
   fi
 
   while IFS= read -r dependency; do
-    case "$dependency" in
-      /opt/homebrew/*)
-        install_name_tool -change "$dependency" "@rpath/$(basename "$dependency")" "$mach_file"
-        ;;
-    esac
+    if is_allowed_dependency "$dependency"; then
+      install_name_tool -change "$dependency" "@rpath/$(basename "$dependency")" "$mach_file"
+    fi
   done < <(otool -L "$mach_file" | tail -n +2 | awk '{print $1}')
 
   while IFS= read -r search_path; do

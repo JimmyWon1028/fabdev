@@ -1957,7 +1957,7 @@ async fn install_downloaded_runtime(
     Err(error) => {
       state
         .runtime_updates
-        .finish_install(operation_id, Some(error.to_string()))
+        .finish_install(operation_id, Some(format!("{error:#}")))
         .await
     }
   }
@@ -1974,14 +1974,6 @@ async fn install_downloaded_runtime_inner(
       operation.version,
       operation.platform
     );
-  }
-  if operation.name == "mariadb"
-    && matches!(
-      state.services.lock().await.status().mariadb,
-      fabdev_core::ServiceState::Running
-    )
-  {
-    bail!("stop MariaDB before installing or updating its Runtime");
   }
   let downloaded =
     fabdev_updater::verified_cached_runtime_update(fabdev_updater::RuntimeDownloadRequest {
@@ -2143,6 +2135,58 @@ async fn install_downloaded_mariadb_runtime(
   state: &AgentState,
   downloaded: &fabdev_updater::DownloadedRuntimeUpdate,
 ) -> Result<()> {
+  let active_before = active_version(&state.paths.runtimes, "mariadb")?;
+  let was_running = matches!(
+    state.services.lock().await.status().mariadb,
+    fabdev_core::ServiceState::Running
+  );
+  if was_running {
+    let stop_result = {
+      let mut services = state.services.lock().await;
+      match services.stop_mariadb().await {
+        Ok(()) => services.refresh_php_mariadb_connection().await,
+        Err(error) => Err(error),
+      }
+    };
+    if let Err(error) = stop_result {
+      let _ = restart_active_mariadb_runtime(state).await;
+      return Err(error.context("unable to stop MariaDB safely before Runtime update"));
+    }
+  }
+
+  let install_result = install_downloaded_mariadb_runtime_while_stopped(state, downloaded).await;
+  if let Err(error) = install_result {
+    if was_running {
+      restart_active_mariadb_runtime(state)
+        .await
+        .context("unable to restore MariaDB after Runtime update failed")?;
+    }
+    return Err(error);
+  }
+
+  if was_running {
+    if let Err(start_error) = restart_active_mariadb_runtime(state).await {
+      let runtime_root = state.paths.runtimes.clone();
+      rollback_online_runtime_install(
+        &runtime_root,
+        "mariadb",
+        &downloaded.version,
+        active_before.as_deref(),
+      )
+      .context("unable to roll back MariaDB after the updated Runtime failed to start")?;
+      restart_active_mariadb_runtime(state)
+        .await
+        .context("unable to restart the previous MariaDB Runtime after update failed")?;
+      return Err(start_error.context("updated MariaDB Runtime failed to restart"));
+    }
+  }
+  Ok(())
+}
+
+async fn install_downloaded_mariadb_runtime_while_stopped(
+  state: &AgentState,
+  downloaded: &fabdev_updater::DownloadedRuntimeUpdate,
+) -> Result<()> {
   let runtime_root = state.paths.runtimes.clone();
   let active_before = active_version(&runtime_root, "mariadb")?;
   let runtime_destination = runtime_root.join("mariadb").join(&downloaded.version);
@@ -2199,6 +2243,14 @@ async fn install_downloaded_mariadb_runtime(
     return Err(error.context("unable to apply the installed MariaDB Runtime"));
   }
   Ok(())
+}
+
+async fn restart_active_mariadb_runtime(state: &AgentState) -> Result<()> {
+  let runtime = active_mariadb_runtime_path(&state.paths.runtimes)?;
+  let mut services = state.services.lock().await;
+  services.set_mariadb_runtime(runtime);
+  services.start_mariadb().await?;
+  services.refresh_php_mariadb_connection().await
 }
 
 fn validate_staged_node_runtime(
@@ -2264,7 +2316,7 @@ fn validate_staged_mariadb_runtime(
       )));
     }
     let output = std::process::Command::new(&binary)
-      .arg("--version")
+      .args(["--no-defaults", "--version"])
       .output()
       .map_err(|error| RuntimeError::HealthCheckFailed(error.to_string()))?;
     let reported = format!(
@@ -2440,13 +2492,23 @@ fn runtime_update_artifacts(
   runtime_root: &Path,
 ) -> Result<Vec<RuntimeUpdateArtifact>> {
   let (platform, architecture) = runtime_update_target()?;
+  let current_os_version = current_runtime_os_version(platform)?;
   let mut installed_versions = HashMap::<String, HashSet<String>>::new();
   let mut active_versions = HashMap::<String, Option<String>>::new();
   let artifacts = catalog
     .catalog
     .runtimes
     .iter()
-    .filter(|release| release.platform == platform && release.architecture == architecture)
+    .filter(|release| {
+      release.platform == platform
+        && release.architecture == architecture
+        && current_os_version.as_ref().is_none_or(|current| {
+          release
+            .minimum_os_version
+            .as_deref()
+            .is_some_and(|minimum| runtime_os_version_supported(current, minimum))
+        })
+    })
     .map(|release| {
       if !installed_versions.contains_key(&release.name) {
         installed_versions.insert(
@@ -2483,9 +2545,6 @@ fn runtime_update_artifacts(
       })
     })
     .collect::<Result<Vec<_>>>()?;
-  if artifacts.is_empty() {
-    bail!("Runtime Catalog has no package for {platform}/{architecture}");
-  }
   Ok(artifacts)
 }
 
@@ -2505,6 +2564,58 @@ fn runtime_update_target() -> Result<(&'static str, &'static str)> {
     bail!("Runtime online updates are not supported on this architecture");
   };
   Ok((platform, architecture))
+}
+
+fn current_runtime_os_version(platform: &str) -> Result<Option<Vec<u16>>> {
+  if platform != "macos" {
+    return Ok(None);
+  }
+  let output = std::process::Command::new("/usr/bin/sw_vers")
+    .arg("-productVersion")
+    .output()
+    .context("unable to read the current macOS version")?;
+  if !output.status.success() {
+    bail!("unable to read the current macOS version");
+  }
+  let version =
+    String::from_utf8(output.stdout).context("the current macOS version is not valid UTF-8")?;
+  parse_numeric_os_version(version.trim())
+    .map(Some)
+    .context("the current macOS version is invalid")
+}
+
+fn parse_numeric_os_version(version: &str) -> Result<Vec<u16>> {
+  let parts = version
+    .split('.')
+    .map(|part| {
+      if part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()) {
+        bail!("OS version must contain only numeric components");
+      }
+      part
+        .parse::<u16>()
+        .context("OS version component is too large")
+    })
+    .collect::<Result<Vec<_>>>()?;
+  if parts.len() < 2 || parts.len() > 3 {
+    bail!("OS version must contain two or three components");
+  }
+  Ok(parts)
+}
+
+fn runtime_os_version_supported(current: &[u16], minimum: &str) -> bool {
+  let Ok(minimum) = parse_numeric_os_version(minimum) else {
+    return false;
+  };
+  let length = current.len().max(minimum.len());
+  for index in 0..length {
+    match (current.get(index).copied().unwrap_or(0)).cmp(&minimum.get(index).copied().unwrap_or(0))
+    {
+      std::cmp::Ordering::Greater => return true,
+      std::cmp::Ordering::Less => return false,
+      std::cmp::Ordering::Equal => {}
+    }
+  }
+  true
 }
 
 async fn stop_all(state: &AgentState) -> Result<()> {
@@ -2964,7 +3075,7 @@ fn online_runtime_supported(name: &str, platform: &str, version: &str) -> bool {
       .and_then(|series| series.parse::<PhpVersion>().ok())
       .is_some(),
     ("php", "macos") => version == "8.4.24",
-    ("mariadb" | "node", "windows") => {
+    ("mariadb" | "node", "windows" | "macos") => {
       let parts = version.split('.').collect::<Vec<_>>();
       parts.len() == 3 && parts.iter().all(|part| part.parse::<u16>().is_ok())
     }
@@ -3108,6 +3219,118 @@ mod tests {
     assert!(task.begin_install().is_err());
   }
 
+  fn runtime_catalog_fixture(runtimes: Vec<RuntimeRelease>) -> ValidatedRuntimeCatalog {
+    ValidatedRuntimeCatalog {
+      catalog: fabdev_runtime::RuntimeCatalog {
+        schema_version: fabdev_runtime::RUNTIME_CATALOG_SCHEMA_VERSION,
+        product: fabdev_runtime::RUNTIME_CATALOG_PRODUCT.to_owned(),
+        channel: fabdev_runtime::RUNTIME_CATALOG_CHANNEL.to_owned(),
+        catalog_sequence: 1,
+        generated_at: "2026-08-31T00:00:00Z".to_owned(),
+        expires_at: "2027-02-27T00:00:00Z".to_owned(),
+        unsigned_community_build: true,
+        integrity: "sha256".to_owned(),
+        compatibility: fabdev_runtime::RuntimeCatalogCompatibility {
+          minimum_app_version: "0.1.11".to_owned(),
+          minimum_agent_protocol_version: PROTOCOL_VERSION,
+        },
+        signature: None,
+        runtimes,
+      },
+      sha256: "a".repeat(64),
+    }
+  }
+
+  fn runtime_release_fixture(
+    name: &str,
+    version: &str,
+    platform: &str,
+    architecture: &str,
+  ) -> RuntimeRelease {
+    RuntimeRelease {
+      name: name.to_owned(),
+      version: version.to_owned(),
+      platform: platform.to_owned(),
+      architecture: architecture.to_owned(),
+      minimum_os_version: Some(if platform == "macos" { "13.0" } else { "11.0" }.to_owned()),
+      file_name: Some(format!(
+        "{name}-{version}-{platform}-{architecture}-community.tar.gz"
+      )),
+      size: 100,
+      sha256: "b".repeat(64),
+      ..RuntimeRelease::default()
+    }
+  }
+
+  #[test]
+  fn filters_runtime_catalog_artifacts_for_the_current_desktop_target() {
+    let root = std::env::temp_dir().join(format!("fabdev-agent-catalog-{}", Uuid::new_v4()));
+    let (platform, architecture) = runtime_update_target().expect("read current Runtime target");
+    let other_platform = if platform == "macos" {
+      "windows"
+    } else {
+      "macos"
+    };
+    let other_architecture = if architecture == "arm64" {
+      "x64"
+    } else {
+      "arm64"
+    };
+    let mut runtimes = Vec::new();
+    for (name, version) in [
+      ("php", "8.4.24"),
+      ("mariadb", "12.3.2"),
+      ("node", "20.20.2"),
+      ("node", "24.20.0"),
+    ] {
+      runtimes.push(runtime_release_fixture(
+        name,
+        version,
+        platform,
+        architecture,
+      ));
+      runtimes.push(runtime_release_fixture(
+        name,
+        version,
+        other_platform,
+        other_architecture,
+      ));
+    }
+    std::fs::create_dir_all(root.join("node/24.20.0")).expect("create installed Node.js fixture");
+    set_active_version(&root, "node", "24.20.0").expect("set active Node.js fixture");
+
+    let artifacts = runtime_update_artifacts(&runtime_catalog_fixture(runtimes), &root)
+      .expect("build target Runtime artifacts");
+
+    assert_eq!(artifacts.len(), 4);
+    assert!(artifacts
+      .iter()
+      .all(|artifact| artifact.platform == platform && artifact.architecture == architecture));
+    assert!(artifacts
+      .iter()
+      .find(|artifact| artifact.name == "node" && artifact.version == "24.20.0")
+      .is_some_and(
+        |artifact| artifact.installed && artifact.active_version.as_deref() == Some("24.20.0")
+      ));
+    std::fs::remove_dir_all(root).expect("remove Runtime Catalog fixture");
+  }
+
+  #[test]
+  fn accepts_a_catalog_without_packages_for_the_current_target() {
+    let root = std::env::temp_dir().join(format!("fabdev-agent-empty-catalog-{}", Uuid::new_v4()));
+    let (platform, _) = runtime_update_target().expect("read current Runtime target");
+    let release = if platform == "macos" {
+      runtime_release_fixture("php", "8.4.24", "windows", "x64")
+    } else {
+      runtime_release_fixture("php", "8.4.24", "macos", "arm64")
+    };
+
+    let artifacts = runtime_update_artifacts(&runtime_catalog_fixture(vec![release]), &root)
+      .expect("accept Catalog without current target packages");
+
+    assert!(artifacts.is_empty());
+  }
+
   #[cfg(unix)]
   #[test]
   fn validates_fixed_staged_php_binary_paths_and_version() {
@@ -3164,6 +3387,41 @@ mod tests {
     assert!(!config.exists());
     assert!(!service.exists());
     std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn rolls_back_mariadb_runtime_without_touching_data_config_or_logs() {
+    let root = std::env::temp_dir().join(format!("fabdev-mariadb-rollback-{}", Uuid::new_v4()));
+    let runtimes = root.join("runtimes");
+    let data = root.join("services/mariadb/data/customer.ibd");
+    let config = root.join("config/mariadb/my.cnf");
+    let log = root.join("logs/mariadb-process.log");
+    for path in [&data, &config, &log] {
+      std::fs::create_dir_all(path.parent().expect("state parent"))
+        .expect("create MariaDB state directory");
+      std::fs::write(path, path.to_string_lossy().as_bytes()).expect("write MariaDB state fixture");
+    }
+    std::fs::create_dir_all(runtimes.join("mariadb/12.2.2"))
+      .expect("create previous MariaDB Runtime");
+    std::fs::create_dir_all(runtimes.join("mariadb/12.3.2"))
+      .expect("create updated MariaDB Runtime");
+    set_active_version(&runtimes, "mariadb", "12.3.2").expect("activate updated MariaDB Runtime");
+
+    rollback_online_runtime_install(&runtimes, "mariadb", "12.3.2", Some("12.2.2"))
+      .expect("roll back MariaDB Runtime");
+
+    assert_eq!(
+      active_version(&runtimes, "mariadb").expect("read restored MariaDB Runtime"),
+      Some("12.2.2".to_owned())
+    );
+    assert!(!runtimes.join("mariadb/12.3.2").exists());
+    for path in [&data, &config, &log] {
+      assert_eq!(
+        std::fs::read(path).expect("read preserved MariaDB state"),
+        path.to_string_lossy().as_bytes()
+      );
+    }
+    std::fs::remove_dir_all(root).expect("remove MariaDB rollback fixture");
   }
 
   #[tokio::test]
@@ -3354,7 +3612,7 @@ mod tests {
   }
 
   #[test]
-  fn supports_windows_online_runtimes_without_changing_macos_policy() {
+  fn supports_online_runtimes_for_both_desktop_platforms() {
     assert!(online_runtime_supported("php", "windows", "7.4.33"));
     assert!(online_runtime_supported("php", "windows", "8.2.34"));
     assert!(online_runtime_supported("php", "windows", "9.1.2"));
@@ -3364,8 +3622,30 @@ mod tests {
     assert!(online_runtime_supported("mariadb", "windows", "12.3.2"));
     assert!(online_runtime_supported("node", "windows", "20.20.2"));
     assert!(online_runtime_supported("node", "windows", "24.20.0"));
-    assert!(!online_runtime_supported("mariadb", "macos", "12.3.2"));
+    assert!(online_runtime_supported("mariadb", "macos", "12.3.2"));
+    assert!(online_runtime_supported("node", "macos", "20.20.2"));
+    assert!(online_runtime_supported("node", "macos", "24.20.0"));
     assert!(!online_runtime_supported("node", "windows", "24.19"));
+    assert!(!online_runtime_supported("node", "linux", "24.20.0"));
+  }
+
+  #[test]
+  fn compares_runtime_minimum_macos_versions_numerically() {
+    assert!(!runtime_os_version_supported(&[13, 4], "13.5"));
+    assert!(runtime_os_version_supported(&[13, 5], "13.5"));
+    assert!(runtime_os_version_supported(&[13, 5, 1], "13.5"));
+    assert!(runtime_os_version_supported(&[14, 0], "13.5"));
+    assert!(!runtime_os_version_supported(&[13, 5], "13.5.1"));
+    assert!(!runtime_os_version_supported(&[13, 5], "13.x"));
+  }
+
+  #[test]
+  fn rejects_invalid_numeric_os_versions() {
+    assert!(parse_numeric_os_version("13.5").is_ok());
+    assert!(parse_numeric_os_version("13.5.1").is_ok());
+    assert!(parse_numeric_os_version("13").is_err());
+    assert!(parse_numeric_os_version("13.5.1.2").is_err());
+    assert!(parse_numeric_os_version("13.5-beta").is_err());
   }
 
   #[cfg(windows)]
@@ -3450,6 +3730,254 @@ mod tests {
     }
     disable_terminal_node(&data_root).expect("disable terminal Node.js");
     std::fs::remove_dir_all(data_root).expect("remove Windows Runtime fixture");
+  }
+
+  #[cfg(target_os = "macos")]
+  #[test]
+  #[ignore = "requires verified macOS Runtime packages built by the release preparation script"]
+  fn installs_real_macos_online_runtime_archives() {
+    use sha2::{Digest, Sha256};
+
+    let packages = [
+      ("php", "8.4.24", "FABDEV_MACOS_PHP_RUNTIME_PACKAGE", false),
+      (
+        "node",
+        "20.20.2",
+        "FABDEV_MACOS_NODE20_RUNTIME_PACKAGE",
+        false,
+      ),
+      (
+        "node",
+        "24.20.0",
+        "FABDEV_MACOS_NODE24_RUNTIME_PACKAGE",
+        false,
+      ),
+      (
+        "mariadb",
+        "12.3.2",
+        "FABDEV_MACOS_MARIADB_RUNTIME_PACKAGE",
+        true,
+      ),
+    ];
+    let data_root =
+      std::env::temp_dir().join(format!("fabdev-online-macos-runtimes-{}", Uuid::new_v4()));
+    let runtime_root = data_root.join("runtimes");
+
+    for (name, version, variable, activate) in packages {
+      let artifact = PathBuf::from(
+        std::env::var(variable)
+          .unwrap_or_else(|_| panic!("{variable} must identify the release package")),
+      );
+      let checksum = hex::encode(Sha256::digest(
+        std::fs::read(&artifact).expect("read macOS Runtime package"),
+      ));
+      install_tar_gz_with_health_check(
+        &artifact,
+        &checksum,
+        name,
+        version,
+        &runtime_root,
+        activate,
+        |staged| match name {
+          "php" => validate_staged_php_runtime(staged, version),
+          "node" => validate_staged_node_runtime(staged, version),
+          "mariadb" => validate_staged_mariadb_runtime(staged, version),
+          _ => unreachable!("fixed macOS Runtime fixture"),
+        },
+      )
+      .unwrap_or_else(|error| panic!("install and validate macOS {name} {version}: {error}"));
+    }
+
+    assert_eq!(
+      active_version(&runtime_root, "php").expect("read inactive PHP Runtime"),
+      None
+    );
+    assert_eq!(
+      active_version(&runtime_root, "node").expect("read inactive Node.js Runtime"),
+      None
+    );
+    assert_eq!(
+      active_version(&runtime_root, "mariadb").expect("read active MariaDB Runtime"),
+      Some("12.3.2".to_owned())
+    );
+    std::fs::remove_dir_all(data_root).expect("remove macOS Runtime fixture");
+  }
+
+  #[cfg(target_os = "macos")]
+  #[tokio::test]
+  #[ignore = "requires a verified macOS PHP Runtime package"]
+  async fn installs_real_macos_php_through_the_online_agent_protocol() {
+    use sha2::{Digest, Sha256};
+
+    struct FixtureDirectory(PathBuf);
+
+    impl Drop for FixtureDirectory {
+      fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+      }
+    }
+
+    let artifact = PathBuf::from(
+      std::env::var("FABDEV_MACOS_PHP_RUNTIME_PACKAGE")
+        .expect("FABDEV_MACOS_PHP_RUNTIME_PACKAGE must identify the release package"),
+    );
+    let fixture = FixtureDirectory(
+      PathBuf::from("/private/tmp").join(format!("fabdev-online-php-{}", Uuid::new_v4())),
+    );
+    let paths = AppPaths::from_root(&fixture.0);
+    paths.ensure().expect("create online PHP fixture paths");
+
+    let catalog_contents =
+      fabdev_runtime::generate_community_php_catalog(&fabdev_runtime::CommunityPhpCatalogInput {
+        release_version: "0.1.11",
+        catalog_sequence: 902,
+        generated_at: "2026-01-01T00:00:00Z",
+        expires_at: "2099-01-01T00:00:00Z",
+        minimum_app_version: env!("CARGO_PKG_VERSION"),
+        macos_arm64_package: Some(&artifact),
+        windows_x64_package: None,
+        now_unix_seconds: std::time::SystemTime::now()
+          .duration_since(std::time::UNIX_EPOCH)
+          .expect("read current time")
+          .as_secs() as i64,
+      })
+      .expect("generate real PHP Runtime Catalog");
+    let catalog_sha256 = hex::encode(Sha256::digest(&catalog_contents));
+    let update_root = paths.cache.join("runtime-updates");
+    let pending_root = update_root.join("pending");
+    std::fs::create_dir_all(&pending_root).expect("create Runtime pending cache");
+    std::fs::write(
+      update_root.join("fabdev-runtime-v1.json"),
+      &catalog_contents,
+    )
+    .expect("cache accepted Runtime Catalog");
+    std::fs::write(
+      update_root.join("accepted-catalog.json"),
+      format!("{{\n  \"sequence\": 902,\n  \"sha256\": \"{catalog_sha256}\"\n}}\n"),
+    )
+    .expect("cache accepted Runtime Catalog state");
+    let file_name = "php-8.4.24-macos-arm64-community.tar.gz";
+    let pending_package = pending_root.join(file_name);
+    std::fs::copy(&artifact, &pending_package).expect("stage verified PHP Runtime package");
+
+    std::fs::create_dir_all(paths.runtimes.join("php/8.2.33"))
+      .expect("create existing active PHP fixture");
+    set_active_version(&paths.runtimes, "php", "8.2.33").expect("set existing active PHP fixture");
+
+    let repository = SiteRepository::open(paths.database()).expect("open Site fixture database");
+    let state = AgentState {
+      paths: paths.clone(),
+      sites: Mutex::new(repository),
+      services: Mutex::new(ServiceSupervisor::new(
+        paths.clone(),
+        RuntimePaths::from_runtime_root(&paths.runtimes),
+        ServicePorts {
+          dns: 53_535,
+          http: 8_080,
+          https: 8_443,
+          mariadb: 3_306,
+        },
+      )),
+      lan_share: Mutex::new(LanShareState::new(8_080)),
+      proxy_manager: Mutex::new(ProxyManager::new(Vec::new()).expect("create Proxy fixture")),
+      runtime_updates: RuntimeUpdateManager::default(),
+      shutdown: Arc::new(Notify::new()),
+    };
+    let artifact = cached_runtime_update_artifact(&state, "php", "8.4.24")
+      .await
+      .expect("load accepted PHP Runtime artifact");
+    let operation = state
+      .runtime_updates
+      .start(paths.cache.clone(), artifact.clone())
+      .await
+      .expect("start cached PHP Runtime verification");
+    let mut verified = None;
+    for _ in 0..200 {
+      let snapshot = state
+        .runtime_updates
+        .get(operation.operation_id)
+        .await
+        .expect("read Runtime verification progress");
+      if snapshot.status == RuntimeUpdateOperationStatus::Verified {
+        verified = Some(snapshot);
+        break;
+      }
+      if snapshot.status == RuntimeUpdateOperationStatus::Failed {
+        panic!("real PHP Runtime verification failed: {:?}", snapshot.error);
+      }
+      tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+    let verified = verified.expect("real PHP Runtime verification timed out");
+    assert_eq!(verified.bytes_downloaded, verified.total_bytes);
+
+    let response = handle_request(
+      AgentRequest::InstallDownloadedRuntime {
+        operation_id: operation.operation_id,
+      },
+      &state,
+    )
+    .await;
+    let AgentResponse::RuntimeUpdateOperation(installed) = response else {
+      panic!("unexpected online PHP install response: {response:?}");
+    };
+    assert_eq!(
+      installed.status,
+      RuntimeUpdateOperationStatus::Completed,
+      "online PHP install failed: {:?}",
+      installed.error
+    );
+    assert_eq!(installed.error, None);
+    assert!(paths.runtimes.join("php/8.4.24/bin/php").is_file());
+    assert_eq!(
+      active_version(&paths.runtimes, "php").expect("read preserved active PHP"),
+      Some("8.2.33".to_owned())
+    );
+
+    remove_installed_version(&paths.runtimes, "php", "8.4.24")
+      .expect("remove successful PHP fixture before failure path");
+    std::fs::write(&pending_package, b"tampered").expect("tamper cached PHP Runtime package");
+    let tampered_operation_id = Uuid::new_v4();
+    let tampered_task = Arc::new(RuntimeDownloadTask::new(RuntimeUpdateOperation {
+      operation_id: tampered_operation_id,
+      status: RuntimeUpdateOperationStatus::Verified,
+      name: artifact.name,
+      version: artifact.version,
+      platform: artifact.platform,
+      architecture: artifact.architecture,
+      file_name: artifact.file_name,
+      bytes_downloaded: artifact.size,
+      total_bytes: artifact.size,
+      sha256: artifact.sha256,
+      error: None,
+    }));
+    state
+      .runtime_updates
+      .operations
+      .lock()
+      .await
+      .insert(tampered_operation_id, tampered_task);
+    let response = handle_request(
+      AgentRequest::InstallDownloadedRuntime {
+        operation_id: tampered_operation_id,
+      },
+      &state,
+    )
+    .await;
+    let AgentResponse::RuntimeUpdateOperation(rejected) = response else {
+      panic!("unexpected tampered PHP install response: {response:?}");
+    };
+    assert_eq!(rejected.status, RuntimeUpdateOperationStatus::Failed);
+    assert!(rejected
+      .error
+      .as_deref()
+      .is_some_and(|error| error.contains("size does not match")));
+    assert!(!paths.runtimes.join("php/8.4.24").exists());
+    assert_eq!(
+      active_version(&paths.runtimes, "php").expect("read active PHP after rejection"),
+      Some("8.2.33".to_owned())
+    );
+
+    drop(state);
   }
 
   #[test]

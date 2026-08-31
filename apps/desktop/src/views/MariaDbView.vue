@@ -14,6 +14,7 @@ import { formatPathForDisplay, isWindowsPlatform } from '../utils/path'
 import {
   catalogRuntimeState,
   formatRuntimeBytes,
+  formatRuntimeTarget,
   isRuntimeDownloadActive,
   latestRuntimeArtifact,
   runtimeProgressPercent
@@ -122,12 +123,10 @@ onBeforeUnmount(() => {
 
 async function refreshPage() {
   await Promise.all([store.refreshStatus(), loadSettings(), loadConfig()])
-  if (isWindows) {
-    try {
-      await store.checkRuntimeUpdates()
-    } catch (error) {
-      store.setError(error instanceof Error ? error.message : String(error))
-    }
+  try {
+    await store.checkRuntimeUpdates()
+  } catch (error) {
+    store.setError(error instanceof Error ? error.message : String(error))
   }
 }
 
@@ -168,7 +167,7 @@ async function installLocalMariaDbRuntime() {
 
 async function installOrUpdateOnlineRuntime() {
   const artifact = onlineArtifact.value
-  if (!artifact || mariaDbRunning.value) {
+  if (!artifact) {
     return
   }
   let operation = onlineOperation.value
@@ -385,7 +384,7 @@ async function changeRootPassword() {
     </div>
     <div class="header-actions">
       <button
-        v-if="!isWindows && mariaDbState === 'notInstalled'"
+        v-if="!onlineArtifact && mariaDbState === 'notInstalled'"
         class="primary-button"
         :disabled="store.busy || runtimeAction !== null"
         @click="installLocalMariaDbRuntime"
@@ -432,14 +431,15 @@ async function changeRootPassword() {
       <span>{{ message }}</span>
     </div>
 
-    <section v-if="isWindows && onlineArtifact" class="runtime-list">
+    <section v-if="onlineArtifact" class="runtime-list">
       <article class="runtime-card">
         <div class="runtime-details">
           <span class="runtime-version">DB</span>
           <div>
             <h2>MariaDB {{ onlineArtifact.version }}</h2>
             <p>
-              Windows x64 · {{ formatRuntimeBytes(onlineArtifact.size) }}
+              {{ formatRuntimeTarget(onlineArtifact.platform, onlineArtifact.architecture) }}
+              · {{ formatRuntimeBytes(onlineArtifact.size) }}
               <template v-if="runtimeState === 'update-available' && onlineArtifact.activeVersion">
                 · {{ t('mariadb.updateFrom', {
                   current: onlineArtifact.activeVersion,
@@ -472,8 +472,7 @@ async function changeRootPassword() {
           <button
             v-if="runtimeState !== 'installed' && !isRuntimeDownloadActive(onlineOperation?.status ?? 'failed')"
             class="primary-button"
-            :disabled="store.busy || runtimeAction !== null || mariaDbRunning"
-            :title="mariaDbRunning ? t('mariadb.stopBeforeUpdate') : undefined"
+            :disabled="store.busy || runtimeAction !== null"
             @click="installOrUpdateOnlineRuntime"
           >
             {{ runtimeState === 'update-available'

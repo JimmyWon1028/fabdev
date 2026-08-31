@@ -4,9 +4,30 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-NODE_VERSION="${NODE_VERSION:-24.19.0}"
-NODE_SHA256="${NODE_SHA256:-8294b7aa9b03997481c06babf1e8b270c859358f27da57a11509afe537ac381d}"
-NODE_RELEASE_FINGERPRINT="${NODE_RELEASE_FINGERPRINT:-5BE8A3F6C8A5C01D106C0AD820B1A390B168D356}"
+NODE_VERSION="${NODE_VERSION:-24.20.0}"
+NODE_SHA256="${NODE_SHA256:-}"
+NODE_RELEASE_FINGERPRINT="${NODE_RELEASE_FINGERPRINT:-}"
+NODE_MINIMUM_MACOS_VERSION="${FABDEV_MINIMUM_MACOS_VERSION:-}"
+
+case "$NODE_VERSION" in
+  20.20.2)
+    NODE_SHA256="${NODE_SHA256:-466e05f3477c20dfb723054dfebffe55bc74660ee77f612166fca121dacb65b6}"
+    NODE_RELEASE_FINGERPRINT="${NODE_RELEASE_FINGERPRINT:-CC68F5A3106FF448322E48ED27F5E38D5B0A215F}"
+    NODE_MINIMUM_MACOS_VERSION="${NODE_MINIMUM_MACOS_VERSION:-13.0}"
+    ;;
+  24.20.0)
+    NODE_SHA256="${NODE_SHA256:-40e5607e5ecb3db9192723776da2d75d966260fc74a7a9e731c1bd67dda96bc8}"
+    NODE_RELEASE_FINGERPRINT="${NODE_RELEASE_FINGERPRINT:-5BE8A3F6C8A5C01D106C0AD820B1A390B168D356}"
+    NODE_MINIMUM_MACOS_VERSION="${NODE_MINIMUM_MACOS_VERSION:-13.5}"
+    ;;
+  *)
+    if [[ -z "$NODE_SHA256" || -z "$NODE_RELEASE_FINGERPRINT" || -z "$NODE_MINIMUM_MACOS_VERSION" ]]; then
+      echo "Unsupported Node.js version: $NODE_VERSION" >&2
+      echo "Set NODE_SHA256, NODE_RELEASE_FINGERPRINT, and FABDEV_MINIMUM_MACOS_VERSION to build an unlisted version." >&2
+      exit 1
+    fi
+    ;;
+esac
 BUILD_ROOT="${FABDEV_BUILD_ROOT:-$PROJECT_DIR/.build/node-$NODE_VERSION}"
 DOWNLOAD_DIR="$BUILD_ROOT/downloads"
 RUNTIME_ROOT="${FABDEV_RUNTIME_PREFIX:-$BUILD_ROOT/runtime/node/$NODE_VERSION}"
@@ -16,10 +37,13 @@ SOURCE_ARCHIVE="$DOWNLOAD_DIR/$ARCHIVE_NAME"
 CHECKSUMS_SIGNATURE="$DOWNLOAD_DIR/SHASUMS256.txt.asc"
 CHECKSUMS_FILE="$DOWNLOAD_DIR/SHASUMS256.txt"
 RELEASE_KEY="$DOWNLOAD_DIR/node-release-key.asc"
-GNUPG_HOME="$DOWNLOAD_DIR/gnupg"
+GNUPG_HOME=""
 
 cleanup_gnupg() {
-  gpgconf --homedir "$GNUPG_HOME" --kill all >/dev/null 2>&1 || true
+  if [[ -n "$GNUPG_HOME" && -d "$GNUPG_HOME" ]]; then
+    gpgconf --homedir "$GNUPG_HOME" --kill all >/dev/null 2>&1 || true
+    rm -rf -- "$GNUPG_HOME"
+  fi
 }
 trap cleanup_gnupg EXIT
 
@@ -55,8 +79,9 @@ if [[ ! -f "$RELEASE_KEY" ]]; then
 fi
 
 echo "$NODE_SHA256  $SOURCE_ARCHIVE" | shasum -a 256 --check
-rm -rf "$GNUPG_HOME"
-mkdir -m 0700 "$GNUPG_HOME"
+GNUPG_HOME="$(mktemp -d /private/tmp/fabdev-node-gnupg.XXXXXX)"
+chmod 0700 "$GNUPG_HOME"
+gpgconf --homedir "$GNUPG_HOME" --launch gpg-agent
 gpg --batch --homedir "$GNUPG_HOME" --import "$RELEASE_KEY"
 gpg_status="$(gpg --batch --homedir "$GNUPG_HOME" --status-fd 1 \
   --output "$CHECKSUMS_FILE" --decrypt "$CHECKSUMS_SIGNATURE" 2>&1)"
@@ -80,4 +105,5 @@ if [[ "$($RUNTIME_ROOT/bin/node --version)" != "v$NODE_VERSION" ]]; then
 fi
 "$RUNTIME_ROOT/bin/npm" --version
 
-"$SCRIPT_DIR/package-node-runtime.sh" "$RUNTIME_ROOT" "$NODE_VERSION" "$ARTIFACT_DIR"
+FABDEV_MINIMUM_MACOS_VERSION="$NODE_MINIMUM_MACOS_VERSION" \
+  "$SCRIPT_DIR/package-node-runtime.sh" "$RUNTIME_ROOT" "$NODE_VERSION" "$ARTIFACT_DIR"

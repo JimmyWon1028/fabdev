@@ -31,6 +31,9 @@ function parseArgs(argv) {
     ['--windows-x64', 'windowsX64'],
     ['--windows-connect-x64', 'windowsConnectX64'],
     ['--runtime-macos-arm64', 'runtimeMacosArm64'],
+    ['--runtime-mariadb-macos-arm64', 'runtimeMariaDbMacosArm64'],
+    ['--runtime-node20-macos-arm64', 'runtimeNode20MacosArm64'],
+    ['--runtime-node24-macos-arm64', 'runtimeNode24MacosArm64'],
     ['--runtime-php74-windows-x64', 'runtimePhp74WindowsX64'],
     ['--runtime-php82-windows-x64', 'runtimePhp82WindowsX64'],
     ['--runtime-windows-x64', 'runtimeWindowsX64'],
@@ -74,6 +77,9 @@ function printHelp() {
     [--windows-x64 <setup.exe>] \\
     [--windows-connect-x64 <fabdev-connect.exe>] \\
     [--runtime-macos-arm64 <php-runtime.tar.gz>] \\
+    [--runtime-mariadb-macos-arm64 <mariadb-runtime.tar.gz>] \\
+    [--runtime-node20-macos-arm64 <node-20-runtime.tar.gz>] \\
+    [--runtime-node24-macos-arm64 <node-24-runtime.tar.gz>] \\
     [--runtime-php74-windows-x64 <php-7.4-runtime.tar.gz>] \\
     [--runtime-php82-windows-x64 <php-8.2-runtime.tar.gz>] \\
     [--runtime-windows-x64 <php-runtime.tar.gz>] \\
@@ -224,6 +230,21 @@ function runtimePackageDefinitions(options) {
       source: options.runtimeMacosArm64,
       label: 'PHP 8.4.24 macOS ARM64 Runtime package',
       fileName: 'php-8.4.24-macos-arm64-community.tar.gz'
+    },
+    {
+      source: options.runtimeMariaDbMacosArm64,
+      label: 'MariaDB 12.3.2 macOS ARM64 Runtime package',
+      fileName: 'mariadb-12.3.2-macos-arm64-community.tar.gz'
+    },
+    {
+      source: options.runtimeNode20MacosArm64,
+      label: 'Node.js 20.20.2 macOS ARM64 Runtime package',
+      fileName: 'node-20.20.2-macos-arm64-community.tar.gz'
+    },
+    {
+      source: options.runtimeNode24MacosArm64,
+      label: 'Node.js 24.20.0 macOS ARM64 Runtime package',
+      fileName: 'node-24.20.0-macos-arm64-community.tar.gz'
     },
     {
       source: options.runtimePhp74WindowsX64,
