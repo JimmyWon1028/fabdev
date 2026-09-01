@@ -208,31 +208,24 @@ struct AppUpdateDownloadProgress {
 }
 
 #[cfg(target_os = "macos")]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct BundledRuntimeSpec {
-  name: &'static str,
-  version: &'static str,
+  name: String,
+  version: String,
+  #[serde(default)]
+  default: bool,
 }
 
 #[cfg(target_os = "macos")]
-const BUNDLED_MACOS_RUNTIMES: [BundledRuntimeSpec; 4] = [
-  BundledRuntimeSpec {
-    name: "dnsmasq",
-    version: "2.93",
-  },
-  BundledRuntimeSpec {
-    name: "nginx",
-    version: "1.30.4",
-  },
-  BundledRuntimeSpec {
-    name: "php",
-    version: "7.4.33",
-  },
-  BundledRuntimeSpec {
-    name: "php",
-    version: "8.2.33",
-  },
-];
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BundledMacosRuntimeManifest {
+  schema_version: u16,
+  platform: String,
+  architecture: String,
+  packages: Vec<BundledRuntimeSpec>,
+}
 
 #[cfg(windows)]
 #[derive(serde::Deserialize)]
@@ -1207,9 +1200,10 @@ fn install_bundled_macos_runtimes(app: &tauri::App) -> anyhow::Result<()> {
     .ok_or_else(|| anyhow::anyhow!("unable to locate fabDev application data"))?;
   paths.ensure()?;
   let source_root = bundled_macos_runtime_root(app)?;
+  let manifest = read_bundled_macos_manifest(&source_root)?;
 
-  for spec in BUNDLED_MACOS_RUNTIMES {
-    if !should_install_bundled_runtime(&paths, spec.name, spec.version)? {
+  for spec in &manifest.packages {
+    if !should_install_bundled_runtime(&paths, &spec.name, &spec.version)? {
       continue;
     }
     let stem = format!("{}-{}", spec.name, spec.version);
@@ -1227,29 +1221,31 @@ fn install_bundled_macos_runtimes(app: &tauri::App) -> anyhow::Result<()> {
     install_tar_gz_with_activation(
       &artifact_path,
       &release.sha256,
-      spec.name,
-      spec.version,
+      &spec.name,
+      &spec.version,
       &paths.runtimes,
       false,
     )?;
     if spec.name == "php" {
-      initialize_empty_php_ini_for_runtime(&paths, spec.version)?;
+      initialize_empty_php_ini_for_runtime(&paths, &spec.version)?;
     }
   }
 
-  for spec in BUNDLED_MACOS_RUNTIMES
-    .into_iter()
-    .filter(|spec| spec.name != "php")
-  {
-    if active_version(&paths.runtimes, spec.name)?.is_none() {
-      set_active_version(&paths.runtimes, spec.name, spec.version)?;
+  for spec in manifest.packages.iter().filter(|spec| spec.name != "php") {
+    if active_version(&paths.runtimes, &spec.name)?.is_none() {
+      set_active_version(&paths.runtimes, &spec.name, &spec.version)?;
     }
   }
   if active_version(&paths.runtimes, "php")?.is_none() {
     let installed_versions = list_installed_versions(&paths.runtimes, "php")?;
+    let declared_default = manifest
+      .packages
+      .iter()
+      .find(|spec| spec.name == "php" && spec.default)
+      .context("bundled macOS Runtime manifest has no default PHP Runtime")?;
     let default_version = installed_versions
       .iter()
-      .find(|version| version.starts_with("8.2."))
+      .find(|version| *version == &declared_default.version)
       .cloned()
       .or_else(|| installed_versions.into_iter().next())
       .context("no bundled PHP Runtime is installed")?;
@@ -1287,11 +1283,66 @@ fn bundled_macos_runtime_root(app: &tauri::App) -> anyhow::Result<PathBuf> {
 
 #[cfg(target_os = "macos")]
 fn bundled_macos_runtime_root_is_complete(root: &Path) -> bool {
-  root.is_dir()
-    && BUNDLED_MACOS_RUNTIMES.into_iter().all(|spec| {
+  read_bundled_macos_manifest(root).is_ok_and(|manifest| {
+    manifest.packages.iter().all(|spec| {
       let stem = format!("{}-{}", spec.name, spec.version);
       root.join(format!("{stem}.json")).is_file() && root.join(format!("{stem}.tar.gz")).is_file()
     })
+  })
+}
+
+#[cfg(target_os = "macos")]
+fn read_bundled_macos_manifest(root: &Path) -> anyhow::Result<BundledMacosRuntimeManifest> {
+  let path = root.join("manifest.json");
+  let manifest: BundledMacosRuntimeManifest =
+    serde_json::from_reader(std::fs::File::open(&path).with_context(|| {
+      format!(
+        "unable to open bundled macOS Runtime manifest: {}",
+        path.display()
+      )
+    })?)
+    .context("invalid bundled macOS Runtime manifest")?;
+  if manifest.schema_version != 1
+    || manifest.platform != "macos"
+    || manifest.architecture != "arm64"
+    || manifest.packages.is_empty()
+  {
+    bail!("bundled macOS Runtime manifest has an unsupported schema or target");
+  }
+  for (index, spec) in manifest.packages.iter().enumerate() {
+    if spec.name.is_empty()
+      || !spec
+        .name
+        .bytes()
+        .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+      || spec.version.is_empty()
+      || !spec
+        .version
+        .bytes()
+        .all(|byte| byte.is_ascii_digit() || byte == b'.')
+    {
+      bail!("bundled macOS Runtime manifest contains an invalid package identity");
+    }
+    if spec.default && spec.name != "php" {
+      bail!("only a bundled PHP Runtime may be the default");
+    }
+    if manifest.packages[..index]
+      .iter()
+      .any(|existing| existing.name == spec.name && existing.version == spec.version)
+    {
+      bail!("bundled macOS Runtime manifest contains a duplicate package");
+    }
+  }
+  if manifest
+    .packages
+    .iter()
+    .filter(|spec| spec.name == "php" && spec.default)
+    .count()
+    != 1
+  {
+    bail!("bundled macOS Runtime manifest must declare exactly one default PHP Runtime");
+  }
+  Ok(manifest)
 }
 
 #[cfg(target_os = "macos")]
@@ -1320,7 +1371,7 @@ fn bundled_macos_demo_root(app: &tauri::App) -> anyhow::Result<PathBuf> {
 #[cfg(target_os = "macos")]
 fn validate_bundled_macos_release(
   release: &RuntimeRelease,
-  spec: BundledRuntimeSpec,
+  spec: &BundledRuntimeSpec,
   artifact_path: &Path,
 ) -> anyhow::Result<()> {
   if release.name != spec.name || release.version != spec.version {
@@ -1974,7 +2025,7 @@ mod tests {
   #[cfg(target_os = "macos")]
   use super::{
     bundled_macos_runtime_root_is_complete, install_bundled_demo, validate_bundled_macos_release,
-    BundledRuntimeSpec, BUNDLED_MACOS_RUNTIMES,
+    BundledRuntimeSpec,
   };
   use super::{
     default_php_ini_path, is_system_ingress_error, mariadb_toggle_request, php_ini_path, proxy_url,
@@ -2022,33 +2073,38 @@ mod tests {
 
   #[cfg(target_os = "macos")]
   #[test]
-  fn defines_and_validates_the_four_built_in_macos_runtimes() {
-    assert_eq!(
-      BUNDLED_MACOS_RUNTIMES,
-      [
-        BundledRuntimeSpec {
-          name: "dnsmasq",
-          version: "2.93",
-        },
-        BundledRuntimeSpec {
-          name: "nginx",
-          version: "1.30.4",
-        },
-        BundledRuntimeSpec {
-          name: "php",
-          version: "7.4.33",
-        },
-        BundledRuntimeSpec {
-          name: "php",
-          version: "8.2.33",
-        },
-      ]
-    );
-
+  fn loads_and_validates_built_in_macos_runtimes_from_the_manifest() {
     let root = std::env::temp_dir().join(format!("fabdev-bundled-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&root).expect("create built-in Runtime fixture");
     assert!(!bundled_macos_runtime_root_is_complete(&root));
-    for spec in BUNDLED_MACOS_RUNTIMES {
+    let specs = [
+      BundledRuntimeSpec {
+        name: "dnsmasq".to_owned(),
+        version: "9.9.9".to_owned(),
+        default: false,
+      },
+      BundledRuntimeSpec {
+        name: "php".to_owned(),
+        version: "8.9.0".to_owned(),
+        default: true,
+      },
+    ];
+    std::fs::write(
+      root.join("manifest.json"),
+      serde_json::to_vec(&serde_json::json!({
+        "schemaVersion": 1,
+        "platform": "macos",
+        "architecture": "arm64",
+        "packages": specs.iter().map(|spec| serde_json::json!({
+          "name": spec.name,
+          "version": spec.version,
+          "default": spec.default
+        })).collect::<Vec<_>>()
+      }))
+      .expect("serialize built-in Runtime manifest"),
+    )
+    .expect("write built-in Runtime manifest");
+    for spec in &specs {
       let stem = format!("{}-{}", spec.name, spec.version);
       std::fs::write(root.join(format!("{stem}.json")), "fixture")
         .expect("write built-in Runtime descriptor fixture");
@@ -2056,14 +2112,14 @@ mod tests {
         .expect("write built-in Runtime archive fixture");
     }
     assert!(bundled_macos_runtime_root_is_complete(&root));
-    let artifact = root.join("php-8.2.33.tar.gz");
+    let artifact = root.join("php-8.9.0.tar.gz");
     std::fs::write(&artifact, "runtime").expect("write built-in Runtime fixture");
     let release = fabdev_runtime::RuntimeRelease {
       name: "php".to_owned(),
-      version: "8.2.33".to_owned(),
+      version: "8.9.0".to_owned(),
       platform: "macos".to_owned(),
       architecture: "arm64".to_owned(),
-      url: "php-8.2.33.tar.gz".to_owned(),
+      url: "php-8.9.0.tar.gz".to_owned(),
       size: 7,
       sha256: "fixture".to_owned(),
       signature: Some("development-ad-hoc".to_owned()),
@@ -2071,9 +2127,10 @@ mod tests {
     };
     validate_bundled_macos_release(
       &release,
-      BundledRuntimeSpec {
-        name: "php",
-        version: "8.2.33",
+      &BundledRuntimeSpec {
+        name: "php".to_owned(),
+        version: "8.9.0".to_owned(),
+        default: true,
       },
       &artifact,
     )

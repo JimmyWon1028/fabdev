@@ -22,12 +22,27 @@ const outputRoot = resolve(
     join(repoRoot, 'apps/desktop/src-tauri/runtime/macos')
 )
 const releaseSuffix = sourceRoot.endsWith('/community-runtimes') ? 'community' : 'dev'
-const bundledRuntimes = [
-  { name: 'dnsmasq', version: '2.93' },
-  { name: 'nginx', version: '1.30.4' },
-  { name: 'php', version: '7.4.33' },
-  { name: 'php', version: '8.2.33' }
-]
+const manifestPath = resolve(
+  process.env.FABDEV_BUNDLED_RUNTIME_MANIFEST ??
+    join(repoRoot, 'resources/runtime-packages/macos-arm64-bundled.json')
+)
+const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+const bundledRuntimes = manifest.packages
+
+if (
+  manifest.schemaVersion !== 1 ||
+  manifest.platform !== 'macos' ||
+  manifest.architecture !== 'arm64' ||
+  !Array.isArray(bundledRuntimes) ||
+  bundledRuntimes.length === 0
+) {
+  throw new Error('Bundled Runtime manifest must target macOS ARM64')
+}
+if (
+  bundledRuntimes.filter((runtime) => runtime.name === 'php' && runtime.default).length !== 1
+) {
+  throw new Error('Bundled Runtime manifest must declare exactly one default PHP Runtime')
+}
 
 if (process.platform !== 'darwin') {
   process.stdout.write('Skipping bundled macOS Runtime preparation on this platform\n')
@@ -39,12 +54,31 @@ mkdirSync(outputRoot, { recursive: true })
 for (const entry of readdirSync(outputRoot, { withFileTypes: true })) {
   if (
     entry.isFile() &&
-    (/^(dnsmasq|nginx|php|mariadb)-.+\.(json|tar\.gz)$/.test(entry.name) ||
-      entry.name === 'catalog.json')
+    (/\.(json|tar\.gz)$/.test(entry.name) ||
+      entry.name === 'catalog.json' ||
+      entry.name === 'manifest.json')
   ) {
     rmSync(join(outputRoot, entry.name))
   }
 }
+
+writeFileSync(
+  join(outputRoot, 'manifest.json'),
+  `${JSON.stringify(
+    {
+      schemaVersion: manifest.schemaVersion,
+      platform: manifest.platform,
+      architecture: manifest.architecture,
+      packages: bundledRuntimes.map(({ name, version, default: isDefault = false }) => ({
+        name,
+        version,
+        default: isDefault
+      }))
+    },
+    null,
+    2
+  )}\n`
+)
 
 for (const runtime of bundledRuntimes) {
   const sourceStem = `${runtime.name}-${runtime.version}-macos-arm64-${releaseSuffix}`

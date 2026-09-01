@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "platform": "macos",
+  "architecture": "arm64",
+  "minimumOsVersion": "13.0",
+  "packages": [
+    {
+      "name": "php",
+      "version": "8.4.24",
+      "minimumOsVersion": "13.0",
+      "buildProfile": "php-modern-external-imap",
+      "source": {
+        "archiveUrl": "https://www.php.net/distributions/php-8.4.24.tar.xz",
+        "archiveSha256": "e127be09a8506f4327c5cfa78a614b00d210714484ec215ce0011b4a03c00731",
+        "signatureUrl": "https://www.php.net/distributions/php-8.4.24.tar.xz.asc",
+        "keyUrl": "https://www.php.net/distributions/php-keyring.gpg",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "9D7F99A0CB8F05C8A6958D6256A97AF7600A39A6"
+        }
+      },
+      "healthCheckProfile": "php-runtime-v1"
+    },
+    {
+      "name": "mariadb",
+      "version": "12.3.2",
+      "minimumOsVersion": "13.0",
+      "source": {
+        "archiveUrl": "https://archive.mariadb.org/mariadb-12.3.2/source/mariadb-12.3.2.tar.gz",
+        "archiveSha256": "82798714baf2f3456ed2f311fc803dc120f2bf3b82358e773847d628cdb4b670",
+        "signatureUrl": "https://archive.mariadb.org/mariadb-12.3.2/source/mariadb-12.3.2.tar.gz.asc",
+        "keyUrl": "https://archive.mariadb.org/PublicKey",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "177F4010FE56CA3336300305F1656F24C74CD1D8"
+        }
+      },
+      "healthCheckProfile": "mariadb-runtime-v1"
+    },
+    {
+      "name": "node",
+      "version": "20.20.2",
+      "minimumOsVersion": "13.0",
+      "source": {
+        "archiveUrl": "https://nodejs.org/dist/v20.20.2/node-v20.20.2-darwin-arm64.tar.gz",
+        "archiveSha256": "466e05f3477c20dfb723054dfebffe55bc74660ee77f612166fca121dacb65b6",
+        "signedChecksumsUrl": "https://nodejs.org/dist/v20.20.2/SHASUMS256.txt.asc",
+        "keyUrl": "https://raw.githubusercontent.com/nodejs/release-keys/main/keys/CC68F5A3106FF448322E48ED27F5E38D5B0A215F.asc",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "CC68F5A3106FF448322E48ED27F5E38D5B0A215F"
+        }
+      },
+      "healthCheckProfile": "node-runtime-v1"
+    },
+    {
+      "name": "node",
+      "version": "24.20.0",
+      "minimumOsVersion": "13.5",
+      "source": {
+        "archiveUrl": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-darwin-arm64.tar.gz",
+        "archiveSha256": "40e5607e5ecb3db9192723776da2d75d966260fc74a7a9e731c1bd67dda96bc8",
+        "signedChecksumsUrl": "https://nodejs.org/dist/v24.20.0/SHASUMS256.txt.asc",
+        "keyUrl": "https://raw.githubusercontent.com/nodejs/release-keys/main/keys/5BE8A3F6C8A5C01D106C0AD820B1A390B168D356.asc",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "5BE8A3F6C8A5C01D106C0AD820B1A390B168D356"
+        }
+      },
+      "healthCheckProfile": "node-runtime-v1"
+    }
+  ]
+}

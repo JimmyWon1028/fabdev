@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-if [[ $# -ne 6 ]]; then
-  echo "Usage: $0 <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <output-dir>" >&2
+if [[ $# -ne 7 ]]; then
+  echo "Usage: $0 <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <package-manifest> <output-dir>" >&2
   exit 1
 fi
 
@@ -13,7 +13,14 @@ CATALOG_SEQUENCE="$2"
 GENERATED_AT="$3"
 EXPIRES_AT="$4"
 MINIMUM_APP_VERSION="$5"
-OUTPUT_DIR="$6"
+PACKAGE_MANIFEST="$6"
+OUTPUT_DIR="$7"
+
+if [[ ! -f "$PACKAGE_MANIFEST" ]]; then
+  echo "Runtime package manifest does not exist: $PACKAGE_MANIFEST" >&2
+  exit 1
+fi
+PACKAGE_MANIFEST="$(cd "$(dirname "$PACKAGE_MANIFEST")" && pwd -P)/$(basename "$PACKAGE_MANIFEST")"
 
 if [[ -e "$OUTPUT_DIR" ]]; then
   echo "Output directory already exists: $OUTPUT_DIR" >&2
@@ -32,24 +39,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-FABDEV_ARTIFACT_DIR="$STAGING_DIR" \
-FABDEV_RUNTIME_PACKAGE_VARIANT=community \
-MACOSX_DEPLOYMENT_TARGET=13.0 \
-PHP_VERSION=8.4.24 \
-  "$SCRIPT_DIR/build-php-runtime.sh"
-
-FABDEV_ARTIFACT_DIR="$STAGING_DIR" \
-FABDEV_RUNTIME_PACKAGE_VARIANT=community \
-MACOSX_DEPLOYMENT_TARGET=13.0 \
-MARIADB_VERSION=12.3.2 \
-  "$SCRIPT_DIR/build-mariadb-runtime.sh"
-
-for node_version in 20.20.2 24.20.0; do
-  FABDEV_ARTIFACT_DIR="$STAGING_DIR" \
-  FABDEV_RUNTIME_PACKAGE_VARIANT=community \
-  NODE_VERSION="$node_version" \
-    "$SCRIPT_DIR/build-node-runtime.sh"
-done
+"$SCRIPT_DIR/build-macos-runtime-packages.sh" \
+  "$PACKAGE_MANIFEST" \
+  "$STAGING_DIR" \
+  community
 
 "$SCRIPT_DIR/run-cargo.sh" run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
   generate-macos \
@@ -58,10 +51,8 @@ done
   "$GENERATED_AT" \
   "$EXPIRES_AT" \
   "$MINIMUM_APP_VERSION" \
-  "$STAGING_DIR/php-8.4.24-macos-arm64-community.tar.gz" \
-  "$STAGING_DIR/mariadb-12.3.2-macos-arm64-community.tar.gz" \
-  "$STAGING_DIR/node-20.20.2-macos-arm64-community.tar.gz" \
-  "$STAGING_DIR/node-24.20.0-macos-arm64-community.tar.gz" \
+  "$PACKAGE_MANIFEST" \
+  "$STAGING_DIR" \
   "$STAGING_DIR/fabdev-runtime-v1.json"
 
 "$SCRIPT_DIR/run-cargo.sh" run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
@@ -72,7 +63,9 @@ done
 (
   cd "$STAGING_DIR"
   shasum -a 256 --check ./*.tar.gz.sha256
-  test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "9"
+  package_count="$(jq '.packages | length' "$PACKAGE_MANIFEST")"
+  expected_file_count="$((package_count * 2 + 1))"
+  test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "$expected_file_count"
 )
 
 mv "$STAGING_DIR" "$OUTPUT_DIR"

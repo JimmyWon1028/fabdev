@@ -12,12 +12,12 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 if [[ -z "$PHP_PACKAGE" || "$PHP_PACKAGE" != /* || ! -f "$PHP_PACKAGE" ]]; then
-  echo "Usage: $0 /absolute/path/php-8.4.24-macos-arm64-community.tar.gz" >&2
+  echo "Usage: $0 /absolute/path/php-X.Y.Z-macos-arm64-community.tar.gz" >&2
   exit 1
 fi
 
-if [[ "$(basename "$PHP_PACKAGE")" != "php-8.4.24-macos-arm64-community.tar.gz" ]]; then
-  echo "The package filename must be php-8.4.24-macos-arm64-community.tar.gz." >&2
+if [[ ! "$(basename "$PHP_PACKAGE")" =~ ^php-[0-9]+\.[0-9]+\.[0-9]+-macos-arm64-community\.tar\.gz$ ]]; then
+  echo "The package filename must match php-X.Y.Z-macos-arm64-community.tar.gz." >&2
   exit 1
 fi
 

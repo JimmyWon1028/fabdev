@@ -1,16 +1,19 @@
 import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 
 import { prepareAppRelease } from './generate-app-release-manifest.mjs'
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(scriptDir, '..')
 const projectVersion = JSON.parse(await readFile(join(repoRoot, 'package.json'), 'utf8')).version
+const execFileAsync = promisify(execFile)
 
 function digest(contents) {
   return createHash('sha256').update(contents).digest('hex')
@@ -487,7 +490,77 @@ test('loads bundled Windows Runtime versions and the default PHP from a manifest
   )
 })
 
+test('prepares bundled macOS Runtimes and their default PHP from a manifest', async (context) => {
+  const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-bundled-macos-test-'))
+  context.after(async () => rm(testRoot, { force: true, recursive: true }))
+  const sourceRoot = join(testRoot, 'source')
+  const outputRoot = join(testRoot, 'output')
+  const manifestPath = join(repoRoot, 'resources/runtime-packages/macos-arm64-bundled.json')
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
+  await mkdir(sourceRoot)
+
+  for (const runtimePackage of manifest.packages) {
+    const contents = Buffer.from(`${runtimePackage.name} ${runtimePackage.version}`)
+    const stem = `${runtimePackage.name}-${runtimePackage.version}-macos-arm64-dev`
+    await writeFile(join(sourceRoot, `${stem}.tar.gz`), contents)
+    await writeFile(
+      join(sourceRoot, `${stem}.json`),
+      JSON.stringify({
+        name: runtimePackage.name,
+        version: runtimePackage.version,
+        platform: 'macos',
+        architecture: 'arm64',
+        size: contents.length,
+        sha256: digest(contents),
+        url: `${stem}.tar.gz`
+      })
+    )
+  }
+
+  await execFileAsync(process.execPath, [join(repoRoot, 'scripts/prepare-bundled-runtime-assets.mjs')], {
+    env: {
+      ...process.env,
+      FABDEV_BUNDLED_RUNTIME_SOURCE: sourceRoot,
+      FABDEV_BUNDLED_RUNTIME_OUTPUT: outputRoot,
+      FABDEV_BUNDLED_RUNTIME_MANIFEST: manifestPath
+    }
+  })
+
+  const bundledManifest = JSON.parse(await readFile(join(outputRoot, 'manifest.json'), 'utf8'))
+  assert.deepEqual(
+    bundledManifest.packages.map(({ name, version, default: isDefault }) => [
+      name,
+      version,
+      isDefault
+    ]),
+    manifest.packages.map(({ name, version, default: isDefault = false }) => [
+      name,
+      version,
+      isDefault
+    ])
+  )
+  assert.equal(
+    bundledManifest.packages.filter(
+      (runtimePackage) => runtimePackage.name === 'php' && runtimePackage.default
+    ).length,
+    1
+  )
+})
+
 test('pins and prepares every macOS ARM64 online Runtime package', async () => {
+  const manifest = JSON.parse(
+    await readFile(join(repoRoot, 'resources/runtime-packages/macos-arm64.json'), 'utf8')
+  )
+  const bundledManifest = JSON.parse(
+    await readFile(
+      join(repoRoot, 'resources/runtime-packages/macos-arm64-bundled.json'),
+      'utf8'
+    )
+  )
+  const packageBuild = await readFile(
+    join(repoRoot, 'scripts/build-macos-runtime-packages.sh'),
+    'utf8'
+  )
   const nodeBuild = await readFile(join(repoRoot, 'scripts/build-node-runtime.sh'), 'utf8')
   const phpBuild = await readFile(join(repoRoot, 'scripts/build-php-runtime.sh'), 'utf8')
   const mariaDbBuild = await readFile(
@@ -533,6 +606,37 @@ test('pins and prepares every macOS ARM64 online Runtime package', async () => {
     'utf8'
   )
 
+  assert.deepEqual(
+    manifest.packages.map((runtimePackage) => [runtimePackage.name, runtimePackage.version]),
+    [
+      ['php', '8.4.24'],
+      ['mariadb', '12.3.2'],
+      ['node', '20.20.2'],
+      ['node', '24.20.0']
+    ]
+  )
+  assert.deepEqual(
+    bundledManifest.packages.map((runtimePackage) => [
+      runtimePackage.name,
+      runtimePackage.version
+    ]),
+    [
+      ['dnsmasq', '2.93'],
+      ['nginx', '1.30.4'],
+      ['php', '7.4.33'],
+      ['php', '8.2.33']
+    ]
+  )
+  assert.match(packageBuild, /jq -c '\.packages\[\]'/)
+  assert.match(packageBuild, /version="\$\(jq -r '\.version'/)
+  assert.match(packageBuild, /build_profile="\$\(jq -r '\.buildProfile/)
+  assert.match(packageBuild, /NODE_VERSION="\$version"/)
+  assert.match(packageBuild, /PHP_VERSION="\$version"/)
+  assert.doesNotMatch(
+    packageBuild,
+    /7\.4\.33|8\.2\.33|8\.4\.24|12\.3\.2|20\.20\.2|24\.20\.0/
+  )
+
   assert.match(nodeBuild, /20\.20\.2\)/)
   assert.match(nodeBuild, /466e05f3477c20dfb723054dfebffe55bc74660ee77f612166fca121dacb65b6/)
   assert.match(nodeBuild, /24\.20\.0\)/)
@@ -557,10 +661,12 @@ test('pins and prepares every macOS ARM64 online Runtime package', async () => {
   assert.match(dependencyBuild, /macOS SDK zlib/)
   assert.match(dependencyBuild, /"\$INSTALL_PREFIX\/sbin"/)
   assert.match(dylibBundle, /Mach-O dependency is outside the Runtime and allowed prefixes/)
-  assert.match(releaseBuild, /FABDEV_RUNTIME_PACKAGE_VARIANT=community/)
-  assert.match(releaseBuild, /PHP_VERSION=8\.4\.24/)
-  assert.match(releaseBuild, /MARIADB_VERSION=12\.3\.2/)
-  assert.match(releaseBuild, /for node_version in 20\.20\.2 24\.20\.0/)
+  assert.match(releaseBuild, /build-macos-runtime-packages\.sh/)
+  assert.match(releaseBuild, /"\$PACKAGE_MANIFEST"/)
+  assert.doesNotMatch(
+    releaseBuild,
+    /7\.4\.33|8\.2\.33|8\.4\.24|12\.3\.2|20\.20\.2|24\.20\.0/
+  )
   assert.match(releaseBuild, /generate-macos/)
   assert.match(releaseBuild, /fabdev-runtime-v1\.json/)
   assert.match(releaseBuild, /pwd -P/)

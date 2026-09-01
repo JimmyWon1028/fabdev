@@ -6,35 +6,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ARTIFACT_DIR="${FABDEV_ARTIFACT_DIR:-$PROJECT_DIR/artifacts}"
 OUTPUT_DIR="${FABDEV_COMMUNITY_RUNTIME_DIR:-$ARTIFACT_DIR/community-runtimes}"
+MANIFEST_PATH="${1:-$PROJECT_DIR/resources/runtime-packages/macos-arm64-bundled.json}"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "Missing required command: jq" >&2
   exit 1
 fi
 
-if [[ "${FABDEV_BUNDLED_RUNTIMES_ONLY:-0}" == "1" ]]; then
-  runtimes=(
-    "dnsmasq|2.93"
-    "nginx|1.30.4"
-    "php|7.4.33"
-    "php|8.2.33"
-  )
-else
-  runtimes=(
-    "dnsmasq|2.93"
-    "nginx|1.30.4"
-    "php|7.4.33"
-    "php|8.2.33"
-    "php|8.4.24"
-    "mariadb|12.3.2"
-  )
+if [[ ! -f "$MANIFEST_PATH" ]]; then
+  echo "Runtime package manifest does not exist: $MANIFEST_PATH" >&2
+  exit 1
 fi
 
 /bin/mkdir -p "$OUTPUT_DIR"
 /usr/bin/find "$OUTPUT_DIR" -maxdepth 1 -type f -delete
 
-for runtime in "${runtimes[@]}"; do
-  IFS='|' read -r name version <<< "$runtime"
+while IFS= read -r runtime; do
+  name="$(jq -r '.name' <<< "$runtime")"
+  version="$(jq -r '.version' <<< "$runtime")"
   source_stem="$name-$version-macos-arm64-dev"
   community_stem="$name-$version-macos-arm64-community"
   source_archive="$ARTIFACT_DIR/$source_stem.tar.gz"
@@ -65,7 +54,7 @@ for runtime in "${runtimes[@]}"; do
     -e "s|@SIGNATURE@|community-ad-hoc|g" \
     "$PROJECT_DIR/resources/runtime/release.template.json" \
     > "$community_descriptor"
-done
+done < <(jq -c '.packages[]' "$MANIFEST_PATH")
 
 generated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 jq --slurp \

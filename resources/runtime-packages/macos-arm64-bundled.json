@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "platform": "macos",
+  "architecture": "arm64",
+  "minimumOsVersion": "13.0",
+  "packages": [
+    {
+      "name": "dnsmasq",
+      "version": "2.93",
+      "minimumOsVersion": "13.0",
+      "source": {
+        "archiveSha256": "0c00d4e5c97c8306e5fb932b348b34269c9c29a0e7df0e8e82958b407092bc19",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "D6EACBD6EE46B834248D111215CDDA6AE19135A2"
+        }
+      }
+    },
+    {
+      "name": "nginx",
+      "version": "1.30.4",
+      "minimumOsVersion": "13.0",
+      "source": {
+        "archiveSha256": "4261dc90e9e47c1c4041276e9aaa3d48ebe2e664f728e14fa95ae6c67d57a08b",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "43387825DDB1BB97EC36BA5D007C8D7C15D87369"
+        }
+      }
+    },
+    {
+      "name": "php",
+      "version": "7.4.33",
+      "minimumOsVersion": "13.0",
+      "buildProfile": "php-legacy-modern-clang",
+      "default": false,
+      "source": {
+        "archiveSha256": "924846abf93bc613815c55dd3f5809377813ac62a9ec4eb3778675b82a27b927",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "5A52880781F755608BF815FC910DEB46F53EA312"
+        }
+      }
+    },
+    {
+      "name": "php",
+      "version": "8.2.33",
+      "minimumOsVersion": "13.0",
+      "buildProfile": "php-modern",
+      "default": true,
+      "source": {
+        "archiveSha256": "fbdeace9b38220436a4c8fd79b900df92878151db145e641750743a283b514c1",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "E60913E4DF209907D8E30D96659A97C9CF2A795A"
+        }
+      }
+    }
+  ]
+}

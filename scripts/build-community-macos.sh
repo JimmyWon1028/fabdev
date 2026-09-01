@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE_DIR="$REPO_ROOT/distribution/macos/community"
 ARTIFACT_DIR="$REPO_ROOT/artifacts"
 COMMUNITY_RUNTIME_DIR="$ARTIFACT_DIR/community-runtimes"
+BUNDLED_RUNTIME_MANIFEST="$REPO_ROOT/resources/runtime-packages/macos-arm64-bundled.json"
 VERSION="$(/usr/bin/plutil -extract version raw -o - "$REPO_ROOT/apps/desktop/src-tauri/tauri.conf.json")"
 APP_PATH="$REPO_ROOT/target/release/bundle/macos/fabDev.app"
 CLI_PATH="$REPO_ROOT/target/release/fabdev"
@@ -26,15 +27,15 @@ if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then
   exit 1
 fi
 
-runtime_stems=(
-  dnsmasq-2.93-macos-arm64-community
-  nginx-1.30.4-macos-arm64-community
-  php-7.4.33-macos-arm64-community
-  php-8.2.33-macos-arm64-community
+runtime_stems=()
+while IFS= read -r runtime_stem; do
+  runtime_stems+=("$runtime_stem")
+done < <(
+  jq -r '.packages[] | "\(.name)-\(.version)-macos-arm64-community"' \
+    "$BUNDLED_RUNTIME_MANIFEST"
 )
 
-FABDEV_BUNDLED_RUNTIMES_ONLY=1 \
-  "$REPO_ROOT/scripts/prepare-community-runtimes.sh"
+"$REPO_ROOT/scripts/prepare-community-runtimes.sh" "$BUNDLED_RUNTIME_MANIFEST"
 
 for stem in "${runtime_stems[@]}"; do
   archive="$COMMUNITY_RUNTIME_DIR/$stem.tar.gz"

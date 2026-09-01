@@ -23,19 +23,6 @@ const RELEASE_DOWNLOAD_PREFIX: &str = "https://github.com/JimmyWon1028/fabdev/re
 const MAX_GENERATED_AT_FUTURE_SECONDS: i64 = 5 * 60;
 const MAX_RUNTIME_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_SAFE_JSON_INTEGER: u64 = 9_007_199_254_740_991;
-const PHP_SOURCE_SIGNING_FINGERPRINT: &str = "9D7F99A0CB8F05C8A6958D6256A97AF7600A39A6";
-const PHP_84_MACOS_SOURCE_SHA256: &str =
-  "e127be09a8506f4327c5cfa78a614b00d210714484ec215ce0011b4a03c00731";
-const MARIADB_SOURCE_SIGNING_FINGERPRINT: &str = "177F4010FE56CA3336300305F1656F24C74CD1D8";
-const MARIADB_123_MACOS_SOURCE_SHA256: &str =
-  "82798714baf2f3456ed2f311fc803dc120f2bf3b82358e773847d628cdb4b670";
-const NODE_20_SOURCE_SIGNING_FINGERPRINT: &str = "CC68F5A3106FF448322E48ED27F5E38D5B0A215F";
-const NODE_24_SOURCE_SIGNING_FINGERPRINT: &str = "5BE8A3F6C8A5C01D106C0AD820B1A390B168D356";
-const NODE_2020_MACOS_SOURCE_SHA256: &str =
-  "466e05f3477c20dfb723054dfebffe55bc74660ee77f612166fca121dacb65b6";
-const NODE_2420_MACOS_SOURCE_SHA256: &str =
-  "40e5607e5ecb3db9192723776da2d75d966260fc74a7a9e731c1bd67dda96bc8";
-
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RuntimeCatalog {
@@ -109,6 +96,12 @@ pub struct RuntimePackageManifest {
 pub struct RuntimePackageDefinition {
   pub name: String,
   pub version: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub minimum_os_version: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub build_profile: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub default: Option<bool>,
   pub source: RuntimePackageSource,
   pub health_check_profile: String,
 }
@@ -156,17 +149,6 @@ pub struct ValidatedRuntimeCatalog {
 }
 
 #[derive(Clone, Debug)]
-pub struct CommunityPhpCatalogInput<'a> {
-  pub release_version: &'a str,
-  pub catalog_sequence: u64,
-  pub generated_at: &'a str,
-  pub expires_at: &'a str,
-  pub minimum_app_version: &'a str,
-  pub macos_arm64_package: Option<&'a Path>,
-  pub now_unix_seconds: i64,
-}
-
-#[derive(Clone, Debug)]
 pub struct CommunityWindowsCatalogInput<'a> {
   pub release_version: &'a str,
   pub catalog_sequence: u64,
@@ -185,10 +167,8 @@ pub struct CommunityMacosCatalogInput<'a> {
   pub generated_at: &'a str,
   pub expires_at: &'a str,
   pub minimum_app_version: &'a str,
-  pub php_package: &'a Path,
-  pub mariadb_package: &'a Path,
-  pub node20_package: &'a Path,
-  pub node24_package: &'a Path,
+  pub package_manifest: &'a Path,
+  pub package_directory: &'a Path,
   pub now_unix_seconds: i64,
 }
 
@@ -201,11 +181,22 @@ pub struct CommunityCatalogInput<'a> {
   pub minimum_app_version: &'a str,
   pub windows_package_manifest: &'a Path,
   pub windows_package_directory: &'a Path,
-  pub macos_php_package: &'a Path,
-  pub macos_mariadb_package: &'a Path,
-  pub macos_node20_package: &'a Path,
-  pub macos_node24_package: &'a Path,
+  pub macos_package_manifest: &'a Path,
+  pub macos_package_directory: &'a Path,
   pub now_unix_seconds: i64,
+}
+
+struct CommunityPackageCatalogInput<'a> {
+  release_version: &'a str,
+  catalog_sequence: u64,
+  generated_at: &'a str,
+  expires_at: &'a str,
+  minimum_app_version: &'a str,
+  package_manifest: &'a Path,
+  package_directory: &'a Path,
+  now_unix_seconds: i64,
+  expected_platform: &'a str,
+  expected_architecture: &'a str,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -327,72 +318,32 @@ pub fn generate_runtime_catalog(
   Ok(contents)
 }
 
-pub fn generate_community_php_catalog(
-  input: &CommunityPhpCatalogInput<'_>,
-) -> Result<Vec<u8>, RuntimeCatalogBuildError> {
-  let macos_file_name = "php-8.4.24-macos-arm64-community.tar.gz";
-  let release_url = |file_name: &str| {
-    format!(
-      "{RELEASE_DOWNLOAD_PREFIX}{}/{file_name}",
-      input.release_version
-    )
-  };
-  let mut runtimes = Vec::new();
-  if let Some(package) = input.macos_arm64_package {
-    let (size, sha256) = file_size_and_sha256(package)?;
-    runtimes.push(RuntimeRelease {
-      name: "php".to_owned(),
-      version: "8.4.24".to_owned(),
-      platform: "macos".to_owned(),
-      architecture: "arm64".to_owned(),
-      minimum_os_version: Some("13.0".to_owned()),
-      file_name: Some(macos_file_name.to_owned()),
-      url: release_url(macos_file_name),
-      size,
-      sha256,
-      signature: None,
-      source_verification: Some(RuntimeSourceVerification {
-        method: "pgp".to_owned(),
-        fingerprint: Some(PHP_SOURCE_SIGNING_FINGERPRINT.to_owned()),
-        upstream_sha256: PHP_84_MACOS_SOURCE_SHA256.to_owned(),
-      }),
-      archive_format: Some("tar.gz".to_owned()),
-      install_mode: Some("side-by-side".to_owned()),
-      health_check_profile: Some("php-runtime-v1".to_owned()),
-    });
-  }
-  let catalog = RuntimeCatalog {
-    schema_version: RUNTIME_CATALOG_SCHEMA_VERSION,
-    product: RUNTIME_CATALOG_PRODUCT.to_owned(),
-    channel: RUNTIME_CATALOG_CHANNEL.to_owned(),
-    catalog_sequence: input.catalog_sequence,
-    generated_at: input.generated_at.to_owned(),
-    expires_at: input.expires_at.to_owned(),
-    unsigned_community_build: true,
-    integrity: "sha256".to_owned(),
-    compatibility: RuntimeCatalogCompatibility {
-      minimum_app_version: input.minimum_app_version.to_owned(),
-      minimum_agent_protocol_version: RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
-    },
-    signature: None,
-    runtimes,
-  };
-  let validation = RuntimeCatalogValidation {
-    current_app_version: input.minimum_app_version,
-    current_agent_protocol_version: RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
-    now_unix_seconds: input.now_unix_seconds,
-    accepted_catalog: None,
-  };
-  let contents = generate_runtime_catalog(&catalog, &validation)?;
-  parse_and_validate_runtime_catalog(&contents, &validation)?;
-  Ok(contents)
-}
-
 pub fn generate_community_windows_catalog(
   input: &CommunityWindowsCatalogInput<'_>,
 ) -> Result<Vec<u8>, RuntimeCatalogBuildError> {
+  generate_community_package_catalog(&CommunityPackageCatalogInput {
+    release_version: input.release_version,
+    catalog_sequence: input.catalog_sequence,
+    generated_at: input.generated_at,
+    expires_at: input.expires_at,
+    minimum_app_version: input.minimum_app_version,
+    package_manifest: input.package_manifest,
+    package_directory: input.package_directory,
+    now_unix_seconds: input.now_unix_seconds,
+    expected_platform: "windows",
+    expected_architecture: "x64",
+  })
+}
+
+fn generate_community_package_catalog(
+  input: &CommunityPackageCatalogInput<'_>,
+) -> Result<Vec<u8>, RuntimeCatalogBuildError> {
   let manifest = read_runtime_package_manifest(input.package_manifest)?;
-  validate_runtime_package_manifest(&manifest)?;
+  validate_runtime_package_manifest(
+    &manifest,
+    input.expected_platform,
+    input.expected_architecture,
+  )?;
   let release_url = |file_name: &str| {
     format!(
       "{RELEASE_DOWNLOAD_PREFIX}{}/{file_name}",
@@ -412,7 +363,12 @@ pub fn generate_community_windows_catalog(
       version: package.version.clone(),
       platform: manifest.platform.clone(),
       architecture: manifest.architecture.clone(),
-      minimum_os_version: Some(manifest.minimum_os_version.clone()),
+      minimum_os_version: Some(
+        package
+          .minimum_os_version
+          .clone()
+          .unwrap_or_else(|| manifest.minimum_os_version.clone()),
+      ),
       file_name: Some(file_name.clone()),
       url: release_url(&file_name),
       size,
@@ -464,17 +420,19 @@ pub fn read_runtime_package_manifest(
 
 fn validate_runtime_package_manifest(
   manifest: &RuntimePackageManifest,
+  expected_platform: &str,
+  expected_architecture: &str,
 ) -> Result<(), RuntimeCatalogBuildError> {
   require_package_manifest_value(manifest.schema_version == 1, "schemaVersion", "must be 1")?;
   require_package_manifest_value(
-    manifest.platform == "windows",
+    manifest.platform == expected_platform,
     "platform",
-    "must be windows",
+    &format!("must be {expected_platform}"),
   )?;
   require_package_manifest_value(
-    manifest.architecture == "x64",
+    manifest.architecture == expected_architecture,
     "architecture",
-    "must be x64",
+    &format!("must be {expected_architecture}"),
   )?;
   validate_numeric_version(&manifest.minimum_os_version, "minimumOsVersion")
     .map_err(RuntimeCatalogBuildError::Catalog)?;
@@ -505,6 +463,10 @@ fn validate_runtime_package_manifest(
       &field("version"),
       "duplicates an existing package identity",
     )?;
+    if let Some(minimum_os_version) = &package.minimum_os_version {
+      validate_numeric_version(minimum_os_version, &field("minimumOsVersion"))
+        .map_err(RuntimeCatalogBuildError::Catalog)?;
+    }
     require_package_manifest_value(
       package.source.archive_url.starts_with("https://"),
       &field("source.archiveUrl"),
@@ -614,106 +576,18 @@ fn invalid_package_manifest(
 pub fn generate_community_macos_catalog(
   input: &CommunityMacosCatalogInput<'_>,
 ) -> Result<Vec<u8>, RuntimeCatalogBuildError> {
-  let release_url = |file_name: &str| {
-    format!(
-      "{RELEASE_DOWNLOAD_PREFIX}{}/{file_name}",
-      input.release_version
-    )
-  };
-  let package = |name: &str,
-                 version: &str,
-                 path: &Path,
-                 minimum_os_version: &str,
-                 fingerprint: &str,
-                 upstream_sha256: &str,
-                 health_check_profile: &str|
-   -> Result<RuntimeRelease, std::io::Error> {
-    let file_name = format!("{name}-{version}-macos-arm64-community.tar.gz");
-    let (size, sha256) = file_size_and_sha256(path)?;
-    Ok(RuntimeRelease {
-      name: name.to_owned(),
-      version: version.to_owned(),
-      platform: "macos".to_owned(),
-      architecture: "arm64".to_owned(),
-      minimum_os_version: Some(minimum_os_version.to_owned()),
-      file_name: Some(file_name.clone()),
-      url: release_url(&file_name),
-      size,
-      sha256,
-      signature: None,
-      source_verification: Some(RuntimeSourceVerification {
-        method: "pgp".to_owned(),
-        fingerprint: Some(fingerprint.to_owned()),
-        upstream_sha256: upstream_sha256.to_owned(),
-      }),
-      archive_format: Some("tar.gz".to_owned()),
-      install_mode: Some("side-by-side".to_owned()),
-      health_check_profile: Some(health_check_profile.to_owned()),
-    })
-  };
-  let runtimes = vec![
-    package(
-      "php",
-      "8.4.24",
-      input.php_package,
-      "13.0",
-      PHP_SOURCE_SIGNING_FINGERPRINT,
-      PHP_84_MACOS_SOURCE_SHA256,
-      "php-runtime-v1",
-    )?,
-    package(
-      "mariadb",
-      "12.3.2",
-      input.mariadb_package,
-      "13.0",
-      MARIADB_SOURCE_SIGNING_FINGERPRINT,
-      MARIADB_123_MACOS_SOURCE_SHA256,
-      "mariadb-runtime-v1",
-    )?,
-    package(
-      "node",
-      "20.20.2",
-      input.node20_package,
-      "13.0",
-      NODE_20_SOURCE_SIGNING_FINGERPRINT,
-      NODE_2020_MACOS_SOURCE_SHA256,
-      "node-runtime-v1",
-    )?,
-    package(
-      "node",
-      "24.20.0",
-      input.node24_package,
-      "13.5",
-      NODE_24_SOURCE_SIGNING_FINGERPRINT,
-      NODE_2420_MACOS_SOURCE_SHA256,
-      "node-runtime-v1",
-    )?,
-  ];
-  let catalog = RuntimeCatalog {
-    schema_version: RUNTIME_CATALOG_SCHEMA_VERSION,
-    product: RUNTIME_CATALOG_PRODUCT.to_owned(),
-    channel: RUNTIME_CATALOG_CHANNEL.to_owned(),
+  generate_community_package_catalog(&CommunityPackageCatalogInput {
+    release_version: input.release_version,
     catalog_sequence: input.catalog_sequence,
-    generated_at: input.generated_at.to_owned(),
-    expires_at: input.expires_at.to_owned(),
-    unsigned_community_build: true,
-    integrity: "sha256".to_owned(),
-    compatibility: RuntimeCatalogCompatibility {
-      minimum_app_version: input.minimum_app_version.to_owned(),
-      minimum_agent_protocol_version: COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
-    },
-    signature: None,
-    runtimes,
-  };
-  let validation = RuntimeCatalogValidation {
-    current_app_version: input.minimum_app_version,
-    current_agent_protocol_version: COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+    generated_at: input.generated_at,
+    expires_at: input.expires_at,
+    minimum_app_version: input.minimum_app_version,
+    package_manifest: input.package_manifest,
+    package_directory: input.package_directory,
     now_unix_seconds: input.now_unix_seconds,
-    accepted_catalog: None,
-  };
-  let contents = generate_runtime_catalog(&catalog, &validation)?;
-  parse_and_validate_runtime_catalog(&contents, &validation)?;
-  Ok(contents)
+    expected_platform: "macos",
+    expected_architecture: "arm64",
+  })
 }
 
 pub fn generate_community_catalog(
@@ -741,10 +615,8 @@ pub fn generate_community_catalog(
     generated_at: input.generated_at,
     expires_at: input.expires_at,
     minimum_app_version: input.minimum_app_version,
-    php_package: input.macos_php_package,
-    mariadb_package: input.macos_mariadb_package,
-    node20_package: input.macos_node20_package,
-    node24_package: input.macos_node24_package,
+    package_manifest: input.macos_package_manifest,
+    package_directory: input.macos_package_directory,
     now_unix_seconds: input.now_unix_seconds,
   })?;
   let mut catalog = parse_and_validate_runtime_catalog(&windows_contents, &validation)?.catalog;
@@ -988,14 +860,6 @@ fn validate_catalog_runtime_version(
   release: &RuntimeRelease,
   field: &str,
 ) -> Result<(), RuntimeCatalogError> {
-  if release.name == "php" && release.platform == "macos" {
-    return require_catalog_value(
-      release.version == "8.4.24",
-      field,
-      "must be 8.4.24 for macOS Community v1",
-    );
-  }
-
   let version = Version::parse(&release.version)
     .map_err(|error| invalid_catalog(field, format!("must be stable SemVer: {error}")))?;
   let minimum_major = match release.name.as_str() {
@@ -1607,6 +1471,11 @@ mod tests {
       .join("../../resources/runtime-packages/windows-x64.json")
   }
 
+  fn macos_package_manifest_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+      .join("../../resources/runtime-packages/macos-arm64.json")
+  }
+
   fn create_manifest_packages(
     manifest_path: &Path,
     package_directory: &Path,
@@ -1655,7 +1524,7 @@ mod tests {
         signature: None,
         source_verification: Some(RuntimeSourceVerification {
           method: "pgp".to_owned(),
-          fingerprint: Some(PHP_SOURCE_SIGNING_FINGERPRINT.to_owned()),
+          fingerprint: Some("9D7F99A0CB8F05C8A6958D6256A97AF7600A39A6".to_owned()),
           upstream_sha256: "b".repeat(64),
         }),
         archive_format: Some("tar.gz".to_owned()),
@@ -1674,49 +1543,6 @@ mod tests {
       now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
       accepted_catalog,
     }
-  }
-
-  #[test]
-  fn generates_the_fixed_macos_community_php_catalog_from_package() {
-    let root = std::env::temp_dir().join(format!(
-      "fabdev-runtime-catalog-build-{}",
-      uuid::Uuid::new_v4()
-    ));
-    std::fs::create_dir_all(&root).expect("create Catalog fixture");
-    let macos_package = root.join("macos.tar.gz");
-    std::fs::write(&macos_package, b"macos runtime").expect("write macOS package");
-
-    let contents = generate_community_php_catalog(&CommunityPhpCatalogInput {
-      release_version: "0.1.4",
-      catalog_sequence: 1,
-      generated_at: "2026-08-30T00:00:00Z",
-      expires_at: "2027-02-26T00:00:00Z",
-      minimum_app_version: "0.1.4",
-      macos_arm64_package: Some(&macos_package),
-      now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
-    })
-    .expect("generate Community PHP Catalog");
-    let catalog: RuntimeCatalog = serde_json::from_slice(&contents).expect("parse Catalog");
-
-    assert_eq!(catalog.catalog_sequence, 1);
-    assert_eq!(catalog.signature, None);
-    assert_eq!(catalog.runtimes.len(), 1);
-    assert_eq!(catalog.runtimes[0].platform, "macos");
-    assert_eq!(catalog.runtimes[0].size, 13);
-    assert_eq!(
-      catalog.runtimes[0].sha256,
-      hex::encode(Sha256::digest(b"macos runtime"))
-    );
-    assert_eq!(
-      catalog.runtimes[0]
-        .source_verification
-        .as_ref()
-        .expect("macOS source verification")
-        .fingerprint
-        .as_deref(),
-      Some(PHP_SOURCE_SIGNING_FINGERPRINT)
-    );
-    std::fs::remove_dir_all(root).expect("remove Catalog fixture");
   }
 
   #[test]
@@ -1794,6 +1620,9 @@ mod tests {
         RuntimePackageDefinition {
           name: "php".to_owned(),
           version: "8.5.1".to_owned(),
+          minimum_os_version: None,
+          build_profile: None,
+          default: None,
           source: RuntimePackageSource {
             archive_url: "https://windows.php.net/php-8.5.1.zip".to_owned(),
             archive_sha256: "a".repeat(64),
@@ -1810,6 +1639,9 @@ mod tests {
         RuntimePackageDefinition {
           name: "node".to_owned(),
           version: "26.1.3".to_owned(),
+          minimum_os_version: None,
+          build_profile: None,
+          default: None,
           source: RuntimePackageSource {
             archive_url: "https://nodejs.org/dist/v26.1.3/node-v26.1.3-win-x64.zip".to_owned(),
             archive_sha256: "b".repeat(64),
@@ -1864,15 +1696,9 @@ mod tests {
       "fabdev-runtime-catalog-macos-complete-{}",
       uuid::Uuid::new_v4()
     ));
-    std::fs::create_dir_all(&root).expect("create Catalog fixture");
-    let php_package = root.join("php.tar.gz");
-    let mariadb_package = root.join("mariadb.tar.gz");
-    let node20_package = root.join("node20.tar.gz");
-    let node24_package = root.join("node24.tar.gz");
-    std::fs::write(&php_package, b"php runtime").expect("write PHP package");
-    std::fs::write(&mariadb_package, b"mariadb runtime").expect("write MariaDB package");
-    std::fs::write(&node20_package, b"node 20 runtime").expect("write Node.js 20 package");
-    std::fs::write(&node24_package, b"node 24 runtime").expect("write Node.js 24 package");
+    let package_manifest = macos_package_manifest_path();
+    let package_directory = root.join("packages");
+    let manifest = create_manifest_packages(&package_manifest, &package_directory);
 
     let contents = generate_community_macos_catalog(&CommunityMacosCatalogInput {
       release_version: "0.1.12",
@@ -1880,10 +1706,8 @@ mod tests {
       generated_at: "2026-08-31T00:00:00Z",
       expires_at: "2027-02-27T00:00:00Z",
       minimum_app_version: "0.1.12",
-      php_package: &php_package,
-      mariadb_package: &mariadb_package,
-      node20_package: &node20_package,
-      node24_package: &node24_package,
+      package_manifest: &package_manifest,
+      package_directory: &package_directory,
       now_unix_seconds: parse_rfc3339_utc("2026-08-31T00:01:00Z", "test").expect("parse test time"),
     })
     .expect("generate complete macOS Community Catalog");
@@ -1894,7 +1718,7 @@ mod tests {
       catalog.compatibility.minimum_agent_protocol_version,
       COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION
     );
-    assert_eq!(catalog.runtimes.len(), 4);
+    assert_eq!(catalog.runtimes.len(), manifest.packages.len());
     assert!(catalog
       .runtimes
       .iter()
@@ -1916,14 +1740,14 @@ mod tests {
         .source_verification
         .as_ref()
         .map(|source| source.upstream_sha256.as_str()),
-      Some(NODE_2020_MACOS_SOURCE_SHA256)
+      Some("466e05f3477c20dfb723054dfebffe55bc74660ee77f612166fca121dacb65b6")
     );
     assert_eq!(
       catalog.runtimes[3]
         .source_verification
         .as_ref()
         .map(|source| source.upstream_sha256.as_str()),
-      Some(NODE_2420_MACOS_SOURCE_SHA256)
+      Some("40e5607e5ecb3db9192723776da2d75d966260fc74a7a9e731c1bd67dda96bc8")
     );
     std::fs::remove_dir_all(root).expect("remove Catalog fixture");
   }
@@ -1935,19 +1759,14 @@ mod tests {
       uuid::Uuid::new_v4()
     ));
     std::fs::create_dir_all(&root).expect("create Catalog fixture");
-    let package = |name: &str| {
-      let path = root.join(format!("{name}.tar.gz"));
-      std::fs::write(&path, format!("{name} runtime")).expect("write Runtime package");
-      path
-    };
     let windows_package_manifest = windows_package_manifest_path();
     let windows_package_directory = root.join("windows-packages");
     let windows_manifest =
       create_manifest_packages(&windows_package_manifest, &windows_package_directory);
-    let macos_php = package("macos-php");
-    let macos_mariadb = package("macos-mariadb");
-    let macos_node20 = package("macos-node20");
-    let macos_node24 = package("macos-node24");
+    let macos_package_manifest = macos_package_manifest_path();
+    let macos_package_directory = root.join("macos-packages");
+    let macos_manifest =
+      create_manifest_packages(&macos_package_manifest, &macos_package_directory);
 
     let contents = generate_community_catalog(&CommunityCatalogInput {
       release_version: "0.1.12",
@@ -1957,17 +1776,18 @@ mod tests {
       minimum_app_version: "0.1.12",
       windows_package_manifest: &windows_package_manifest,
       windows_package_directory: &windows_package_directory,
-      macos_php_package: &macos_php,
-      macos_mariadb_package: &macos_mariadb,
-      macos_node20_package: &macos_node20,
-      macos_node24_package: &macos_node24,
+      macos_package_manifest: &macos_package_manifest,
+      macos_package_directory: &macos_package_directory,
       now_unix_seconds: parse_rfc3339_utc("2026-08-31T14:32:00Z", "test").expect("parse test time"),
     })
     .expect("generate complete cross-platform Community Catalog");
     let catalog: RuntimeCatalog = serde_json::from_slice(&contents).expect("parse Catalog");
 
     assert_eq!(catalog.catalog_sequence, 7);
-    assert_eq!(catalog.runtimes.len(), windows_manifest.packages.len() + 4);
+    assert_eq!(
+      catalog.runtimes.len(),
+      windows_manifest.packages.len() + macos_manifest.packages.len()
+    );
     assert_eq!(
       catalog
         .runtimes
@@ -1982,7 +1802,7 @@ mod tests {
         .iter()
         .filter(|runtime| runtime.platform == "macos" && runtime.architecture == "arm64")
         .count(),
-      4
+      macos_manifest.packages.len()
     );
     assert!(catalog
       .runtimes
@@ -1992,22 +1812,30 @@ mod tests {
   }
 
   #[test]
-  fn rejects_an_empty_community_php_package() {
+  fn rejects_an_empty_macos_community_package() {
     let root = std::env::temp_dir().join(format!(
       "fabdev-runtime-catalog-empty-{}",
       uuid::Uuid::new_v4()
     ));
     std::fs::create_dir_all(&root).expect("create Catalog fixture");
-    let macos_package = root.join("macos.tar.gz");
-    std::fs::write(&macos_package, []).expect("write empty macOS package");
+    let package_manifest = macos_package_manifest_path();
+    let package_directory = root.join("packages");
+    let manifest = create_manifest_packages(&package_manifest, &package_directory);
+    let first_package = &manifest.packages[0];
+    let empty_package = package_directory.join(format!(
+      "{}-{}-macos-arm64-community.tar.gz",
+      first_package.name, first_package.version
+    ));
+    std::fs::write(empty_package, []).expect("write empty macOS package");
 
-    let error = generate_community_php_catalog(&CommunityPhpCatalogInput {
+    let error = generate_community_macos_catalog(&CommunityMacosCatalogInput {
       release_version: "0.1.4",
       catalog_sequence: 1,
       generated_at: "2026-08-30T00:00:00Z",
       expires_at: "2027-02-26T00:00:00Z",
       minimum_app_version: "0.1.4",
-      macos_arm64_package: Some(&macos_package),
+      package_manifest: &package_manifest,
+      package_directory: &package_directory,
       now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
     })
     .expect_err("reject empty package");
@@ -2061,7 +1889,7 @@ mod tests {
   }
 
   #[test]
-  fn accepts_future_windows_php_series_and_keeps_macos_fixed() {
+  fn accepts_future_php_series_on_both_platforms() {
     let mut catalog = valid_catalog();
     let release = &mut catalog.runtimes[0];
     release.version = "9.1.2".to_owned();
@@ -2083,9 +1911,8 @@ mod tests {
     release.architecture = "arm64".to_owned();
     release.file_name = Some("php-9.1.2-macos-arm64-community.tar.gz".to_owned());
     release.url = "https://github.com/JimmyWon1028/fabdev/releases/download/v0.1.4/php-9.1.2-macos-arm64-community.tar.gz".to_owned();
-    let error = generate_runtime_catalog(&catalog, &catalog_validation(None))
-      .expect_err("keep macOS online PHP fixed");
-    assert!(error.to_string().contains("must be 8.4.24 for macOS"));
+    generate_runtime_catalog(&catalog, &catalog_validation(None))
+      .expect("accept future macOS PHP Runtime");
   }
 
   #[test]

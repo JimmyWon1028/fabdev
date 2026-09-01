@@ -3962,21 +3962,54 @@ mod tests {
     );
     let paths = AppPaths::from_root(&fixture.0);
     paths.ensure().expect("create online PHP fixture paths");
+    let file_name = artifact
+      .file_name()
+      .and_then(|name| name.to_str())
+      .expect("PHP Runtime package must have a UTF-8 filename");
+    let package_directory = artifact
+      .parent()
+      .expect("PHP Runtime package must have a parent directory");
+    let source_manifest_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+      .join("../../resources/runtime-packages/macos-arm64.json");
+    let mut package_manifest = fabdev_runtime::read_runtime_package_manifest(&source_manifest_path)
+      .expect("read macOS Runtime package manifest");
+    package_manifest.packages.retain(|runtime_package| {
+      runtime_package.name == "php"
+        && file_name
+          == format!(
+            "php-{}-macos-arm64-community.tar.gz",
+            runtime_package.version
+          )
+    });
+    assert_eq!(
+      package_manifest.packages.len(),
+      1,
+      "PHP Runtime package must be declared by the macOS package manifest"
+    );
+    let php_version = package_manifest.packages[0].version.clone();
+    let package_manifest_path = fixture.0.join("macos-arm64.json");
+    std::fs::write(
+      &package_manifest_path,
+      serde_json::to_vec_pretty(&package_manifest).expect("serialize PHP package manifest"),
+    )
+    .expect("write PHP package manifest fixture");
 
-    let catalog_contents =
-      fabdev_runtime::generate_community_php_catalog(&fabdev_runtime::CommunityPhpCatalogInput {
+    let catalog_contents = fabdev_runtime::generate_community_macos_catalog(
+      &fabdev_runtime::CommunityMacosCatalogInput {
         release_version: "0.1.11",
         catalog_sequence: 902,
         generated_at: "2026-01-01T00:00:00Z",
         expires_at: "2099-01-01T00:00:00Z",
         minimum_app_version: env!("CARGO_PKG_VERSION"),
-        macos_arm64_package: Some(&artifact),
+        package_manifest: &package_manifest_path,
+        package_directory,
         now_unix_seconds: std::time::SystemTime::now()
           .duration_since(std::time::UNIX_EPOCH)
           .expect("read current time")
           .as_secs() as i64,
-      })
-      .expect("generate real PHP Runtime Catalog");
+      },
+    )
+    .expect("generate real PHP Runtime Catalog");
     let catalog_sha256 = hex::encode(Sha256::digest(&catalog_contents));
     let update_root = paths.cache.join("runtime-updates");
     let pending_root = update_root.join("pending");
@@ -3991,7 +4024,6 @@ mod tests {
       format!("{{\n  \"sequence\": 902,\n  \"sha256\": \"{catalog_sha256}\"\n}}\n"),
     )
     .expect("cache accepted Runtime Catalog state");
-    let file_name = "php-8.4.24-macos-arm64-community.tar.gz";
     let pending_package = pending_root.join(file_name);
     std::fs::copy(&artifact, &pending_package).expect("stage verified PHP Runtime package");
 
@@ -4018,7 +4050,7 @@ mod tests {
       runtime_updates: RuntimeUpdateManager::default(),
       shutdown: Arc::new(Notify::new()),
     };
-    let artifact = cached_runtime_update_artifact(&state, "php", "8.4.24")
+    let artifact = cached_runtime_update_artifact(&state, "php", &php_version)
       .await
       .expect("load accepted PHP Runtime artifact");
     let operation = state
@@ -4062,13 +4094,18 @@ mod tests {
       installed.error
     );
     assert_eq!(installed.error, None);
-    assert!(paths.runtimes.join("php/8.4.24/bin/php").is_file());
+    assert!(paths
+      .runtimes
+      .join("php")
+      .join(&php_version)
+      .join("bin/php")
+      .is_file());
     assert_eq!(
       active_version(&paths.runtimes, "php").expect("read preserved active PHP"),
       Some("8.2.33".to_owned())
     );
 
-    remove_installed_version(&paths.runtimes, "php", "8.4.24")
+    remove_installed_version(&paths.runtimes, "php", &php_version)
       .expect("remove successful PHP fixture before failure path");
     std::fs::write(&pending_package, b"tampered").expect("tamper cached PHP Runtime package");
     let tampered_operation_id = Uuid::new_v4();
@@ -4106,7 +4143,7 @@ mod tests {
       .error
       .as_deref()
       .is_some_and(|error| error.contains("size does not match")));
-    assert!(!paths.runtimes.join("php/8.4.24").exists());
+    assert!(!paths.runtimes.join("php").join(&php_version).exists());
     assert_eq!(
       active_version(&paths.runtimes, "php").expect("read active PHP after rejection"),
       Some("8.2.33".to_owned())

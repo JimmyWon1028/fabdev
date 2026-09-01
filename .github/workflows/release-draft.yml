@@ -202,10 +202,10 @@ jobs:
       - name: Build verified bundled macOS Runtimes
         shell: bash
         run: |
-          ./scripts/build-dnsmasq-runtime.sh
-          ./scripts/build-nginx-runtime.sh
-          PHP_VERSION=7.4.33 ./scripts/build-php-runtime.sh
-          PHP_VERSION=8.2.33 ./scripts/build-php-runtime.sh
+          ./scripts/build-macos-runtime-packages.sh \
+            resources/runtime-packages/macos-arm64-bundled.json \
+            "$GITHUB_WORKSPACE/artifacts" \
+            dev
 
       - name: Build verified macOS online Runtimes
         shell: bash
@@ -216,6 +216,7 @@ jobs:
             "$PUBLISHED_AT" \
             "$RUNTIME_CATALOG_EXPIRES_AT" \
             "$VERSION" \
+            "$GITHUB_WORKSPACE/resources/runtime-packages/macos-arm64.json" \
             "$GITHUB_WORKSPACE/release-input/macos-runtimes"
 
       - name: Prepare Desktop sidecars
@@ -495,10 +496,8 @@ jobs:
             "$VERSION" \
             "$GITHUB_WORKSPACE/resources/runtime-packages/windows-x64.json" \
             "$GITHUB_WORKSPACE/release-assets" \
-            "$GITHUB_WORKSPACE/release-assets/php-8.4.24-macos-arm64-community.tar.gz" \
-            "$GITHUB_WORKSPACE/release-assets/mariadb-12.3.2-macos-arm64-community.tar.gz" \
-            "$GITHUB_WORKSPACE/release-assets/node-20.20.2-macos-arm64-community.tar.gz" \
-            "$GITHUB_WORKSPACE/release-assets/node-24.20.0-macos-arm64-community.tar.gz" \
+            "$GITHUB_WORKSPACE/resources/runtime-packages/macos-arm64.json" \
+            "$GITHUB_WORKSPACE/release-assets" \
             "$GITHUB_WORKSPACE/release-assets/fabdev-runtime-v1.json"
           cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
             validate \
