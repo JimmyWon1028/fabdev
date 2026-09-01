@@ -4,6 +4,7 @@ import {
   estimateUpdateDownload,
   formatUpdateBytes,
   formatUpdateDuration,
+  isAppUpdateDownloadCancellation,
   updateDownloadPercent
 } from './app-update'
 
@@ -42,5 +43,10 @@ describe('app update presentation', () => {
     expect(formatUpdateDuration(0)).toBe('0s')
     expect(formatUpdateDuration(12.2)).toBe('13s')
     expect(formatUpdateDuration(125)).toBe('2m 5s')
+  })
+
+  it('distinguishes an explicit Windows update cancellation from other failures', () => {
+    expect(isAppUpdateDownloadCancellation('Windows update download was cancelled')).toBe(true)
+    expect(isAppUpdateDownloadCancellation(new Error('network timeout'))).toBe(false)
   })
 })

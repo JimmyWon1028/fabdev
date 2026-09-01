@@ -446,6 +446,9 @@ const en = {
   'settings.downloadRateEta': '{speed}/s · approximately {eta} remaining',
   'settings.releaseNotes': 'Release Notes',
   'settings.downloadUpdate': 'Download update',
+  'settings.stopDownload': 'Stop download',
+  'settings.stoppingDownload': 'Stopping download…',
+  'settings.downloadCancelled': 'Update download stopped.',
   'settings.downloadVerified': '{fileName} was downloaded and its size and SHA-256 were verified.',
   'settings.updateAvailable': 'fabDev {version} is available.',
   'settings.upToDate': 'fabDev {version} is up to date.',
@@ -514,7 +517,7 @@ const zhTW: TranslationTable = {
   'node.eyebrow': 'Optional runtime', 'node.description': '安裝或移除 fabDev 獨立管理的穩定版 Node.js LTS；預設不安裝。', 'node.listLabel': 'Node.js Runtime', 'node.notInstalledDescription': '預設未安裝；專案需要 Node.js 時再安裝對應的 fabDev Runtime Package。', 'node.installedDescription': '已安裝，可作為 fabDev 獨立管理的 Node.js Runtime 使用。', 'node.chooseRelease': '選擇 Node.js Runtime 描述檔', 'node.chooseArtifact': '選擇對應的 Node.js Runtime 套件', 'node.install': '安裝穩定 LTS', 'node.installing': '正在驗證並安裝 Node.js Runtime…', 'node.installingShort': '安裝中…', 'node.installed': 'Node.js {version} LTS 已安裝', 'node.remove': '移除', 'node.removing': '移除中…', 'node.removeTitle': '移除 Node.js Runtime', 'node.removeConfirm': '確定要移除 fabDev 管理的 Node.js Runtime？\n\n只會刪除 Runtime，不會刪除 Site 或專案檔案。', 'node.removed': 'Node.js {version} 已移除', 'node.isolationNote': '此 Runtime 僅儲存在 fabDev 內，不會取代或修改 Homebrew、nvm、Herd 或系統 Node.js。',
   'settings.eyebrow': 'Preferences', 'settings.title': '設定', 'settings.description': '設定 fabDev App 的顯示語言、啟動行為與軟體更新。', 'settings.label': 'fabDev 設定', 'settings.languageTitle': '顯示語言', 'settings.languageDescription': '選擇 fabDev 使用的介面語言。', 'settings.languageHelp': '變更會立即套用，並保留至下次啟動。', 'settings.english': 'English', 'settings.traditionalChinese': '繁體中文', 'settings.simplifiedChinese': '简体中文', 'settings.autoStartTitle': 'App 開啟時自動啟動服務', 'settings.autoStartDescription': '自動啟動 DNS、Nginx 與 Sites 需要的 PHP-FPM。', 'settings.autoStartHelp': '關閉此選項不會停止目前正在運行的服務。', 'settings.autoStartEnabled': '已開啟；下次啟動 fabDev 時會自動啟動所有服務。', 'settings.autoStartDisabled': '已關閉；下次啟動 fabDev 時只會顯示目前狀態。',
   'settings.autoCheckUpdatesTitle': '自動檢查更新', 'settings.autoCheckUpdatesDescription': 'fabDev 每次開啟時都會檢查 Stable Channel。', 'settings.autoCheckUpdatesHelp': '網路失敗不會阻止 fabDev 或本機服務啟動。', 'settings.autoCheckUpdatesEnabled': '已開啟；fabDev 每次啟動時都會檢查 Stable Channel。', 'settings.autoCheckUpdatesDisabled': '已關閉；只會在你按下「立即檢查」時連線。',
-  'settings.softwareUpdateTitle': '軟體更新', 'settings.softwareUpdateDescription': '從 GitHub Releases 檢查、下載並驗證完整 Community 安裝包。', 'settings.checkNow': '立即檢查', 'settings.checkingUpdates': '檢查中…', 'settings.currentVersion': '目前版本', 'settings.latestVersion': '最新版本', 'settings.channel': 'Channel', 'settings.lastChecked': '上次檢查', 'settings.notChecked': '尚未檢查', 'settings.unsignedCommunityWarning': 'Unsigned Community Build：開啟前會驗證 SHA-256；Gatekeeper 或 SmartScreen 仍可能顯示警告。', 'settings.downloadingUpdate': '下載並驗證中…', 'settings.downloadRateEta': '{speed}/s · 約剩 {eta}', 'settings.releaseNotes': 'Release Notes', 'settings.downloadUpdate': '下載更新', 'settings.downloadVerified': '{fileName} 已下載完成，檔案大小與 SHA-256 驗證通過。', 'settings.updateAvailable': 'fabDev {version} 可以下載。', 'settings.upToDate': 'fabDev {version} 已是最新版本。', 'settings.updateError': '無法更新：{error}', 'settings.installUpdateTitle': '重新啟動並更新', 'settings.installUpdateConfirm': 'fabDev 將停止受管服務並退出，以覆蓋方式安裝已驗證的更新，完成後自動重新啟動。Sites、Runtime 設定與使用者資料都會保留。', 'settings.quitAndOpenInstaller': '重新啟動並更新', 'settings.preparingInstaller': '正在重新驗證安裝包，接著會停止服務、覆蓋更新並重新啟動 fabDev…', 'settings.saveError': '無法儲存設定：{error}',
+  'settings.softwareUpdateTitle': '軟體更新', 'settings.softwareUpdateDescription': '從 GitHub Releases 檢查、下載並驗證完整 Community 安裝包。', 'settings.checkNow': '立即檢查', 'settings.checkingUpdates': '檢查中…', 'settings.currentVersion': '目前版本', 'settings.latestVersion': '最新版本', 'settings.channel': 'Channel', 'settings.lastChecked': '上次檢查', 'settings.notChecked': '尚未檢查', 'settings.unsignedCommunityWarning': 'Unsigned Community Build：開啟前會驗證 SHA-256；Gatekeeper 或 SmartScreen 仍可能顯示警告。', 'settings.downloadingUpdate': '下載並驗證中…', 'settings.downloadRateEta': '{speed}/s · 約剩 {eta}', 'settings.releaseNotes': 'Release Notes', 'settings.downloadUpdate': '下載更新', 'settings.stopDownload': '停止下載', 'settings.stoppingDownload': '正在停止下載…', 'settings.downloadCancelled': '更新下載已停止。', 'settings.downloadVerified': '{fileName} 已下載完成，檔案大小與 SHA-256 驗證通過。', 'settings.updateAvailable': 'fabDev {version} 可以下載。', 'settings.upToDate': 'fabDev {version} 已是最新版本。', 'settings.updateError': '無法更新：{error}', 'settings.installUpdateTitle': '重新啟動並更新', 'settings.installUpdateConfirm': 'fabDev 將停止受管服務並退出，以覆蓋方式安裝已驗證的更新，完成後自動重新啟動。Sites、Runtime 設定與使用者資料都會保留。', 'settings.quitAndOpenInstaller': '重新啟動並更新', 'settings.preparingInstaller': '正在重新驗證安裝包，接著會停止服務、覆蓋更新並重新啟動 fabDev…', 'settings.saveError': '無法儲存設定：{error}',
   'errors.mariaDbCurrentPassword': '無法以 MariaDB root 身分驗證，請確認目前密碼。', 'errors.mariaDbPasswordRejected': 'MariaDB 拒絕變更 root 密碼（錯誤 {code}）。', 'errors.systemIngressUnavailable': '系統入口無法使用 DNS 連接埠 {dnsPort}、HTTP 連接埠 {httpPort} 或 HTTPS 連接埠 {httpsPort}。'
 }
 
@@ -673,6 +676,9 @@ const zhCNUpdateCopy = {
   'settings.downloadingUpdate': '下载并验证中…',
   'settings.downloadRateEta': '{speed}/s · 约剩 {eta}',
   'settings.downloadUpdate': '下载更新',
+  'settings.stopDownload': '停止下载',
+  'settings.stoppingDownload': '正在停止下载…',
+  'settings.downloadCancelled': '更新下载已停止。',
   'settings.downloadVerified': '{fileName} 已下载完成，文件大小与 SHA-256 验证通过。',
   'settings.updateAvailable': 'fabDev {version} 可以下载。',
   'settings.upToDate': 'fabDev {version} 已是最新版本。',

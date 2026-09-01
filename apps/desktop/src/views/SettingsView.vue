@@ -7,6 +7,7 @@ import { useAppStore } from '../stores/fabdev'
 import {
   formatUpdateBytes,
   formatUpdateDuration,
+  isAppUpdateDownloadCancellation,
   updateDownloadPercent
 } from '../utils/app-update'
 import { useI18n } from '../utils/i18n'
@@ -18,6 +19,7 @@ const message = ref('')
 const updateMessage = ref('')
 const currentVersion = ref('—')
 const downloadPercent = computed(() => updateDownloadPercent(store.appUpdateDownload))
+const canCancelAppUpdate = computed(() => store.appUpdate?.artifact.platform === 'windows')
 const downloadedSize = computed(() =>
   formatUpdateBytes(store.appUpdateDownload?.downloadedBytes ?? 0)
 )
@@ -99,8 +101,19 @@ async function downloadUpdate() {
   try {
     const download = await store.downloadAppUpdate()
     updateMessage.value = t('settings.downloadVerified', { fileName: download.fileName })
+  } catch (error) {
+    if (isAppUpdateDownloadCancellation(error)) {
+      updateMessage.value = t('settings.downloadCancelled')
+    }
+  }
+}
+
+async function cancelUpdateDownload() {
+  updateMessage.value = t('settings.stoppingDownload')
+  try {
+    await store.cancelAppUpdateDownload()
   } catch {
-    // The store exposes the detailed update error.
+    // The store exposes the detailed cancellation error.
   }
 }
 
@@ -261,7 +274,18 @@ async function installUpdate() {
               {{ t('settings.releaseNotes') }}
             </button>
             <button
-              v-if="store.appUpdate?.updateAvailable && !store.downloadedAppUpdate"
+              v-if="store.appUpdateDownloading && canCancelAppUpdate"
+              class="secondary-button"
+              type="button"
+              :disabled="store.appUpdateCancelling"
+              @click="cancelUpdateDownload"
+            >
+              {{ store.appUpdateCancelling
+                ? t('settings.stoppingDownload')
+                : t('settings.stopDownload') }}
+            </button>
+            <button
+              v-else-if="store.appUpdate?.updateAvailable && !store.downloadedAppUpdate"
               class="primary-button"
               type="button"
               :disabled="store.appUpdateBusy"

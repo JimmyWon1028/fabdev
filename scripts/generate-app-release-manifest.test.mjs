@@ -333,13 +333,28 @@ test('launches the Windows updater only after fabDev exits', async () => {
     'utf8'
   )
 
-  assert.match(
-    desktopSource,
-    /const WINDOWS_UPDATE_INSTALLER_ARGUMENTS: \[&str; 3\] = \["\/UPDATE", "\/P", "\/R"\]/
-  )
-  assert.match(desktopSource, /Wait-Process -Id \$args\[0\]/)
-  assert.match(desktopSource, /Start-Process -FilePath \$args\[1\]/)
+  assert.match(desktopSource, /Wait-Process -Id \$ParentProcessId/)
+  assert.match(desktopSource, /Start-Process -FilePath \$InstallerPath/)
+  assert.match(desktopSource, /-ArgumentList @\('\/UPDATE', '\/P', '\/R'\)/)
+  assert.match(desktopSource, /Set-Content -LiteralPath \$ReadyPath/)
+  assert.match(desktopSource, /WINDOWS_UPDATE_LAUNCHER_READY_TIMEOUT/)
+  assert.match(desktopSource, /"-File",/)
   assert.match(desktopSource, /\.arg\(std::process::id\(\)\.to_string\(\)\)/)
+})
+
+test('wires Windows update download cancellation through the desktop command', async () => {
+  const [desktopSource, updaterSource, settingsSource] = await Promise.all([
+    readFile(join(repoRoot, 'apps/desktop/src-tauri/src/lib.rs'), 'utf8'),
+    readFile(join(repoRoot, 'crates/updater/src/lib.rs'), 'utf8'),
+    readFile(join(repoRoot, 'apps/desktop/src/views/SettingsView.vue'), 'utf8')
+  ])
+
+  assert.match(desktopSource, /fn cancel_app_update_download\(\)/)
+  assert.match(desktopSource, /APP_UPDATE_DOWNLOAD_CANCEL_REQUESTED\.store\(true/)
+  assert.match(desktopSource, /download_app_update_with_cancellation/)
+  assert.match(updaterSource, /&is_cancelled/)
+  assert.match(settingsSource, /store\.cancelAppUpdateDownload\(\)/)
+  assert.match(settingsSource, /store\.appUpdateDownloading && canCancelAppUpdate/)
 })
 
 test('pins and verifies all Windows online PHP Runtime packages', async () => {

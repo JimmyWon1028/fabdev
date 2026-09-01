@@ -43,14 +43,70 @@ const AGENT_RESPONSE_TIMEOUT: Duration = Duration::from_secs(30);
 const AGENT_INSTALL_RESPONSE_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const SYSTEM_INGRESS_ERROR_PREFIX: &str = "system ingress is unavailable on DNS port ";
 #[cfg(target_os = "windows")]
-const WINDOWS_UPDATE_INSTALLER_ARGUMENTS: [&str; 3] = ["/UPDATE", "/P", "/R"];
+const WINDOWS_UPDATE_LAUNCHER_FILE: &str = "fabdev-update-launcher.ps1";
 #[cfg(target_os = "windows")]
-const WINDOWS_UPDATE_LAUNCH_SCRIPT: &str = "Wait-Process -Id $args[0] -ErrorAction SilentlyContinue; Start-Process -FilePath $args[1] -ArgumentList $args[2..($args.Length - 1)]";
+const WINDOWS_UPDATE_LAUNCHER_READY_FILE: &str = "fabdev-update-launcher.ready";
+#[cfg(target_os = "windows")]
+const WINDOWS_UPDATE_LAUNCHER_LOG_FILE: &str = "fabdev-update-launcher.log";
+#[cfg(target_os = "windows")]
+const WINDOWS_UPDATE_LAUNCHER_READY_TIMEOUT: Duration = Duration::from_secs(5);
+#[cfg(target_os = "windows")]
+const WINDOWS_UPDATE_LAUNCH_SCRIPT: &str = r#"param(
+  [Parameter(Mandatory = $true)]
+  [int] $ParentProcessId,
+  [Parameter(Mandatory = $true)]
+  [string] $InstallerPath,
+  [Parameter(Mandatory = $true)]
+  [string] $ReadyPath,
+  [Parameter(Mandatory = $true)]
+  [string] $LogPath
+)
+
+$ErrorActionPreference = 'Stop'
+
+try {
+  Set-Content -LiteralPath $ReadyPath -Value $PID -Encoding ASCII
+  Wait-Process -Id $ParentProcessId -ErrorAction SilentlyContinue
+  $installer = Start-Process -FilePath $InstallerPath -ArgumentList @('/UPDATE', '/P', '/R') -PassThru
+  Set-Content -LiteralPath $LogPath -Value ("started installer pid=" + $installer.Id) -Encoding UTF8
+} catch {
+  Set-Content -LiteralPath $LogPath -Value ("failed: " + $_.Exception.Message) -Encoding UTF8
+  exit 1
+} finally {
+  Remove-Item -LiteralPath $ReadyPath -Force -ErrorAction SilentlyContinue
+}
+"#;
 
 static AGENT_START_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 static APP_UPDATE_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+#[cfg(target_os = "windows")]
+static APP_UPDATE_DOWNLOAD_ACTIVE: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "windows")]
+static APP_UPDATE_DOWNLOAD_CANCEL_REQUESTED: AtomicBool = AtomicBool::new(false);
 static QUIT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 static EXIT_ALLOWED: AtomicBool = AtomicBool::new(false);
+
+#[cfg(target_os = "windows")]
+struct WindowsAppUpdateDownloadSession;
+
+#[cfg(target_os = "windows")]
+impl WindowsAppUpdateDownloadSession {
+  fn begin() -> Result<Self, String> {
+    APP_UPDATE_DOWNLOAD_ACTIVE
+      .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+      .map_err(|_| "a Windows app update download is already active".to_owned())?;
+    APP_UPDATE_DOWNLOAD_CANCEL_REQUESTED.store(false, Ordering::SeqCst);
+    Ok(Self)
+  }
+}
+
+#[cfg(target_os = "windows")]
+impl Drop for WindowsAppUpdateDownloadSession {
+  fn drop(&mut self) {
+    APP_UPDATE_DOWNLOAD_ACTIVE.store(false, Ordering::SeqCst);
+    APP_UPDATE_DOWNLOAD_CANCEL_REQUESTED.store(false, Ordering::SeqCst);
+  }
+}
 
 #[derive(Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -250,23 +306,53 @@ async fn download_app_update(
     .ensure()
     .map_err(|error| format!("unable to prepare fabDev application data: {error}"))?;
   let progress_app = app.clone();
-  fabdev_updater::download_app_update(
+  let on_progress = move |downloaded_bytes, total_bytes| {
+    let _ = progress_app.emit(
+      APP_UPDATE_DOWNLOAD_PROGRESS_EVENT,
+      AppUpdateDownloadProgress {
+        downloaded_bytes,
+        total_bytes,
+      },
+    );
+  };
+  #[cfg(target_os = "windows")]
+  let result = {
+    let _session = WindowsAppUpdateDownloadSession::begin()?;
+    fabdev_updater::download_app_update_with_cancellation(
+      &paths.cache,
+      env!("CARGO_PKG_VERSION"),
+      platform,
+      architecture,
+      on_progress,
+      || APP_UPDATE_DOWNLOAD_CANCEL_REQUESTED.load(Ordering::SeqCst),
+    )
+    .await
+  };
+  #[cfg(not(target_os = "windows"))]
+  let result = fabdev_updater::download_app_update(
     &paths.cache,
     env!("CARGO_PKG_VERSION"),
     platform,
     architecture,
-    move |downloaded_bytes, total_bytes| {
-      let _ = progress_app.emit(
-        APP_UPDATE_DOWNLOAD_PROGRESS_EVENT,
-        AppUpdateDownloadProgress {
-          downloaded_bytes,
-          total_bytes,
-        },
-      );
-    },
+    on_progress,
   )
-  .await
-  .map_err(|error| error.to_string())
+  .await;
+  result.map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn cancel_app_update_download() -> Result<(), String> {
+  #[cfg(target_os = "windows")]
+  {
+    if !APP_UPDATE_DOWNLOAD_ACTIVE.load(Ordering::SeqCst) {
+      Err("Windows app update download can no longer be cancelled".to_owned())
+    } else {
+      APP_UPDATE_DOWNLOAD_CANCEL_REQUESTED.store(true, Ordering::SeqCst);
+      Ok(())
+    }
+  }
+  #[cfg(not(target_os = "windows"))]
+  Err("app update download cancellation is only available on Windows".to_owned())
 }
 
 #[tauri::command]
@@ -514,27 +600,77 @@ fn open_url_in_chrome(url: &str) -> anyhow::Result<()> {
 fn open_update_installer(path: &Path) -> anyhow::Result<()> {
   use std::os::windows::process::CommandExt;
 
+  let launcher_directory = path
+    .parent()
+    .context("Windows app update installer has no parent directory")?;
+  let script_path = launcher_directory.join(WINDOWS_UPDATE_LAUNCHER_FILE);
+  let ready_path = launcher_directory.join(WINDOWS_UPDATE_LAUNCHER_READY_FILE);
+  let log_path = launcher_directory.join(WINDOWS_UPDATE_LAUNCHER_LOG_FILE);
+  remove_windows_update_launcher_file(&ready_path)?;
+  remove_windows_update_launcher_file(&log_path)?;
+  std::fs::write(&script_path, WINDOWS_UPDATE_LAUNCH_SCRIPT)
+    .context("unable to write the Windows app update launcher")?;
+
   let mut command = Command::new("powershell.exe");
-  command.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
-  command
+  command.creation_flags(
+    windows_sys::Win32::System::Threading::CREATE_NO_WINDOW
+      | windows_sys::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP,
+  );
+  let mut launcher = command
     .args([
       "-NoLogo",
       "-NoProfile",
       "-NonInteractive",
       "-WindowStyle",
       "Hidden",
-      "-Command",
-      WINDOWS_UPDATE_LAUNCH_SCRIPT,
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
     ])
+    .arg(&script_path)
+    .arg("-ParentProcessId")
     .arg(std::process::id().to_string())
+    .arg("-InstallerPath")
     .arg(path)
-    .args(WINDOWS_UPDATE_INSTALLER_ARGUMENTS)
+    .arg("-ReadyPath")
+    .arg(&ready_path)
+    .arg("-LogPath")
+    .arg(&log_path)
     .stdin(Stdio::null())
     .stdout(Stdio::null())
     .stderr(Stdio::null())
     .spawn()
     .context("unable to schedule the Windows app update installer")?;
-  Ok(())
+
+  let started = std::time::Instant::now();
+  loop {
+    if ready_path.is_file() {
+      return Ok(());
+    }
+    if let Some(status) = launcher
+      .try_wait()
+      .context("unable to inspect the Windows app update launcher")?
+    {
+      let detail = std::fs::read_to_string(&log_path)
+        .unwrap_or_else(|_| "launcher did not produce a log".to_owned());
+      bail!("Windows app update launcher exited before it was ready ({status}): {detail}");
+    }
+    if started.elapsed() >= WINDOWS_UPDATE_LAUNCHER_READY_TIMEOUT {
+      let _ = launcher.kill();
+      let _ = launcher.wait();
+      bail!("Windows app update launcher did not become ready within 5 seconds");
+    }
+    std::thread::sleep(Duration::from_millis(25));
+  }
+}
+
+#[cfg(target_os = "windows")]
+fn remove_windows_update_launcher_file(path: &Path) -> anyhow::Result<()> {
+  match std::fs::remove_file(path) {
+    Ok(()) => Ok(()),
+    Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+    Err(error) => Err(error.into()),
+  }
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -1636,6 +1772,7 @@ pub fn run() {
       check_app_update,
       set_app_update_menu_state,
       download_app_update,
+      cancel_app_update_download,
       install_downloaded_app_update,
       open_app_release_notes,
       reveal_php_ini,

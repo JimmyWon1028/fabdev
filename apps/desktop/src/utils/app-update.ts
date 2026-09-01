@@ -42,6 +42,11 @@ export interface AppUpdateDownloadEstimate {
   remainingSeconds: number | null
 }
 
+export function isAppUpdateDownloadCancellation(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.toLowerCase().includes('windows update download was cancelled')
+}
+
 export function updateDownloadPercent(progress: AppUpdateDownloadProgress | null): number {
   if (!progress || progress.totalBytes <= 0) {
     return 0

@@ -144,10 +144,33 @@ pub async fn download_app_update<F>(
   current_version: &str,
   platform: &str,
   architecture: &str,
-  mut on_progress: F,
+  on_progress: F,
 ) -> anyhow::Result<DownloadedAppUpdate>
 where
   F: FnMut(u64, u64),
+{
+  download_app_update_with_cancellation(
+    cache_directory,
+    current_version,
+    platform,
+    architecture,
+    on_progress,
+    || false,
+  )
+  .await
+}
+
+pub async fn download_app_update_with_cancellation<F, C>(
+  cache_directory: &Path,
+  current_version: &str,
+  platform: &str,
+  architecture: &str,
+  mut on_progress: F,
+  is_cancelled: C,
+) -> anyhow::Result<DownloadedAppUpdate>
+where
+  F: FnMut(u64, u64),
+  C: Fn() -> bool + Sync,
 {
   let client = http_client()?;
   let manifest = fetch_stable_manifest(&client).await?;
@@ -185,7 +208,7 @@ where
         target: &target,
       },
       &mut on_progress,
-      &|| false,
+      &is_cancelled,
     )
     .await
   } else {

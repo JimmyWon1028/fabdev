@@ -26,7 +26,7 @@ import type {
   AppUpdateDownloadRateSample,
   DownloadedAppUpdate
 } from '../utils/app-update'
-import { estimateUpdateDownload } from '../utils/app-update'
+import { estimateUpdateDownload, isAppUpdateDownloadCancellation } from '../utils/app-update'
 import {
   loadAutoCheckUpdates,
   loadAutoStartServices,
@@ -49,6 +49,8 @@ interface StoreState {
   autoCheckUpdates: boolean
   lastUpdateCheck: string | null
   appUpdateBusy: boolean
+  appUpdateDownloading: boolean
+  appUpdateCancelling: boolean
   appUpdateError: string | null
   appUpdate: AppUpdateCheck | null
   appUpdateDownload: AppUpdateDownloadProgress | null
@@ -83,6 +85,8 @@ export const useAppStore = defineStore('fabdev', {
     autoCheckUpdates: loadAutoCheckUpdates(),
     lastUpdateCheck: loadLastUpdateCheck(),
     appUpdateBusy: false,
+    appUpdateDownloading: false,
+    appUpdateCancelling: false,
     appUpdateError: null,
     appUpdate: null,
     appUpdateDownload: null,
@@ -183,6 +187,8 @@ export const useAppStore = defineStore('fabdev', {
     },
     async downloadAppUpdate() {
       this.appUpdateBusy = true
+      this.appUpdateDownloading = true
+      this.appUpdateCancelling = false
       this.appUpdateError = null
       this.appUpdateDownload = null
       this.appUpdateDownloadRateSample = null
@@ -193,10 +199,30 @@ export const useAppStore = defineStore('fabdev', {
         this.downloadedAppUpdate = download
         return download
       } catch (error) {
-        this.appUpdateError = error instanceof Error ? error.message : String(error)
+        if (isAppUpdateDownloadCancellation(error)) {
+          this.appUpdateDownload = null
+          this.appUpdateDownloadRateSample = null
+          this.appUpdateDownloadBytesPerSecond = 0
+          this.appUpdateDownloadRemainingSeconds = null
+        } else {
+          this.appUpdateError = error instanceof Error ? error.message : String(error)
+        }
         throw error
       } finally {
         this.appUpdateBusy = false
+        this.appUpdateDownloading = false
+        this.appUpdateCancelling = false
+      }
+    },
+    async cancelAppUpdateDownload() {
+      this.appUpdateCancelling = true
+      this.appUpdateError = null
+      try {
+        await invoke<void>('cancel_app_update_download')
+      } catch (error) {
+        this.appUpdateCancelling = false
+        this.appUpdateError = error instanceof Error ? error.message : String(error)
+        throw error
       }
     },
     async openAppReleaseNotes() {
