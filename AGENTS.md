@@ -22,6 +22,8 @@ fabDev 是 macOS 優先、最終支援 Windows 的 ERP Web 本機開發工具。
 
 Desktop 只透過明確定義的 Tauri Command 呼叫 Core Agent。Agent 使用版本化 JSON Protocol 與 Unix Socket；變更 request 或 response 時，必須同步修改 `crates/core/src/protocol.rs` 與 `packages/contracts/src/index.ts`。本機狀態使用 SQLite，可進版控的 Site 設定預留 `fabdev.yml`。平台差異應收斂在 `crates/platform/` 或 `helpers/`，不得散落於共用 Domain Logic。Runtime 安裝到 fabDev Application Support，使用版本目錄與 `current` 連結；封裝內的 Mach-O 不得保留 `/opt/homebrew` 執行期依賴。
 
+fabDev 是同一個跨平台產品。除非作業系統或底層工具有明確且無法合理克服的技術限制，Windows 與 macOS 的功能範圍、使用者操作、狀態提示、取消／重試、錯誤處理及資料契約都必須保持一致。先完成某一平台只代表開發順序，不得成為另一平台省略功能的理由；開始後續平台版本前，必須逐項比對先完成平台的既有功能，禁止以未說明的 `platform` 條件靜默隱藏功能。若確實做不到或必須延後，需先記錄技術原因、影響、替代操作及預計處理版本，明確告知 Repository Owner 並取得確認，同時在 UI、測試與 Release Notes 標示平台差異。
+
 fabDev Managed MariaDB 必須同時支援本機 PHP 專案以 `127.0.0.1` TCP 與 `localhost` Unix Socket 登入；兩種連線的 `root` 密碼必須同步，PHP-FPM 的 `mysqli`／`PDO MySQL` 預設 Socket 必須指向 fabDev 管理的 MariaDB Socket，不得依賴或覆蓋系統的 `/tmp/mysql.sock`。App 啟動時必須恢復使用者上次明確選擇的 MariaDB 啟動／停止狀態；Quit 或 Agent 升級為了清理程序而暫時停止 MariaDB 時，不得把偏好覆寫為停止。
 
 MariaDB 連線來源不提供手動選項。fabDev Managed MariaDB 實際啟動時，PHP-FPM 的 `mysqli`／`PDO MySQL` 預設 Socket 必須自動指向 fabDev 管理的 MariaDB Socket；未安裝或已安裝但停止時，自動使用 System／Homebrew MariaDB Socket，並確保 PHP 專案與 Adminer 可直接以 `localhost` 登入。Managed MariaDB 啟動或停止後必須立即重新產生並套用 PHP-FPM 設定，不得依賴使用者開啟 MariaDB 頁面或手動儲存設定。
