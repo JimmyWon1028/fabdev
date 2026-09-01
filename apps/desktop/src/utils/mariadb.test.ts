@@ -9,6 +9,7 @@ describe('MariaDB configuration presets', () => {
 
   it('provides the validated ERP preset without fabDev-managed options', () => {
     expect(ERP_MARIADB_CONFIG).toContain('character-set-server = utf8')
+    expect(ERP_MARIADB_CONFIG).toContain('collation-server = utf8_unicode_ci')
     expect(ERP_MARIADB_CONFIG).toContain('innodb_buffer_pool_size = 4G')
     expect(ERP_MARIADB_CONFIG).toContain('query_cache_size = 0')
     expect(ERP_MARIADB_CONFIG).not.toContain('datadir')

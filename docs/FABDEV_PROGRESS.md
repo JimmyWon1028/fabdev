@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-09-01
-> 目前階段：`v0.1.15` 已完成 Windows x64／macOS ARM64 跨平台 Stable Release、30 個 Assets 重新下載驗證與公開 Feed 驗收；Windows x64 VM 的 VC Runtime 缺失引導、安裝重試與 Proxy 網域連線均已通過，0.1.14 新 launcher 發起更新與中途取消的完整 UI 驗收仍待後續補測
+> 目前階段：`0.1.17` Windows Gate 2 針對性修正已完成，正進入 Gate 3 單次 Windows x64 CI 與 NSIS 候選驗證；macOS 跳過 `0.1.16` 並暫不處理。CI 通過後的安裝／移除／更新實機驗收由 Repository Owner 執行，未通過前不發布
 
 ## 已完成
 

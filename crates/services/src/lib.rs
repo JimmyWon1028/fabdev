@@ -1513,10 +1513,14 @@ fn save_mariadb_desired_state(paths: &AppPaths, running: bool) -> Result<()> {
 fn default_mariadb_settings(paths: &AppPaths, port: u16) -> MariaDbSettings {
   MariaDbSettings {
     port,
-    data_dir: paths.services.join("mariadb/data"),
+    data_dir: default_mariadb_data_dir(paths),
     connection_mode: MariaDbConnectionMode::Managed,
     system_socket: default_mariadb_system_socket(),
   }
+}
+
+fn default_mariadb_data_dir(paths: &AppPaths) -> PathBuf {
+  paths.services.join("mariadb/data")
 }
 
 fn load_mariadb_settings(paths: &AppPaths, default_port: u16) -> Result<MariaDbSettings> {
@@ -1555,7 +1559,36 @@ fn load_mariadb_settings(paths: &AppPaths, default_port: u16) -> Result<MariaDbS
   if !settings_file_exists && settings.connection_mode == MariaDbConnectionMode::Managed {
     return Ok(settings);
   }
+  restore_missing_default_mariadb_data_dir(paths, &mut settings)?;
   validate_mariadb_settings(settings)
+}
+
+fn restore_missing_default_mariadb_data_dir(
+  paths: &AppPaths,
+  settings: &mut MariaDbSettings,
+) -> Result<()> {
+  if settings.connection_mode != MariaDbConnectionMode::Managed || settings.data_dir.exists() {
+    return Ok(());
+  }
+  let default_data_dir = default_mariadb_data_dir(paths);
+  if !mariadb_data_dirs_match(&settings.data_dir, &default_data_dir) {
+    return Ok(());
+  }
+  std::fs::create_dir_all(&default_data_dir).with_context(|| {
+    format!(
+      "unable to restore the default MariaDB data directory: {}",
+      user_visible_path(&default_data_dir)
+    )
+  })?;
+  settings.data_dir = default_data_dir;
+  Ok(())
+}
+
+fn mariadb_data_dirs_match(left: &Path, right: &Path) -> bool {
+  if cfg!(windows) {
+    return normalize_windows_path(left) == normalize_windows_path(right);
+  }
+  left == right
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -1581,13 +1614,13 @@ fn validate_mariadb_settings(mut settings: MariaDbSettings) -> Result<MariaDbSet
   let data_dir = settings.data_dir.canonicalize().with_context(|| {
     format!(
       "MariaDB data directory does not exist: {}",
-      settings.data_dir.display()
+      user_visible_path(&settings.data_dir)
     )
   })?;
   if !data_dir.is_dir() {
     bail!(
       "MariaDB data path is not a directory: {}",
-      data_dir.display()
+      user_visible_path(&data_dir)
     );
   }
   if data_dir.parent().is_none() {
@@ -1597,7 +1630,7 @@ fn validate_mariadb_settings(mut settings: MariaDbSettings) -> Result<MariaDbSet
   if has_entries && !data_dir.join("mysql").is_dir() {
     bail!(
       "MariaDB data directory must be empty or contain an existing MariaDB database: {}",
-      data_dir.display()
+      user_visible_path(&data_dir)
     );
   }
   settings.data_dir = data_dir;
@@ -2576,15 +2609,26 @@ async fn stop_untracked_mariadb_processes(
   Ok(())
 }
 
-#[cfg(any(windows, test))]
-fn normalize_windows_executable_path(path: &Path) -> String {
+fn windows_path_without_verbatim_prefix(path: &Path) -> String {
   let path = path.to_string_lossy();
-  let path = path
+  path
     .strip_prefix(r"\\?\UNC\")
     .map(|path| format!(r"\\{path}"))
     .or_else(|| path.strip_prefix(r"\\?\").map(str::to_owned))
-    .unwrap_or_else(|| path.into_owned());
-  path.replace('\\', "/").to_lowercase()
+    .unwrap_or_else(|| path.into_owned())
+}
+
+fn user_visible_path(path: &Path) -> String {
+  if cfg!(windows) {
+    return windows_path_without_verbatim_prefix(path);
+  }
+  path.display().to_string()
+}
+
+fn normalize_windows_path(path: &Path) -> String {
+  windows_path_without_verbatim_prefix(path)
+    .replace('\\', "/")
+    .to_lowercase()
 }
 
 #[cfg(any(windows, test))]
@@ -2596,24 +2640,24 @@ fn windows_path_is_under(path: &str, root: &str) -> bool {
 
 #[cfg(any(windows, test))]
 fn windows_runtime_family_root(runtime: &Path) -> String {
-  normalize_windows_executable_path(runtime)
+  normalize_windows_path(runtime)
     .strip_suffix("/current")
     .map(str::to_owned)
-    .unwrap_or_else(|| normalize_windows_executable_path(runtime))
+    .unwrap_or_else(|| normalize_windows_path(runtime))
 }
 
 #[cfg(any(windows, test))]
 fn is_managed_windows_web_executable(path: &Path, runtimes: &RuntimePaths) -> bool {
-  let path = normalize_windows_executable_path(path);
+  let path = normalize_windows_path(path);
   let nginx_root = windows_runtime_family_root(&runtimes.nginx);
-  let php_root = normalize_windows_executable_path(&runtimes.php);
+  let php_root = normalize_windows_path(&runtimes.php);
   (windows_path_is_under(&path, &nginx_root) && path.ends_with("/nginx.exe"))
     || (windows_path_is_under(&path, &php_root) && path.ends_with("/php-cgi.exe"))
 }
 
 #[cfg(any(windows, test))]
 fn is_managed_windows_mariadb_executable(path: &Path, runtimes: &RuntimePaths) -> bool {
-  let path = normalize_windows_executable_path(path);
+  let path = normalize_windows_path(path);
   let mariadb_root = windows_runtime_family_root(&runtimes.mariadb);
   windows_path_is_under(&path, &mariadb_root) && path.ends_with("/mariadbd.exe")
 }
@@ -3772,6 +3816,87 @@ mod tests {
       escape_mariadb_quoted_value(&saved.data_dir.to_string_lossy())
     )));
     std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn restores_a_missing_default_mariadb_data_directory() {
+    let root = std::env::temp_dir().join(format!("fabdev-mariadb-restore-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(root.join("data"));
+    paths.ensure().expect("create app paths");
+    let data_dir = default_mariadb_data_dir(&paths);
+    std::fs::create_dir_all(&data_dir).expect("create default MariaDB data directory");
+    save_mariadb_settings_file(
+      &paths,
+      &MariaDbSettings {
+        port: 3306,
+        data_dir: data_dir.clone(),
+        connection_mode: MariaDbConnectionMode::Managed,
+        system_socket: default_mariadb_system_socket(),
+      },
+    )
+    .expect("save default MariaDB settings");
+    std::fs::remove_dir_all(paths.services.join("mariadb"))
+      .expect("simulate deleting the MariaDB service directory");
+
+    let loaded = load_mariadb_settings(&paths, 3306)
+      .expect("restore the missing default MariaDB data directory");
+
+    assert!(data_dir.is_dir());
+    assert_eq!(
+      loaded.data_dir,
+      data_dir
+        .canonicalize()
+        .expect("resolve restored data directory")
+    );
+    assert!(std::fs::read_dir(&data_dir)
+      .expect("read restored data directory")
+      .next()
+      .is_none());
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn does_not_restore_a_missing_custom_mariadb_data_directory() {
+    let root = std::env::temp_dir().join(format!("fabdev-mariadb-custom-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(root.join("data"));
+    paths.ensure().expect("create app paths");
+    let custom_data_dir = root.join("external/mariadb-data");
+    std::fs::create_dir_all(&custom_data_dir).expect("create custom MariaDB data directory");
+    save_mariadb_settings_file(
+      &paths,
+      &MariaDbSettings {
+        port: 3306,
+        data_dir: custom_data_dir.clone(),
+        connection_mode: MariaDbConnectionMode::Managed,
+        system_socket: default_mariadb_system_socket(),
+      },
+    )
+    .expect("save custom MariaDB settings");
+    std::fs::remove_dir_all(&custom_data_dir)
+      .expect("simulate an unavailable custom MariaDB data directory");
+
+    let error = load_mariadb_settings(&paths, 3306)
+      .expect_err("reject the missing custom MariaDB data directory");
+
+    assert!(error
+      .to_string()
+      .contains("MariaDB data directory does not exist"));
+    assert!(!custom_data_dir.exists());
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn removes_windows_verbatim_prefixes_from_user_visible_paths() {
+    assert_eq!(
+      windows_path_without_verbatim_prefix(Path::new(
+        r"\\?\C:\Users\jimmywon\AppData\Local\fabDev\data"
+      )),
+      r"C:\Users\jimmywon\AppData\Local\fabDev\data"
+    );
+    assert_eq!(
+      windows_path_without_verbatim_prefix(Path::new(r"\\?\UNC\server\share\fabDev")),
+      r"\\server\share\fabDev"
+    );
   }
 
   #[test]

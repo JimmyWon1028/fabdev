@@ -313,6 +313,8 @@ Publish 後以未帶 GitHub Token 的 Latest Manifest 與 Runtime Catalog 取得
 
 ## 常見問題快速對照
 
+0.1.13～0.1.16 的 VC Runtime、Proxy Hosts、Agent 檔案鎖定、啟動錯誤記錄與尚未確認的 `Forbidden` 經驗，集中記錄於 [`WINDOWS_0.1.13_TO_0.1.16_FIELD_NOTES.md`](WINDOWS_0.1.13_TO_0.1.16_FIELD_NOTES.md)。
+
 | 症狀 | 優先檢查 |
 | --- | --- |
 | Nginx validation 找不到 `logs/error.log` | Agent 是否在 `nginx -t` 前建立 `logs` 與 `temp` |

@@ -47,6 +47,15 @@ System／Homebrew MariaDB Socket 屬於內部連線細節，不顯示於一般 M
 
 此規則只免除上述重複人工流程；版本、建置、自動測試、Manifest、Runtime Catalog、Release Assets 與 SHA-256 完整性仍須依發布流程驗證。若安裝或更新程序後續有變更，則必須恢復相應的人工回歸驗收。
 
+Windows 修正與發布採分段 Gate，不得因每個小問題重跑整套流程：
+
+1. 問題重現與證據：先確認錯誤來源、影響範圍及必要 log，不修改、不打包。
+2. 針對性修正：相關小修改只跑直接單元／靜態測試、typecheck、format 與 `git diff --check`；同一批問題完成前不觸發完整 Windows CI。
+3. Windows 候選：同一批修正完成後只跑一次 Windows x64 CI 與 NSIS 靜態驗證；CI 成功不得宣稱已通過實機啟動。
+4. Repository Owner 實機 Gate：預設由 Repository Owner 測試安裝、啟動、移除、更新等耗時 Windows 流程，Codex 提供候選、步驟及通過標準；除非 Repository Owner 明確要求，Codex 不自行重跑這些實機流程。
+5. 只有 Repository Owner 明確回報目前 Gate 通過後，才進入下一 Gate。任一 Gate 失敗即停止，不執行後續完整 Runtime、跨平台或發布驗證。
+6. Stable 發布前再集中執行一次實際受影響的必要驗證；Windows-only 修正不得因此打包或重測 macOS，也不得重跑未受影響的 PHP、MariaDB、Node.js、HTTPS 完整人工流程。
+
 ## HTTPS、Helper 與 MCP 開發經驗
 
 - 修改 macOS Helper 的固定 Proxy、plist、簽章或 bundle identifier 後，只重啟 App／Agent 不會更新已安裝的 LaunchDaemon；必須先重新建置，再使用專案安裝程序替換 Helper，並驗證實際載入版本與 53／80／443 listener。
