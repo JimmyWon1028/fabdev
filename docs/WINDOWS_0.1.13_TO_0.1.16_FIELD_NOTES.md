@@ -131,7 +131,7 @@ MariaDB Runtime、Data Directory、設定與 Log 使用不同位置。使用者�
 
 ## 0.1.17 Windows 候選證據
 
-### 替代候選（等待 Gate 4）
+### 替代候選（Gate 4 已通過）
 
 - Commit：`cfd9f22f024f29960ed1416c06af0e8af4f5f745`。
 - GitHub Actions Windows x64 Run：`33500683364`，單次 push 觸發，全部步驟成功，執行時間 6 分 18 秒。
@@ -142,7 +142,7 @@ MariaDB Runtime、Data Directory、設定與 Log 使用不同位置。使用者�
 - 替代 Installer 的大小與 SHA-256 均不同於第一份候選，確認不是重複上傳舊成品。
 - CI 唯一提示是 GitHub Actions 將使用 Node.js 20 runtime 的既有 actions 強制改以 Node.js 24 執行，不影響 fabDev 建置或候選內容。
 - 候選只存在 Actions artifact；未建立 Tag、Draft、Pre-release 或 Stable Release，也未處理 macOS。
-- Gate 3 只證明 CI 與靜態封裝正確。Gate 4 仍由 Repository Owner 保留原始 190-byte `my.ini` 現場，實機驗證自動清理已知半成品及 MariaDB 重新初始化；未回報通過前不得發布。
+- Gate 3 完成後，Repository Owner 保留原始 190-byte `my.ini` 現場安裝替代候選，實機驗證自動清理已知半成品及 MariaDB 重新初始化，並明確回報測試通過。此結果只通過本次受影響的 Windows MariaDB Gate 4；未另行重跑安裝／移除／更新、PHP、Node.js、HTTPS 或 macOS 完整人工流程。
 
 ### 第一份候選（已作廢）
 
