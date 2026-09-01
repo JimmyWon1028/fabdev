@@ -16,6 +16,26 @@ function digest(contents) {
   return createHash('sha256').update(contents).digest('hex')
 }
 
+test('blocks Windows installation until the x64 Visual C++ Runtime is complete', async () => {
+  const hooks = await readFile(
+    join(repoRoot, 'apps/desktop/src-tauri/windows/installer-hooks.nsh'),
+    'utf8'
+  )
+
+  assert.match(hooks, /!macro NSIS_HOOK_PREINSTALL/)
+  assert.match(hooks, /VC\\Runtimes\\x64" "Installed"/)
+  assert.match(hooks, /\$WINDIR\\Sysnative\\VCRUNTIME140\.dll/)
+  assert.match(hooks, /\$WINDIR\\System32\\VCRUNTIME140\.dll/)
+  assert.match(hooks, /https:\/\/aka\.ms\/vc14\/vc_redist\.x64\.exe/)
+  assert.match(hooks, /\$\(FabDevVcRuntimeRequired\)/)
+  assert.match(hooks, /\$\{Silent\}/)
+  assert.match(hooks, /ExecShell "open"/)
+
+  const preinstall = hooks.indexOf('!macro NSIS_HOOK_PREINSTALL')
+  const preuninstall = hooks.indexOf('!macro NSIS_HOOK_PREUNINSTALL')
+  assert.ok(preinstall >= 0 && preinstall < preuninstall)
+})
+
 test('prepares canonical release assets, checksums, and manifests', async (context) => {
   const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-test-'))
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
