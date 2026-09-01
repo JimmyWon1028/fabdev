@@ -141,6 +141,27 @@ MariaDB Runtime、Data Directory、設定與 Log 使用不同位置。使用者�
 - 候選只存在於 Actions artifact；未建立 Tag、Draft、Pre-release 或 Stable Release，也未處理 macOS。
 - CI 與靜態驗證通過不等於 Windows 實機通過。Gate 4 仍由 Repository Owner 驗證安裝／啟動及本次 MariaDB 修正，未回報通過前不得進入後續發布 Gate。
 
+### 第一份 0.1.17 候選的 Gate 4 失敗證據
+
+Repository Owner 在 Windows x64 實機保留原始現場並回傳目錄與 Log。fabDev Agent 0.1.17 正常啟動，預設 MariaDB Data Directory 也已由 0.1.17 重建，因此「目錄不存在」與 UI `\\?\` 顯示問題確實已排除；但安裝／初始化後畫面改為回報目錄非空且缺少完整 MariaDB database。
+
+Data Directory 當時只有一個 190-byte、由 Windows `mariadb-install-db.exe` 產生的 `my.ini`：
+
+```ini
+[mysqld]
+datadir=//?/C:/Users/jimmywon/AppData/Local/fabDev/data/services/mariadb/data
+[client]
+plugin-dir=C:\Users\jimmywon\AppData\Local\FabDev\data\runtimes\mariadb\12.3.2/lib/plugin
+```
+
+根因是 `canonicalize()` 在 Windows 產生 `\\?\C:\...` verbatim path，0.1.17 第一份候選仍把這個內部格式直接傳給 `mariadb-install-db.exe`；安裝器將它改寫成 `//?/C:/...` 後只留下 `my.ini`，未建立 `mysql` 系統資料夾。後續設定載入的非空目錄保護再拒絕這個半成品，因而遮蔽第一次初始化錯誤並讓重試無法自行恢復。
+
+同版本替代修正採兩層保護：傳給 Windows MariaDB 初始化器的 Data Directory 先移除 verbatim prefix；載入設定時只在 fabDev 預設 Managed Data Directory、目錄只有單一普通 `my.ini`、檔案小於 4 KiB、固定四行內容且 datadir／plugin-dir 都指向 fabDev 管理位置時，才移除已知半成品。自訂路徑、額外檔案、未知 `my.ini`、非普通檔案或非 fabDev Runtime plugin-dir 一律保留並繼續拒絕，不做猜測性刪除。
+
+針對性回歸測試已通過：真實失敗內容辨識、`\\?\C:\...` 安裝參數轉為一般 Windows 路徑、`//?/C:/...` 正規化、已知單一半成品清理、含額外使用者檔案時保留、自訂 `my.ini` 保留、預設目錄遺失復原、自訂目錄遺失拒絕，以及原有非資料庫目錄拒絕。Clippy、rustfmt 與 `git diff --check` 通過。尚未 Commit、Push 或觸發替代 Windows CI。
+
+同份 Agent log 另顯示 PHP 8.2 FPM status 持續回傳 HTTP 404 並重複寫入 `agent-process.log`。這不是 MariaDB 初始化原因，本批只記錄為獨立問題，不混入替代候選修正；之後需另以 FPM status route、Nginx location 與輪詢節流證據進入自己的 Gate。
+
 ## 0.1.16 Windows 候選證據
 
 - Commit：`b854d23d9ebb144fff3a6780d1c35f0f4685421f`

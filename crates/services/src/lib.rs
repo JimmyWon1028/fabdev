@@ -1560,6 +1560,7 @@ fn load_mariadb_settings(paths: &AppPaths, default_port: u16) -> Result<MariaDbS
     return Ok(settings);
   }
   restore_missing_default_mariadb_data_dir(paths, &mut settings)?;
+  restore_incomplete_default_mariadb_initialization(paths, &settings, cfg!(windows))?;
   validate_mariadb_settings(settings)
 }
 
@@ -1585,10 +1586,83 @@ fn restore_missing_default_mariadb_data_dir(
 }
 
 fn mariadb_data_dirs_match(left: &Path, right: &Path) -> bool {
-  if cfg!(windows) {
+  mariadb_data_dirs_match_for_platform(left, right, cfg!(windows))
+}
+
+fn mariadb_data_dirs_match_for_platform(left: &Path, right: &Path, windows_paths: bool) -> bool {
+  if windows_paths {
     return normalize_windows_path(left) == normalize_windows_path(right);
   }
   left == right
+}
+
+fn restore_incomplete_default_mariadb_initialization(
+  paths: &AppPaths,
+  settings: &MariaDbSettings,
+  windows_paths: bool,
+) -> Result<()> {
+  if !windows_paths || settings.connection_mode != MariaDbConnectionMode::Managed {
+    return Ok(());
+  }
+  let default_data_dir = default_mariadb_data_dir(paths);
+  if !mariadb_data_dirs_match_for_platform(&settings.data_dir, &default_data_dir, windows_paths)
+    || !settings.data_dir.is_dir()
+  {
+    return Ok(());
+  }
+  let mut entries = std::fs::read_dir(&settings.data_dir)?;
+  let Some(entry) = entries.next().transpose()? else {
+    return Ok(());
+  };
+  if entries.next().transpose()?.is_some()
+    || !entry
+      .file_name()
+      .to_string_lossy()
+      .eq_ignore_ascii_case("my.ini")
+    || !entry.file_type()?.is_file()
+    || entry.metadata()?.len() > 4096
+  {
+    return Ok(());
+  }
+  let contents = std::fs::read_to_string(entry.path())?;
+  if !is_windows_mariadb_install_db_stub(paths, &default_data_dir, &contents) {
+    return Ok(());
+  }
+  std::fs::remove_file(entry.path()).with_context(|| {
+    format!(
+      "unable to remove incomplete MariaDB initialization file: {}",
+      user_visible_path(&entry.path())
+    )
+  })?;
+  Ok(())
+}
+
+fn is_windows_mariadb_install_db_stub(
+  paths: &AppPaths,
+  default_data_dir: &Path,
+  contents: &str,
+) -> bool {
+  let mut lines = contents
+    .lines()
+    .map(str::trim)
+    .filter(|line| !line.is_empty());
+  let matches = lines.next() == Some("[mysqld]")
+    && lines
+      .next()
+      .and_then(|line| line.strip_prefix("datadir="))
+      .is_some_and(|value| {
+        mariadb_data_dirs_match_for_platform(Path::new(value), default_data_dir, true)
+      })
+    && lines.next() == Some("[client]")
+    && lines
+      .next()
+      .and_then(|line| line.strip_prefix("plugin-dir="))
+      .is_some_and(|value| {
+        let plugin_dir = normalize_windows_path(Path::new(value));
+        let runtime_root = normalize_windows_path(&paths.runtimes.join("mariadb"));
+        windows_path_is_under(&plugin_dir, &runtime_root) && plugin_dir.ends_with("/lib/plugin")
+      });
+  matches && lines.next().is_none()
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -1822,7 +1896,7 @@ fn mariadb_install_args(config: &GeneratedMariaDbConfig) -> Vec<String> {
   #[cfg(windows)]
   {
     vec![
-      format!("--datadir={}", config.data.display()),
+      mariadb_install_data_dir_argument(&config.data, true),
       "--silent".to_owned(),
     ]
   }
@@ -1836,6 +1910,16 @@ fn mariadb_install_args(config: &GeneratedMariaDbConfig) -> Vec<String> {
       "--skip-test-db".to_owned(),
     ]
   }
+}
+
+#[cfg(any(windows, test))]
+fn mariadb_install_data_dir_argument(data_dir: &Path, windows_path: bool) -> String {
+  let data_dir = if windows_path {
+    windows_path_without_verbatim_prefix(data_dir)
+  } else {
+    data_dir.display().to_string()
+  };
+  format!("--datadir={data_dir}")
 }
 
 fn escape_nginx_quoted_value(value: &str) -> String {
@@ -2614,7 +2698,13 @@ fn windows_path_without_verbatim_prefix(path: &Path) -> String {
   path
     .strip_prefix(r"\\?\UNC\")
     .map(|path| format!(r"\\{path}"))
+    .or_else(|| {
+      path
+        .strip_prefix("//?/UNC/")
+        .map(|path| format!("//{path}"))
+    })
     .or_else(|| path.strip_prefix(r"\\?\").map(str::to_owned))
+    .or_else(|| path.strip_prefix("//?/").map(str::to_owned))
     .unwrap_or_else(|| path.into_owned())
 }
 
@@ -2631,7 +2721,6 @@ fn normalize_windows_path(path: &Path) -> String {
     .to_lowercase()
 }
 
-#[cfg(any(windows, test))]
 fn windows_path_is_under(path: &str, root: &str) -> bool {
   path
     .strip_prefix(root)
@@ -3886,12 +3975,108 @@ mod tests {
   }
 
   #[test]
+  fn removes_only_a_known_incomplete_windows_mariadb_initialization_file() {
+    let root = std::env::temp_dir().join(format!("fabdev-mariadb-partial-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(root.join("data"));
+    paths.ensure().expect("create app paths");
+    let data_dir = default_mariadb_data_dir(&paths);
+    std::fs::create_dir_all(&data_dir).expect("create default MariaDB data directory");
+    let partial = data_dir.join("my.ini");
+    std::fs::write(
+      &partial,
+      format!(
+        "[mysqld]\r\ndatadir={}\r\n[client]\r\nplugin-dir={}/lib/plugin\r\n",
+        data_dir.display(),
+        paths.runtimes.join("mariadb/12.3.2").display()
+      ),
+    )
+    .expect("write incomplete MariaDB initialization file");
+    let settings = default_mariadb_settings(&paths, 3306);
+
+    restore_incomplete_default_mariadb_initialization(&paths, &settings, true)
+      .expect("remove known incomplete MariaDB initialization file");
+
+    assert!(!partial.exists());
+    assert!(std::fs::read_dir(&data_dir)
+      .expect("read recovered MariaDB data directory")
+      .next()
+      .is_none());
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn preserves_unknown_or_nonexclusive_mariadb_data_directory_contents() {
+    let root = std::env::temp_dir().join(format!("fabdev-mariadb-preserve-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(root.join("data"));
+    paths.ensure().expect("create app paths");
+    let data_dir = default_mariadb_data_dir(&paths);
+    std::fs::create_dir_all(&data_dir).expect("create default MariaDB data directory");
+    let partial = data_dir.join("my.ini");
+    let generated_stub = format!(
+      "[mysqld]\ndatadir={}\n[client]\nplugin-dir={}/lib/plugin\n",
+      data_dir.display(),
+      paths.runtimes.join("mariadb/12.3.2").display()
+    );
+    std::fs::write(&partial, &generated_stub).expect("write MariaDB initialization file");
+    std::fs::write(data_dir.join("keep.txt"), "user data").expect("write unrelated user file");
+    let settings = default_mariadb_settings(&paths, 3306);
+
+    restore_incomplete_default_mariadb_initialization(&paths, &settings, true)
+      .expect("preserve nonexclusive data directory");
+    assert!(partial.is_file());
+
+    std::fs::remove_file(data_dir.join("keep.txt")).expect("remove unrelated fixture");
+    std::fs::write(&partial, "[mysqld]\nport=3307\n").expect("write custom MariaDB config");
+    restore_incomplete_default_mariadb_initialization(&paths, &settings, true)
+      .expect("preserve unknown my.ini");
+    assert_eq!(
+      std::fs::read_to_string(&partial).expect("read preserved custom config"),
+      "[mysqld]\nport=3307\n"
+    );
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn recognizes_the_windows_mariadb_installer_stub_from_the_failed_candidate() {
+    let paths = AppPaths::from_root(PathBuf::from(
+      r"C:\Users\jimmywon\AppData\Local\fabDev\data",
+    ));
+    let contents = "[mysqld]\n\
+datadir=//?/C:/Users/jimmywon/AppData/Local/fabDev/data/services/mariadb/data\n\
+[client]\n\
+plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\\12.3.2/lib/plugin\n";
+
+    assert!(is_windows_mariadb_install_db_stub(
+      &paths,
+      &default_mariadb_data_dir(&paths),
+      contents
+    ));
+  }
+
+  #[test]
+  fn passes_a_normal_windows_path_to_the_mariadb_installer() {
+    assert_eq!(
+      mariadb_install_data_dir_argument(
+        Path::new(r"\\?\C:\Users\jimmywon\AppData\Local\fabDev\data\services\mariadb\data"),
+        true
+      ),
+      r"--datadir=C:\Users\jimmywon\AppData\Local\fabDev\data\services\mariadb\data"
+    );
+  }
+
+  #[test]
   fn removes_windows_verbatim_prefixes_from_user_visible_paths() {
     assert_eq!(
       windows_path_without_verbatim_prefix(Path::new(
         r"\\?\C:\Users\jimmywon\AppData\Local\fabDev\data"
       )),
       r"C:\Users\jimmywon\AppData\Local\fabDev\data"
+    );
+    assert_eq!(
+      windows_path_without_verbatim_prefix(Path::new(
+        "//?/C:/Users/jimmywon/AppData/Local/fabDev/data"
+      )),
+      "C:/Users/jimmywon/AppData/Local/fabDev/data"
     );
     assert_eq!(
       windows_path_without_verbatim_prefix(Path::new(r"\\?\UNC\server\share\fabDev")),
