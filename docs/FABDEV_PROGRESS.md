@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-09-01
-> 目前階段：`v0.1.14` 已完成 Windows x64／macOS ARM64 跨平台 Stable Release、30 個 Assets 重新下載驗證與公開 Feed 驗收；Windows 0.1.12 舊版更新交接失敗已在 VM 重現，0.1.14 手動覆蓋與服務／資料驗收通過，新 launcher 的下一版 UI 更新驗收留待後續 Stable
+> 目前階段：`v0.1.15` 已完成 Windows x64／macOS ARM64 跨平台 Stable Release、30 個 Assets 重新下載驗證與公開 Feed 驗收；Windows x64 VM 的 VC Runtime 缺失引導、安裝重試與 Proxy 網域連線均已通過，0.1.14 新 launcher 發起更新與中途取消的完整 UI 驗收仍待後續補測
 
 ## 已完成
 
@@ -32,6 +32,8 @@
 
 ## 最近驗證
 
+- 2026-09-01：[`v0.1.15`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.15) 已發布為 latest Stable Release，Release ID `380254567`，Tag 固定在 Commit `e121d44c27d671097bd44c7806ee37f085988d42`。GitHub Actions [Run 33473901421](https://github.com/JimmyWon1028/fabdev/actions/runs/33473901421) 的 Windows x64 Installer／Connect／六個 Runtime、macOS ARM64 DMG／四個 Runtime、驗證與 Draft Jobs 全數通過。Release 共 30 個 Assets、685,584,720 bytes；全部重新下載後通過 `SHA256SUMS`、13 份個別 checksum、兩份逐位元一致 App Manifest、Runtime Catalog sequence 9／minimum App 0.1.15、10 個 Runtime gzip 與 Manifest 內 12 個實體資產的大小／SHA-256／URL 逐筆比對。`SHA256SUMS` SHA-256 為 `532bb14641b7b5a443a48622edce58266b97107040da1b1068389e503e1ed7e2`，App／Stable Manifest 為 `5a95b8b8d17e685bf03dd7b85a0d6c1d8da069b4986f4f963536d5230f40c1a6`，Runtime Catalog 為 `9223436f338df5c76609f7bf1b410bdce72cdce94b63ac0e76566e12c9da5690`，DMG 為 `a03dfa809798afbd8730ed64e78f781d069dc22768c3587b276408ac0da62f95`，Windows Setup 為 `77601f7453ffaada6182a09d60d5b36f208c3058a3fb8b3daf652964060567cc`。DMG `hdiutil verify`、內部 checksum、App／Helper codesign、版本 0.1.15 與 Desktop／Agent／Helper ARM64 均通過；Windows NSIS 可解出 x64 Desktop／Agent／Helper。Publish 後 Release、latest、Stable／Runtime Manifest 均由未帶 Token 的公開 URL 回傳 HTTP 200，Setup／DMG Range 回傳 HTTP 206，兩份公開 Manifest 與 Draft 驗證檔逐位元一致，latest 指向 `v0.1.15`；沒有待清理的 Draft。
+- 0.1.15 修正 Windows Proxy 網域未同步至 Hosts、導致部分 Windows x64 VM 無法解析 Proxy `.test` 網域的問題；Agent 會經白名單 Helper 維護獨立 Proxy Hosts 區塊，設定更新、移除、狀態還原與解除安裝都會同步清理。Windows NSIS 另在複製檔案前檢查 Microsoft Visual C++ 2015-2022 x64 Runtime／`VCRUNTIME140.dll`，缺少時開啟官方下載並中止本次安裝，讓使用者安裝 prerequisite 後重試。Repository Owner 已在 Windows x64 VM 驗證 VC Runtime 缺失引導、重試安裝與 Proxy 連線通過；macOS 安裝程序未變，依既定規則沿用先前人工生命週期驗收。
 - 2026-09-01：[`v0.1.14`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.14) 已發布為 latest Stable Release，Tag 固定在 Commit `279f030c6aaa252ba38406f0c069d549950069fa`。GitHub Actions [Run 33462756426](https://github.com/JimmyWon1028/fabdev/actions/runs/33462756426) 的 Windows x64 Installer／Connect／六個 Runtime、macOS ARM64 DMG／四個 Runtime、驗證與 Draft Jobs 全數通過。Release 共 30 個 Assets、685,358,353 bytes；全部重新下載後通過 `SHA256SUMS`、13 份個別 checksum、兩份逐位元一致 App Manifest、Runtime Catalog sequence 8／minimum App 0.1.14、10 個 Runtime gzip 與 DMG `hdiutil verify`。`SHA256SUMS` SHA-256 為 `858a9c7d2f5749e68b87b9f8aa96f0224bfc88412991c1f583d9657c9f95c6a9`，App／Stable Manifest 為 `3409e7e67a620571d3e7bfcca086582b52071ed541928ace76acd9b3949f3ebf`，Runtime Catalog 為 `8f2b525b9041ba6bec41b37957836fa6c6fbc7a593d707cb6f4ce67818c194fe`，DMG 為 `faf8708d840690f9ee68e1fe5d00d935046a0e71e1adb0c7ffd0edf99e7857b8`，Windows Setup 為 `a999a72190ecb5c660a0134367a560cc49dd0e1fda361ed16ad2a26f528aa49a`。Publish 後 Release、latest、App／Runtime Manifest 均由未帶 Token 的公開 URL 回傳 HTTP 200，Setup／DMG Range 回傳 HTTP 206，latest 指向 `v0.1.14`；沒有待清理的 Draft。
 - Windows VM 已以既有 0.1.12 從公開 Stable Feed 偵測、下載並驗證 0.1.14 Setup。按「重新啟動並更新」後，0.1.12 主視窗與 Agent 退出，但 Setup 沒有啟動，磁碟版本維持 0.1.12，重現 Repository Owner 回報；原因是第一次交接仍由已安裝的 0.1.12 舊 launcher 執行，0.1.14 安裝包無法反向改寫舊 App 程式碼。同一個已驗證 Setup 以 `/UPDATE /P /R` 手動覆蓋後成功自動重啟，Desktop／Agent 畫面版本 0.1.14、Desktop 檔案版本 0.1.14、`demo.test` HTTP 200、原 SQLite 24,576 bytes 與 `demo.test.conf` 均保留，DNS／Nginx／PHP-FPM／Proxy 恢復運行。
 - 0.1.14 已加入 Windows 獨立 PowerShell launcher、ready-file handshake、launcher log 與下載取消 Command／UI；完整 `pnpm test`、`pnpm lint`、`git diff --check`、Windows MSVC Actions 及 Windows updater／Desktop 回歸測試通過。0.1.12 本身不會顯示停止下載；0.1.14 發布後已是最新版本，無法在不偽造或替換公開 Stable Feed 的情況下實測「0.1.14 發起下一版更新」及下載中途取消，兩項保留至下一個公開 Patch 做 VM UI 驗收。macOS 本次只重新打包與驗證 DMG 映像，依 Repository Owner 指示不重跑安裝／啟動／移除或完整 Runtime／HTTPS 人工流程。
@@ -167,7 +169,7 @@
 
 ## 驗證邊界
 
-- 目前公開 Stable Manifest 為 `0.1.14`，同時提供 Windows x64 與 macOS ARM64。Windows 已完成封裝版 App 內 `0.1.2 → 0.1.3`、`0.1.11 → 0.1.12` 更新驗收，以及 0.1.12 舊 launcher 失敗重現與 0.1.14 手動覆蓋驗收；0.1.14 新 launcher 必須由 0.1.14 或後續版本發起，下一版 Stable 發布時需補做完整 VM UI 更新與中途取消。macOS 已完成 `0.1.1 → 0.1.3` 與 `0.1.3 → 0.1.12` 覆蓋更新，0.1.14 依指示只做打包與映像驗證，不做人工生命週期測試。
+- 目前公開 Stable Manifest 為 `0.1.15`，同時提供 Windows x64 與 macOS ARM64。Windows 已完成封裝版 App 內 `0.1.2 → 0.1.3`、`0.1.11 → 0.1.12` 更新驗收、0.1.12 舊 launcher 失敗重現與 0.1.14 手動覆蓋驗收，以及 0.1.15 VC Runtime prerequisite 與 Proxy 連線 VM 驗收；0.1.14 新 launcher 發起 `0.1.15` 更新與下載中途取消尚未執行完整 VM UI 補測。macOS 已完成 `0.1.1 → 0.1.3` 與 `0.1.3 → 0.1.12` 覆蓋更新，0.1.15 因安裝程序未變只做重新打包、映像與封裝內容驗證，不重跑人工生命週期測試。
 - 更新失敗與重試由 Updater 聚焦測試覆蓋；公開 Release 的成功下載與覆蓋流程已實測，但不會為了製造故障而修改已發布 Asset 或 Stable Manifest。
 - `fabdev-updater` 已通過 `x86_64-pc-windows-msvc` 交叉編譯；完整 Desktop 的 Windows 本機交叉檢查停在既有 bundled SQLite C 建置缺少 MSVC `stdlib.h`，需由 Windows MSVC GitHub Actions 或實機環境驗證，並非 Updater Rust 程式錯誤。
 - `v0.1.0` 的首次 Site Home、App 選單 Quit 與舊 CA 清理三項阻擋問題，已由 `v0.1.1` Draft 在恢復至 fabDev 未安裝基線的 Mac 完成首次安裝、覆蓋更新與完整移除回歸。
