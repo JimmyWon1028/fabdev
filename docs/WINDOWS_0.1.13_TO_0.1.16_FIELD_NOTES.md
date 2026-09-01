@@ -2,10 +2,10 @@
 
 ## 目前狀態
 
-- `v0.1.15` 仍是 GitHub `latest` Stable。
-- `v0.1.16` 是 Windows x64 only Pre-release，仍在 Repository Owner 測試中。
-- Repository Owner 曾回報 0.1.16 安裝後一開始會當掉，後續重新測試已回報「用起來可以」且 Windows 測試通過；另發現手動刪除 MariaDB 服務目錄後無法自動恢復的邊界案例，排入下一版。
-- `v0.1.16` 不包含 macOS 產物，尚未轉為 Stable；依 Repository Owner 要求已補上 Windows Runtime Assets，但測試確認前不得轉 Stable 或重新打包 App。
+- `v0.1.17` 已在 Windows MariaDB Gate、雙平台封裝與公開資產驗證通過後發布為 GitHub `latest` Stable。
+- `v0.1.16` 保留為 Windows x64 only Pre-release，不取代 `v0.1.17` Stable。
+- Repository Owner 曾回報 0.1.16 安裝後一開始會當掉，後續重新測試已回報「用起來可以」且 Windows 測試通過；另發現的 MariaDB 服務目錄刪除／半成品初始化邊界案例已在 0.1.17 修正並通過實機 Gate。
+- `v0.1.16` 不包含 macOS 產物，因此保留為 Pre-release；後續 `v0.1.17` 已重新建立 Windows x64 與 macOS ARM64 完整 Stable Assets。
 - 本文件只記錄已觀察到的事實、已確認根因、已完成修正及仍待確認項目；不得把推測寫成已修正。
 
 ## 事件摘要
