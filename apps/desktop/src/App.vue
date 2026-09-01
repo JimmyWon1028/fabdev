@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, RouterView, useRouter } from 'vue-router'
@@ -28,8 +29,24 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   showHelp.value = true
 }
 
+function recordFrontendError(source: string, message: string) {
+  void invoke('record_desktop_error', { source, message }).catch(() => undefined)
+}
+
+function handleWindowError(event: ErrorEvent) {
+  const location = event.filename ? ` (${event.filename}:${event.lineno}:${event.colno})` : ''
+  recordFrontendError('frontend-error', `${event.message}${location}`)
+}
+
+function handleUnhandledRejection(event: PromiseRejectionEvent) {
+  const reason = event.reason instanceof Error ? event.reason.stack ?? event.reason.message : String(event.reason)
+  recordFrontendError('frontend-rejection', reason)
+}
+
 onMounted(async () => {
   window.addEventListener('keydown', handleGlobalKeydown)
+  window.addEventListener('error', handleWindowError)
+  window.addEventListener('unhandledrejection', handleUnhandledRejection)
   unlisteners.push(
     await listen('fabdev://service-state-changed', () => store.refreshStatus()),
     await listen<string>('fabdev://agent-error', (event) => store.setError(event.payload)),
@@ -66,6 +83,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleGlobalKeydown)
+  window.removeEventListener('error', handleWindowError)
+  window.removeEventListener('unhandledrejection', handleUnhandledRejection)
   unlisteners.forEach((unlisten) => unlisten())
 })
 </script>

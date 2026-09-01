@@ -347,19 +347,43 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   }
 })
 
-test('launches the Windows updater only after fabDev exits', async () => {
+test('launches the Windows updater only after fabDev and its Agent exit', async () => {
   const desktopSource = await readFile(
     join(repoRoot, 'apps/desktop/src-tauri/src/lib.rs'),
     'utf8'
   )
 
   assert.match(desktopSource, /Wait-Process -Id \$ParentProcessId/)
+  assert.match(desktopSource, /Get-FabDevAgentProcesses/)
+  assert.match(desktopSource, /\[System\.StringComparison\]::OrdinalIgnoreCase/)
+  assert.match(desktopSource, /Stop-Process -Id \$agentIds -Force -ErrorAction SilentlyContinue/)
+  assert.match(desktopSource, /throw 'fabDev Agent did not exit before the update'/)
+  assert.match(desktopSource, /Test-FabDevAgentFileUnlocked/)
+  assert.match(desktopSource, /\[System\.IO\.FileShare\]::None/)
+  assert.match(desktopSource, /throw 'fabDev Agent executable is still locked before the update'/)
   assert.match(desktopSource, /Start-Process -FilePath \$InstallerPath/)
   assert.match(desktopSource, /-ArgumentList @\('\/UPDATE', '\/P', '\/R'\)/)
   assert.match(desktopSource, /Set-Content -LiteralPath \$ReadyPath/)
   assert.match(desktopSource, /WINDOWS_UPDATE_LAUNCHER_READY_TIMEOUT/)
   assert.match(desktopSource, /"-File",/)
+  assert.match(desktopSource, /\.arg\("-AgentPath"\)/)
   assert.match(desktopSource, /\.arg\(std::process::id\(\)\.to_string\(\)\)/)
+})
+
+test('keeps recoverable Windows startup errors visible and logged', async () => {
+  const [desktopSource, appSource] = await Promise.all([
+    readFile(join(repoRoot, 'apps/desktop/src-tauri/src/lib.rs'), 'utf8'),
+    readFile(join(repoRoot, 'apps/desktop/src/App.vue'), 'utf8')
+  ])
+
+  assert.match(desktopSource, /const DESKTOP_PROCESS_LOG_FILE: &str = "desktop-process\.log"/)
+  assert.match(desktopSource, /install_desktop_panic_logging\(\)/)
+  assert.match(desktopSource, /if let Err\(error\) = install_bundled_windows_runtimes\(app\)/)
+  assert.match(desktopSource, /if let Err\(error\) = setup_tray\(app\)/)
+  assert.match(desktopSource, /app_handle\.emit\(AGENT_ERROR_EVENT, startup_errors\.join\("\\n"\)\)/)
+  assert.match(desktopSource, /fn record_desktop_error\(source: String, message: String\)/)
+  assert.match(appSource, /window\.addEventListener\('error', handleWindowError\)/)
+  assert.match(appSource, /window\.addEventListener\('unhandledrejection', handleUnhandledRejection\)/)
 })
 
 test('wires Windows update download cancellation through the desktop command', async () => {

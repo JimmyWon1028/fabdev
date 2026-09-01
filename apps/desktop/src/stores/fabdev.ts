@@ -129,6 +129,7 @@ export const useAppStore = defineStore('fabdev', {
     },
     setError(message: string) {
       this.error = message
+      void invoke('record_desktop_error', { source: 'frontend-state', message }).catch(() => undefined)
     },
     clearError() {
       this.error = null

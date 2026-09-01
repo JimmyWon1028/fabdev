@@ -1,9 +1,11 @@
 use std::fs::OpenOptions;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 use std::time::Duration;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context};
 #[cfg(any(target_os = "macos", windows))]
@@ -37,6 +39,7 @@ const APP_UPDATE_CHECK_REQUESTED_EVENT: &str = "fabdev://check-for-updates";
 const APP_UPDATE_DOWNLOAD_PROGRESS_EVENT: &str = "fabdev://app-update-download-progress";
 const APP_QUIT_STARTED_EVENT: &str = "fabdev://quit-started";
 const APP_QUIT_FAILED_EVENT: &str = "fabdev://quit-failed";
+const DESKTOP_PROCESS_LOG_FILE: &str = "desktop-process.log";
 const AGENT_START_TIMEOUT: Duration = Duration::from_secs(5);
 const AGENT_START_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const AGENT_RESPONSE_TIMEOUT: Duration = Duration::from_secs(30);
@@ -57,6 +60,8 @@ const WINDOWS_UPDATE_LAUNCH_SCRIPT: &str = r#"param(
   [Parameter(Mandatory = $true)]
   [string] $InstallerPath,
   [Parameter(Mandatory = $true)]
+  [string] $AgentPath,
+  [Parameter(Mandatory = $true)]
   [string] $ReadyPath,
   [Parameter(Mandatory = $true)]
   [string] $LogPath
@@ -64,9 +69,68 @@ const WINDOWS_UPDATE_LAUNCH_SCRIPT: &str = r#"param(
 
 $ErrorActionPreference = 'Stop'
 
+function Get-FabDevAgentProcesses {
+  $expectedPath = [System.IO.Path]::GetFullPath($AgentPath)
+  @(
+    Get-Process -Name 'fabdev-agent' -ErrorAction SilentlyContinue | Where-Object {
+      try {
+        [string]::Equals(
+          [System.IO.Path]::GetFullPath($_.Path),
+          $expectedPath,
+          [System.StringComparison]::OrdinalIgnoreCase
+        )
+      } catch {
+        $false
+      }
+    }
+  )
+}
+
+function Test-FabDevAgentFileUnlocked {
+  if (-not (Test-Path -LiteralPath $AgentPath -PathType Leaf)) {
+    return $true
+  }
+  try {
+    $stream = [System.IO.File]::Open(
+      $AgentPath,
+      [System.IO.FileMode]::Open,
+      [System.IO.FileAccess]::ReadWrite,
+      [System.IO.FileShare]::None
+    )
+    $stream.Dispose()
+    return $true
+  } catch {
+    return $false
+  }
+}
+
 try {
   Set-Content -LiteralPath $ReadyPath -Value $PID -Encoding ASCII
   Wait-Process -Id $ParentProcessId -ErrorAction SilentlyContinue
+
+  $agentDeadline = [DateTime]::UtcNow.AddSeconds(10)
+  $agents = @(Get-FabDevAgentProcesses)
+  while ($agents.Count -gt 0 -and [DateTime]::UtcNow -lt $agentDeadline) {
+    Start-Sleep -Milliseconds 100
+    $agents = @(Get-FabDevAgentProcesses)
+  }
+  if ($agents.Count -gt 0) {
+    $agentIds = @($agents | ForEach-Object { $_.Id })
+    Stop-Process -Id $agentIds -Force -ErrorAction SilentlyContinue
+    Wait-Process -Id $agentIds -Timeout 5 -ErrorAction SilentlyContinue
+  }
+  if (@(Get-FabDevAgentProcesses).Count -gt 0) {
+    throw 'fabDev Agent did not exit before the update'
+  }
+
+  $unlockDeadline = [DateTime]::UtcNow.AddSeconds(5)
+  while (-not (Test-FabDevAgentFileUnlocked) -and [DateTime]::UtcNow -lt $unlockDeadline) {
+    Start-Sleep -Milliseconds 100
+  }
+  if (-not (Test-FabDevAgentFileUnlocked)) {
+    throw 'fabDev Agent executable is still locked before the update'
+  }
+
   $installer = Start-Process -FilePath $InstallerPath -ArgumentList @('/UPDATE', '/P', '/R') -PassThru
   Set-Content -LiteralPath $LogPath -Value ("started installer pid=" + $installer.Id) -Encoding UTF8
 } catch {
@@ -85,6 +149,34 @@ static APP_UPDATE_DOWNLOAD_ACTIVE: AtomicBool = AtomicBool::new(false);
 static APP_UPDATE_DOWNLOAD_CANCEL_REQUESTED: AtomicBool = AtomicBool::new(false);
 static QUIT_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 static EXIT_ALLOWED: AtomicBool = AtomicBool::new(false);
+
+fn write_desktop_process_log(context: &str, message: &str) {
+  let Some(paths) = AppPaths::discover() else {
+    return;
+  };
+  if std::fs::create_dir_all(&paths.logs).is_err() {
+    return;
+  }
+  let timestamp = SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .map(|duration| duration.as_secs())
+    .unwrap_or_default();
+  if let Ok(mut log) = OpenOptions::new()
+    .create(true)
+    .append(true)
+    .open(paths.logs.join(DESKTOP_PROCESS_LOG_FILE))
+  {
+    let _ = writeln!(log, "{timestamp} [{context}] {message}");
+  }
+}
+
+fn install_desktop_panic_logging() {
+  let previous = std::panic::take_hook();
+  std::panic::set_hook(Box::new(move |panic_info| {
+    write_desktop_process_log("panic", &panic_info.to_string());
+    previous(panic_info);
+  }));
+}
 
 #[cfg(target_os = "windows")]
 struct WindowsAppUpdateDownloadSession;
@@ -197,9 +289,27 @@ impl TrayAction {
 async fn agent_request(app: AppHandle, request: AgentRequest) -> Result<AgentResponse, String> {
   let response = request_agent_with_ingress_repair(request)
     .await
-    .map_err(|error| error.to_string())?;
+    .map_err(|error| {
+      write_desktop_process_log("agent-request", &error.to_string());
+      error.to_string()
+    })?;
+  if let AgentResponse::Error { code, message } = &response {
+    write_desktop_process_log("agent-response", &format!("{code}: {message}"));
+  }
   update_tray_from_response(&app, &response);
   Ok(response)
+}
+
+#[tauri::command]
+fn record_desktop_error(source: String, message: String) {
+  let source = source.trim();
+  let source = if source.is_empty() {
+    "frontend"
+  } else {
+    source
+  };
+  let message = message.chars().take(16_384).collect::<String>();
+  write_desktop_process_log(source, &message);
 }
 
 const CONFIG_TRANSFER_MAX_BYTES: usize = 4 * 1024 * 1024;
@@ -600,6 +710,7 @@ fn open_url_in_chrome(url: &str) -> anyhow::Result<()> {
 fn open_update_installer(path: &Path) -> anyhow::Result<()> {
   use std::os::windows::process::CommandExt;
 
+  let agent_path = resolve_agent_executable()?;
   let launcher_directory = path
     .parent()
     .context("Windows app update installer has no parent directory")?;
@@ -632,6 +743,8 @@ fn open_update_installer(path: &Path) -> anyhow::Result<()> {
     .arg(std::process::id().to_string())
     .arg("-InstallerPath")
     .arg(path)
+    .arg("-AgentPath")
+    .arg(&agent_path)
     .arg("-ReadyPath")
     .arg(&ready_path)
     .arg("-LogPath")
@@ -1735,6 +1848,7 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+  install_desktop_panic_logging();
   let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
   #[cfg(target_os = "macos")]
   let builder = builder.menu(build_macos_app_menu);
@@ -1744,12 +1858,33 @@ pub fn run() {
       #[cfg(target_os = "macos")]
       install_bundled_macos_runtimes(app)?;
       #[cfg(windows)]
-      install_bundled_windows_runtimes(app)?;
+      let mut startup_errors = Vec::new();
+      #[cfg(windows)]
+      if let Err(error) = install_bundled_windows_runtimes(app) {
+        let message = format!("unable to initialize bundled Windows Runtimes: {error:#}");
+        write_desktop_process_log("startup", &message);
+        startup_errors.push(message);
+      }
+      #[cfg(windows)]
+      if let Err(error) = setup_tray(app) {
+        let message = format!("unable to initialize the Windows tray: {error}");
+        write_desktop_process_log("startup", &message);
+        startup_errors.push(message);
+      }
+      #[cfg(not(windows))]
       setup_tray(app)?;
       let app_handle = app.handle().clone();
       tauri::async_runtime::spawn(async move {
         refresh_tray_service_state(&app_handle).await;
       });
+      #[cfg(windows)]
+      if !startup_errors.is_empty() {
+        let app_handle = app.handle().clone();
+        tauri::async_runtime::spawn(async move {
+          tokio::time::sleep(Duration::from_secs(1)).await;
+          let _ = app_handle.emit(AGENT_ERROR_EVENT, startup_errors.join("\n"));
+        });
+      }
       Ok(())
     })
     .on_window_event(|window, event| {
@@ -1765,6 +1900,7 @@ pub fn run() {
     .on_menu_event(|app, event| handle_tray_action(app, event.id().as_ref()))
     .invoke_handler(tauri::generate_handler![
       agent_request,
+      record_desktop_error,
       read_config_transfer_file,
       write_config_transfer_file,
       open_site,
