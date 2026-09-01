@@ -12,7 +12,7 @@ use fabdev_core::{
   NodeRuntimeState, PhpRuntimeInfo, PhpRuntimeState, PhpVersion, RuntimeUpdateArtifact,
   RuntimeUpdateCheck, RuntimeUpdateOperation, RuntimeUpdateOperationStatus, ServiceState, Site,
   SiteHomeSettings, SiteInput, SiteRepository, TerminalNodeState, TerminalPhpState,
-  PROTOCOL_VERSION, SUPPORTED_NODE_VERSIONS,
+  PROTOCOL_VERSION,
 };
 use fabdev_platform::{
   disable_terminal_node, disable_terminal_php, enable_terminal_node, enable_terminal_php,
@@ -2023,12 +2023,26 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
 }
 
 async fn check_runtime_updates(state: &AgentState) -> Result<RuntimeUpdateCheck> {
-  let catalog = fabdev_updater::check_for_runtime_updates(
+  let online = fabdev_updater::check_for_runtime_updates(
     &state.paths.cache,
     env!("CARGO_PKG_VERSION"),
     PROTOCOL_VERSION,
   )
-  .await?;
+  .await;
+  let catalog = match online {
+    Ok(catalog) => catalog,
+    Err(online_error) => fabdev_updater::cached_runtime_catalog(
+      &state.paths.cache,
+      env!("CARGO_PKG_VERSION"),
+      PROTOCOL_VERSION,
+    )
+    .await
+    .with_context(|| {
+      format!(
+        "unable to refresh the Runtime Catalog ({online_error:#}) and no valid cached Catalog is available"
+      )
+    })?,
+  };
   build_runtime_update_check(&catalog, &state.paths.runtimes)
 }
 
@@ -3191,21 +3205,24 @@ fn validate_php_release(release: &RuntimeRelease, artifact: &std::path::Path) ->
 }
 
 fn validate_mariadb_release(release: &RuntimeRelease, artifact: &std::path::Path) -> Result<()> {
-  if release.name != "mariadb" {
-    bail!("Runtime package must contain MariaDB, got {}", release.name);
-  }
-  if release.version != "12.3.2" {
-    bail!("unsupported MariaDB Runtime version: {}", release.version);
-  }
-  validate_release_target(release, artifact)
+  validate_versioned_service_release(release, artifact, "mariadb", "MariaDB")
 }
 
 fn validate_node_release(release: &RuntimeRelease, artifact: &Path) -> Result<()> {
-  if release.name != "node" {
-    bail!("Runtime package must contain Node.js, got {}", release.name);
+  validate_versioned_service_release(release, artifact, "node", "Node.js")
+}
+
+fn validate_versioned_service_release(
+  release: &RuntimeRelease,
+  artifact: &Path,
+  expected_name: &str,
+  label: &str,
+) -> Result<()> {
+  if release.name != expected_name {
+    bail!("Runtime package must contain {label}, got {}", release.name);
   }
-  if !SUPPORTED_NODE_VERSIONS.contains(&release.version.as_str()) {
-    bail!("unsupported Node.js Runtime version: {}", release.version);
+  if !online_runtime_supported(expected_name, &release.platform, &release.version) {
+    bail!("unsupported {label} Runtime version: {}", release.version);
   }
   validate_release_target(release, artifact)
 }
@@ -3623,29 +3640,26 @@ mod tests {
     assert_eq!(empty.active_version, None);
     assert!(empty.installed.is_empty());
 
-    for version in SUPPORTED_NODE_VERSIONS {
+    let versions = ["20.20.2", "24.20.0", "26.1.3"];
+    for version in versions {
       let binary = node_runtime_binary(&runtime_root, version);
       std::fs::create_dir_all(binary.parent().expect("Node.js binary parent"))
         .expect("create Node.js fixture");
       std::fs::write(binary, "fixture").expect("write Node.js fixture");
     }
-    set_active_version(&runtime_root, "node", SUPPORTED_NODE_VERSIONS[1])
-      .expect("activate Node.js fixture");
+    set_active_version(&runtime_root, "node", versions[1]).expect("activate Node.js fixture");
     let installed =
       build_node_runtime_state(&runtime_root, &data_root).expect("build Node.js state");
-    assert_eq!(
-      installed.active_version.as_deref(),
-      Some(SUPPORTED_NODE_VERSIONS[1])
-    );
-    assert_eq!(installed.installed.len(), 2);
+    assert_eq!(installed.active_version.as_deref(), Some(versions[1]));
+    assert_eq!(installed.installed.len(), versions.len());
     assert!(installed
       .installed
       .iter()
-      .any(|runtime| { runtime.version == SUPPORTED_NODE_VERSIONS[1] && runtime.active }));
+      .any(|runtime| { runtime.version == versions[1] && runtime.active }));
     assert!(installed
       .installed
       .iter()
-      .any(|runtime| { runtime.version == SUPPORTED_NODE_VERSIONS[0] && !runtime.active }));
+      .any(|runtime| { runtime.version == versions[0] && !runtime.active }));
     std::fs::remove_dir_all(data_root).expect("remove fixture");
   }
 
@@ -3745,19 +3759,32 @@ mod tests {
   fn installs_real_windows_online_service_runtime_archives() {
     use sha2::{Digest, Sha256};
 
-    let node_packages = [
-      ("20.20.2", "FABDEV_WINDOWS_NODE20_RUNTIME_PACKAGE"),
-      ("24.20.0", "FABDEV_WINDOWS_NODE24_RUNTIME_PACKAGE"),
-    ];
+    let manifest_path = PathBuf::from(
+      std::env::var("FABDEV_WINDOWS_RUNTIME_PACKAGE_MANIFEST")
+        .expect("FABDEV_WINDOWS_RUNTIME_PACKAGE_MANIFEST must identify the package manifest"),
+    );
+    let package_directory = PathBuf::from(
+      std::env::var("FABDEV_WINDOWS_RUNTIME_PACKAGE_DIR")
+        .expect("FABDEV_WINDOWS_RUNTIME_PACKAGE_DIR must identify the package directory"),
+    );
+    let manifest = fabdev_runtime::read_runtime_package_manifest(&manifest_path)
+      .expect("read Windows package manifest");
+    let node_packages = manifest
+      .packages
+      .iter()
+      .filter(|package| package.name == "node")
+      .collect::<Vec<_>>();
+    assert!(!node_packages.is_empty());
     let data_root =
       std::env::temp_dir().join(format!("fabdev-online-service-runtimes-{}", Uuid::new_v4()));
     let root = data_root.join("runtimes");
 
-    for (version, variable) in node_packages {
-      let artifact = PathBuf::from(
-        std::env::var(variable)
-          .unwrap_or_else(|_| panic!("{variable} must identify the release package")),
-      );
+    for package in &node_packages {
+      let version = package.version.as_str();
+      let artifact = package_directory.join(format!(
+        "{}-{}-{}-{}-community.tar.gz",
+        package.name, package.version, manifest.platform, manifest.architecture
+      ));
       let checksum = hex::encode(Sha256::digest(
         std::fs::read(&artifact).expect("read Windows Node.js Runtime package"),
       ));
@@ -3776,31 +3803,49 @@ mod tests {
       active_version(&root, "node").expect("read inactive Node.js Runtime"),
       None
     );
-    set_active_version(&root, "node", "20.20.2").expect("select Node.js 20");
+    let first_node_version = node_packages
+      .first()
+      .expect("first Node.js package")
+      .version
+      .as_str();
+    let last_node_version = node_packages
+      .last()
+      .expect("last Node.js package")
+      .version
+      .as_str();
+    set_active_version(&root, "node", first_node_version).expect("select first Node.js package");
     let terminal = enable_terminal_node(&data_root).expect("enable terminal Node.js");
     let node_shim = terminal.bin_path.join("node.cmd");
-    let node20 = std::process::Command::new("cmd.exe")
+    let first_node = std::process::Command::new("cmd.exe")
       .args(["/d", "/c"])
       .arg(&node_shim)
       .arg("--version")
       .output()
-      .expect("run Node.js 20 shim");
-    assert!(String::from_utf8_lossy(&node20.stdout).contains("v20.20.2"));
-    set_active_version(&root, "node", "24.20.0").expect("switch to Node.js 24");
-    let node24 = std::process::Command::new("cmd.exe")
+      .expect("run first Node.js shim");
+    assert!(String::from_utf8_lossy(&first_node.stdout).contains(&format!("v{first_node_version}")));
+    set_active_version(&root, "node", last_node_version).expect("switch Node.js package");
+    let last_node = std::process::Command::new("cmd.exe")
       .args(["/d", "/c"])
       .arg(&node_shim)
       .arg("--version")
       .output()
-      .expect("run Node.js 24 shim");
-    assert!(String::from_utf8_lossy(&node24.stdout).contains("v24.20.0"));
+      .expect("run last Node.js shim");
+    assert!(String::from_utf8_lossy(&last_node.stdout).contains(&format!("v{last_node_version}")));
     assert_eq!(
       active_version(&root, "node").expect("read active Node.js Runtime"),
-      Some("24.20.0".to_owned())
+      Some(last_node_version.to_owned())
     );
 
-    if let Ok(path) = std::env::var("FABDEV_WINDOWS_MARIADB_RUNTIME_PACKAGE") {
-      let mariadb_artifact = PathBuf::from(path);
+    for package in manifest
+      .packages
+      .iter()
+      .filter(|package| package.name == "mariadb")
+    {
+      let version = package.version.as_str();
+      let mariadb_artifact = package_directory.join(format!(
+        "{}-{}-{}-{}-community.tar.gz",
+        package.name, package.version, manifest.platform, manifest.architecture
+      ));
       let mariadb_checksum = hex::encode(Sha256::digest(
         std::fs::read(&mariadb_artifact).expect("read Windows MariaDB Runtime package"),
       ));
@@ -3808,15 +3853,15 @@ mod tests {
         &mariadb_artifact,
         &mariadb_checksum,
         "mariadb",
-        "12.3.2",
+        version,
         &root,
         true,
-        |staged| validate_staged_mariadb_runtime(staged, "12.3.2"),
+        |staged| validate_staged_mariadb_runtime(staged, version),
       )
       .expect("install and validate packaged Windows MariaDB Runtime");
       assert_eq!(
         active_version(&root, "mariadb").expect("read active MariaDB Runtime"),
-        Some("12.3.2".to_owned())
+        Some(version.to_owned())
       );
     }
     disable_terminal_node(&data_root).expect("disable terminal Node.js");
@@ -3926,7 +3971,6 @@ mod tests {
         expires_at: "2099-01-01T00:00:00Z",
         minimum_app_version: env!("CARGO_PKG_VERSION"),
         macos_arm64_package: Some(&artifact),
-        windows_x64_package: None,
         now_unix_seconds: std::time::SystemTime::now()
           .duration_since(std::time::UNIX_EPOCH)
           .expect("read current time")
@@ -4072,14 +4116,14 @@ mod tests {
   }
 
   #[test]
-  fn validates_only_the_supported_node_runtime_releases() {
+  fn accepts_stable_node_runtime_versions_without_an_app_version_list() {
     let root = std::env::temp_dir().join(format!("fabdev-node-release-{}", Uuid::new_v4()));
     std::fs::create_dir_all(&root).expect("create fixture");
     let artifact = root.join("runtime.tar.gz");
     std::fs::write(&artifact, "fixture").expect("write artifact");
     let mut release = RuntimeRelease {
       name: "node".to_owned(),
-      version: SUPPORTED_NODE_VERSIONS[0].to_owned(),
+      version: "20.20.2".to_owned(),
       platform: if cfg!(target_os = "macos") {
         "macos".to_owned()
       } else {
@@ -4098,10 +4142,12 @@ mod tests {
     };
 
     validate_node_release(&release, &artifact).expect("accept Node.js 20 package");
-    release.version = SUPPORTED_NODE_VERSIONS[1].to_owned();
-    validate_node_release(&release, &artifact).expect("accept Node.js 24 package");
     release.version = "24.18.0".to_owned();
-    let error = validate_node_release(&release, &artifact).expect_err("reject stale Node.js");
+    validate_node_release(&release, &artifact).expect("accept Node.js 24 package");
+    release.version = "26.1.3".to_owned();
+    validate_node_release(&release, &artifact).expect("accept a future Node.js package");
+    release.version = "24.18".to_owned();
+    let error = validate_node_release(&release, &artifact).expect_err("reject invalid Node.js");
     assert!(error.to_string().contains("unsupported Node.js Runtime"));
     std::fs::remove_dir_all(root).expect("remove fixture");
   }

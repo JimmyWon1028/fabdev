@@ -10,7 +10,9 @@ on:
       - "apps/desktop/**"
       - "crates/**"
       - "packages/**"
+      - "resources/runtime-packages/windows-x64*.json"
       - "scripts/build-desktop-bundle-assets.mjs"
+      - "scripts/prepare-windows-runtimes.ps1"
       - "Cargo.lock"
       - "Cargo.toml"
       - "package.json"
@@ -64,7 +66,9 @@ jobs:
 
       - name: Prepare bundled Windows Runtimes
         shell: pwsh
-        run: ./scripts/prepare-windows-runtimes.ps1
+        run: >-
+          ./scripts/prepare-windows-runtimes.ps1
+          -ManifestPath resources/runtime-packages/windows-x64-bundled.json
 
       - name: Check Rust workspace
         run: cargo check --workspace --all-targets --target x86_64-pc-windows-msvc

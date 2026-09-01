@@ -12,7 +12,7 @@ use fabdev_runtime::{
 };
 
 fn usage() -> &'static str {
-  "Usage:\n  fabdev-runtime-catalog generate <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <macos-php-package> <windows-php-package> <output>\n  fabdev-runtime-catalog generate-community <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <windows-php74-package> <windows-php82-package> <windows-php84-package> <windows-mariadb-package> <windows-node20-package> <windows-node24-package> <macos-php-package> <macos-mariadb-package> <macos-node20-package> <macos-node24-package> <output>\n  fabdev-runtime-catalog generate-macos <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <macos-php-package> <macos-mariadb-package> <macos-node20-package> <macos-node24-package> <output>\n  fabdev-runtime-catalog generate-windows <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <windows-php74-package> <windows-php82-package> <windows-php84-package> <windows-mariadb-package> <windows-node20-package> <windows-node24-package> <output>\n  fabdev-runtime-catalog validate <catalog> <current-app-version>"
+  "Usage:\n  fabdev-runtime-catalog generate <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <macos-php-package> <output>\n  fabdev-runtime-catalog generate-community <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <windows-package-manifest> <windows-package-directory> <macos-php-package> <macos-mariadb-package> <macos-node20-package> <macos-node24-package> <output>\n  fabdev-runtime-catalog generate-macos <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <macos-php-package> <macos-mariadb-package> <macos-node20-package> <macos-node24-package> <output>\n  fabdev-runtime-catalog generate-windows <release-version> <catalog-sequence> <generated-at> <expires-at> <minimum-app-version> <windows-package-manifest> <windows-package-directory> <output>\n  fabdev-runtime-catalog validate <catalog> <current-app-version>"
 }
 
 fn now_unix_seconds() -> Result<i64, Box<dyn Error>> {
@@ -20,7 +20,7 @@ fn now_unix_seconds() -> Result<i64, Box<dyn Error>> {
 }
 
 fn generate(args: &[String]) -> Result<(), Box<dyn Error>> {
-  if args.len() != 8 {
+  if args.len() != 7 {
     return Err(usage().into());
   }
   let sequence = args[1].parse::<u64>()?;
@@ -31,10 +31,9 @@ fn generate(args: &[String]) -> Result<(), Box<dyn Error>> {
     expires_at: &args[3],
     minimum_app_version: &args[4],
     macos_arm64_package: Some(Path::new(&args[5])),
-    windows_x64_package: Some(Path::new(&args[6])),
     now_unix_seconds: now_unix_seconds()?,
   })?;
-  let output = Path::new(&args[7]);
+  let output = Path::new(&args[6]);
   if let Some(parent) = output.parent() {
     std::fs::create_dir_all(parent)?;
   }
@@ -48,7 +47,7 @@ fn generate(args: &[String]) -> Result<(), Box<dyn Error>> {
 }
 
 fn generate_windows(args: &[String]) -> Result<(), Box<dyn Error>> {
-  if args.len() != 12 {
+  if args.len() != 8 {
     return Err(usage().into());
   }
   let sequence = args[1].parse::<u64>()?;
@@ -58,15 +57,11 @@ fn generate_windows(args: &[String]) -> Result<(), Box<dyn Error>> {
     generated_at: &args[2],
     expires_at: &args[3],
     minimum_app_version: &args[4],
-    php74_package: Path::new(&args[5]),
-    php82_package: Path::new(&args[6]),
-    php84_package: Path::new(&args[7]),
-    mariadb_package: Path::new(&args[8]),
-    node20_package: Path::new(&args[9]),
-    node24_package: Path::new(&args[10]),
+    package_manifest: Path::new(&args[5]),
+    package_directory: Path::new(&args[6]),
     now_unix_seconds: now_unix_seconds()?,
   })?;
-  let output = Path::new(&args[11]);
+  let output = Path::new(&args[7]);
   if let Some(parent) = output.parent() {
     std::fs::create_dir_all(parent)?;
   }
@@ -110,7 +105,7 @@ fn generate_macos(args: &[String]) -> Result<(), Box<dyn Error>> {
 }
 
 fn generate_community(args: &[String]) -> Result<(), Box<dyn Error>> {
-  if args.len() != 16 {
+  if args.len() != 12 {
     return Err(usage().into());
   }
   let sequence = args[1].parse::<u64>()?;
@@ -120,19 +115,15 @@ fn generate_community(args: &[String]) -> Result<(), Box<dyn Error>> {
     generated_at: &args[2],
     expires_at: &args[3],
     minimum_app_version: &args[4],
-    windows_php74_package: Path::new(&args[5]),
-    windows_php82_package: Path::new(&args[6]),
-    windows_php84_package: Path::new(&args[7]),
-    windows_mariadb_package: Path::new(&args[8]),
-    windows_node20_package: Path::new(&args[9]),
-    windows_node24_package: Path::new(&args[10]),
-    macos_php_package: Path::new(&args[11]),
-    macos_mariadb_package: Path::new(&args[12]),
-    macos_node20_package: Path::new(&args[13]),
-    macos_node24_package: Path::new(&args[14]),
+    windows_package_manifest: Path::new(&args[5]),
+    windows_package_directory: Path::new(&args[6]),
+    macos_php_package: Path::new(&args[7]),
+    macos_mariadb_package: Path::new(&args[8]),
+    macos_node20_package: Path::new(&args[9]),
+    macos_node24_package: Path::new(&args[10]),
     now_unix_seconds: now_unix_seconds()?,
   })?;
-  let output = Path::new(&args[15]);
+  let output = Path::new(&args[11]);
   if let Some(parent) = output.parent() {
     std::fs::create_dir_all(parent)?;
   }

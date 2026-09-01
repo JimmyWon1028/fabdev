@@ -250,8 +250,7 @@ async function removeRuntime(version: string) {
           <span class="runtime-version">{{ row.major }}</span>
           <div>
             <h2>Node.js {{ row.version }}</h2>
-            <p v-if="row.major === '20'">{{ t('node.eolDescription') }}</p>
-            <p v-else-if="row.state === 'update-available'">{{ t('node.updateDescription', { version: row.artifact?.version ?? row.version }) }}</p>
+            <p v-if="row.state === 'update-available'">{{ t('node.updateDescription', { version: row.artifact?.version ?? row.version }) }}</p>
             <p v-else-if="row.runtime">{{ t('node.installedDescription') }}</p>
             <p v-else>{{ t('node.notInstalledDescription') }}</p>
             <small>{{ targetLabel(row.artifact) }}</small>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
@@ -10,6 +11,7 @@ import { useAppStore } from './stores/fabdev'
 import type { AppUpdateDownloadProgress } from './utils/app-update'
 import { isHelpShortcut } from './utils/help'
 import { useI18n } from './utils/i18n'
+import { dynamicModuleRegistry, resolveDynamicModules } from './utils/navigation'
 
 const store = useAppStore()
 const router = useRouter()
@@ -17,9 +19,24 @@ const { t } = useI18n()
 const unlisteners: UnlistenFn[] = []
 const isQuitting = ref(false)
 const showHelp = ref(false)
+const appVersion = ref('')
 const availableAppVersion = computed(() =>
   store.appUpdate?.updateAvailable ? store.appUpdate.latestVersion : null
 )
+const installedDynamicPackageNames = computed(() => {
+  const names = new Set<string>()
+  if (store.status?.mariadb && store.status.mariadb !== 'notInstalled') {
+    names.add('mariadb')
+  }
+  if (store.nodeRuntime.installed.length > 0) {
+    names.add('node')
+  }
+  return names
+})
+const dynamicModules = computed(() => resolveDynamicModules(dynamicModuleRegistry, {
+  artifacts: store.runtimeUpdateCheck?.artifacts ?? [],
+  installedPackageNames: installedDynamicPackageNames.value
+}))
 
 function handleGlobalKeydown(event: KeyboardEvent) {
   if (!isHelpShortcut(event)) {
@@ -44,6 +61,11 @@ function handleUnhandledRejection(event: PromiseRejectionEvent) {
 }
 
 onMounted(async () => {
+  void getVersion().then((version) => {
+    appVersion.value = version
+  }).catch((error) => {
+    recordFrontendError('app-version', error instanceof Error ? error.message : String(error))
+  })
   window.addEventListener('keydown', handleGlobalKeydown)
   window.addEventListener('error', handleWindowError)
   window.addEventListener('unhandledrejection', handleUnhandledRejection)
@@ -78,6 +100,7 @@ onMounted(async () => {
   ]).catch((error) => {
     store.setError(error instanceof Error ? error.message : String(error))
   })
+  void store.checkRuntimeUpdates().catch(() => undefined)
   void store.checkAppUpdateOnLaunch()
 })
 
@@ -94,28 +117,45 @@ onUnmounted(() => {
     <aside class="sidebar">
       <div class="brand">
         <img class="brand-mark" :src="fabDevIconUrl" alt="" />
-        <div>
-          <strong>fabDev</strong>
+        <div class="brand-copy">
+          <div class="brand-title">
+            <strong>fabDev</strong>
+            <small v-if="appVersion" class="brand-version">{{ appVersion }}</small>
+          </div>
           <small>{{ t('app.tagline') }}</small>
         </div>
       </div>
 
-      <nav class="navigation" :aria-label="t('nav.label')">
-        <RouterLink to="/">{{ t('nav.dashboard') }}</RouterLink>
-        <RouterLink to="/sites">{{ t('nav.sites') }}</RouterLink>
-        <RouterLink to="/runtimes">{{ t('nav.runtimes') }}</RouterLink>
-        <RouterLink to="/mariadb">{{ t('nav.mariadb') }}</RouterLink>
-        <RouterLink to="/nodejs">{{ t('nav.nodejs') }}</RouterLink>
-        <RouterLink to="/proxy">{{ t('nav.proxy') }}</RouterLink>
-        <RouterLink to="/settings">{{ t('nav.settings') }}</RouterLink>
-      </nav>
-
       <div class="agent-state" :class="{ offline: !store.connected }">
         <span class="status-dot" />
-        <div>
-          <strong>{{ store.connected ? t('agent.connected') : t('agent.disconnected') }}</strong>
-          <small>{{ store.status?.agentVersion ?? t('agent.waiting') }}</small>
+        <span>{{ store.connected ? t('agent.connected') : t('agent.disconnected') }}</span>
+      </div>
+
+      <nav class="navigation" :aria-label="t('nav.label')">
+        <div class="navigation-section">
+          <RouterLink to="/">{{ t('nav.dashboard') }}</RouterLink>
+          <RouterLink to="/sites">{{ t('nav.sites') }}</RouterLink>
+          <RouterLink to="/runtimes">{{ t('nav.runtimes') }}</RouterLink>
+          <RouterLink to="/proxy">{{ t('nav.proxy') }}</RouterLink>
         </div>
+
+        <template v-if="dynamicModules.length > 0">
+          <div class="navigation-divider" role="separator" />
+
+          <div class="navigation-section">
+            <RouterLink
+              v-for="module in dynamicModules"
+              :key="module.id"
+              :to="module.route"
+            >
+              {{ t(module.labelKey) }}
+            </RouterLink>
+          </div>
+        </template>
+      </nav>
+
+      <div class="sidebar-footer">
+        <RouterLink class="settings-link" to="/settings">{{ t('nav.settings') }}</RouterLink>
       </div>
     </aside>
 

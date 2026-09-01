@@ -266,25 +266,46 @@ button {
   display: block;
 }
 
-.brand div,
-.agent-state div {
+.brand-copy {
   display: grid;
   gap: 2px;
 }
 
-.brand small,
-.agent-state small {
+.brand-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.brand small {
   color: #9ab0a3;
   font-size: 11px;
 }
 
-.navigation {
-  display: grid;
-  gap: 7px;
-  margin-top: 45px;
+.brand .brand-version {
+  font-size: 9px;
+  font-weight: 500;
 }
 
-.navigation a {
+.navigation {
+  display: flex;
+  flex-direction: column;
+  margin-top: 32px;
+}
+
+.navigation-section {
+  display: grid;
+  gap: 7px;
+}
+
+.navigation-divider {
+  height: 1px;
+  margin: 12px 13px 8px;
+  background: rgb(175 193 182 / 24%);
+}
+
+.navigation a,
+.settings-link {
   padding: 11px 13px;
   color: #afc1b6;
   text-decoration: none;
@@ -292,7 +313,9 @@ button {
 }
 
 .navigation a:hover,
-.navigation a.router-link-active {
+.navigation a.router-link-active,
+.settings-link:hover,
+.settings-link.router-link-active {
   color: #fff;
   background: #244432;
 }
@@ -417,24 +440,36 @@ button {
 }
 
 .agent-state {
+  gap: 5px;
+  margin-top: 5px;
+  margin-left: 50px;
+  color: #b5c5bb;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.sidebar-footer {
+  display: grid;
   gap: 10px;
   margin-top: auto;
-  padding: 13px;
-  background: #1e3829;
-  border-radius: 11px;
+}
+
+.settings-link {
+  display: block;
 }
 
 .status-dot {
-  width: 9px;
-  height: 9px;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
   background: #62d592;
   border-radius: 50%;
-  box-shadow: 0 0 0 4px rgb(98 213 146 / 12%);
+  box-shadow: 0 0 0 3px rgb(98 213 146 / 12%);
 }
 
 .agent-state.offline .status-dot {
   background: #e8a34c;
-  box-shadow: 0 0 0 4px rgb(232 163 76 / 12%);
+  box-shadow: 0 0 0 3px rgb(232 163 76 / 12%);
 }
 
 .content {

@@ -4,21 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PHP74_VERSION="${PHP74_VERSION:-7.4.33}"
-PHP74_SHA256="${PHP74_SHA256:-14ae3250d4447c8ccfc4c45a70d90adfbcd61e728d85f0be56a7ddf8f9c8aace}"
-PHP82_VERSION="${PHP82_VERSION:-8.2.33}"
-PHP82_SHA256="${PHP82_SHA256:-d0bd189522fa50255ee94ed4b340ed4330f5ae33a90a74205275b0f0b221d388}"
-PHP84_VERSION="${PHP84_VERSION:-8.4.24}"
-PHP84_SHA256="${PHP84_SHA256:-86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb}"
-MARIADB_VERSION="${MARIADB_VERSION:-12.3.2}"
-MARIADB_SHA256="${MARIADB_SHA256:-67347c129eb9c5923d002ea34fbfa27c60eb95d36dd73b85af2651cdeceecac5}"
-MARIADB_RELEASE_FINGERPRINT="${MARIADB_RELEASE_FINGERPRINT:-177F4010FE56CA3336300305F1656F24C74CD1D8}"
-NODE20_VERSION="${NODE20_VERSION:-20.20.2}"
-NODE20_SHA256="${NODE20_SHA256:-dc3700fdd57a63eedb8fd7e3c7baaa32e6a740a1b904167ff4204bc68ed8bf77}"
-NODE20_RELEASE_FINGERPRINT="${NODE20_RELEASE_FINGERPRINT:-CC68F5A3106FF448322E48ED27F5E38D5B0A215F}"
-NODE24_VERSION="${NODE24_VERSION:-24.20.0}"
-NODE24_SHA256="${NODE24_SHA256:-6cac9ffbca8f6a47091e4b5c772e0606049c3871cb67d900c0cedde630e545ba}"
-NODE24_RELEASE_FINGERPRINT="${NODE24_RELEASE_FINGERPRINT:-5BE8A3F6C8A5C01D106C0AD820B1A390B168D356}"
+PACKAGE_MANIFEST="${FABDEV_WINDOWS_PACKAGE_MANIFEST:-$PROJECT_DIR/resources/runtime-packages/windows-x64.json}"
 BUILD_ROOT="${FABDEV_BUILD_ROOT:-$PROJECT_DIR/.build/windows-runtime-packages}"
 DOWNLOAD_DIR="$BUILD_ROOT/downloads"
 EXPANDED_DIR="$BUILD_ROOT/expanded"
@@ -34,6 +20,40 @@ for command_name in "${required_commands[@]}"; do
     exit 1
   fi
 done
+
+if [[ ! -f "$PACKAGE_MANIFEST" || -L "$PACKAGE_MANIFEST" ]]; then
+  echo "Windows Runtime package manifest must be a regular file: $PACKAGE_MANIFEST" >&2
+  exit 1
+fi
+
+jq -e '
+  .schemaVersion == 1
+  and .platform == "windows"
+  and .architecture == "x64"
+  and (.minimumOsVersion | type == "string")
+  and (.packages | type == "array" and length > 0)
+  and ([.packages[] | "\(.name)@\(.version)"] | length == (unique | length))
+  and all(.packages[];
+    (.name | test("^(php|mariadb|node)$"))
+    and (.version | test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
+    and (.source.archiveUrl | startswith("https://"))
+    and (.source.archiveSha256 | test("^[0-9a-f]{64}$"))
+    and (.healthCheckProfile == (.name + "-runtime-v1"))
+    and if .name == "php" then
+      .source.verification.method == "official-sha256"
+    elif .name == "mariadb" then
+      .source.verification.method == "pgp"
+      and (.source.verification.fingerprint | test("^[0-9A-F]{40}$"))
+      and (.source.signatureUrl | startswith("https://"))
+      and (.source.keyUrl | startswith("https://"))
+    else
+      .source.verification.method == "pgp"
+      and (.source.verification.fingerprint | test("^[0-9A-F]{40}$"))
+      and (.source.signedChecksumsUrl | startswith("https://"))
+      and (.source.keyUrl | startswith("https://"))
+    end
+  )
+' "$PACKAGE_MANIFEST" >/dev/null
 
 for runtime_name in $WINDOWS_RUNTIME_NAMES; do
   if [[ ! "$runtime_name" =~ ^(php|mariadb|node)$ ]]; then
@@ -141,115 +161,142 @@ package_runtime() {
   local name="$1"
   local version="$2"
   local signature="$3"
-  local archive="$ARTIFACT_DIR/$name-$version-windows-x64.tar.gz"
+  local archive="$ARTIFACT_DIR/$name-$version-windows-x64-community.tar.gz"
   COPYFILE_DISABLE=1 tar -czf "$archive" -C "$RUNTIME_DIR/$name" "$version"
   write_release "$name" "$version" "$archive" "$signature"
   echo "Created $archive"
 }
 
-mkdir -p "$DOWNLOAD_DIR" "$EXPANDED_DIR" "$RUNTIME_DIR" "$ARTIFACT_DIR"
-
 build_php_runtime() {
-  local php_version="$1"
-  local php_toolset="$2"
-  local php_sha256="$3"
-  local php_archive="$DOWNLOAD_DIR/php-$php_version-nts-Win32-$php_toolset-x64.zip"
-  download \
-    "https://downloads.php.net/~windows/releases/archives/$(basename "$php_archive")" \
-    "$php_archive"
-  verify_sha256 "$php_archive" "$php_sha256"
-  rm -rf "$EXPANDED_DIR/php-$php_version" "$RUNTIME_DIR/php/$php_version"
-  mkdir -p "$EXPANDED_DIR/php-$php_version" "$RUNTIME_DIR/php/$php_version"
-  unzip -q "$php_archive" -d "$EXPANDED_DIR/php-$php_version"
-  cp -R "$EXPANDED_DIR/php-$php_version/." "$RUNTIME_DIR/php/$php_version/"
-  [[ -f "$RUNTIME_DIR/php/$php_version/php.exe" ]]
-  [[ -f "$RUNTIME_DIR/php/$php_version/php-cgi.exe" ]]
-  [[ -f "$RUNTIME_DIR/php/$php_version/ext/php_mysqli.dll" ]]
-  [[ -f "$RUNTIME_DIR/php/$php_version/ext/php_pdo_mysql.dll" ]]
-  package_runtime "php" "$php_version" "official-archive-sha256"
+  local version="$1"
+  local archive_url="$2"
+  local archive_sha256="$3"
+  local archive="$DOWNLOAD_DIR/$(basename "$archive_url")"
+  download "$archive_url" "$archive"
+  verify_sha256 "$archive" "$archive_sha256"
+  rm -rf "$EXPANDED_DIR/php-$version" "$RUNTIME_DIR/php/$version"
+  mkdir -p "$EXPANDED_DIR/php-$version" "$RUNTIME_DIR/php/$version"
+  unzip -q "$archive" -d "$EXPANDED_DIR/php-$version"
+  cp -R "$EXPANDED_DIR/php-$version/." "$RUNTIME_DIR/php/$version/"
+  [[ -f "$RUNTIME_DIR/php/$version/php.exe" ]]
+  [[ -f "$RUNTIME_DIR/php/$version/php-cgi.exe" ]]
+  [[ -f "$RUNTIME_DIR/php/$version/ext/php_mysqli.dll" ]]
+  [[ -f "$RUNTIME_DIR/php/$version/ext/php_pdo_mysql.dll" ]]
+  package_runtime "php" "$version" "official-archive-sha256"
 }
 
-if should_build "php"; then
-  build_php_runtime "$PHP74_VERSION" "vc15" "$PHP74_SHA256"
-  build_php_runtime "$PHP82_VERSION" "vs16" "$PHP82_SHA256"
-  build_php_runtime "$PHP84_VERSION" "vs17" "$PHP84_SHA256"
-fi
+build_mariadb_runtime() {
+  local version="$1"
+  local archive_url="$2"
+  local archive_sha256="$3"
+  local signature_url="$4"
+  local key_url="$5"
+  local fingerprint="$6"
+  local archive="$DOWNLOAD_DIR/$(basename "$archive_url")"
+  local signature="$DOWNLOAD_DIR/$(basename "$signature_url")"
+  local key="$DOWNLOAD_DIR/mariadb-release-$fingerprint.key"
+  local source="$EXPANDED_DIR/mariadb-$version/mariadb-$version-winx64"
 
-if should_build "mariadb"; then
-  mariadb_archive="$DOWNLOAD_DIR/mariadb-$MARIADB_VERSION-winx64.zip"
-  mariadb_signature="$mariadb_archive.asc"
-  mariadb_key="$DOWNLOAD_DIR/mariadb-release.key"
-  download \
-    "https://archive.mariadb.org/mariadb-$MARIADB_VERSION/winx64-packages/$(basename "$mariadb_archive")" \
-    "$mariadb_archive"
-  download \
-    "https://archive.mariadb.org/mariadb-$MARIADB_VERSION/winx64-packages/$(basename "$mariadb_signature")" \
-    "$mariadb_signature"
-  download "https://archive.mariadb.org/PublicKey" "$mariadb_key"
-  verify_sha256 "$mariadb_archive" "$MARIADB_SHA256"
-  verify_detached_signature \
-    "$mariadb_archive" \
-    "$mariadb_signature" \
-    "$mariadb_key" \
-    "$MARIADB_RELEASE_FINGERPRINT" \
-    "MariaDB"
-  rm -rf "$EXPANDED_DIR/mariadb-$MARIADB_VERSION" "$RUNTIME_DIR/mariadb/$MARIADB_VERSION"
-  mkdir -p "$EXPANDED_DIR/mariadb-$MARIADB_VERSION" "$RUNTIME_DIR/mariadb/$MARIADB_VERSION"
-  unzip -q "$mariadb_archive" -d "$EXPANDED_DIR/mariadb-$MARIADB_VERSION"
-  mariadb_source="$EXPANDED_DIR/mariadb-$MARIADB_VERSION/mariadb-$MARIADB_VERSION-winx64"
-  cp -R "$mariadb_source/." "$RUNTIME_DIR/mariadb/$MARIADB_VERSION/"
-  [[ -f "$RUNTIME_DIR/mariadb/$MARIADB_VERSION/bin/mariadbd.exe" ]]
-  [[ -f "$RUNTIME_DIR/mariadb/$MARIADB_VERSION/bin/mariadb.exe" ]]
-  [[ -f "$RUNTIME_DIR/mariadb/$MARIADB_VERSION/bin/mariadb-install-db.exe" ]]
-  package_runtime \
-    "mariadb" \
-    "$MARIADB_VERSION" \
-    "pgp:$MARIADB_RELEASE_FINGERPRINT"
-fi
+  download "$archive_url" "$archive"
+  download "$signature_url" "$signature"
+  download "$key_url" "$key"
+  verify_sha256 "$archive" "$archive_sha256"
+  verify_detached_signature "$archive" "$signature" "$key" "$fingerprint" "MariaDB"
+  rm -rf "$EXPANDED_DIR/mariadb-$version" "$RUNTIME_DIR/mariadb/$version"
+  mkdir -p "$EXPANDED_DIR/mariadb-$version" "$RUNTIME_DIR/mariadb/$version"
+  unzip -q "$archive" -d "$EXPANDED_DIR/mariadb-$version"
+  cp -R "$source/." "$RUNTIME_DIR/mariadb/$version/"
+  [[ -f "$RUNTIME_DIR/mariadb/$version/bin/mariadbd.exe" ]]
+  [[ -f "$RUNTIME_DIR/mariadb/$version/bin/mariadb.exe" ]]
+  [[ -f "$RUNTIME_DIR/mariadb/$version/bin/mariadb-install-db.exe" ]]
+  package_runtime "mariadb" "$version" "pgp:$fingerprint"
+}
 
 build_node_runtime() {
-  local node_version="$1"
-  local node_sha256="$2"
-  local node_release_fingerprint="$3"
-  local node_archive="$DOWNLOAD_DIR/node-v$node_version-win-x64.zip"
-  local node_checksums_signature="$DOWNLOAD_DIR/SHASUMS256-$node_version.txt.asc"
-  local node_checksums="$DOWNLOAD_DIR/SHASUMS256-$node_version.txt"
-  local node_key="$DOWNLOAD_DIR/node-release-key-$node_release_fingerprint.asc"
-  local node_status
-  local node_source
-  download "https://nodejs.org/dist/v$node_version/$(basename "$node_archive")" "$node_archive"
-  download "https://nodejs.org/dist/v$node_version/SHASUMS256.txt.asc" "$node_checksums_signature"
-  download \
-    "https://raw.githubusercontent.com/nodejs/release-keys/main/keys/$node_release_fingerprint.asc" \
-    "$node_key"
-  verify_sha256 "$node_archive" "$node_sha256"
+  local version="$1"
+  local archive_url="$2"
+  local archive_sha256="$3"
+  local signed_checksums_url="$4"
+  local key_url="$5"
+  local fingerprint="$6"
+  local archive="$DOWNLOAD_DIR/$(basename "$archive_url")"
+  local checksums_signature="$DOWNLOAD_DIR/SHASUMS256-$version.txt.asc"
+  local checksums="$DOWNLOAD_DIR/SHASUMS256-$version.txt"
+  local key="$DOWNLOAD_DIR/node-release-key-$fingerprint.asc"
+  local status
+  local source="$EXPANDED_DIR/node-$version/node-v$version-win-x64"
+
+  download "$archive_url" "$archive"
+  download "$signed_checksums_url" "$checksums_signature"
+  download "$key_url" "$key"
+  verify_sha256 "$archive" "$archive_sha256"
   rm -rf "$GNUPG_HOME"
   mkdir -m 0700 "$GNUPG_HOME"
-  gpg --batch --homedir "$GNUPG_HOME" --import "$node_key"
-  node_status="$(gpg --batch --yes --homedir "$GNUPG_HOME" --status-fd 1 \
-    --output "$node_checksums" --decrypt "$node_checksums_signature" 2>&1)"
-  echo "$node_status"
-  if ! grep -q "VALIDSIG $node_release_fingerprint" <<< "$node_status"; then
+  gpg --batch --homedir "$GNUPG_HOME" --import "$key"
+  status="$(gpg --batch --yes --homedir "$GNUPG_HOME" --status-fd 1 \
+    --output "$checksums" --decrypt "$checksums_signature" 2>&1)"
+  echo "$status"
+  if ! grep -q "VALIDSIG $fingerprint" <<< "$status"; then
     echo "Node.js release signature did not match the pinned fingerprint" >&2
     exit 1
   fi
-  if ! grep -q "^$node_sha256  $(basename "$node_archive")$" "$node_checksums"; then
+  if ! grep -q "^$archive_sha256  $(basename "$archive")$" "$checksums"; then
     echo "Node.js signed checksums do not contain the pinned archive hash" >&2
     exit 1
   fi
-  rm -rf "$EXPANDED_DIR/node-$node_version" "$RUNTIME_DIR/node/$node_version"
-  mkdir -p "$EXPANDED_DIR/node-$node_version" "$RUNTIME_DIR/node/$node_version"
-  unzip -q "$node_archive" -d "$EXPANDED_DIR/node-$node_version"
-  node_source="$EXPANDED_DIR/node-$node_version/node-v$node_version-win-x64"
-  cp -R "$node_source/." "$RUNTIME_DIR/node/$node_version/"
-  [[ -f "$RUNTIME_DIR/node/$node_version/node.exe" ]]
-  [[ -f "$RUNTIME_DIR/node/$node_version/npm.cmd" ]]
-  package_runtime "node" "$node_version" "pgp:$node_release_fingerprint"
+  rm -rf "$EXPANDED_DIR/node-$version" "$RUNTIME_DIR/node/$version"
+  mkdir -p "$EXPANDED_DIR/node-$version" "$RUNTIME_DIR/node/$version"
+  unzip -q "$archive" -d "$EXPANDED_DIR/node-$version"
+  cp -R "$source/." "$RUNTIME_DIR/node/$version/"
+  [[ -f "$RUNTIME_DIR/node/$version/node.exe" ]]
+  [[ -f "$RUNTIME_DIR/node/$version/npm.cmd" ]]
+  package_runtime "node" "$version" "pgp:$fingerprint"
 }
 
-if should_build "node"; then
-  build_node_runtime "$NODE20_VERSION" "$NODE20_SHA256" "$NODE20_RELEASE_FINGERPRINT"
-  build_node_runtime "$NODE24_VERSION" "$NODE24_SHA256" "$NODE24_RELEASE_FINGERPRINT"
-fi
+mkdir -p "$DOWNLOAD_DIR" "$EXPANDED_DIR" "$RUNTIME_DIR" "$ARTIFACT_DIR"
+
+while IFS= read -r package; do
+  name="$(jq -r '.name' <<< "$package")"
+  version="$(jq -r '.version' <<< "$package")"
+  archive_url="$(jq -r '.source.archiveUrl' <<< "$package")"
+  archive_sha256="$(jq -r '.source.archiveSha256' <<< "$package")"
+  verification_method="$(jq -r '.source.verification.method' <<< "$package")"
+  fingerprint="$(jq -r '.source.verification.fingerprint // empty' <<< "$package")"
+
+  if [[ ! "$name" =~ ^(php|mariadb|node)$ || ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Invalid Windows Runtime package identity: $name $version" >&2
+    exit 1
+  fi
+  if ! should_build "$name"; then
+    continue
+  fi
+
+  case "$name" in
+    php)
+      [[ "$verification_method" == "official-sha256" ]]
+      build_php_runtime "$version" "$archive_url" "$archive_sha256"
+      ;;
+    mariadb)
+      [[ "$verification_method" == "pgp" && -n "$fingerprint" ]]
+      build_mariadb_runtime \
+        "$version" \
+        "$archive_url" \
+        "$archive_sha256" \
+        "$(jq -r '.source.signatureUrl' <<< "$package")" \
+        "$(jq -r '.source.keyUrl' <<< "$package")" \
+        "$fingerprint"
+      ;;
+    node)
+      [[ "$verification_method" == "pgp" && -n "$fingerprint" ]]
+      build_node_runtime \
+        "$version" \
+        "$archive_url" \
+        "$archive_sha256" \
+        "$(jq -r '.source.signedChecksumsUrl' <<< "$package")" \
+        "$(jq -r '.source.keyUrl' <<< "$package")" \
+        "$fingerprint"
+      ;;
+  esac
+done < <(jq -c '.packages[]' "$PACKAGE_MANIFEST")
 
 echo "Windows x64 Runtime Packages are ready in $ARTIFACT_DIR"

@@ -1,27 +1,26 @@
 param(
   [Parameter(Mandatory = $true)]
-  [string]$OutputDirectory
+  [string]$OutputDirectory,
+
+  [Parameter(Mandatory = $true)]
+  [string]$ManifestPath
 )
 
 $ErrorActionPreference = "Stop"
 
-$phpRuntimes = @(
-  @{
-    Version = "7.4.33"
-    Toolset = "vc15"
-    Sha256 = "14ae3250d4447c8ccfc4c45a70d90adfbcd61e728d85f0be56a7ddf8f9c8aace"
-  },
-  @{
-    Version = "8.2.33"
-    Toolset = "vs16"
-    Sha256 = "d0bd189522fa50255ee94ed4b340ed4330f5ae33a90a74205275b0f0b221d388"
-  },
-  @{
-    Version = "8.4.24"
-    Toolset = "vs17"
-    Sha256 = "86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb"
-  }
-)
+if (-not (Test-Path -PathType Leaf $ManifestPath)) {
+  throw "Windows Runtime package manifest does not exist: $ManifestPath"
+}
+
+$manifest = Get-Content -Raw -Path $ManifestPath | ConvertFrom-Json
+if ($manifest.schemaVersion -ne 1 -or $manifest.platform -ne "windows" -or $manifest.architecture -ne "x64") {
+  throw "Windows Runtime package manifest has an unsupported schema or target"
+}
+
+$phpRuntimes = @($manifest.packages | Where-Object { $_.name -eq "php" })
+if ($phpRuntimes.Count -eq 0) {
+  throw "Windows Runtime package manifest does not contain PHP packages"
+}
 
 $temporaryRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { $env:TEMP }
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
@@ -29,12 +28,20 @@ New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 function Build-PhpRuntimePackage {
   param(
     [Parameter(Mandatory = $true)]
-    [hashtable]$Runtime
+    [object]$Runtime
   )
 
-  $phpVersion = $Runtime.Version
-  $phpArchiveName = "php-$phpVersion-nts-Win32-$($Runtime.Toolset)-x64.zip"
-  $phpUrl = "https://windows.php.net/downloads/releases/archives/$phpArchiveName"
+  $phpVersion = [string]$Runtime.version
+  if ($phpVersion -notmatch '^\d+\.\d+\.\d+$') {
+    throw "Invalid PHP Runtime version in package manifest: $phpVersion"
+  }
+  if ($Runtime.source.verification.method -ne "official-sha256") {
+    throw "PHP $phpVersion package must use official-sha256 verification"
+  }
+
+  $phpUrl = [string]$Runtime.source.archiveUrl
+  $phpArchiveName = [System.IO.Path]::GetFileName(([Uri]$phpUrl).AbsolutePath)
+  $expectedSha256 = ([string]$Runtime.source.archiveSha256).ToLowerInvariant()
   $packageName = "php-$phpVersion-windows-x64-community.tar.gz"
   $buildRoot = Join-Path $temporaryRoot "fabdev-online-php-$phpVersion"
   $downloadPath = Join-Path $buildRoot $phpArchiveName
@@ -52,8 +59,8 @@ function Build-PhpRuntimePackage {
 
   Invoke-WebRequest -Uri $phpUrl -OutFile $downloadPath
   $actualSha256 = (Get-FileHash -Algorithm SHA256 $downloadPath).Hash.ToLowerInvariant()
-  if ($actualSha256 -ne $Runtime.Sha256) {
-    throw "PHP $phpVersion source SHA-256 mismatch: expected $($Runtime.Sha256), got $actualSha256"
+  if ($actualSha256 -ne $expectedSha256) {
+    throw "PHP $phpVersion source SHA-256 mismatch: expected $expectedSha256, got $actualSha256"
   }
 
   Expand-Archive -Path $downloadPath -DestinationPath $expandedRoot

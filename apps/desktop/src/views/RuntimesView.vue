@@ -14,7 +14,6 @@ import {
   buildCatalogRuntimeRows,
   formatRuntimeBytes,
   formatRuntimeTarget,
-  isBuiltInPhpSeries,
   isRuntimeDownloadActive,
   runtimeProgressPercent
 } from '../utils/runtime'
@@ -540,13 +539,6 @@ async function revealPhpIni() {
         </div>
 
         <div class="runtime-actions">
-          <span
-            v-if="row.runtime && isBuiltInPhpSeries(row.series)"
-            class="state-pill"
-            data-state="installed"
-          >
-            {{ t('runtimes.builtIn') }}
-          </span>
           <span v-if="row.runtime?.active" class="state-pill" data-state="running">
             {{ t('runtimes.globalVersion') }}
           </span>

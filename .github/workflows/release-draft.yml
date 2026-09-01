@@ -321,26 +321,29 @@ jobs:
 
       - name: Prepare bundled Windows Runtimes
         shell: pwsh
-        run: ./scripts/prepare-windows-runtimes.ps1
+        run: >-
+          ./scripts/prepare-windows-runtimes.ps1
+          -ManifestPath resources/runtime-packages/windows-x64-bundled.json
 
-      - name: Build verified online PHP Runtime
+      - name: Build verified online PHP Runtime packages
         shell: pwsh
-        run: ./scripts/build-windows-php-runtime.ps1 -OutputDirectory release-input
+        run: >-
+          ./scripts/build-windows-php-runtime.ps1
+          -OutputDirectory release-input
+          -ManifestPath resources/runtime-packages/windows-x64.json
 
       - name: Validate packaged Windows PHP Runtime installation
         env:
-          FABDEV_WINDOWS_PHP74_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/php-7.4.33-windows-x64-community.tar.gz
-          FABDEV_WINDOWS_PHP82_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/php-8.2.33-windows-x64-community.tar.gz
-          FABDEV_WINDOWS_PHP84_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/php-8.4.24-windows-x64-community.tar.gz
+          FABDEV_WINDOWS_RUNTIME_PACKAGE_MANIFEST: ${{ github.workspace }}/resources/runtime-packages/windows-x64.json
+          FABDEV_WINDOWS_RUNTIME_PACKAGE_DIR: ${{ github.workspace }}/release-input
         run: >-
           cargo test -p fabdev-runtime installs_real_windows_php_archive
           --target x86_64-pc-windows-msvc -- --ignored
 
       - name: Validate packaged Windows Node.js and MariaDB Runtime installation
         env:
-          FABDEV_WINDOWS_NODE20_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/runtimes/node-20.20.2-windows-x64.tar.gz
-          FABDEV_WINDOWS_NODE24_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/runtimes/node-24.20.0-windows-x64.tar.gz
-          FABDEV_WINDOWS_MARIADB_RUNTIME_PACKAGE: ${{ github.workspace }}/release-input/runtimes/mariadb-12.3.2-windows-x64.tar.gz
+          FABDEV_WINDOWS_RUNTIME_PACKAGE_MANIFEST: ${{ github.workspace }}/resources/runtime-packages/windows-x64.json
+          FABDEV_WINDOWS_RUNTIME_PACKAGE_DIR: ${{ github.workspace }}/release-input/runtimes
         run: >-
           cargo test -p fabdev-agent installs_real_windows_online_service_runtime_archives
           --target x86_64-pc-windows-msvc -- --ignored
@@ -374,15 +377,13 @@ jobs:
           path: |
             release-input/windows-installer.exe
             release-input/fabdev-connect.exe
-            release-input/php-7.4.33-windows-x64-community.tar.gz
-            release-input/php-8.2.33-windows-x64-community.tar.gz
-            release-input/php-8.4.24-windows-x64-community.tar.gz
+            release-input/php-*-windows-x64-community.tar.gz
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
 
   build-windows-online-runtimes:
-    name: Build verified Windows x64 Node.js and MariaDB Runtimes
+    name: Build verified Windows x64 Runtime packages
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -402,16 +403,14 @@ jobs:
           FABDEV_BUILD_ROOT: ${{ runner.temp }}/windows-runtime-packages
           FABDEV_ARTIFACT_DIR: ${{ github.workspace }}/release-input/runtimes
           FABDEV_WINDOWS_RUNTIME_NAMES: mariadb node
+          FABDEV_WINDOWS_PACKAGE_MANIFEST: ${{ github.workspace }}/resources/runtime-packages/windows-x64.json
         run: ./scripts/build-windows-runtime-packages.sh
 
       - name: Upload Runtime packages
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: draft-windows-online-runtimes
-          path: |
-            release-input/runtimes/mariadb-12.3.2-windows-x64.tar.gz
-            release-input/runtimes/node-20.20.2-windows-x64.tar.gz
-            release-input/runtimes/node-24.20.0-windows-x64.tar.gz
+          path: release-input/runtimes/*-windows-x64-community.tar.gz
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
@@ -484,16 +483,9 @@ jobs:
             --macos-arm64 "$GITHUB_WORKSPACE/release-input/macos/macos-installer.dmg" \
             --windows-x64 "$GITHUB_WORKSPACE/release-input/windows/windows-installer.exe" \
             --windows-connect-x64 "$GITHUB_WORKSPACE/release-input/windows/fabdev-connect.exe" \
-            --runtime-macos-arm64 "$GITHUB_WORKSPACE/release-input/macos-runtimes/php-8.4.24-macos-arm64-community.tar.gz" \
-            --runtime-mariadb-macos-arm64 "$GITHUB_WORKSPACE/release-input/macos-runtimes/mariadb-12.3.2-macos-arm64-community.tar.gz" \
-            --runtime-node20-macos-arm64 "$GITHUB_WORKSPACE/release-input/macos-runtimes/node-20.20.2-macos-arm64-community.tar.gz" \
-            --runtime-node24-macos-arm64 "$GITHUB_WORKSPACE/release-input/macos-runtimes/node-24.20.0-macos-arm64-community.tar.gz" \
-            --runtime-php74-windows-x64 "$GITHUB_WORKSPACE/release-input/windows/php-7.4.33-windows-x64-community.tar.gz" \
-            --runtime-php82-windows-x64 "$GITHUB_WORKSPACE/release-input/windows/php-8.2.33-windows-x64-community.tar.gz" \
-            --runtime-windows-x64 "$GITHUB_WORKSPACE/release-input/windows/php-8.4.24-windows-x64-community.tar.gz" \
-            --runtime-mariadb-windows-x64 "$GITHUB_WORKSPACE/release-input/runtimes/mariadb-12.3.2-windows-x64.tar.gz" \
-            --runtime-node20-windows-x64 "$GITHUB_WORKSPACE/release-input/runtimes/node-20.20.2-windows-x64.tar.gz" \
-            --runtime-node24-windows-x64 "$GITHUB_WORKSPACE/release-input/runtimes/node-24.20.0-windows-x64.tar.gz"
+            --runtime-package-dir "$GITHUB_WORKSPACE/release-input/macos-runtimes" \
+            --runtime-package-dir "$GITHUB_WORKSPACE/release-input/windows" \
+            --runtime-package-dir "$GITHUB_WORKSPACE/release-input/runtimes"
           cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
             generate-community \
             "$VERSION" \
@@ -501,12 +493,8 @@ jobs:
             "$PUBLISHED_AT" \
             "$RUNTIME_CATALOG_EXPIRES_AT" \
             "$VERSION" \
-            "$GITHUB_WORKSPACE/release-assets/php-7.4.33-windows-x64-community.tar.gz" \
-            "$GITHUB_WORKSPACE/release-assets/php-8.2.33-windows-x64-community.tar.gz" \
-            "$GITHUB_WORKSPACE/release-assets/php-8.4.24-windows-x64-community.tar.gz" \
-            "$GITHUB_WORKSPACE/release-assets/mariadb-12.3.2-windows-x64-community.tar.gz" \
-            "$GITHUB_WORKSPACE/release-assets/node-20.20.2-windows-x64-community.tar.gz" \
-            "$GITHUB_WORKSPACE/release-assets/node-24.20.0-windows-x64-community.tar.gz" \
+            "$GITHUB_WORKSPACE/resources/runtime-packages/windows-x64.json" \
+            "$GITHUB_WORKSPACE/release-assets" \
             "$GITHUB_WORKSPACE/release-assets/php-8.4.24-macos-arm64-community.tar.gz" \
             "$GITHUB_WORKSPACE/release-assets/mariadb-12.3.2-macos-arm64-community.tar.gz" \
             "$GITHUB_WORKSPACE/release-assets/node-20.20.2-macos-arm64-community.tar.gz" \
@@ -519,7 +507,9 @@ jobs:
           (
             cd release-assets
             sha256sum --check SHA256SUMS
-            test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "30"
+            checksum_entries="$(awk 'NF { count += 1 } END { print count + 0 }' SHA256SUMS)"
+            expected_file_count="$((checksum_entries * 2 + 4))"
+            test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "$expected_file_count"
           )
 
       - name: Create release notes skeleton

@@ -11,7 +11,7 @@ pub use protocol::{
   ProxyConnectionInput, ProxyConnectionSettings, ProxyConnectionState, ProxyManagerState,
   RuntimeUpdateArtifact, RuntimeUpdateCheck, RuntimeUpdateOperation, RuntimeUpdateOperationStatus,
   ServiceState, SiteHomeInput, SiteHomeSettings, TerminalNodeState, TerminalPhpState,
-  PROTOCOL_VERSION, SUPPORTED_NODE_VERSIONS,
+  PROTOCOL_VERSION,
 };
 pub use site::{
   create_site, default_site_domain, detect_document_root, edit_site, normalize_domain, PhpVersion,

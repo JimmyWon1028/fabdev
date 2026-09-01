@@ -1,3 +1,7 @@
+param(
+  [string]$ManifestPath = "$(Split-Path -Parent $PSScriptRoot)/resources/runtime-packages/windows-x64-bundled.json"
+)
+
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -8,29 +12,47 @@ $downloadRoot = if ($env:RUNNER_TEMP) {
   Join-Path $env:TEMP "fabdev-windows-runtimes"
 }
 
-$runtimes = @(
-  @{
-    Name = "php-7.4.33"
-    Url = "https://downloads.php.net/~windows/releases/archives/php-7.4.33-nts-Win32-vc15-x64.zip"
-    Sha256 = "14ae3250d4447c8ccfc4c45a70d90adfbcd61e728d85f0be56a7ddf8f9c8aace"
-    Destination = "php/7.4.33"
-    StripRoot = $false
-  },
-  @{
-    Name = "php-8.2.33"
-    Url = "https://downloads.php.net/~windows/releases/archives/php-8.2.33-nts-Win32-vs16-x64.zip"
-    Sha256 = "d0bd189522fa50255ee94ed4b340ed4330f5ae33a90a74205275b0f0b221d388"
-    Destination = "php/8.2.33"
-    StripRoot = $false
-  },
-  @{
-    Name = "nginx-1.30.4"
-    Url = "https://nginx.org/download/nginx-1.30.4.zip"
-    Sha256 = "159294214d403f34f0bb4ae598801ab1f6a0d8c8da707f8f08748e294a222a01"
-    Destination = "nginx/current"
-    StripRoot = $true
+if (-not (Test-Path -PathType Leaf $ManifestPath)) {
+  throw "Bundled Windows Runtime manifest does not exist: $ManifestPath"
+}
+$manifest = Get-Content -Raw -Path $ManifestPath | ConvertFrom-Json
+if ($manifest.schemaVersion -ne 1 -or $manifest.platform -ne "windows" -or $manifest.architecture -ne "x64") {
+  throw "Bundled Windows Runtime manifest has an unsupported schema or target"
+}
+$runtimes = @($manifest.packages)
+if ($runtimes.Count -eq 0) {
+  throw "Bundled Windows Runtime manifest does not contain packages"
+}
+
+$identities = @{}
+foreach ($runtime in $runtimes) {
+  $name = [string]$runtime.name
+  $version = [string]$runtime.version
+  $destination = ([string]$runtime.destination).Replace("\", "/")
+  if ($name -notin @("php", "nginx") -or $version -notmatch '^\d+\.\d+\.\d+$') {
+    throw "Invalid bundled Windows Runtime identity: $name $version"
   }
-)
+  if ($runtime.archiveUrl -notmatch '^https://') {
+    throw "Bundled Windows Runtime source must use HTTPS: $name $version"
+  }
+  if ($runtime.archiveSha256 -notmatch '^[0-9a-f]{64}$') {
+    throw "Invalid bundled Windows Runtime SHA-256: $name $version"
+  }
+  $expectedDestination = if ($name -eq "php") { "php/$version" } else { "nginx/current" }
+  if ($destination -ne $expectedDestination) {
+    throw "Invalid bundled Windows Runtime destination: $destination"
+  }
+  $identity = "$name@$version"
+  if ($identities.ContainsKey($identity)) {
+    throw "Duplicate bundled Windows Runtime identity: $identity"
+  }
+  $identities[$identity] = $true
+}
+
+$defaultPhpRuntimes = @($runtimes | Where-Object { $_.name -eq "php" -and $_.default -eq $true })
+if ($defaultPhpRuntimes.Count -ne 1) {
+  throw "Bundled Windows Runtime manifest must select exactly one default PHP package"
+}
 
 New-Item -ItemType Directory -Force -Path $downloadRoot | Out-Null
 if (Test-Path $outputRoot) {
@@ -39,36 +61,47 @@ if (Test-Path $outputRoot) {
 New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
 
 foreach ($runtime in $runtimes) {
-  $archive = Join-Path $downloadRoot "$($runtime.Name).zip"
+  $name = [string]$runtime.name
+  $version = [string]$runtime.version
+  $identity = "$name-$version"
+  $archive = Join-Path $downloadRoot "$identity.zip"
   if (-not (Test-Path $archive)) {
-    Invoke-WebRequest -Uri $runtime.Url -OutFile $archive
+    Invoke-WebRequest -Uri $runtime.archiveUrl -OutFile $archive
   }
   $actualHash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
-  if ($actualHash -ne $runtime.Sha256) {
-    throw "SHA-256 mismatch for $($runtime.Name): expected $($runtime.Sha256), got $actualHash"
+  if ($actualHash -ne $runtime.archiveSha256) {
+    throw "SHA-256 mismatch for $identity`: expected $($runtime.archiveSha256), got $actualHash"
   }
 
-  $expanded = Join-Path $downloadRoot "$($runtime.Name)-expanded"
+  $expanded = Join-Path $downloadRoot "$identity-expanded"
   if (Test-Path $expanded) {
     Remove-Item -Recurse -Force $expanded
   }
   Expand-Archive -Path $archive -DestinationPath $expanded
-  $source = if ($runtime.StripRoot) {
+  $source = if ($runtime.stripRoot -eq $true) {
     Get-ChildItem -Path $expanded -Directory | Select-Object -First 1 -ExpandProperty FullName
   } else {
     $expanded
   }
-  $destination = Join-Path $outputRoot $runtime.Destination
+  if (-not $source) {
+    throw "Bundled Windows Runtime archive is empty: $identity"
+  }
+  $destination = Join-Path $outputRoot ([string]$runtime.destination)
   New-Item -ItemType Directory -Force -Path $destination | Out-Null
   Copy-Item -Path (Join-Path $source "*") -Destination $destination -Recurse -Force
-  Write-Host "Prepared $($runtime.Name) at $destination"
+  Write-Host "Prepared $identity at $destination"
 }
 
-$manifest = @{
+$outputManifest = @{
   schemaVersion = 1
   platform = "windows"
   architecture = "x64"
-  nginx = "1.30.4"
-  php = @("7.4.33", "8.2.33")
-} | ConvertTo-Json -Depth 3
-Set-Content -Path (Join-Path $outputRoot "manifest.json") -Value $manifest -Encoding utf8
+  defaultPhpVersion = [string]$defaultPhpRuntimes[0].version
+  packages = @($runtimes | ForEach-Object {
+    @{
+      name = [string]$_.name
+      version = [string]$_.version
+    }
+  })
+} | ConvertTo-Json -Depth 4
+Set-Content -Path (Join-Path $outputRoot "manifest.json") -Value $outputManifest -Encoding utf8

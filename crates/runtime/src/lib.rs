@@ -26,27 +26,15 @@ const MAX_SAFE_JSON_INTEGER: u64 = 9_007_199_254_740_991;
 const PHP_SOURCE_SIGNING_FINGERPRINT: &str = "9D7F99A0CB8F05C8A6958D6256A97AF7600A39A6";
 const PHP_84_MACOS_SOURCE_SHA256: &str =
   "e127be09a8506f4327c5cfa78a614b00d210714484ec215ce0011b4a03c00731";
-const PHP_74_WINDOWS_SOURCE_SHA256: &str =
-  "14ae3250d4447c8ccfc4c45a70d90adfbcd61e728d85f0be56a7ddf8f9c8aace";
-const PHP_82_WINDOWS_SOURCE_SHA256: &str =
-  "d0bd189522fa50255ee94ed4b340ed4330f5ae33a90a74205275b0f0b221d388";
-const PHP_84_WINDOWS_SOURCE_SHA256: &str =
-  "86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb";
 const MARIADB_SOURCE_SIGNING_FINGERPRINT: &str = "177F4010FE56CA3336300305F1656F24C74CD1D8";
 const MARIADB_123_MACOS_SOURCE_SHA256: &str =
   "82798714baf2f3456ed2f311fc803dc120f2bf3b82358e773847d628cdb4b670";
-const MARIADB_123_WINDOWS_SOURCE_SHA256: &str =
-  "67347c129eb9c5923d002ea34fbfa27c60eb95d36dd73b85af2651cdeceecac5";
 const NODE_20_SOURCE_SIGNING_FINGERPRINT: &str = "CC68F5A3106FF448322E48ED27F5E38D5B0A215F";
 const NODE_24_SOURCE_SIGNING_FINGERPRINT: &str = "5BE8A3F6C8A5C01D106C0AD820B1A390B168D356";
 const NODE_2020_MACOS_SOURCE_SHA256: &str =
   "466e05f3477c20dfb723054dfebffe55bc74660ee77f612166fca121dacb65b6";
-const NODE_2020_WINDOWS_SOURCE_SHA256: &str =
-  "dc3700fdd57a63eedb8fd7e3c7baaa32e6a740a1b904167ff4204bc68ed8bf77";
 const NODE_2420_MACOS_SOURCE_SHA256: &str =
   "40e5607e5ecb3db9192723776da2d75d966260fc74a7a9e731c1bd67dda96bc8";
-const NODE_2420_WINDOWS_SOURCE_SHA256: &str =
-  "6cac9ffbca8f6a47091e4b5c772e0606049c3871cb67d900c0cedde630e545ba";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -106,6 +94,47 @@ pub struct RuntimeSourceVerification {
   pub upstream_sha256: String,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RuntimePackageManifest {
+  pub schema_version: u16,
+  pub platform: String,
+  pub architecture: String,
+  pub minimum_os_version: String,
+  pub packages: Vec<RuntimePackageDefinition>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RuntimePackageDefinition {
+  pub name: String,
+  pub version: String,
+  pub source: RuntimePackageSource,
+  pub health_check_profile: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RuntimePackageSource {
+  pub archive_url: String,
+  pub archive_sha256: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub signature_url: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub signed_checksums_url: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub key_url: Option<String>,
+  pub verification: RuntimePackageVerification,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RuntimePackageVerification {
+  pub method: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub fingerprint: Option<String>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AcceptedRuntimeCatalog {
   pub sequence: u64,
@@ -134,7 +163,6 @@ pub struct CommunityPhpCatalogInput<'a> {
   pub expires_at: &'a str,
   pub minimum_app_version: &'a str,
   pub macos_arm64_package: Option<&'a Path>,
-  pub windows_x64_package: Option<&'a Path>,
   pub now_unix_seconds: i64,
 }
 
@@ -145,12 +173,8 @@ pub struct CommunityWindowsCatalogInput<'a> {
   pub generated_at: &'a str,
   pub expires_at: &'a str,
   pub minimum_app_version: &'a str,
-  pub php74_package: &'a Path,
-  pub php82_package: &'a Path,
-  pub php84_package: &'a Path,
-  pub mariadb_package: &'a Path,
-  pub node20_package: &'a Path,
-  pub node24_package: &'a Path,
+  pub package_manifest: &'a Path,
+  pub package_directory: &'a Path,
   pub now_unix_seconds: i64,
 }
 
@@ -175,12 +199,8 @@ pub struct CommunityCatalogInput<'a> {
   pub generated_at: &'a str,
   pub expires_at: &'a str,
   pub minimum_app_version: &'a str,
-  pub windows_php74_package: &'a Path,
-  pub windows_php82_package: &'a Path,
-  pub windows_php84_package: &'a Path,
-  pub windows_mariadb_package: &'a Path,
-  pub windows_node20_package: &'a Path,
-  pub windows_node24_package: &'a Path,
+  pub windows_package_manifest: &'a Path,
+  pub windows_package_directory: &'a Path,
   pub macos_php_package: &'a Path,
   pub macos_mariadb_package: &'a Path,
   pub macos_node20_package: &'a Path,
@@ -243,6 +263,10 @@ pub enum RuntimeCatalogError {
 pub enum RuntimeCatalogBuildError {
   #[error("unable to read Runtime package: {0}")]
   Read(#[from] std::io::Error),
+  #[error("unable to parse Runtime package manifest: {0}")]
+  PackageManifestJson(serde_json::Error),
+  #[error("invalid Runtime package manifest {field}: {message}")]
+  InvalidPackageManifest { field: String, message: String },
   #[error(transparent)]
   Catalog(#[from] RuntimeCatalogError),
 }
@@ -307,7 +331,6 @@ pub fn generate_community_php_catalog(
   input: &CommunityPhpCatalogInput<'_>,
 ) -> Result<Vec<u8>, RuntimeCatalogBuildError> {
   let macos_file_name = "php-8.4.24-macos-arm64-community.tar.gz";
-  let windows_file_name = "php-8.4.24-windows-x64-community.tar.gz";
   let release_url = |file_name: &str| {
     format!(
       "{RELEASE_DOWNLOAD_PREFIX}{}/{file_name}",
@@ -332,29 +355,6 @@ pub fn generate_community_php_catalog(
         method: "pgp".to_owned(),
         fingerprint: Some(PHP_SOURCE_SIGNING_FINGERPRINT.to_owned()),
         upstream_sha256: PHP_84_MACOS_SOURCE_SHA256.to_owned(),
-      }),
-      archive_format: Some("tar.gz".to_owned()),
-      install_mode: Some("side-by-side".to_owned()),
-      health_check_profile: Some("php-runtime-v1".to_owned()),
-    });
-  }
-  if let Some(package) = input.windows_x64_package {
-    let (size, sha256) = file_size_and_sha256(package)?;
-    runtimes.push(RuntimeRelease {
-      name: "php".to_owned(),
-      version: "8.4.24".to_owned(),
-      platform: "windows".to_owned(),
-      architecture: "x64".to_owned(),
-      minimum_os_version: Some("11.0".to_owned()),
-      file_name: Some(windows_file_name.to_owned()),
-      url: release_url(windows_file_name),
-      size,
-      sha256,
-      signature: None,
-      source_verification: Some(RuntimeSourceVerification {
-        method: "official-sha256".to_owned(),
-        fingerprint: None,
-        upstream_sha256: PHP_84_WINDOWS_SOURCE_SHA256.to_owned(),
       }),
       archive_format: Some("tar.gz".to_owned()),
       install_mode: Some("side-by-side".to_owned()),
@@ -391,97 +391,43 @@ pub fn generate_community_php_catalog(
 pub fn generate_community_windows_catalog(
   input: &CommunityWindowsCatalogInput<'_>,
 ) -> Result<Vec<u8>, RuntimeCatalogBuildError> {
+  let manifest = read_runtime_package_manifest(input.package_manifest)?;
+  validate_runtime_package_manifest(&manifest)?;
   let release_url = |file_name: &str| {
     format!(
       "{RELEASE_DOWNLOAD_PREFIX}{}/{file_name}",
       input.release_version
     )
   };
-  let package = |name: &str,
-                 version: &str,
-                 path: &Path,
-                 fingerprint: Option<&str>,
-                 upstream_sha256: &str,
-                 health_check_profile: &str|
-   -> Result<RuntimeRelease, std::io::Error> {
-    let file_name = format!("{name}-{version}-windows-x64-community.tar.gz");
-    let (size, sha256) = file_size_and_sha256(path)?;
-    Ok(RuntimeRelease {
-      name: name.to_owned(),
-      version: version.to_owned(),
-      platform: "windows".to_owned(),
-      architecture: "x64".to_owned(),
-      minimum_os_version: Some("11.0".to_owned()),
+  let mut runtimes = Vec::with_capacity(manifest.packages.len());
+  for package in &manifest.packages {
+    let file_name = format!(
+      "{}-{}-{}-{}-community.tar.gz",
+      package.name, package.version, manifest.platform, manifest.architecture
+    );
+    let path = input.package_directory.join(&file_name);
+    let (size, sha256) = file_size_and_sha256(&path)?;
+    runtimes.push(RuntimeRelease {
+      name: package.name.clone(),
+      version: package.version.clone(),
+      platform: manifest.platform.clone(),
+      architecture: manifest.architecture.clone(),
+      minimum_os_version: Some(manifest.minimum_os_version.clone()),
       file_name: Some(file_name.clone()),
       url: release_url(&file_name),
       size,
       sha256,
       signature: None,
       source_verification: Some(RuntimeSourceVerification {
-        method: if fingerprint.is_some() {
-          "pgp"
-        } else {
-          "official-sha256"
-        }
-        .to_owned(),
-        fingerprint: fingerprint.map(str::to_owned),
-        upstream_sha256: upstream_sha256.to_owned(),
+        method: package.source.verification.method.clone(),
+        fingerprint: package.source.verification.fingerprint.clone(),
+        upstream_sha256: package.source.archive_sha256.clone(),
       }),
       archive_format: Some("tar.gz".to_owned()),
       install_mode: Some("side-by-side".to_owned()),
-      health_check_profile: Some(health_check_profile.to_owned()),
-    })
-  };
-  let runtimes = vec![
-    package(
-      "php",
-      "7.4.33",
-      input.php74_package,
-      None,
-      PHP_74_WINDOWS_SOURCE_SHA256,
-      "php-runtime-v1",
-    )?,
-    package(
-      "php",
-      "8.2.33",
-      input.php82_package,
-      None,
-      PHP_82_WINDOWS_SOURCE_SHA256,
-      "php-runtime-v1",
-    )?,
-    package(
-      "php",
-      "8.4.24",
-      input.php84_package,
-      None,
-      PHP_84_WINDOWS_SOURCE_SHA256,
-      "php-runtime-v1",
-    )?,
-    package(
-      "mariadb",
-      "12.3.2",
-      input.mariadb_package,
-      Some(MARIADB_SOURCE_SIGNING_FINGERPRINT),
-      MARIADB_123_WINDOWS_SOURCE_SHA256,
-      "mariadb-runtime-v1",
-    )?,
-    package(
-      "node",
-      "20.20.2",
-      input.node20_package,
-      Some(NODE_20_SOURCE_SIGNING_FINGERPRINT),
-      NODE_2020_WINDOWS_SOURCE_SHA256,
-      "node-runtime-v1",
-    )?,
-    package(
-      "node",
-      "24.20.0",
-      input.node24_package,
-      Some(NODE_24_SOURCE_SIGNING_FINGERPRINT),
-      NODE_2420_WINDOWS_SOURCE_SHA256,
-      "node-runtime-v1",
-    )?,
-  ];
+      health_check_profile: Some(package.health_check_profile.clone()),
+    });
+  }
   let catalog = RuntimeCatalog {
     schema_version: RUNTIME_CATALOG_SCHEMA_VERSION,
     product: RUNTIME_CATALOG_PRODUCT.to_owned(),
@@ -507,6 +453,162 @@ pub fn generate_community_windows_catalog(
   let contents = generate_runtime_catalog(&catalog, &validation)?;
   parse_and_validate_runtime_catalog(&contents, &validation)?;
   Ok(contents)
+}
+
+pub fn read_runtime_package_manifest(
+  path: &Path,
+) -> Result<RuntimePackageManifest, RuntimeCatalogBuildError> {
+  let contents = std::fs::read(path)?;
+  serde_json::from_slice(&contents).map_err(RuntimeCatalogBuildError::PackageManifestJson)
+}
+
+fn validate_runtime_package_manifest(
+  manifest: &RuntimePackageManifest,
+) -> Result<(), RuntimeCatalogBuildError> {
+  require_package_manifest_value(manifest.schema_version == 1, "schemaVersion", "must be 1")?;
+  require_package_manifest_value(
+    manifest.platform == "windows",
+    "platform",
+    "must be windows",
+  )?;
+  require_package_manifest_value(
+    manifest.architecture == "x64",
+    "architecture",
+    "must be x64",
+  )?;
+  validate_numeric_version(&manifest.minimum_os_version, "minimumOsVersion")
+    .map_err(RuntimeCatalogBuildError::Catalog)?;
+  require_package_manifest_value(
+    !manifest.packages.is_empty(),
+    "packages",
+    "must not be empty",
+  )?;
+
+  let mut identities = HashSet::new();
+  for (index, package) in manifest.packages.iter().enumerate() {
+    let field = |name: &str| format!("packages[{index}].{name}");
+    require_package_manifest_value(
+      matches!(package.name.as_str(), "php" | "mariadb" | "node"),
+      &field("name"),
+      "must be php, mariadb, or node",
+    )?;
+    let version = Version::parse(&package.version).map_err(|error| {
+      invalid_package_manifest(field("version"), format!("must be stable SemVer: {error}"))
+    })?;
+    require_package_manifest_value(
+      version.pre.is_empty() && version.build.is_empty(),
+      &field("version"),
+      "must be stable SemVer without prerelease or build metadata",
+    )?;
+    require_package_manifest_value(
+      identities.insert((package.name.as_str(), package.version.as_str())),
+      &field("version"),
+      "duplicates an existing package identity",
+    )?;
+    require_package_manifest_value(
+      package.source.archive_url.starts_with("https://"),
+      &field("source.archiveUrl"),
+      "must use HTTPS",
+    )?;
+    require_lowercase_sha256(
+      &package.source.archive_sha256,
+      &field("source.archiveSha256"),
+    )
+    .map_err(RuntimeCatalogBuildError::Catalog)?;
+    for (name, value) in [
+      (
+        "source.signatureUrl",
+        package.source.signature_url.as_deref(),
+      ),
+      (
+        "source.signedChecksumsUrl",
+        package.source.signed_checksums_url.as_deref(),
+      ),
+      ("source.keyUrl", package.source.key_url.as_deref()),
+    ] {
+      if let Some(value) = value {
+        require_package_manifest_value(
+          value.starts_with("https://"),
+          &field(name),
+          "must use HTTPS",
+        )?;
+      }
+    }
+    validate_package_verification(package, index)?;
+    let expected_profile = format!("{}-runtime-v1", package.name);
+    require_package_manifest_value(
+      package.health_check_profile == expected_profile,
+      &field("healthCheckProfile"),
+      &format!("must be {expected_profile}"),
+    )?;
+  }
+  Ok(())
+}
+
+fn validate_package_verification(
+  package: &RuntimePackageDefinition,
+  index: usize,
+) -> Result<(), RuntimeCatalogBuildError> {
+  let field = |name: &str| format!("packages[{index}].source.verification.{name}");
+  match package.source.verification.method.as_str() {
+    "official-sha256" => require_package_manifest_value(
+      package.source.verification.fingerprint.is_none(),
+      &field("fingerprint"),
+      "must be omitted for official-sha256",
+    ),
+    "pgp" => {
+      let fingerprint = package
+        .source
+        .verification
+        .fingerprint
+        .as_deref()
+        .ok_or_else(|| invalid_package_manifest(field("fingerprint"), "is required for pgp"))?;
+      require_package_manifest_value(
+        fingerprint.len() == 40
+          && fingerprint
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'A'..=b'F').contains(&byte)),
+        &field("fingerprint"),
+        "must be 40 uppercase hexadecimal characters",
+      )?;
+      require_package_manifest_value(
+        package.source.key_url.is_some(),
+        &format!("packages[{index}].source.keyUrl"),
+        "is required for pgp",
+      )?;
+      require_package_manifest_value(
+        package.source.signature_url.is_some() || package.source.signed_checksums_url.is_some(),
+        &format!("packages[{index}].source"),
+        "must provide signatureUrl or signedChecksumsUrl for pgp",
+      )
+    }
+    _ => Err(invalid_package_manifest(
+      field("method"),
+      "must be official-sha256 or pgp",
+    )),
+  }
+}
+
+fn require_package_manifest_value(
+  condition: bool,
+  field: &str,
+  message: &str,
+) -> Result<(), RuntimeCatalogBuildError> {
+  if condition {
+    Ok(())
+  } else {
+    Err(invalid_package_manifest(field, message))
+  }
+}
+
+fn invalid_package_manifest(
+  field: impl Into<String>,
+  message: impl Into<String>,
+) -> RuntimeCatalogBuildError {
+  RuntimeCatalogBuildError::InvalidPackageManifest {
+    field: field.into(),
+    message: message.into(),
+  }
 }
 
 pub fn generate_community_macos_catalog(
@@ -629,12 +731,8 @@ pub fn generate_community_catalog(
     generated_at: input.generated_at,
     expires_at: input.expires_at,
     minimum_app_version: input.minimum_app_version,
-    php74_package: input.windows_php74_package,
-    php82_package: input.windows_php82_package,
-    php84_package: input.windows_php84_package,
-    mariadb_package: input.windows_mariadb_package,
-    node20_package: input.windows_node20_package,
-    node24_package: input.windows_node24_package,
+    package_manifest: input.windows_package_manifest,
+    package_directory: input.windows_package_directory,
     now_unix_seconds: input.now_unix_seconds,
   })?;
   let macos_contents = generate_community_macos_catalog(&CommunityMacosCatalogInput {
@@ -914,43 +1012,36 @@ fn validate_catalog_runtime_version(
 }
 
 fn validate_catalog_source_verification(
-  release: &RuntimeRelease,
+  _release: &RuntimeRelease,
   source: &RuntimeSourceVerification,
   field: &impl Fn(&str) -> String,
 ) -> Result<(), RuntimeCatalogError> {
-  let expected_fingerprint = match release.name.as_str() {
-    "php" if release.platform == "macos" => Some(PHP_SOURCE_SIGNING_FINGERPRINT),
-    "php" => None,
-    "mariadb" => Some(MARIADB_SOURCE_SIGNING_FINGERPRINT),
-    "node" if release.version.starts_with("20.") => Some(NODE_20_SOURCE_SIGNING_FINGERPRINT),
-    "node" => Some(NODE_24_SOURCE_SIGNING_FINGERPRINT),
-    _ => unreachable!("Runtime name was validated"),
-  };
-  match expected_fingerprint {
-    Some(expected) => {
+  match source.method.as_str() {
+    "official-sha256" => require_catalog_value(
+      source.fingerprint.is_none(),
+      field("sourceVerification.fingerprint"),
+      "must be omitted for official-sha256",
+    ),
+    "pgp" => {
+      let fingerprint = source.fingerprint.as_deref().ok_or_else(|| {
+        invalid_catalog(
+          field("sourceVerification.fingerprint"),
+          "is required for pgp",
+        )
+      })?;
       require_catalog_value(
-        source.method == "pgp",
-        field("sourceVerification.method"),
-        "must be pgp",
-      )?;
-      require_catalog_value(
-        source.fingerprint.as_deref() == Some(expected),
+        fingerprint.len() == 40
+          && fingerprint
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'A'..=b'F').contains(&byte)),
         field("sourceVerification.fingerprint"),
-        format!("must be {expected}"),
+        "must be 40 uppercase hexadecimal characters",
       )
     }
-    None => {
-      require_catalog_value(
-        source.method == "official-sha256",
-        field("sourceVerification.method"),
-        "must be official-sha256",
-      )?;
-      require_catalog_value(
-        source.fingerprint.is_none(),
-        field("sourceVerification.fingerprint"),
-        "must be omitted for official-sha256",
-      )
-    }
+    _ => Err(invalid_catalog(
+      field("sourceVerification.method"),
+      "must be official-sha256 or pgp",
+    )),
   }
 }
 
@@ -1511,6 +1602,31 @@ mod tests {
 
   use super::*;
 
+  fn windows_package_manifest_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+      .join("../../resources/runtime-packages/windows-x64.json")
+  }
+
+  fn create_manifest_packages(
+    manifest_path: &Path,
+    package_directory: &Path,
+  ) -> RuntimePackageManifest {
+    let manifest = read_runtime_package_manifest(manifest_path).expect("read package manifest");
+    std::fs::create_dir_all(package_directory).expect("create package directory");
+    for package in &manifest.packages {
+      let file_name = format!(
+        "{}-{}-{}-{}-community.tar.gz",
+        package.name, package.version, manifest.platform, manifest.architecture
+      );
+      std::fs::write(
+        package_directory.join(file_name),
+        format!("{} {} runtime", package.name, package.version),
+      )
+      .expect("write Runtime package");
+    }
+    manifest
+  }
+
   fn valid_catalog() -> RuntimeCatalog {
     RuntimeCatalog {
       schema_version: RUNTIME_CATALOG_SCHEMA_VERSION,
@@ -1561,16 +1677,14 @@ mod tests {
   }
 
   #[test]
-  fn generates_the_fixed_community_php_catalog_from_packages() {
+  fn generates_the_fixed_macos_community_php_catalog_from_package() {
     let root = std::env::temp_dir().join(format!(
       "fabdev-runtime-catalog-build-{}",
       uuid::Uuid::new_v4()
     ));
     std::fs::create_dir_all(&root).expect("create Catalog fixture");
     let macos_package = root.join("macos.tar.gz");
-    let windows_package = root.join("windows.tar.gz");
     std::fs::write(&macos_package, b"macos runtime").expect("write macOS package");
-    std::fs::write(&windows_package, b"windows runtime").expect("write Windows package");
 
     let contents = generate_community_php_catalog(&CommunityPhpCatalogInput {
       release_version: "0.1.4",
@@ -1579,7 +1693,6 @@ mod tests {
       expires_at: "2027-02-26T00:00:00Z",
       minimum_app_version: "0.1.4",
       macos_arm64_package: Some(&macos_package),
-      windows_x64_package: Some(&windows_package),
       now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
     })
     .expect("generate Community PHP Catalog");
@@ -1587,7 +1700,7 @@ mod tests {
 
     assert_eq!(catalog.catalog_sequence, 1);
     assert_eq!(catalog.signature, None);
-    assert_eq!(catalog.runtimes.len(), 2);
+    assert_eq!(catalog.runtimes.len(), 1);
     assert_eq!(catalog.runtimes[0].platform, "macos");
     assert_eq!(catalog.runtimes[0].size, 13);
     assert_eq!(
@@ -1603,46 +1716,6 @@ mod tests {
         .as_deref(),
       Some(PHP_SOURCE_SIGNING_FINGERPRINT)
     );
-    assert_eq!(catalog.runtimes[1].platform, "windows");
-    assert_eq!(
-      catalog.runtimes[1].minimum_os_version.as_deref(),
-      Some("11.0")
-    );
-    assert_eq!(catalog.runtimes[1].size, 15);
-    assert_eq!(
-      catalog.runtimes[1].url,
-      "https://github.com/JimmyWon1028/fabdev/releases/download/v0.1.4/php-8.4.24-windows-x64-community.tar.gz"
-    );
-    std::fs::remove_dir_all(root).expect("remove Catalog fixture");
-  }
-
-  #[test]
-  fn generates_a_windows_only_community_php_catalog() {
-    let root = std::env::temp_dir().join(format!(
-      "fabdev-runtime-catalog-windows-{}",
-      uuid::Uuid::new_v4()
-    ));
-    std::fs::create_dir_all(&root).expect("create Catalog fixture");
-    let windows_package = root.join("windows.tar.gz");
-    std::fs::write(&windows_package, b"windows runtime").expect("write Windows package");
-
-    let contents = generate_community_php_catalog(&CommunityPhpCatalogInput {
-      release_version: "0.1.4",
-      catalog_sequence: 2,
-      generated_at: "2026-08-30T00:00:00Z",
-      expires_at: "2027-02-26T00:00:00Z",
-      minimum_app_version: "0.1.4",
-      macos_arm64_package: None,
-      windows_x64_package: Some(&windows_package),
-      now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
-    })
-    .expect("generate Windows-only Community PHP Catalog");
-    let catalog: RuntimeCatalog = serde_json::from_slice(&contents).expect("parse Catalog");
-
-    assert_eq!(catalog.catalog_sequence, 2);
-    assert_eq!(catalog.runtimes.len(), 1);
-    assert_eq!(catalog.runtimes[0].platform, "windows");
-    assert_eq!(catalog.runtimes[0].architecture, "x64");
     std::fs::remove_dir_all(root).expect("remove Catalog fixture");
   }
 
@@ -1652,19 +1725,9 @@ mod tests {
       "fabdev-runtime-catalog-windows-complete-{}",
       uuid::Uuid::new_v4()
     ));
-    std::fs::create_dir_all(&root).expect("create Catalog fixture");
-    let php74_package = root.join("php74.tar.gz");
-    let php82_package = root.join("php82.tar.gz");
-    let php84_package = root.join("php84.tar.gz");
-    let mariadb_package = root.join("mariadb.tar.gz");
-    let node20_package = root.join("node20.tar.gz");
-    let node24_package = root.join("node24.tar.gz");
-    std::fs::write(&php74_package, b"php 7.4 runtime").expect("write PHP 7.4 package");
-    std::fs::write(&php82_package, b"php 8.2 runtime").expect("write PHP 8.2 package");
-    std::fs::write(&php84_package, b"php 8.4 runtime").expect("write PHP 8.4 package");
-    std::fs::write(&mariadb_package, b"mariadb runtime").expect("write MariaDB package");
-    std::fs::write(&node20_package, b"node 20 runtime").expect("write Node.js 20 package");
-    std::fs::write(&node24_package, b"node 24 runtime").expect("write Node.js 24 package");
+    let package_directory = root.join("packages");
+    let package_manifest = windows_package_manifest_path();
+    let manifest = create_manifest_packages(&package_manifest, &package_directory);
 
     let contents = generate_community_windows_catalog(&CommunityWindowsCatalogInput {
       release_version: "0.1.9",
@@ -1672,12 +1735,8 @@ mod tests {
       generated_at: "2026-08-30T00:00:00Z",
       expires_at: "2027-02-26T00:00:00Z",
       minimum_app_version: "0.1.9",
-      php74_package: &php74_package,
-      php82_package: &php82_package,
-      php84_package: &php84_package,
-      mariadb_package: &mariadb_package,
-      node20_package: &node20_package,
-      node24_package: &node24_package,
+      package_manifest: &package_manifest,
+      package_directory: &package_directory,
       now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
     })
     .expect("generate complete Windows Community Catalog");
@@ -1688,37 +1747,113 @@ mod tests {
       catalog.compatibility.minimum_agent_protocol_version,
       COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION
     );
-    assert_eq!(catalog.runtimes.len(), 6);
-    assert_eq!(catalog.runtimes[0].name, "php");
-    assert_eq!(catalog.runtimes[0].version, "7.4.33");
-    assert_eq!(catalog.runtimes[1].name, "php");
-    assert_eq!(catalog.runtimes[1].version, "8.2.33");
-    assert_eq!(catalog.runtimes[2].name, "php");
-    assert_eq!(catalog.runtimes[2].version, "8.4.24");
-    assert_eq!(catalog.runtimes[3].name, "mariadb");
-    assert_eq!(catalog.runtimes[4].name, "node");
+    assert_eq!(catalog.runtimes.len(), manifest.packages.len());
     assert_eq!(
-      catalog.runtimes[3].file_name.as_deref(),
-      Some("mariadb-12.3.2-windows-x64-community.tar.gz")
+      catalog
+        .runtimes
+        .iter()
+        .map(|runtime| (&runtime.name, &runtime.version))
+        .collect::<Vec<_>>(),
+      manifest
+        .packages
+        .iter()
+        .map(|package| (&package.name, &package.version))
+        .collect::<Vec<_>>()
     );
+    for (runtime, package) in catalog.runtimes.iter().zip(&manifest.packages) {
+      assert_eq!(
+        runtime.health_check_profile.as_deref(),
+        Some(package.health_check_profile.as_str())
+      );
+      assert_eq!(
+        runtime
+          .source_verification
+          .as_ref()
+          .and_then(|source| source.fingerprint.as_deref()),
+        package.source.verification.fingerprint.as_deref()
+      );
+    }
+    std::fs::remove_dir_all(root).expect("remove Catalog fixture");
+  }
+
+  #[test]
+  fn accepts_future_windows_package_versions_from_the_manifest() {
+    let root = std::env::temp_dir().join(format!(
+      "fabdev-runtime-catalog-windows-future-{}",
+      uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&root).expect("create Catalog fixture");
+    let package_manifest = root.join("windows-x64.json");
+    let package_directory = root.join("packages");
+    let manifest = RuntimePackageManifest {
+      schema_version: 1,
+      platform: "windows".to_owned(),
+      architecture: "x64".to_owned(),
+      minimum_os_version: "11.0".to_owned(),
+      packages: vec![
+        RuntimePackageDefinition {
+          name: "php".to_owned(),
+          version: "8.5.1".to_owned(),
+          source: RuntimePackageSource {
+            archive_url: "https://windows.php.net/php-8.5.1.zip".to_owned(),
+            archive_sha256: "a".repeat(64),
+            signature_url: None,
+            signed_checksums_url: None,
+            key_url: None,
+            verification: RuntimePackageVerification {
+              method: "official-sha256".to_owned(),
+              fingerprint: None,
+            },
+          },
+          health_check_profile: "php-runtime-v1".to_owned(),
+        },
+        RuntimePackageDefinition {
+          name: "node".to_owned(),
+          version: "26.1.3".to_owned(),
+          source: RuntimePackageSource {
+            archive_url: "https://nodejs.org/dist/v26.1.3/node-v26.1.3-win-x64.zip".to_owned(),
+            archive_sha256: "b".repeat(64),
+            signature_url: None,
+            signed_checksums_url: Some(
+              "https://nodejs.org/dist/v26.1.3/SHASUMS256.txt.asc".to_owned(),
+            ),
+            key_url: Some("https://nodejs.org/keys/release.asc".to_owned()),
+            verification: RuntimePackageVerification {
+              method: "pgp".to_owned(),
+              fingerprint: Some("1234567890ABCDEF1234567890ABCDEF12345678".to_owned()),
+            },
+          },
+          health_check_profile: "node-runtime-v1".to_owned(),
+        },
+      ],
+    };
+    std::fs::write(
+      &package_manifest,
+      serde_json::to_vec_pretty(&manifest).expect("serialize package manifest"),
+    )
+    .expect("write package manifest");
+    create_manifest_packages(&package_manifest, &package_directory);
+
+    let contents = generate_community_windows_catalog(&CommunityWindowsCatalogInput {
+      release_version: "0.1.18",
+      catalog_sequence: 4,
+      generated_at: "2026-09-01T00:00:00Z",
+      expires_at: "2027-03-01T00:00:00Z",
+      minimum_app_version: "0.1.18",
+      package_manifest: &package_manifest,
+      package_directory: &package_directory,
+      now_unix_seconds: parse_rfc3339_utc("2026-09-01T00:01:00Z", "test").expect("parse test time"),
+    })
+    .expect("generate future Windows Community Catalog");
+    let catalog: RuntimeCatalog = serde_json::from_slice(&contents).expect("parse Catalog");
+
     assert_eq!(
-      catalog.runtimes[3].health_check_profile.as_deref(),
-      Some("mariadb-runtime-v1")
-    );
-    assert_eq!(
-      catalog.runtimes[4]
-        .source_verification
-        .as_ref()
-        .and_then(|source| source.fingerprint.as_deref()),
-      Some(NODE_20_SOURCE_SIGNING_FINGERPRINT)
-    );
-    assert_eq!(catalog.runtimes[5].version, "24.20.0");
-    assert_eq!(
-      catalog.runtimes[5]
-        .source_verification
-        .as_ref()
-        .and_then(|source| source.fingerprint.as_deref()),
-      Some(NODE_24_SOURCE_SIGNING_FINGERPRINT)
+      catalog
+        .runtimes
+        .iter()
+        .map(|runtime| (runtime.name.as_str(), runtime.version.as_str()))
+        .collect::<Vec<_>>(),
+      vec![("php", "8.5.1"), ("node", "26.1.3")]
     );
     std::fs::remove_dir_all(root).expect("remove Catalog fixture");
   }
@@ -1805,12 +1940,10 @@ mod tests {
       std::fs::write(&path, format!("{name} runtime")).expect("write Runtime package");
       path
     };
-    let windows_php74 = package("windows-php74");
-    let windows_php82 = package("windows-php82");
-    let windows_php84 = package("windows-php84");
-    let windows_mariadb = package("windows-mariadb");
-    let windows_node20 = package("windows-node20");
-    let windows_node24 = package("windows-node24");
+    let windows_package_manifest = windows_package_manifest_path();
+    let windows_package_directory = root.join("windows-packages");
+    let windows_manifest =
+      create_manifest_packages(&windows_package_manifest, &windows_package_directory);
     let macos_php = package("macos-php");
     let macos_mariadb = package("macos-mariadb");
     let macos_node20 = package("macos-node20");
@@ -1822,12 +1955,8 @@ mod tests {
       generated_at: "2026-08-31T14:31:13Z",
       expires_at: "2027-02-28T23:59:59Z",
       minimum_app_version: "0.1.12",
-      windows_php74_package: &windows_php74,
-      windows_php82_package: &windows_php82,
-      windows_php84_package: &windows_php84,
-      windows_mariadb_package: &windows_mariadb,
-      windows_node20_package: &windows_node20,
-      windows_node24_package: &windows_node24,
+      windows_package_manifest: &windows_package_manifest,
+      windows_package_directory: &windows_package_directory,
       macos_php_package: &macos_php,
       macos_mariadb_package: &macos_mariadb,
       macos_node20_package: &macos_node20,
@@ -1838,14 +1967,14 @@ mod tests {
     let catalog: RuntimeCatalog = serde_json::from_slice(&contents).expect("parse Catalog");
 
     assert_eq!(catalog.catalog_sequence, 7);
-    assert_eq!(catalog.runtimes.len(), 10);
+    assert_eq!(catalog.runtimes.len(), windows_manifest.packages.len() + 4);
     assert_eq!(
       catalog
         .runtimes
         .iter()
         .filter(|runtime| runtime.platform == "windows" && runtime.architecture == "x64")
         .count(),
-      6
+      windows_manifest.packages.len()
     );
     assert_eq!(
       catalog
@@ -1870,9 +1999,7 @@ mod tests {
     ));
     std::fs::create_dir_all(&root).expect("create Catalog fixture");
     let macos_package = root.join("macos.tar.gz");
-    let windows_package = root.join("windows.tar.gz");
     std::fs::write(&macos_package, []).expect("write empty macOS package");
-    std::fs::write(&windows_package, b"windows runtime").expect("write Windows package");
 
     let error = generate_community_php_catalog(&CommunityPhpCatalogInput {
       release_version: "0.1.4",
@@ -1881,7 +2008,6 @@ mod tests {
       expires_at: "2027-02-26T00:00:00Z",
       minimum_app_version: "0.1.4",
       macos_arm64_package: Some(&macos_package),
-      windows_x64_package: Some(&windows_package),
       now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
     })
     .expect_err("reject empty package");
@@ -2216,15 +2342,25 @@ mod tests {
   #[test]
   #[ignore = "requires the verified Windows PHP package built by the release workflow"]
   fn installs_real_windows_php_archive() {
-    for (environment, version) in [
-      ("FABDEV_WINDOWS_PHP74_RUNTIME_PACKAGE", "7.4.33"),
-      ("FABDEV_WINDOWS_PHP82_RUNTIME_PACKAGE", "8.2.33"),
-      ("FABDEV_WINDOWS_PHP84_RUNTIME_PACKAGE", "8.4.24"),
-    ] {
-      let artifact = PathBuf::from(
-        std::env::var(environment)
-          .unwrap_or_else(|_| panic!("{environment} must identify the release package")),
-      );
+    let manifest_path = PathBuf::from(
+      std::env::var("FABDEV_WINDOWS_RUNTIME_PACKAGE_MANIFEST")
+        .expect("FABDEV_WINDOWS_RUNTIME_PACKAGE_MANIFEST must identify the package manifest"),
+    );
+    let package_directory = PathBuf::from(
+      std::env::var("FABDEV_WINDOWS_RUNTIME_PACKAGE_DIR")
+        .expect("FABDEV_WINDOWS_RUNTIME_PACKAGE_DIR must identify the package directory"),
+    );
+    let manifest = read_runtime_package_manifest(&manifest_path).expect("read package manifest");
+    for package in manifest
+      .packages
+      .iter()
+      .filter(|package| package.name == "php")
+    {
+      let version = package.version.as_str();
+      let artifact = package_directory.join(format!(
+        "{}-{}-{}-{}-community.tar.gz",
+        package.name, package.version, manifest.platform, manifest.architecture
+      ));
       let checksum = hex::encode(Sha256::digest(
         std::fs::read(&artifact).expect("read Windows PHP Runtime package"),
       ));

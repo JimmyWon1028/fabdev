@@ -30,16 +30,7 @@ function parseArgs(argv) {
     ['--macos-arm64', 'macosArm64'],
     ['--windows-x64', 'windowsX64'],
     ['--windows-connect-x64', 'windowsConnectX64'],
-    ['--runtime-macos-arm64', 'runtimeMacosArm64'],
-    ['--runtime-mariadb-macos-arm64', 'runtimeMariaDbMacosArm64'],
-    ['--runtime-node20-macos-arm64', 'runtimeNode20MacosArm64'],
-    ['--runtime-node24-macos-arm64', 'runtimeNode24MacosArm64'],
-    ['--runtime-php74-windows-x64', 'runtimePhp74WindowsX64'],
-    ['--runtime-php82-windows-x64', 'runtimePhp82WindowsX64'],
-    ['--runtime-windows-x64', 'runtimeWindowsX64'],
-    ['--runtime-mariadb-windows-x64', 'runtimeMariaDbWindowsX64'],
-    ['--runtime-node20-windows-x64', 'runtimeNode20WindowsX64'],
-    ['--runtime-node24-windows-x64', 'runtimeNode24WindowsX64']
+    ['--runtime-package-dir', 'runtimePackageDirs']
   ])
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -52,14 +43,19 @@ function parseArgs(argv) {
     if (!name) {
       throw new Error(`Unknown option: ${argument}`)
     }
-    if (options[name] !== undefined) {
+    if (name !== 'runtimePackageDirs' && options[name] !== undefined) {
       throw new Error(`Duplicate option: ${argument}`)
     }
     const value = argv[index + 1]
     if (!value || value.startsWith('--')) {
       throw new Error(`Missing value for ${argument}`)
     }
-    options[name] = value
+    if (name === 'runtimePackageDirs') {
+      options.runtimePackageDirs ??= []
+      options.runtimePackageDirs.push(value)
+    } else {
+      options[name] = value
+    }
     index += 1
   }
 
@@ -76,16 +72,7 @@ function printHelp() {
     [--macos-arm64 <dmg>] \\
     [--windows-x64 <setup.exe>] \\
     [--windows-connect-x64 <fabdev-connect.exe>] \\
-    [--runtime-macos-arm64 <php-runtime.tar.gz>] \\
-    [--runtime-mariadb-macos-arm64 <mariadb-runtime.tar.gz>] \\
-    [--runtime-node20-macos-arm64 <node-20-runtime.tar.gz>] \\
-    [--runtime-node24-macos-arm64 <node-24-runtime.tar.gz>] \\
-    [--runtime-php74-windows-x64 <php-7.4-runtime.tar.gz>] \\
-    [--runtime-php82-windows-x64 <php-8.2-runtime.tar.gz>] \\
-    [--runtime-windows-x64 <php-runtime.tar.gz>] \\
-    [--runtime-mariadb-windows-x64 <mariadb-runtime.tar.gz>] \\
-    [--runtime-node20-windows-x64 <node-20-runtime.tar.gz>] \
-    [--runtime-node24-windows-x64 <node-24-runtime.tar.gz>]
+    [--runtime-package-dir <directory>]...
 
 At least one App installer must be provided. The output directory must not exist.
 `)
@@ -224,59 +211,37 @@ function optionalToolDefinitions(version, options) {
   ].filter((definition) => definition.source)
 }
 
-function runtimePackageDefinitions(options) {
-  return [
-    {
-      source: options.runtimeMacosArm64,
-      label: 'PHP 8.4.24 macOS ARM64 Runtime package',
-      fileName: 'php-8.4.24-macos-arm64-community.tar.gz'
-    },
-    {
-      source: options.runtimeMariaDbMacosArm64,
-      label: 'MariaDB 12.3.2 macOS ARM64 Runtime package',
-      fileName: 'mariadb-12.3.2-macos-arm64-community.tar.gz'
-    },
-    {
-      source: options.runtimeNode20MacosArm64,
-      label: 'Node.js 20.20.2 macOS ARM64 Runtime package',
-      fileName: 'node-20.20.2-macos-arm64-community.tar.gz'
-    },
-    {
-      source: options.runtimeNode24MacosArm64,
-      label: 'Node.js 24.20.0 macOS ARM64 Runtime package',
-      fileName: 'node-24.20.0-macos-arm64-community.tar.gz'
-    },
-    {
-      source: options.runtimePhp74WindowsX64,
-      label: 'PHP 7.4.33 Windows x64 Runtime package',
-      fileName: 'php-7.4.33-windows-x64-community.tar.gz'
-    },
-    {
-      source: options.runtimePhp82WindowsX64,
-      label: 'PHP 8.2.33 Windows x64 Runtime package',
-      fileName: 'php-8.2.33-windows-x64-community.tar.gz'
-    },
-    {
-      source: options.runtimeWindowsX64,
-      label: 'PHP 8.4.24 Windows x64 Runtime package',
-      fileName: 'php-8.4.24-windows-x64-community.tar.gz'
-    },
-    {
-      source: options.runtimeMariaDbWindowsX64,
-      label: 'MariaDB 12.3.2 Windows x64 Runtime package',
-      fileName: 'mariadb-12.3.2-windows-x64-community.tar.gz'
-    },
-    {
-      source: options.runtimeNode20WindowsX64,
-      label: 'Node.js 20.20.2 Windows x64 Runtime package',
-      fileName: 'node-20.20.2-windows-x64-community.tar.gz'
-    },
-    {
-      source: options.runtimeNode24WindowsX64,
-      label: 'Node.js 24.20.0 Windows x64 Runtime package',
-      fileName: 'node-24.20.0-windows-x64-community.tar.gz'
+async function runtimePackageDefinitions(repoRoot, options) {
+  const packageNamePattern =
+    /^(php|mariadb|node)-\d+\.\d+\.\d+-(macos-arm64|windows-x64)-community\.tar\.gz$/
+  const definitions = []
+  const fileNames = new Set()
+
+  for (const directoryOption of options.runtimePackageDirs ?? []) {
+    const directory = resolve(repoRoot, directoryOption)
+    const directoryStat = await lstat(directory)
+    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
+      throw new Error(`Runtime package directory must be a real directory: ${directory}`)
     }
-  ].filter((definition) => definition.source)
+
+    const entries = await readdir(directory, { withFileTypes: true })
+    for (const entry of entries) {
+      if (!entry.isFile() || !packageNamePattern.test(entry.name)) {
+        continue
+      }
+      if (fileNames.has(entry.name)) {
+        throw new Error(`Duplicate Runtime package filename: ${entry.name}`)
+      }
+      fileNames.add(entry.name)
+      definitions.push({
+        source: join(directory, entry.name),
+        label: `Runtime package ${entry.name}`,
+        fileName: entry.name
+      })
+    }
+  }
+
+  return definitions.sort((left, right) => left.fileName.localeCompare(right.fileName))
 }
 
 export async function prepareAppRelease(options) {
@@ -302,7 +267,7 @@ export async function prepareAppRelease(options) {
     throw new Error('At least one App installer is required')
   }
   const optionalTools = optionalToolDefinitions(version, options)
-  const runtimePackages = runtimePackageDefinitions(options)
+  const runtimePackages = await runtimePackageDefinitions(repoRoot, options)
   const definitions = [...installers, ...optionalTools, ...runtimePackages]
   for (const definition of definitions) {
     definition.source = await validateSource(resolve(repoRoot, definition.source), definition.label)

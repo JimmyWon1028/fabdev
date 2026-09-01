@@ -1,5 +1,4 @@
 export const protocolVersion = 36
-export const supportedNodeVersions = ['20.20.2', '24.20.0'] as const
 
 export type ServiceState =
   | 'notInstalled'

@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use crate::{Site, SiteEditInput, SiteInput};
 
 pub const PROTOCOL_VERSION: u16 = 36;
-pub const SUPPORTED_NODE_VERSIONS: &[&str] = &["20.20.2", "24.20.0"];
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(

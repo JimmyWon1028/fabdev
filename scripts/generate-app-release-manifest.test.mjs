@@ -16,6 +16,15 @@ function digest(contents) {
   return createHash('sha256').update(contents).digest('hex')
 }
 
+async function createRuntimePackageDirectory(testRoot, packages) {
+  const directory = join(testRoot, 'runtime-packages')
+  await mkdir(directory)
+  for (const [fileName, contents] of Object.entries(packages)) {
+    await writeFile(join(directory, fileName), contents)
+  }
+  return directory
+}
+
 test('blocks Windows installation until the x64 Visual C++ Runtime is complete', async () => {
   const hooks = await readFile(
     join(repoRoot, 'apps/desktop/src-tauri/windows/installer-hooks.nsh'),
@@ -48,14 +57,14 @@ test('prepares canonical release assets, checksums, and manifests', async (conte
   const macSource = join(testRoot, 'input.dmg')
   const windowsSource = join(testRoot, 'input-setup.exe')
   const connectSource = join(testRoot, 'input-connect.exe')
-  const macRuntimeSource = join(testRoot, 'input-runtime-macos.tar.gz')
-  const windowsRuntimeSource = join(testRoot, 'input-runtime-windows.tar.gz')
   const outputDir = join(testRoot, 'release')
   await writeFile(macSource, macContents)
   await writeFile(windowsSource, windowsContents)
   await writeFile(connectSource, connectContents)
-  await writeFile(macRuntimeSource, macRuntimeContents)
-  await writeFile(windowsRuntimeSource, windowsRuntimeContents)
+  const runtimePackageDir = await createRuntimePackageDirectory(testRoot, {
+    'php-8.4.24-macos-arm64-community.tar.gz': macRuntimeContents,
+    'php-8.4.24-windows-x64-community.tar.gz': windowsRuntimeContents
+  })
 
   const result = await prepareAppRelease({
     repoRoot,
@@ -65,8 +74,7 @@ test('prepares canonical release assets, checksums, and manifests', async (conte
     macosArm64: macSource,
     windowsX64: windowsSource,
     windowsConnectX64: connectSource,
-    runtimeMacosArm64: macRuntimeSource,
-    runtimeWindowsX64: windowsRuntimeSource
+    runtimePackageDirs: [runtimePackageDir]
   })
 
   const macName = `fabDev-Community-${projectVersion}-macos-arm64.dmg`
@@ -157,21 +165,17 @@ test('prepares a Windows-only release with a Windows-only Runtime package', asyn
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
   const windowsSource = join(testRoot, 'input-setup.exe')
   const connectSource = join(testRoot, 'input-connect.exe')
-  const php74RuntimeSource = join(testRoot, 'input-runtime-php74-windows.tar.gz')
-  const php82RuntimeSource = join(testRoot, 'input-runtime-php82-windows.tar.gz')
-  const php84RuntimeSource = join(testRoot, 'input-runtime-php84-windows.tar.gz')
-  const mariaDbRuntimeSource = join(testRoot, 'input-runtime-mariadb-windows.tar.gz')
-  const node20RuntimeSource = join(testRoot, 'input-runtime-node20-windows.tar.gz')
-  const node24RuntimeSource = join(testRoot, 'input-runtime-node24-windows.tar.gz')
   const outputDir = join(testRoot, 'release')
   await writeFile(windowsSource, 'Windows installer fixture')
   await writeFile(connectSource, 'fabDev Connect fixture')
-  await writeFile(php74RuntimeSource, 'Windows PHP 7.4 Runtime fixture')
-  await writeFile(php82RuntimeSource, 'Windows PHP 8.2 Runtime fixture')
-  await writeFile(php84RuntimeSource, 'Windows PHP 8.4 Runtime fixture')
-  await writeFile(mariaDbRuntimeSource, 'Windows MariaDB Runtime fixture')
-  await writeFile(node20RuntimeSource, 'Windows Node.js 20 Runtime fixture')
-  await writeFile(node24RuntimeSource, 'Windows Node.js 24 Runtime fixture')
+  const runtimePackageDir = await createRuntimePackageDirectory(testRoot, {
+    'php-7.4.33-windows-x64-community.tar.gz': 'Windows PHP 7.4 Runtime fixture',
+    'php-8.2.33-windows-x64-community.tar.gz': 'Windows PHP 8.2 Runtime fixture',
+    'php-8.4.24-windows-x64-community.tar.gz': 'Windows PHP 8.4 Runtime fixture',
+    'mariadb-12.3.2-windows-x64-community.tar.gz': 'Windows MariaDB Runtime fixture',
+    'node-20.20.2-windows-x64-community.tar.gz': 'Windows Node.js 20 Runtime fixture',
+    'node-24.20.0-windows-x64-community.tar.gz': 'Windows Node.js 24 Runtime fixture'
+  })
 
   const result = await prepareAppRelease({
     repoRoot,
@@ -180,12 +184,7 @@ test('prepares a Windows-only release with a Windows-only Runtime package', asyn
     outputDir,
     windowsX64: windowsSource,
     windowsConnectX64: connectSource,
-    runtimePhp74WindowsX64: php74RuntimeSource,
-    runtimePhp82WindowsX64: php82RuntimeSource,
-    runtimeWindowsX64: php84RuntimeSource,
-    runtimeMariaDbWindowsX64: mariaDbRuntimeSource,
-    runtimeNode20WindowsX64: node20RuntimeSource,
-    runtimeNode24WindowsX64: node24RuntimeSource
+    runtimePackageDirs: [runtimePackageDir]
   })
 
   assert.equal(result.manifest.artifacts.length, 1)
@@ -221,20 +220,44 @@ test('prepares a Windows-only release with a Windows-only Runtime package', asyn
   )
 })
 
+test('stages future Runtime versions without adding version-specific options', async (context) => {
+  const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-future-runtime-test-'))
+  context.after(async () => rm(testRoot, { force: true, recursive: true }))
+  const windowsSource = join(testRoot, 'input-setup.exe')
+  const outputDir = join(testRoot, 'release')
+  await writeFile(windowsSource, 'Windows installer fixture')
+  const runtimePackageDir = await createRuntimePackageDirectory(testRoot, {
+    'php-8.5.1-windows-x64-community.tar.gz': 'Future PHP Runtime fixture',
+    'node-26.1.3-windows-x64-community.tar.gz': 'Future Node.js Runtime fixture',
+    'notes.txt': 'Ignored non-package file'
+  })
+
+  const result = await prepareAppRelease({
+    repoRoot,
+    version: projectVersion,
+    publishedAt: '2026-09-01T12:34:56Z',
+    outputDir,
+    windowsX64: windowsSource,
+    runtimePackageDirs: [runtimePackageDir]
+  })
+
+  assert.equal(result.files.includes('php-8.5.1-windows-x64-community.tar.gz'), true)
+  assert.equal(result.files.includes('node-26.1.3-windows-x64-community.tar.gz'), true)
+  assert.equal(result.files.includes('notes.txt'), false)
+})
+
 test('prepares a macOS ARM64 release with all online Runtime packages', async (context) => {
   const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-macos-test-'))
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
   const macSource = join(testRoot, 'input.dmg')
-  const phpRuntimeSource = join(testRoot, 'input-runtime-php-macos.tar.gz')
-  const mariaDbRuntimeSource = join(testRoot, 'input-runtime-mariadb-macos.tar.gz')
-  const node20RuntimeSource = join(testRoot, 'input-runtime-node20-macos.tar.gz')
-  const node24RuntimeSource = join(testRoot, 'input-runtime-node24-macos.tar.gz')
   const outputDir = join(testRoot, 'release')
   await writeFile(macSource, 'macOS installer fixture')
-  await writeFile(phpRuntimeSource, 'macOS PHP Runtime fixture')
-  await writeFile(mariaDbRuntimeSource, 'macOS MariaDB Runtime fixture')
-  await writeFile(node20RuntimeSource, 'macOS Node.js 20 Runtime fixture')
-  await writeFile(node24RuntimeSource, 'macOS Node.js 24 Runtime fixture')
+  const runtimePackageDir = await createRuntimePackageDirectory(testRoot, {
+    'php-8.4.24-macos-arm64-community.tar.gz': 'macOS PHP Runtime fixture',
+    'mariadb-12.3.2-macos-arm64-community.tar.gz': 'macOS MariaDB Runtime fixture',
+    'node-20.20.2-macos-arm64-community.tar.gz': 'macOS Node.js 20 Runtime fixture',
+    'node-24.20.0-macos-arm64-community.tar.gz': 'macOS Node.js 24 Runtime fixture'
+  })
 
   const result = await prepareAppRelease({
     repoRoot,
@@ -242,10 +265,7 @@ test('prepares a macOS ARM64 release with all online Runtime packages', async (c
     publishedAt: '2026-08-31T06:00:00Z',
     outputDir,
     macosArm64: macSource,
-    runtimeMacosArm64: phpRuntimeSource,
-    runtimeMariaDbMacosArm64: mariaDbRuntimeSource,
-    runtimeNode20MacosArm64: node20RuntimeSource,
-    runtimeNode24MacosArm64: node24RuntimeSource
+    runtimePackageDirs: [runtimePackageDir]
   })
 
   assert.equal(result.manifest.artifacts.length, 1)
@@ -312,31 +332,31 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.doesNotMatch(workflow, /releases\/tags\//)
   assert.doesNotMatch(workflow, /gh release edit|--draft=false|make_latest/)
   assert.doesNotMatch(workflow, /secrets\./)
-  assert.match(workflow, /build-windows-php-runtime\.ps1 -OutputDirectory release-input/)
-  assert.match(workflow, /FABDEV_WINDOWS_PHP74_RUNTIME_PACKAGE:/)
-  assert.match(workflow, /FABDEV_WINDOWS_PHP82_RUNTIME_PACKAGE:/)
-  assert.match(workflow, /FABDEV_WINDOWS_PHP84_RUNTIME_PACKAGE:/)
+  assert.match(workflow, /build-windows-php-runtime\.ps1/)
+  assert.match(workflow, /-OutputDirectory release-input/)
+  assert.match(workflow, /-ManifestPath resources\/runtime-packages\/windows-x64\.json/)
+  assert.match(workflow, /prepare-windows-runtimes\.ps1/)
+  assert.match(
+    workflow,
+    /-ManifestPath resources\/runtime-packages\/windows-x64-bundled\.json/
+  )
+  assert.match(workflow, /FABDEV_WINDOWS_RUNTIME_PACKAGE_MANIFEST:/)
+  assert.match(workflow, /FABDEV_WINDOWS_RUNTIME_PACKAGE_DIR:/)
+  assert.doesNotMatch(workflow, /FABDEV_WINDOWS_PHP(?:74|82|84)_RUNTIME_PACKAGE:/)
   assert.match(workflow, /installs_real_windows_php_archive/)
-  assert.match(workflow, /--runtime-php74-windows-x64/)
-  assert.match(workflow, /--runtime-php82-windows-x64/)
-  assert.match(workflow, /--runtime-windows-x64/)
   assert.match(workflow, /FABDEV_WINDOWS_RUNTIME_NAMES: mariadb node/)
-  assert.match(workflow, /--runtime-mariadb-windows-x64/)
-  assert.match(workflow, /--runtime-node20-windows-x64/)
-  assert.match(workflow, /--runtime-node24-windows-x64/)
+  assert.match(workflow, /FABDEV_WINDOWS_PACKAGE_MANIFEST:/)
+  assert.match(workflow, /--runtime-package-dir/)
+  assert.doesNotMatch(workflow, /--runtime-(?:php|mariadb|node\d|windows|macos)/)
   assert.match(workflow, /build-macos:/)
   assert.match(workflow, /draft-macos-arm64/)
   assert.match(workflow, /draft-macos-online-runtimes/)
   assert.match(workflow, /build-macos-online-runtime-packages\.sh/)
   assert.match(workflow, /--macos-arm64/)
-  assert.match(workflow, /--runtime-macos-arm64/)
-  assert.match(workflow, /--runtime-mariadb-macos-arm64/)
-  assert.match(workflow, /--runtime-node20-macos-arm64/)
-  assert.match(workflow, /--runtime-node24-macos-arm64/)
   assert.match(workflow, /generate-community/)
   assert.match(workflow, /--bin fabdev-runtime-catalog/)
   assert.match(workflow, /release-assets\/fabdev-runtime-v1\.json/)
-  assert.match(workflow, /\)" = "30"/)
+  assert.match(workflow, /expected_file_count="\$\(\(checksum_entries \* 2 \+ 4\)\)"/)
 
   const usesLines = workflow
     .split('\n')
@@ -401,27 +421,29 @@ test('wires Windows update download cancellation through the desktop command', a
   assert.match(settingsSource, /store\.appUpdateDownloading && canCancelAppUpdate/)
 })
 
-test('pins and verifies all Windows online PHP Runtime packages', async () => {
-  const script = await readFile(
-    join(repoRoot, 'scripts/build-windows-php-runtime.ps1'),
-    'utf8'
-  )
+test('loads and verifies every Windows online PHP Runtime from the package manifest', async () => {
+  const [script, manifestContents] = await Promise.all([
+    readFile(join(repoRoot, 'scripts/build-windows-php-runtime.ps1'), 'utf8'),
+    readFile(join(repoRoot, 'resources/runtime-packages/windows-x64.json'), 'utf8')
+  ])
+  const manifest = JSON.parse(manifestContents)
+  const phpPackages = manifest.packages.filter((runtimePackage) => runtimePackage.name === 'php')
 
-  assert.match(script, /Version = "7\.4\.33"/)
-  assert.match(
-    script,
-    /Sha256 = "14ae3250d4447c8ccfc4c45a70d90adfbcd61e728d85f0be56a7ddf8f9c8aace"/
+  assert.deepEqual(phpPackages.map((runtimePackage) => runtimePackage.version), [
+    '7.4.33',
+    '8.2.33',
+    '8.4.24'
+  ])
+  assert.equal(
+    phpPackages.every(
+      (runtimePackage) =>
+        runtimePackage.source.verification.method === 'official-sha256' &&
+        /^[0-9a-f]{64}$/.test(runtimePackage.source.archiveSha256)
+    ),
+    true
   )
-  assert.match(script, /Version = "8\.2\.33"/)
-  assert.match(
-    script,
-    /Sha256 = "d0bd189522fa50255ee94ed4b340ed4330f5ae33a90a74205275b0f0b221d388"/
-  )
-  assert.match(script, /Version = "8\.4\.24"/)
-  assert.match(
-    script,
-    /Sha256 = "86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb"/
-  )
+  assert.match(script, /ConvertFrom-Json/)
+  assert.match(script, /Where-Object \{ \$_\.name -eq "php" \}/)
   assert.match(script, /php-\$phpVersion-windows-x64-community\.tar\.gz/)
   assert.match(script, /ext\/php_mysqli\.dll/)
   assert.match(script, /ext\/php_pdo_mysql\.dll/)
@@ -429,7 +451,40 @@ test('pins and verifies all Windows online PHP Runtime packages', async () => {
   assert.match(script, /extension_loaded\('pdo_mysql'\)/)
   assert.match(script, /tar\.exe -tzf/)
   assert.match(script, /foreach \(\$runtime in \$phpRuntimes\)/)
+  assert.doesNotMatch(script, /7\.4\.33|8\.2\.33|8\.4\.24/)
   assert.doesNotMatch(script, /mariadb|node/i)
+})
+
+test('loads bundled Windows Runtime versions and the default PHP from a manifest', async () => {
+  const [script, desktopSource, manifestContents] = await Promise.all([
+    readFile(join(repoRoot, 'scripts/prepare-windows-runtimes.ps1'), 'utf8'),
+    readFile(join(repoRoot, 'apps/desktop/src-tauri/src/lib.rs'), 'utf8'),
+    readFile(
+      join(repoRoot, 'resources/runtime-packages/windows-x64-bundled.json'),
+      'utf8'
+    )
+  ])
+  const manifest = JSON.parse(manifestContents)
+  const defaultPhp = manifest.packages.filter(
+    (runtimePackage) => runtimePackage.name === 'php' && runtimePackage.default
+  )
+
+  assert.equal(defaultPhp.length, 1)
+  assert.match(script, /ConvertFrom-Json/)
+  assert.match(script, /defaultPhpVersion/)
+  assert.doesNotMatch(script, /7\.4\.33|8\.2\.33|1\.30\.4/)
+  assert.match(desktopSource, /struct BundledWindowsRuntimeManifest/)
+  assert.match(desktopSource, /default_php_version/)
+  const windowsInstallerStart = desktopSource.indexOf('fn install_bundled_windows_runtimes')
+  const windowsInstallerEnd = desktopSource.indexOf(
+    '#[cfg(any(target_os = "macos", windows))]',
+    windowsInstallerStart
+  )
+  assert.ok(windowsInstallerStart >= 0 && windowsInstallerEnd > windowsInstallerStart)
+  assert.doesNotMatch(
+    desktopSource.slice(windowsInstallerStart, windowsInstallerEnd),
+    /version\.starts_with\("8\.2\."\)/
+  )
 })
 
 test('pins and prepares every macOS ARM64 online Runtime package', async () => {

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "platform": "windows",
+  "architecture": "x64",
+  "minimumOsVersion": "11.0",
+  "packages": [
+    {
+      "name": "php",
+      "version": "7.4.33",
+      "source": {
+        "archiveUrl": "https://windows.php.net/downloads/releases/archives/php-7.4.33-nts-Win32-vc15-x64.zip",
+        "archiveSha256": "14ae3250d4447c8ccfc4c45a70d90adfbcd61e728d85f0be56a7ddf8f9c8aace",
+        "verification": {
+          "method": "official-sha256"
+        }
+      },
+      "healthCheckProfile": "php-runtime-v1"
+    },
+    {
+      "name": "php",
+      "version": "8.2.33",
+      "source": {
+        "archiveUrl": "https://windows.php.net/downloads/releases/archives/php-8.2.33-nts-Win32-vs16-x64.zip",
+        "archiveSha256": "d0bd189522fa50255ee94ed4b340ed4330f5ae33a90a74205275b0f0b221d388",
+        "verification": {
+          "method": "official-sha256"
+        }
+      },
+      "healthCheckProfile": "php-runtime-v1"
+    },
+    {
+      "name": "php",
+      "version": "8.4.24",
+      "source": {
+        "archiveUrl": "https://windows.php.net/downloads/releases/archives/php-8.4.24-nts-Win32-vs17-x64.zip",
+        "archiveSha256": "86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb",
+        "verification": {
+          "method": "official-sha256"
+        }
+      },
+      "healthCheckProfile": "php-runtime-v1"
+    },
+    {
+      "name": "mariadb",
+      "version": "12.3.2",
+      "source": {
+        "archiveUrl": "https://archive.mariadb.org/mariadb-12.3.2/winx64-packages/mariadb-12.3.2-winx64.zip",
+        "archiveSha256": "67347c129eb9c5923d002ea34fbfa27c60eb95d36dd73b85af2651cdeceecac5",
+        "signatureUrl": "https://archive.mariadb.org/mariadb-12.3.2/winx64-packages/mariadb-12.3.2-winx64.zip.asc",
+        "keyUrl": "https://archive.mariadb.org/PublicKey",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "177F4010FE56CA3336300305F1656F24C74CD1D8"
+        }
+      },
+      "healthCheckProfile": "mariadb-runtime-v1"
+    },
+    {
+      "name": "node",
+      "version": "20.20.2",
+      "source": {
+        "archiveUrl": "https://nodejs.org/dist/v20.20.2/node-v20.20.2-win-x64.zip",
+        "archiveSha256": "dc3700fdd57a63eedb8fd7e3c7baaa32e6a740a1b904167ff4204bc68ed8bf77",
+        "signedChecksumsUrl": "https://nodejs.org/dist/v20.20.2/SHASUMS256.txt.asc",
+        "keyUrl": "https://raw.githubusercontent.com/nodejs/release-keys/main/keys/CC68F5A3106FF448322E48ED27F5E38D5B0A215F.asc",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "CC68F5A3106FF448322E48ED27F5E38D5B0A215F"
+        }
+      },
+      "healthCheckProfile": "node-runtime-v1"
+    },
+    {
+      "name": "node",
+      "version": "24.20.0",
+      "source": {
+        "archiveUrl": "https://nodejs.org/dist/v24.20.0/node-v24.20.0-win-x64.zip",
+        "archiveSha256": "6cac9ffbca8f6a47091e4b5c772e0606049c3871cb67d900c0cedde630e545ba",
+        "signedChecksumsUrl": "https://nodejs.org/dist/v24.20.0/SHASUMS256.txt.asc",
+        "keyUrl": "https://raw.githubusercontent.com/nodejs/release-keys/main/keys/5BE8A3F6C8A5C01D106C0AD820B1A390B168D356.asc",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "5BE8A3F6C8A5C01D106C0AD820B1A390B168D356"
+        }
+      },
+      "healthCheckProfile": "node-runtime-v1"
+    }
+  ]
+}

@@ -71,7 +71,7 @@ const manuals: Record<Language, OperationManual> = {
         title: 'PHP settings',
         summary: 'Install optional PHP Runtimes, select a global version, and maintain validated php.ini files.',
         steps: [
-          'PHP 7.4 and 8.2 are built in. Install package validates a matching Runtime manifest and package before installation.',
+          'Available PHP versions come from installed packages and the Runtime Catalog. Install package validates a matching descriptor and archive before installation.',
           'Set as global changes the default PHP series. A Site with an explicit version keeps its own selection.',
           'Open php.ini to edit one installed version. Save and apply validates the file with the matching PHP-FPM first.',
           'Default php.ini is a template for future installs; editing it does not overwrite existing version-specific files.',
@@ -206,7 +206,7 @@ const manuals: Record<Language, OperationManual> = {
         title: 'PHP 設定',
         summary: '安裝選用 PHP Runtime、設定全域版本，並管理經驗證的 `php.ini`。',
         steps: [
-          'PHP 7.4 與 8.2 為內建版本；「安裝本機套件」會先驗證相符的 Runtime 描述檔與套件。',
+          '可用 PHP 版本來自已安裝套件與 Runtime Catalog；「安裝本機套件」會先驗證相符的描述檔與套件。',
           '「設為全域」會變更預設 PHP 系列；已明確指定版本的 Site 不會跟著改變。',
           '開啟個別版本的 `php.ini` 後，「儲存並套用」會先交給對應 PHP-FPM 驗證。',
           '「Default php.ini」是日後新安裝版本的範本，不會覆蓋現有各版本設定。',
@@ -341,7 +341,7 @@ const manuals: Record<Language, OperationManual> = {
         title: 'PHP 设置',
         summary: '安装可选 PHP Runtime、设置全局版本，并管理经过验证的 `php.ini`。',
         steps: [
-          'PHP 7.4 与 8.2 为内置版本；“安装本地包”会先验证相符的 Runtime 描述文件与包。',
+          '可用 PHP 版本来自已安装包与 Runtime Catalog；“安装本地包”会先验证相符的描述文件与包。',
           '“设为全局”会变更默认 PHP 系列；已明确指定版本的 Site 不会随之改变。',
           '打开个别版本的 `php.ini` 后，“保存并应用”会先交给对应 PHP-FPM 验证。',
           '“Default php.ini”是日后新安装版本的模板，不会覆盖现有各版本设置。',

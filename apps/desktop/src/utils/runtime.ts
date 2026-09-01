@@ -1,5 +1,4 @@
 import {
-  supportedNodeVersions,
   type NodeRuntimeInfo,
   type PhpRuntimeInfo,
   type RuntimeUpdateArtifact,
@@ -28,12 +27,6 @@ export interface NodeRuntimeRow {
   runtime: NodeRuntimeInfo | null
   artifact: RuntimeUpdateArtifact | null
   state: CatalogRuntimeRowState
-}
-
-export const BUILT_IN_PHP_SERIES = ['7.4', '8.2'] as const
-
-export function isBuiltInPhpSeries(series: string): boolean {
-  return BUILT_IN_PHP_SERIES.some((builtInSeries) => builtInSeries === series)
 }
 
 export function phpSeriesFromVersion(version: string | null): string | null {
@@ -121,15 +114,7 @@ export function buildNodeRuntimeRows(
   installed: NodeRuntimeInfo[],
   artifacts: RuntimeUpdateArtifact[]
 ): NodeRuntimeRow[] {
-  const supportedByMajor = new Map(
-    supportedNodeVersions.map((version) => [version.split('.')[0], version])
-  )
-  const nodeArtifacts = artifacts.filter((artifact) => {
-    const minimum = supportedByMajor.get(artifact.version.split('.')[0])
-    return artifact.name === 'node'
-      && minimum !== undefined
-      && compareRuntimeVersions(artifact.version, minimum) >= 0
-  })
+  const nodeArtifacts = artifacts.filter((artifact) => artifact.name === 'node')
   const latestArtifactByMajor = new Map<string, RuntimeUpdateArtifact>()
   for (const artifact of nodeArtifacts) {
     const major = artifact.version.split('.')[0]
@@ -175,20 +160,6 @@ export function buildNodeRuntimeRows(
       version: artifact.version,
       runtime: null,
       artifact,
-      state: 'not-installed'
-    })
-  }
-
-  for (const version of supportedNodeVersions) {
-    const major = version.split('.')[0]
-    if (latestInstalledByMajor.has(major) || latestArtifactByMajor.has(major)) {
-      continue
-    }
-    rows.push({
-      major,
-      version,
-      runtime: null,
-      artifact: null,
       state: 'not-installed'
     })
   }

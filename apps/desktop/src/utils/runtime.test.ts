@@ -9,7 +9,6 @@ import {
   formatRuntimeBytes,
   formatRuntimeTarget,
   installedPhpSeries,
-  isBuiltInPhpSeries,
   isRuntimeDownloadActive,
   latestRuntimeArtifact,
   runtimeProgressPercent,
@@ -113,12 +112,6 @@ describe('PHP Runtime presentation', () => {
     expect(phpSeriesFromVersion(null)).toBeNull()
   })
 
-  it('marks only PHP 7.4 and 8.2 as built in', () => {
-    expect(isBuiltInPhpSeries('7.4')).toBe(true)
-    expect(isBuiltInPhpSeries('8.2')).toBe(true)
-    expect(isBuiltInPhpSeries('8.4')).toBe(false)
-  })
-
   it('formats package sizes and clamps download progress', () => {
     expect(formatRuntimeBytes(1024)).toBe('1.00 KiB')
     expect(formatRuntimeBytes(12 * 1024 * 1024)).toBe('12.0 MiB')
@@ -163,13 +156,10 @@ describe('PHP Runtime presentation', () => {
     ])
   })
 
-  it('keeps Node.js 20 and 24 visible as uninstalled placeholders before Catalog publication', () => {
+  it('does not invent Node.js rows before Catalog publication', () => {
     const rows = buildNodeRuntimeRows([], [])
 
-    expect(rows.map((row) => [row.version, row.state, row.artifact])).toEqual([
-      ['24.20.0', 'not-installed', null],
-      ['20.20.2', 'not-installed', null]
-    ])
+    expect(rows).toEqual([])
   })
 
   it('keeps installed Node.js versions side by side and offers patch updates per major', () => {

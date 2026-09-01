@@ -4,7 +4,8 @@ import { computed, onMounted, onUnmounted } from 'vue'
 
 import { useAppStore } from '../stores/fabdev'
 import { translateError, useI18n } from '../utils/i18n'
-import { installedPhpSeries } from '../utils/runtime'
+import { dynamicModuleRegistry, resolveDynamicModules } from '../utils/navigation'
+import { compareRuntimeVersions, installedPhpSeries } from '../utils/runtime'
 import {
   areAllServicesRunning,
   canToggleAllServices,
@@ -21,6 +22,7 @@ interface ServiceCard {
   name: string
   detail: string
   state: DashboardServiceState
+  visibleWhenNotInstalled?: boolean
 }
 
 const canStartServices = computed(() => store.sites.some((site) => site.enabled))
@@ -38,6 +40,28 @@ const saturatedPhpVersions = computed(() =>
   saturatedPhpPools.value.map((pool) => `PHP ${pool.version}`).join(' / ')
 )
 const proxySummary = computed(() => summarizeProxyConnections(store.proxyManager.connections))
+const installedDynamicPackageNames = computed(() => {
+  const names = new Set<string>()
+  if (store.status?.mariadb && store.status.mariadb !== 'notInstalled') {
+    names.add('mariadb')
+  }
+  if (store.nodeRuntime.installed.length > 0) {
+    names.add('node')
+  }
+  return names
+})
+const visibleDynamicModuleIds = computed(() => new Set(
+  resolveDynamicModules(dynamicModuleRegistry, {
+    artifacts: store.runtimeUpdateCheck?.artifacts ?? [],
+    installedPackageNames: installedDynamicPackageNames.value
+  }).map((module) => module.id)
+))
+const availableNodeSeries = computed(() => [...new Set([
+  ...store.nodeRuntime.installed.map((runtime) => runtime.version.split('.')[0]),
+  ...(store.runtimeUpdateCheck?.artifacts ?? [])
+    .filter((artifact) => artifact.name === 'node')
+    .map((artifact) => artifact.version.split('.')[0])
+])].sort((left, right) => compareRuntimeVersions(right, left)).join(' / '))
 let statusTimer: number | undefined
 
 function toggleAllServices() {
@@ -57,7 +81,9 @@ function refreshDashboard() {
   void Promise.allSettled([
     store.refreshStatus(),
     store.loadSites(),
-    store.loadProxyManager()
+    store.loadProxyManager(),
+    store.loadNodeRuntime(),
+    store.checkRuntimeUpdates()
   ])
 }
 
@@ -71,22 +97,30 @@ const services = computed<ServiceCard[]>(() => {
         ? `PHP ${installedPhpSeries(store.phpRuntimes.installed).join(' / ')}`
         : t('dashboard.phpNotInstalled'),
       state: store.status?.phpFpm ?? 'notInstalled'
-    },
-    {
+    }
+  ]
+
+  if (visibleDynamicModuleIds.value.has('nodejs')) {
+    cards.push({
       name: 'Node.js',
       detail: store.nodeRuntime.activeVersion
         ? t('dashboard.nodeRuntimeDetail', {
             version: store.nodeRuntime.activeVersion
           })
-        : t('dashboard.nodeRuntimeAvailable', { version: '20 / 24' }),
-      state: store.nodeRuntime.installed.length ? 'installed' : 'notInstalled'
-    },
-    {
+        : t('dashboard.nodeRuntimeAvailable', { version: availableNodeSeries.value }),
+      state: store.nodeRuntime.installed.length ? 'installed' : 'notInstalled',
+      visibleWhenNotInstalled: true
+    })
+  }
+
+  if (visibleDynamicModuleIds.value.has('mariadb')) {
+    cards.push({
       name: 'MariaDB',
       detail: `TCP 127.0.0.1:${store.mariaDbSettings?.port ?? 3306}`,
-      state: store.status?.mariadb ?? 'notInstalled'
-    }
-  ]
+      state: store.status?.mariadb ?? 'notInstalled',
+      visibleWhenNotInstalled: true
+    })
+  }
 
   if (proxySummary.value.total > 0) {
     cards.push({
@@ -100,7 +134,7 @@ const services = computed<ServiceCard[]>(() => {
     })
   }
 
-  return cards.filter((service) => service.state !== 'notInstalled')
+  return cards.filter((service) => service.visibleWhenNotInstalled || service.state !== 'notInstalled')
 })
 
 const stateLabels = computed<Record<DashboardServiceState, string>>(() => ({

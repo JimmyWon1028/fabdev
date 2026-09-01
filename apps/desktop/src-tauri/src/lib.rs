@@ -234,6 +234,16 @@ const BUNDLED_MACOS_RUNTIMES: [BundledRuntimeSpec; 4] = [
   },
 ];
 
+#[cfg(windows)]
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BundledWindowsRuntimeManifest {
+  schema_version: u16,
+  platform: String,
+  architecture: String,
+  default_php_version: String,
+}
+
 struct TrayMenuItems {
   service_toggle: MenuItem<tauri::Wry>,
   service_state: std::sync::Mutex<TrayServiceState>,
@@ -1357,6 +1367,30 @@ fn install_bundled_windows_runtimes(app: &tauri::App) -> anyhow::Result<()> {
       source_root.display()
     );
   }
+  let manifest_path = source_root.join("manifest.json");
+  let manifest: BundledWindowsRuntimeManifest =
+    serde_json::from_slice(&std::fs::read(&manifest_path).with_context(|| {
+      format!(
+        "unable to read bundled Windows Runtime manifest: {}",
+        manifest_path.display()
+      )
+    })?)
+    .context("unable to parse bundled Windows Runtime manifest")?;
+  if manifest.schema_version != 1
+    || manifest.platform != "windows"
+    || manifest.architecture != "x64"
+  {
+    bail!("bundled Windows Runtime manifest has an unsupported schema or target");
+  }
+  let default_php_version = manifest.default_php_version;
+  if default_php_version.split('.').count() != 3
+    || !default_php_version
+      .split('.')
+      .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+    || !source_root.join("php").join(&default_php_version).is_dir()
+  {
+    bail!("bundled Windows Runtime manifest has an invalid default PHP version");
+  }
 
   install_bundled_directory(
     &source_root.join("nginx/current"),
@@ -1381,10 +1415,10 @@ fn install_bundled_windows_runtimes(app: &tauri::App) -> anyhow::Result<()> {
     let installed_versions = list_installed_versions(&paths.runtimes, "php")?;
     let default_version = installed_versions
       .iter()
-      .find(|version| version.starts_with("8.2."))
+      .find(|version| *version == &default_php_version)
       .cloned()
       .or_else(|| installed_versions.into_iter().next())
-      .context("bundled PHP 8.2 Runtime is missing")?;
+      .context("no bundled PHP Runtime is available")?;
     set_active_version(&paths.runtimes, "php", &default_version)?;
   }
   install_bundled_demo(&source_root.join("demo"), &paths)?;
