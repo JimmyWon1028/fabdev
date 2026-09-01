@@ -131,6 +131,21 @@ MariaDB Runtime、Data Directory、設定與 Log 使用不同位置。使用者�
 
 ## 0.1.17 Windows 候選證據
 
+### 替代候選（等待 Gate 4）
+
+- Commit：`cfd9f22f024f29960ed1416c06af0e8af4f5f745`。
+- GitHub Actions Windows x64 Run：`33500683364`，單次 push 觸發，全部步驟成功，執行時間 6 分 18 秒。
+- Installer artifact：`fabDev_0.1.17_x64-setup.exe`，49,346,749 bytes，SHA-256 `2a31b98ab4206731a17e3a38a2a6a9c79508cd0d2793bcecd0333a235cbec7a5`。
+- Connect artifact：`fabdev-connect.exe`，749,568 bytes，SHA-256 `9f46bfeb29132d502ebecbe4e79664f72fa79922bdb76ae1324f75e70ad3d706`。
+- 兩個外層 artifact ZIP 通過完整性檢查。NSIS 為 Unicode Nullsoft Installer，共 214 個封裝項目；Desktop、Agent、Windows Helper 與 Connect 均為 Windows x64 PE。
+- 內建 Runtime Manifest 為 Windows x64、Nginx 1.30.4、PHP 7.4.33／8.2.33；Desktop、Agent 與 Helper binary 皆可找到 `0.1.17` 版本字串。
+- 替代 Installer 的大小與 SHA-256 均不同於第一份候選，確認不是重複上傳舊成品。
+- CI 唯一提示是 GitHub Actions 將使用 Node.js 20 runtime 的既有 actions 強制改以 Node.js 24 執行，不影響 fabDev 建置或候選內容。
+- 候選只存在 Actions artifact；未建立 Tag、Draft、Pre-release 或 Stable Release，也未處理 macOS。
+- Gate 3 只證明 CI 與靜態封裝正確。Gate 4 仍由 Repository Owner 保留原始 190-byte `my.ini` 現場，實機驗證自動清理已知半成品及 MariaDB 重新初始化；未回報通過前不得發布。
+
+### 第一份候選（已作廢）
+
 - Commit：`cc07b09a6cc81f6de91a0fbe51f54567c1c25657`。
 - GitHub Actions Windows x64 Run：`33493487090`，單次 push 觸發，全部步驟成功，執行時間 6 分 8 秒。
 - Installer artifact：`fabDev_0.1.17_x64-setup.exe`，49,337,351 bytes，SHA-256 `60bf2030d81f7b8b484054171478b398cae502e693a11cac022656dac075eeaa`。
@@ -159,6 +174,8 @@ plugin-dir=C:\Users\jimmywon\AppData\Local\FabDev\data\runtimes\mariadb\12.3.2/l
 同版本替代修正採兩層保護：傳給 Windows MariaDB 初始化器的 Data Directory 先移除 verbatim prefix；載入設定時只在 fabDev 預設 Managed Data Directory、目錄只有單一普通 `my.ini`、檔案小於 4 KiB、固定四行內容且 datadir／plugin-dir 都指向 fabDev 管理位置時，才移除已知半成品。自訂路徑、額外檔案、未知 `my.ini`、非普通檔案或非 fabDev Runtime plugin-dir 一律保留並繼續拒絕，不做猜測性刪除。
 
 針對性回歸測試已通過：真實失敗內容辨識、`\\?\C:\...` 安裝參數轉為一般 Windows 路徑、`//?/C:/...` 正規化、已知單一半成品清理、含額外使用者檔案時保留、自訂 `my.ini` 保留、預設目錄遺失復原、自訂目錄遺失拒絕，以及原有非資料庫目錄拒絕。Clippy、rustfmt 與 `git diff --check` 通過。尚未 Commit、Push 或觸發替代 Windows CI。
+
+上述「尚未 Commit、Push 或觸發替代 Windows CI」為 Gate 2 當時記錄。後續修正已併入 Commit `cfd9f22f024f29960ed1416c06af0e8af4f5f745`，並由替代 Windows x64 Run `33500683364` 通過 Gate 3。
 
 同份 Agent log 另顯示 PHP 8.2 FPM status 持續回傳 HTTP 404 並重複寫入 `agent-process.log`。這不是 MariaDB 初始化原因，本批只記錄為獨立問題，不混入替代候選修正；之後需另以 FPM status route、Nginx location 與輪詢節流證據進入自己的 Gate。
 
