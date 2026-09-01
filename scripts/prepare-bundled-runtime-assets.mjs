@@ -44,7 +44,10 @@ if (
   throw new Error('Bundled Runtime manifest must declare exactly one default PHP Runtime')
 }
 
-if (process.platform !== 'darwin') {
+const allowCrossPlatformPreparation =
+  process.env.FABDEV_ALLOW_CROSS_PLATFORM_RUNTIME_PREPARATION === '1'
+
+if (process.platform !== 'darwin' && !allowCrossPlatformPreparation) {
   process.stdout.write('Skipping bundled macOS Runtime preparation on this platform\n')
   process.exit(0)
 }

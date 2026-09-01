@@ -522,7 +522,8 @@ test('prepares bundled macOS Runtimes and their default PHP from a manifest', as
       ...process.env,
       FABDEV_BUNDLED_RUNTIME_SOURCE: sourceRoot,
       FABDEV_BUNDLED_RUNTIME_OUTPUT: outputRoot,
-      FABDEV_BUNDLED_RUNTIME_MANIFEST: manifestPath
+      FABDEV_BUNDLED_RUNTIME_MANIFEST: manifestPath,
+      FABDEV_ALLOW_CROSS_PLATFORM_RUNTIME_PREPARATION: '1'
     }
   })
 
