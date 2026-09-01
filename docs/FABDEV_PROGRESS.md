@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-09-01
-> 目前階段：第一份 `0.1.17` Windows 候選已作廢；同版本替代候選的 Windows x64 CI、NSIS 靜態驗證與 Repository Owner Gate 4 MariaDB 實機重測均已通過。等待明確的後續發布指示；macOS 暫不處理，未建立 Tag 或 Release、未發布
+> 目前階段：`0.1.17` Windows 替代候選的 CI、靜態驗證與 Repository Owner MariaDB 實機 Gate 4 均已通過；macOS ARM64 本機候選 DMG 也已完成自動測試與靜態封裝驗證。尚未執行 macOS 實機安裝測試，未建立 Tag 或 Release、未上傳或發布
 
 ## 已完成
 
@@ -32,6 +32,7 @@
 
 ## 最近驗證
 
+- 2026-09-01：依明確重新打包授權，以 Commit `80033bb971015a88eeb95d08e5fcf54c58a43cec` 建立本機 `fabDev-Community-0.1.17-macos-arm64.dmg`，99,680,458 bytes，SHA-256 `7a5ec3c2ab0e9d290518c251aecd5945e8134c905bd1a22fbfd4135f23ef732f`。`pnpm test`、`pnpm lint`、`hdiutil verify`、DMG 內 27 個 `SHA256SUMS`、App／CLI／Helper 簽章、App／Build／CLI／Agent 0.1.17 及 Desktop／Agent／Helper／CLI ARM64 均通過。內建 Runtime 僅含 dnsmasq 2.93、Nginx 1.30.4、PHP 7.4.33 與 PHP 8.2.33；四份 descriptor 大小／SHA-256 逐筆相符，共 369 個 Runtime Mach-O 皆為 ARM64，未發現 Homebrew／`/usr/local` 執行期依賴。本候選未安裝、未上傳，也未建立 Tag 或 Release。
 - 2026-09-01：`0.1.17` Windows 替代候選 Commit `cfd9f22f024f29960ed1416c06af0e8af4f5f745` 的 Windows x64 [Run 33500683364](https://github.com/JimmyWon1028/fabdev/actions/runs/33500683364) 全數成功；NSIS 含 214 個封裝項目，Desktop、Agent、Windows Helper 與 Connect 均為 x64 PE，版本與 Runtime Manifest 通過靜態驗證。Repository Owner 後續保留原始 190-byte `my.ini` 失敗現場安裝替代候選，MariaDB 已能自動清理已知半成品並完成重新初始化，Gate 4 實機測試回報通過。候選仍僅存在 Actions artifact，尚未建立 Tag 或 Release、未發布。
 - 2026-09-01：[`v0.1.15`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.15) 已發布為 latest Stable Release，Release ID `380254567`，Tag 固定在 Commit `e121d44c27d671097bd44c7806ee37f085988d42`。GitHub Actions [Run 33473901421](https://github.com/JimmyWon1028/fabdev/actions/runs/33473901421) 的 Windows x64 Installer／Connect／六個 Runtime、macOS ARM64 DMG／四個 Runtime、驗證與 Draft Jobs 全數通過。Release 共 30 個 Assets、685,584,720 bytes；全部重新下載後通過 `SHA256SUMS`、13 份個別 checksum、兩份逐位元一致 App Manifest、Runtime Catalog sequence 9／minimum App 0.1.15、10 個 Runtime gzip 與 Manifest 內 12 個實體資產的大小／SHA-256／URL 逐筆比對。`SHA256SUMS` SHA-256 為 `532bb14641b7b5a443a48622edce58266b97107040da1b1068389e503e1ed7e2`，App／Stable Manifest 為 `5a95b8b8d17e685bf03dd7b85a0d6c1d8da069b4986f4f963536d5230f40c1a6`，Runtime Catalog 為 `9223436f338df5c76609f7bf1b410bdce72cdce94b63ac0e76566e12c9da5690`，DMG 為 `a03dfa809798afbd8730ed64e78f781d069dc22768c3587b276408ac0da62f95`，Windows Setup 為 `77601f7453ffaada6182a09d60d5b36f208c3058a3fb8b3daf652964060567cc`。DMG `hdiutil verify`、內部 checksum、App／Helper codesign、版本 0.1.15 與 Desktop／Agent／Helper ARM64 均通過；Windows NSIS 可解出 x64 Desktop／Agent／Helper。Publish 後 Release、latest、Stable／Runtime Manifest 均由未帶 Token 的公開 URL 回傳 HTTP 200，Setup／DMG Range 回傳 HTTP 206，兩份公開 Manifest 與 Draft 驗證檔逐位元一致，latest 指向 `v0.1.15`；沒有待清理的 Draft。
 - 0.1.15 修正 Windows Proxy 網域未同步至 Hosts、導致部分 Windows x64 VM 無法解析 Proxy `.test` 網域的問題；Agent 會經白名單 Helper 維護獨立 Proxy Hosts 區塊，設定更新、移除、狀態還原與解除安裝都會同步清理。Windows NSIS 另在複製檔案前檢查 Microsoft Visual C++ 2015-2022 x64 Runtime／`VCRUNTIME140.dll`，缺少時開啟官方下載並中止本次安裝，讓使用者安裝 prerequisite 後重試。Repository Owner 已在 Windows x64 VM 驗證 VC Runtime 缺失引導、重試安裝與 Proxy 連線通過；macOS 安裝程序未變，依既定規則沿用先前人工生命週期驗收。
