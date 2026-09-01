@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-09-01
-> 目前階段：專案候選版本已同步為 `0.1.13`；Windows x64 `v0.1.12` Stable Release 已完成發布及公開下載驗收，macOS ARM64 已完成 P4 本機生命週期驗收與 `0.1.13` 重新打包，跨平台 Tag、Draft、Publish 與公開 Feed 驗收執行中
+> 目前階段：`v0.1.13` 已完成 Windows x64／macOS ARM64 跨平台 Stable Release、30 個 Assets 重新下載驗證與公開 Feed 驗收；macOS 功能對齊 P1 至 P4 已結案，P5 依決定不執行
 
 ## 已完成
 
@@ -32,6 +32,8 @@
 
 ## 最近驗證
 
+- 2026-09-01：[`v0.1.13`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.13) 已發布為 latest Stable Release，Tag 固定在 Commit `e35d894c9a5ccf287b9c581db1ce12ff09c0d942`。Release 共 30 個 Windows x64／macOS ARM64 Assets、683,496,859 bytes；Draft 全部重新下載後與上傳前集合逐位元一致，`SHA256SUMS` 與 13 份個別 checksum、兩份相同 App Manifest、10 項 Runtime Catalog sequence 7、全部 Runtime Archive gzip 與 DMG `hdiutil verify` 均通過。`SHA256SUMS` SHA-256 為 `8540668dcf5c8326e23bd35852a150c8a646d066ac4ee8d7419a28374e3a285f`，App／Stable Manifest 為 `b76157c0a76d235a8afee065dd3388bfae7890071cfeaa77612cdc1ede5f6f9d`，Runtime Catalog 為 `05c32631e430c335b00453e61c154a46401f0afdce221448dbc309f13511d2f7`。Publish 後 Release 頁、Stable／App／Runtime Feed、總表、DMG 與 Windows Setup 均以未帶 GitHub Token 的公開 URL 回傳 HTTP 200，latest 指向 `v0.1.13`。
+- 第一次雙平台 workflow [Run 33446761377](https://github.com/JimmyWon1028/fabdev/actions/runs/33446761377) 的 Windows Node.js／MariaDB Runtime 與 Windows App／PHP／Connect／NSIS Jobs 全數通過；macOS Job 只因 PHP 7.4 打包階段健康檢查使用 PHP 8 才提供的 `str_contains()` 而停止。健康檢查已在本機 Commit `72573ab` 改為 PHP 7.4 相容的 `strpos(...) === false` 並以真實 PHP 7.4.33 FPM 通過；這不是 App 或 Runtime 執行期修改，因此依 Repository Owner 決定不重新打包，沿用已驗證的 `0.1.13` Windows CI 產物、macOS DMG 與 P4 Runtime 候選完成 Draft／Publish。
 - 2026-09-01：Windows x64 與 macOS ARM64 的四個正式版本來源及 13 個 Cargo workspace lock entries 已同步為 `0.1.13`。完整 `pnpm test` 已在允許 localhost bind 的環境通過，`pnpm lint`、shell syntax、版本一致性與 `git diff --check` 亦通過。本機重新打包的 `fabDev-Community-0.1.13-macos-arm64.dmg` 為 99,708,248 bytes，SHA-256 `c6b91f5b735a8ab447bed9eb4a89808dfd633c1ce5d38eba51973146c3f0c9c7`；外層 checksum、`hdiutil verify`、App／Build `0.1.13`、深層 ad-hoc codesign 與 Desktop／Agent／CLI ARM64 架構均通過。依 [`AGENTS.md`](../AGENTS.md) 的既定規則，因安裝與更新程序未變，本版不重跑兩平台安裝／啟動／移除、完整 Runtime／HTTPS 人工流程或 Windows VM smoke test。
 - 2026-09-01：macOS ARM64 P4 未標 Tag 候選已完成。以 `fabDev-Community-0.1.12-macos-arm64.dmg`（SHA-256 `ef08dc127989c244982ee5ca6a8e2d1fad7088a496b68eece4f90a21dc7b632b`）完成移除舊 App／資料後的乾淨安裝，App、Agent、Helper、唯一 `demo.test`、DNS、Nginx、PHP 8.2 與固定 80 入口正常；另從封裝版 `v0.1.3` 覆蓋至 `0.1.12`，原 Site ID、Demo 檔案 SHA-256、受管 `php.ini` SHA-256 與自訂標記均逐位元保留，更新後 HTTP 200／PHP 8.2.33。
 - macOS Runtime Desktop UI 已從 sequence 7 本機 Catalog 實際下載並安裝 PHP 8.4.24、MariaDB 12.3.2、Node.js 20.20.2／24.20.0。PHP 下載在 56% 人工中斷後保留 28,704,768-byte `.part`，重試送出 `Range: bytes=28704768-`、收到 `206 Content-Range` 並從原進度完成；Updater 已補上 macOS `.part` 保留、既有前綴雜湊、Range 驗證、伺服器忽略 Range 時安全重啟，以及中斷續傳／忽略 Range 回歸測試。
@@ -162,7 +164,7 @@
 
 ## 驗證邊界
 
-- 目前公開 Stable Manifest 為 `0.1.3`；Windows 已完成封裝版 App 內 `0.1.2 → 0.1.3` 偵測、下載、驗證、Quit、開啟 Setup 與覆蓋更新。macOS 已完成 `0.1.1 → 0.1.3` 覆蓋更新及大小寫不敏感磁碟的安裝器修正驗收。
+- 目前公開 Stable Manifest 為 `0.1.13`，同時提供 Windows x64 與 macOS ARM64；Windows 已完成封裝版 App 內 `0.1.2 → 0.1.3` 以及 `0.1.11 → 0.1.12` 更新驗收，macOS 已完成 `0.1.1 → 0.1.3` 與 `0.1.3 → 0.1.12` 覆蓋更新。`0.1.13` 因兩平台安裝與更新程序未變，依既定規則沿用前述生命週期驗收結果。
 - 更新失敗與重試由 Updater 聚焦測試覆蓋；公開 Release 的成功下載與覆蓋流程已實測，但不會為了製造故障而修改已發布 Asset 或 Stable Manifest。
 - `fabdev-updater` 已通過 `x86_64-pc-windows-msvc` 交叉編譯；完整 Desktop 的 Windows 本機交叉檢查停在既有 bundled SQLite C 建置缺少 MSVC `stdlib.h`，需由 Windows MSVC GitHub Actions 或實機環境驗證，並非 Updater Rust 程式錯誤。
 - `v0.1.0` 的首次 Site Home、App 選單 Quit 與舊 CA 清理三項阻擋問題，已由 `v0.1.1` Draft 在恢復至 fabDev 未安裝基線的 Mac 完成首次安裝、覆蓋更新與完整移除回歸。
@@ -237,21 +239,21 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [x] P0：完成跨平台 Runtime 與更新能力契約；新增 macOS ARM64 PHP 8.4.24、MariaDB 12.3.2、Node.js 20／24 Catalog 產生器與 Manifest 資產入口，Agent 依目前平台／架構篩選並接受尚無本平台套件的 Catalog，PHP／MariaDB／Node.js UI 不再以 Windows-only 條件隱藏線上 Runtime。
   - 驗證：`pnpm test`、`pnpm lint`、Desktop production build 與 `git diff --check` 通過；Desktop 68 tests、Release Manifest 10 tests、Runtime 21 tests、Agent 20 tests 及 macOS Helper 9 tests 均通過。
   - 當時邊界：P0 只完成共用契約、Catalog／Manifest 產生能力、Desktop 顯示與回歸測試；後續已完成 macOS 本機 Runtime／DMG 候選及跨平台 Draft workflow，但公開 Feed、乾淨機下載與發布驗收仍依下列 P1／P4 執行。
-- [ ] P1：完成 macOS ARM64 PHP 8.4.24 線上安裝／更新，加入公開 Runtime Catalog、Package、下載驗證、安裝健康檢查與失敗清理。
-  - 已完成隔離相容依賴、本機 Community Package、真實 Archive 健康檢查與 Online Agent Protocol 安裝；候選不含 Homebrew Runtime 依賴，31 個 Mach-O 均為 macOS 13.0 或更早且外部依賴引用為 0。CLI 擴充、Imagick PNG、IMAP、Tidy、FPM FastCGI、隔離 bundled Nginx Site HTTP、真實候選 loopback HTTP 串流、`.part` → 大小／SHA-256 → atomic finalize、accepted Catalog → pending cache → Verified → 安裝、篡改 cache 拒絕、獨立 Desktop UI 的下載／確認／進度／並存安裝／重啟持久性，以及 Agent／Helper 管理 Site 的固定 53／80 Port 與 PHP 8.4 HTTP 回應均通過，既有 active PHP、Sites 與失敗清理正確保留。待公開 GitHub Feed 的 Desktop 實際外部網路下載／安裝後勾選。
-- [ ] P1：完成 macOS ARM64 MariaDB 12.3.2 線上安裝／升級；更新時自動暫停服務，並保留既有 Data、Config、Log、啟動偏好與 PHP MariaDB 自動連線切換。
-  - 已完成執行中安全暫停、偏好保留、新版重啟、連線重套與失敗回滾；OpenSSL／PCRE2 相容依賴採固定來源 SHA-256 與 macOS 13.0 靜態建置，Community 封裝不再包含 Homebrew dylib。真實候選的 96 個 Mach-O、外部依賴限制、初始化、SQL 查詢與正常停止均通過；待公開 Feed 及乾淨 macOS 的實際下載、保留資料 SQL 升級與回復驗收後勾選。
-- [ ] P1：完成 macOS ARM64 Node.js 20／24 並存安裝、更新、移除、全域版本切換及動態 `node`／`npm`／`npx`／`corepack` terminal shim；不得修改或接管 Homebrew、nvm、Herd 或系統 Node.js。
-  - 本機功能與測試已完成；兩版官方 Archive 的 SHA-256／PGP 驗證、Community Package、Desktop 實際下載／並存安裝、20 → 24 全域切換及可還原 `.zprofile`／`.zshrc` shim 均通過。Node 24 依官方 binary 限制要求 macOS 13.5，Agent 已加入最低系統篩選。待公開 Feed 外部下載驗收後勾選。
+- [x] P1：完成 macOS ARM64 PHP 8.4.24 線上安裝／更新，加入公開 Runtime Catalog、Package、下載驗證、安裝健康檢查與失敗清理。
+  - 隔離相容依賴、本機 Community Package、真實 Archive 健康檢查、Online Agent Protocol、下載中斷續傳、篡改 cache 拒絕、Desktop UI 並存安裝、重啟持久性、固定 53／80 Site 與 PHP 8.4 回應均通過；`v0.1.13` 公開 Catalog／Package、大小、SHA-256 與匿名 HTTP 200 已完成檔案級驗收。因安裝程序未變，依既定規則不重跑公開 Feed 的 Desktop 安裝流程。
+- [x] P1：完成 macOS ARM64 MariaDB 12.3.2 線上安裝／升級；更新時自動暫停服務，並保留既有 Data、Config、Log、啟動偏好與 PHP MariaDB 自動連線切換。
+  - 執行中安全暫停、偏好保留、新版重啟、連線重套、失敗回滾、96 個 Mach-O、初始化、SQL 查詢與停止清理均通過；`v0.1.13` 公開 Catalog／Package、大小、SHA-256 與匿名 HTTP 200 已完成檔案級驗收。因安裝程序未變，沿用 P4 的資料保留與 Socket 自動切換驗收。
+- [x] P1：完成 macOS ARM64 Node.js 20／24 並存安裝、更新、移除、全域版本切換及動態 `node`／`npm`／`npx`／`corepack` terminal shim；不得修改或接管 Homebrew、nvm、Herd 或系統 Node.js。
+  - 兩版官方 Archive 驗證、Community Package、Desktop 並存安裝、20 → 24 全域切換及可還原 `.zprofile`／`.zshrc` shim 均通過；`v0.1.13` 公開 Catalog／Package、大小、SHA-256 與匿名 HTTP 200 已完成檔案級驗收。因安裝程序未變，沿用 P4 的實際安裝與全域切換結果。
 - [ ] P2：將 App Installer 的分段、並行、退避重試、跨 App 重啟續傳、大小／SHA-256 與進度統計抽成兩平台共用下載流程。
 - [ ] P2：完成 macOS「重新啟動並更新」流程；安全停止服務與 Agent，重新驗證 DMG，覆蓋 App，失敗時回復，成功後自動重新啟動，並保留 Sites、Runtime、憑證、MariaDB 資料與使用者設定。
 - [x] P3：恢復兩平台 Draft Release workflow；建置 macOS ARM64 DMG 與 PHP／MariaDB／Node.js Runtime Assets，產生同時包含 macOS 與 Windows 的 App Manifest、Runtime Catalog 及 SHA-256 契約，且永不自動 Publish。
-  - 本機已用 `v0.1.12` 真實 Windows 公開 Archive 與 macOS 候選產生 10 項 sequence 7 Catalog，並完成 macOS 14 檔 Release 候選驗證；GitHub workflow 尚未觸發，未建立 Draft 或 Publish。
+  - `v0.1.13` workflow 已觸發；Windows x64 App 與六個 Runtime Jobs 通過，macOS Job 因 PHP 7.4 打包健康檢查相容問題停止。依不重新打包決定，使用該 Run 已建好的 Windows 產物及 P4 已驗證的 macOS 產物組成 30 檔 Draft，完成重新下載驗證後人工 Publish；workflow 本身仍沒有自動 Publish 路徑。
 - [x] P4：使用未標 Tag 的 macOS ARM64 候選版完成乾淨安裝、`v0.1.3` 覆蓋更新、下載中斷續傳、PHP／MariaDB／Node.js、HTTPS、Start／Stop、Safe Quit、自動重新啟動及資料保留驗收。
   - `v0.1.12` DMG 乾淨安裝與 `v0.1.3 → 0.1.12` 覆蓋均通過；PHP 8.4.24、MariaDB 12.3.2、Node.js 20.20.2／24.20.0 由隔離 Desktop UI 實際安裝，PHP 中斷續傳從 28,704,768-byte `.part`／56% 恢復。
   - `demo.test` 的 Site ID、檔案、`php.ini`、PHP 8.4、HTTPS、CA／leaf、MariaDB 資料列及 Runtime 安裝狀態均跨 Quit／重開保留；HTTP 301、HTTPS 200、Start／Stop、Safe Quit 與無殘留 Port／PID／Socket 通過。
   - P4 實機發現並修正 macOS Runtime `.part` 無法續傳、Node `.zprofile` 被 `.zshrc` PATH 蓋過、MariaDB 只更新 active PHP FPM Socket 三項缺口；均已加入聚焦回歸測試並通過完整 test／lint。
-- [ ] P4：已取得共同版本 `0.1.13`、Commit／Push／Tag、重新打包、Draft 與 Publish 授權；待雙平台 workflow、Draft Asset 重新下載、Publish 與公開 Feed 檔案級驗證完成後結案。
+- [x] P4：共同版本 `0.1.13`、Commit／Push／固定 Tag、重新打包、30 檔 Draft、全部 Asset 重新下載驗證、Publish、latest Stable 與公開 Feed 檔案級驗證均已完成；依安裝／更新程序未變的規則，不重跑兩平台生命週期與完整 Runtime／HTTPS 人工流程，macOS 功能對齊至此結案。
 - P5：依使用者決定不執行 macOS Intel x86_64；本次以 macOS ARM64 發布完成為終點，不宣稱 macOS 雙架構支援。
 
 ### P3：正式服務產品線
