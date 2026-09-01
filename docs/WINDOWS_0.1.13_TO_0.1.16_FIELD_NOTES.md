@@ -127,7 +127,19 @@ MariaDB Runtime、Data Directory、設定與 Log 使用不同位置。使用者�
 - Rust format 與 `git diff --check`：通過。
 - 本機 macOS 對 Windows MSVC 的交叉檢查停在第三方 `ring`／bundled SQLite 缺少 Windows C SDK 的 `assert.h`／`stdlib.h`，尚未進到本次 fabDev 程式碼；保留到 Windows 候選 CI 驗證。
 
-本階段未打包、未執行完整 Windows CI、未建立 Tag、未上傳或發布，也未處理 macOS。確定舊 MariaDB 資料已不需要時，舊版現場暫時恢復方式仍是手動建立原本的空 `services\mariadb\data` 目錄，再啟動 MariaDB；若舊資料仍重要，不得用此方式取代備份或資料復原。
+上述 Gate 2 未打包、未執行完整 Windows CI、未建立 Tag、未上傳或發布，也未處理 macOS。確定舊 MariaDB 資料已不需要時，舊版現場暫時恢復方式仍是手動建立原本的空 `services\mariadb\data` 目錄，再啟動 MariaDB；若舊資料仍重要，不得用此方式取代備份或資料復原。
+
+## 0.1.17 Windows 候選證據
+
+- Commit：`cc07b09a6cc81f6de91a0fbe51f54567c1c25657`。
+- GitHub Actions Windows x64 Run：`33493487090`，單次 push 觸發，全部步驟成功，執行時間 6 分 8 秒。
+- Installer artifact：`fabDev_0.1.17_x64-setup.exe`，49,337,351 bytes，SHA-256 `60bf2030d81f7b8b484054171478b398cae502e693a11cac022656dac075eeaa`。
+- Connect artifact：`fabdev-connect.exe`，749,568 bytes，SHA-256 `9c026d60e26672e46f9e489199ecca3da9c98424df7ef3e99018a61df99d8447`。
+- NSIS 靜態驗證：Nullsoft Installer、214 個封裝項目；Desktop、Agent、Windows Helper 與 Connect 均為 Windows x64 PE。
+- 內建 Runtime Manifest：Windows x64、Nginx 1.30.4、PHP 7.4.33／8.2.33；Desktop、Agent 與 Helper binary 皆可找到 `0.1.17` 版本字串。
+- CI 唯一提示是 GitHub Actions 將使用 Node.js 20 runtime 的既有 actions 強制改以 Node.js 24 執行，不影響 fabDev 建置或候選內容。
+- 候選只存在於 Actions artifact；未建立 Tag、Draft、Pre-release 或 Stable Release，也未處理 macOS。
+- CI 與靜態驗證通過不等於 Windows 實機通過。Gate 4 仍由 Repository Owner 驗證安裝／啟動及本次 MariaDB 修正，未回報通過前不得進入後續發布 Gate。
 
 ## 0.1.16 Windows 候選證據
 
