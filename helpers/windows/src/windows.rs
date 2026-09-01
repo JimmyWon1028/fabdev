@@ -15,8 +15,10 @@ use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObj
 use windows_sys::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW};
 use windows_sys::Win32::UI::WindowsAndMessaging::SW_HIDE;
 
-const MANAGED_START: &str = "# BEGIN FABDEV MANAGED";
-const MANAGED_END: &str = "# END FABDEV MANAGED";
+use crate::hosts::{
+  normalize_domains, update_managed_block, PROXY_MANAGED_END, PROXY_MANAGED_START,
+  SITE_MANAGED_END, SITE_MANAGED_START,
+};
 
 #[derive(Debug, Parser)]
 #[command(name = "fabdev-windows-helper", version)]
@@ -32,6 +34,9 @@ enum Command {
   SyncHosts {
     domains: Vec<String>,
   },
+  SyncProxyHosts {
+    domains: Vec<String>,
+  },
   TrustCa {
     #[arg(long)]
     certificate: PathBuf,
@@ -45,17 +50,20 @@ enum Command {
 pub fn run() -> Result<()> {
   let arguments = Arguments::parse();
   match &arguments.command {
-    Command::SyncHosts { domains } => {
-      let domains = normalize_domains(domains)?;
-      if !arguments.elevated {
-        return elevate(
-          std::iter::once(OsString::from("sync-hosts"))
-            .chain(domains.iter().map(OsString::from))
-            .collect(),
-        );
-      }
-      sync_hosts(&hosts_path()?, &domains)
-    }
+    Command::SyncHosts { domains } => sync_hosts_command(
+      arguments.elevated,
+      "sync-hosts",
+      domains,
+      SITE_MANAGED_START,
+      SITE_MANAGED_END,
+    ),
+    Command::SyncProxyHosts { domains } => sync_hosts_command(
+      arguments.elevated,
+      "sync-proxy-hosts",
+      domains,
+      PROXY_MANAGED_START,
+      PROXY_MANAGED_END,
+    ),
     Command::TrustCa { certificate } => {
       let certificate = validate_certificate_path(certificate)?;
       if !arguments.elevated {
@@ -82,29 +90,6 @@ pub fn run() -> Result<()> {
       untrust_ca(&certificate)
     }
   }
-}
-
-fn normalize_domains(domains: &[String]) -> Result<Vec<String>> {
-  if domains.len() > 256 {
-    bail!("fabDev manages at most 256 .test domains");
-  }
-  let mut normalized = domains.to_vec();
-  normalized.sort();
-  normalized.dedup();
-  for domain in &normalized {
-    let valid = domain.ends_with(".test")
-      && domain.len() <= 253
-      && domain.bytes().all(|byte| {
-        byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'.' | b'-')
-      })
-      && domain
-        .split('.')
-        .all(|label| !label.is_empty() && !label.starts_with('-') && !label.ends_with('-'));
-    if !valid {
-      bail!("invalid managed domain: {domain}");
-    }
-  }
-  Ok(normalized)
 }
 
 fn hosts_path() -> Result<PathBuf> {
@@ -283,24 +268,32 @@ fn quote_windows_argument(argument: &OsStr) -> Vec<u16> {
   quoted
 }
 
-fn sync_hosts(path: &Path, domains: &[String]) -> Result<()> {
-  let existing = std::fs::read_to_string(path)
+fn sync_hosts_command(
+  elevated: bool,
+  command: &str,
+  domains: &[String],
+  start_marker: &str,
+  end_marker: &str,
+) -> Result<()> {
+  let domains = normalize_domains(domains)?;
+  let path = hosts_path()?;
+  let existing = std::fs::read_to_string(&path)
     .with_context(|| format!("unable to read Windows hosts file: {}", path.display()))?;
-  let without_managed = remove_managed_block(&existing)?;
-  let mut contents = without_managed.trim_end_matches(['\r', '\n']).to_owned();
-  if !domains.is_empty() {
-    contents.push_str("\r\n\r\n");
-    contents.push_str(MANAGED_START);
-    contents.push_str("\r\n");
-    for domain in domains {
-      contents.push_str("127.0.0.1 ");
-      contents.push_str(domain);
-      contents.push_str("\r\n");
-    }
-    contents.push_str(MANAGED_END);
+  let expected = update_managed_block(&existing, start_marker, end_marker, &domains)?;
+  if existing == expected {
+    return Ok(());
   }
-  contents.push_str("\r\n");
+  if !elevated {
+    return elevate(
+      std::iter::once(OsString::from(command))
+        .chain(domains.iter().map(OsString::from))
+        .collect(),
+    );
+  }
+  replace_hosts(&path, expected.as_bytes())
+}
 
+fn replace_hosts(path: &Path, contents: &[u8]) -> Result<()> {
   let backup = path.with_file_name("hosts.fabdev.backup");
   std::fs::copy(path, &backup)
     .with_context(|| format!("unable to back up Windows hosts file: {}", backup.display()))?;
@@ -310,7 +303,7 @@ fn sync_hosts(path: &Path, domains: &[String]) -> Result<()> {
     .truncate(true)
     .write(true)
     .open(&pending)?;
-  file.write_all(contents.as_bytes())?;
+  file.write_all(contents)?;
   file.sync_all()?;
   drop(file);
 
@@ -329,26 +322,6 @@ fn sync_hosts(path: &Path, domains: &[String]) -> Result<()> {
     });
   }
   Ok(())
-}
-
-fn remove_managed_block(contents: &str) -> Result<String> {
-  let Some(start) = contents.find(MANAGED_START) else {
-    if contents.contains(MANAGED_END) {
-      bail!("Windows hosts file contains an incomplete fabDev managed block");
-    }
-    return Ok(contents.to_owned());
-  };
-  let remainder = &contents[start + MANAGED_START.len()..];
-  let end_offset = remainder
-    .find(MANAGED_END)
-    .context("Windows hosts file contains an incomplete fabDev managed block")?;
-  let end = start + MANAGED_START.len() + end_offset + MANAGED_END.len();
-  if contents[end..].contains(MANAGED_START) || contents[end..].contains(MANAGED_END) {
-    bail!("Windows hosts file contains multiple fabDev managed blocks");
-  }
-  let mut output = contents[..start].trim_end_matches(['\r', '\n']).to_owned();
-  output.push_str(&contents[end..]);
-  Ok(output)
 }
 
 fn wide(value: impl AsRef<OsStr>) -> Vec<u16> {
@@ -372,23 +345,6 @@ impl Drop for ProcessHandle {
 #[cfg(test)]
 mod tests {
   use super::*;
-
-  #[test]
-  fn replaces_only_the_managed_hosts_block() {
-    let existing = "127.0.0.1 localhost\r\n# BEGIN FABDEV MANAGED\r\n127.0.0.1 old.test\r\n# END FABDEV MANAGED\r\n10.0.0.2 intranet\r\n";
-    let result = remove_managed_block(existing).expect("remove managed block");
-
-    assert!(result.contains("127.0.0.1 localhost"));
-    assert!(result.contains("10.0.0.2 intranet"));
-    assert!(!result.contains("old.test"));
-  }
-
-  #[test]
-  fn accepts_only_normalized_test_domains() {
-    assert!(normalize_domains(&["erp.test".to_owned(), "crm-2.test".to_owned()]).is_ok());
-    assert!(normalize_domains(&["Example.test".to_owned()]).is_err());
-    assert!(normalize_domains(&["example.com".to_owned()]).is_err());
-  }
 
   #[test]
   fn quotes_windows_arguments_without_losing_backslashes() {

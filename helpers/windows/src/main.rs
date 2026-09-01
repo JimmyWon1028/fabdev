@@ -2,6 +2,9 @@
 use anyhow::bail;
 use anyhow::Result;
 
+#[cfg(any(windows, test))]
+mod hosts;
+
 #[cfg(windows)]
 mod windows;
 

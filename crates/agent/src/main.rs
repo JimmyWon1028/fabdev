@@ -548,8 +548,44 @@ async fn main() -> Result<()> {
         eprintln!("unable to restore Proxy connection {connection_id}: {error:#}");
       }
     }
+    if !manager.running_ids().is_empty() {
+      if let Err(error) = sync_windows_proxy_domains(&manager).await {
+        eprintln!("unable to restore Windows Proxy domains: {error:#}");
+      }
+    }
   }
   serve(endpoint, state).await
+}
+
+async fn sync_windows_proxy_domains(manager: &ProxyManager) -> Result<()> {
+  #[cfg(windows)]
+  {
+    let executable = std::env::current_exe().context("unable to locate fabDev Agent")?;
+    let helper = executable
+      .parent()
+      .context("fabDev Agent executable has no parent directory")?
+      .join("fabdev-windows-helper.exe");
+    if !helper.is_file() {
+      bail!("fabDev Windows Helper is not bundled: {}", helper.display());
+    }
+    let domains = manager
+      .connections()
+      .into_iter()
+      .map(|connection| connection.domain)
+      .collect::<Vec<_>>();
+    let status = tokio::process::Command::new(&helper)
+      .arg("sync-proxy-hosts")
+      .args(domains)
+      .status()
+      .await
+      .with_context(|| format!("unable to start Windows Helper: {}", helper.display()))?;
+    if !status.success() {
+      bail!("Windows Helper could not synchronize Proxy .test domains");
+    }
+  }
+  #[cfg(not(windows))]
+  let _ = manager;
+  Ok(())
 }
 
 #[cfg(unix)]
@@ -1555,6 +1591,20 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       let mut manager = state.proxy_manager.lock().await;
       match manager.update(&connection_id, input).await {
         Ok((previous, was_running)) => {
+          if let Err(error) = sync_windows_proxy_domains(&manager).await {
+            let rollback = manager.restore_update(previous, was_running).await;
+            let _ = sync_windows_proxy_domains(&manager).await;
+            let message = match rollback {
+              Ok(()) => error.to_string(),
+              Err(rollback_error) => {
+                format!("{error}; unable to rollback Proxy connection: {rollback_error}")
+              }
+            };
+            return AgentResponse::Error {
+              code: "proxy_hosts_sync_failed".to_owned(),
+              message,
+            };
+          }
           let persistence_result = {
             let repository = state.sites.lock().await;
             repository
@@ -1563,6 +1613,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
           };
           if let Err(error) = persistence_result {
             let _ = manager.restore_update(previous, was_running).await;
+            let _ = sync_windows_proxy_domains(&manager).await;
             let repository = state.sites.lock().await;
             let _ = repository.save_proxy_connections(&manager.connections());
             let _ = repository.save_proxy_running_ids(&manager.running_ids());
@@ -1584,6 +1635,23 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       let was_running = manager.running_ids().contains(&connection_id);
       match manager.remove(&connection_id).await {
         Ok(settings) => {
+          if let Err(error) = sync_windows_proxy_domains(&manager).await {
+            let rollback = manager.restore(settings);
+            if rollback.is_ok() && was_running {
+              let _ = manager.start(&connection_id).await;
+            }
+            let _ = sync_windows_proxy_domains(&manager).await;
+            let message = match rollback {
+              Ok(()) => error.to_string(),
+              Err(rollback_error) => {
+                format!("{error}; unable to rollback Proxy connection: {rollback_error}")
+              }
+            };
+            return AgentResponse::Error {
+              code: "proxy_hosts_sync_failed".to_owned(),
+              message,
+            };
+          }
           let persistence_result = {
             let repository = state.sites.lock().await;
             repository
@@ -1595,6 +1663,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
             if was_running {
               let _ = manager.start(&connection_id).await;
             }
+            let _ = sync_windows_proxy_domains(&manager).await;
             let repository = state.sites.lock().await;
             let _ = repository.save_proxy_connections(&manager.connections());
             let _ = repository.save_proxy_running_ids(&manager.running_ids());
@@ -1613,8 +1682,20 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
     }
     AgentRequest::StartProxyConnection { connection_id } => {
       let mut manager = state.proxy_manager.lock().await;
+      let was_running = manager.running_ids().contains(&connection_id);
       match manager.start(&connection_id).await {
         Ok(()) => {
+          if manager.running_ids().contains(&connection_id) {
+            if let Err(error) = sync_windows_proxy_domains(&manager).await {
+              if !was_running {
+                let _ = manager.stop(&connection_id).await;
+              }
+              return AgentResponse::Error {
+                code: "proxy_hosts_sync_failed".to_owned(),
+                message: error.to_string(),
+              };
+            }
+          }
           if let Err(error) = state
             .sites
             .lock()
@@ -1660,6 +1741,16 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
     AgentRequest::StartAllProxyConnections => {
       let mut manager = state.proxy_manager.lock().await;
       let proxy_state = manager.start_all().await;
+      if !manager.running_ids().is_empty() {
+        if let Err(error) = sync_windows_proxy_domains(&manager).await {
+          manager.stop_all().await;
+          let _ = state.sites.lock().await.save_proxy_running_ids(&[]);
+          return AgentResponse::Error {
+            code: "proxy_hosts_sync_failed".to_owned(),
+            message: error.to_string(),
+          };
+        }
+      }
       if let Err(error) = state
         .sites
         .lock()
