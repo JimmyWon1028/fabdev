@@ -1917,7 +1917,12 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   install_desktop_panic_logging();
-  let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+  let builder = tauri::Builder::default();
+  #[cfg(windows)]
+  let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+    show_main_window(app);
+  }));
+  let builder = builder.plugin(tauri_plugin_dialog::init());
   #[cfg(target_os = "macos")]
   let builder = builder.menu(build_macos_app_menu);
 

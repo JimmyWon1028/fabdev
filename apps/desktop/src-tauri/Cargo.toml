@@ -29,6 +29,7 @@ objc2-app-kit = "0.3"
 objc2-foundation = "0.3"
 
 [target.'cfg(windows)'.dependencies]
+tauri-plugin-single-instance = "2"
 windows-sys = { workspace = true, features = ["Win32_System_Threading"] }
 
 [dev-dependencies]

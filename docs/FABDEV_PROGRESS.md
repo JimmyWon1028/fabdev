@@ -215,6 +215,12 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [ ] 提供 Redis、LDAP、ODBC 等選配 PHP Extension 管理。
 - [ ] 建立 `fabdev-mcp` 薄型轉接層；先提供每 Site 範圍的資訊、狀態與 DNS → HTTP／HTTPS → Nginx → PHP → MariaDB 診斷，再加入具確認、白名單與敏感資訊遮罩的變更工具。
 
+#### Windows 安裝體驗清單
+
+- [x] Windows NSIS 安裝包支援繁體中文、簡體中文與英文；手動啟動安裝包時，語言選擇必須是第一個畫面，即使已有先前保存的安裝語言也不可略過，並依 Windows 預設 UI 語言預選對應語言。App 既有的 `/UPDATE /P /R` 被動更新流程不得因語言選擇視窗而停住。
+- [x] Windows Desktop 必須維持單一實例；再次啟動只還原、顯示並聚焦既有主視窗，不得建立第二個 Desktop 程序、主視窗或系統匣圖示，也不得另啟 Agent。
+- [ ] Repository Owner 以 Windows x64 候選驗收：分別在無保存語言與已有保存語言時手動啟動安裝包，確認第一個畫面可選三種語言；以 `/UPDATE /P /R` 確認不顯示語言視窗；安裝後連續啟動四次，確認工作管理員只保留一個 `fabDev` 與一個 `fabdev-agent`，且既有視窗會取得焦點。
+
 #### Windows 更新體驗清單
 
 - [x] 以已安裝 `0.1.11` 實際執行 `0.1.11 -> 0.1.12` App 內更新，驗證 `/UPDATE /P /R` 不再顯示舊版移除／重新安裝流程。

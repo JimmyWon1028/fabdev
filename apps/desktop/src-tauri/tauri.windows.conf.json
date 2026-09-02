@@ -18,11 +18,13 @@
         "installMode": "currentUser",
         "languages": [
           "TradChinese",
+          "SimpChinese",
           "English"
         ],
         "displayLanguageSelector": true,
         "compression": "lzma",
-        "installerHooks": "windows/installer-hooks.nsh"
+        "installerHooks": "windows/installer-hooks.nsh",
+        "template": "windows/installer.nsi"
       }
     }
   }

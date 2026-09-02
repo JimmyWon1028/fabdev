@@ -48,6 +48,67 @@ test('blocks Windows installation until the x64 Visual C++ Runtime is complete',
   assert.ok(preinstall >= 0 && preinstall < preuninstall)
 })
 
+test('keeps the Windows installer language and Desktop single-instance contracts', async () => {
+  const windowsConfig = JSON.parse(
+    await readFile(join(repoRoot, 'apps/desktop/src-tauri/tauri.windows.conf.json'), 'utf8')
+  )
+  const nsis = windowsConfig.bundle.windows.nsis
+  assert.deepEqual(nsis.languages, ['TradChinese', 'SimpChinese', 'English'])
+  assert.equal(nsis.displayLanguageSelector, true)
+  assert.equal(nsis.template, 'windows/installer.nsi')
+
+  const installer = await readFile(
+    join(repoRoot, 'apps/desktop/src-tauri/windows/installer.nsi'),
+    'utf8'
+  )
+  const passiveOption = installer.indexOf('${GetOptions} $CMDLINE "/P" $PassiveMode')
+  const updateOption = installer.indexOf('${GetOptions} $CMDLINE "/UPDATE" $UpdateMode')
+  const manualCondition = installer.indexOf('${If} $PassiveMode <> 1')
+  const updateCondition = installer.indexOf('${AndIf} $UpdateMode <> 1')
+  const clearSavedLanguage = installer.indexOf(
+    'DeleteRegValue HKCU "${MANUPRODUCTKEY}" "Installer Language"'
+  )
+  const languageSelector = installer.indexOf('!insertmacro MUI_LANGDLL_DISPLAY')
+  assert.ok(passiveOption >= 0 && passiveOption < manualCondition)
+  assert.ok(updateOption >= 0 && updateOption < manualCondition)
+  assert.ok(manualCondition < updateCondition)
+  assert.ok(updateCondition < clearSavedLanguage)
+  assert.ok(clearSavedLanguage < languageSelector)
+
+  const hooks = await readFile(
+    join(repoRoot, 'apps/desktop/src-tauri/windows/installer-hooks.nsh'),
+    'utf8'
+  )
+  assert.match(hooks, /LANG_SIMPCHINESE/)
+
+  const cargoManifest = await readFile(
+    join(repoRoot, 'apps/desktop/src-tauri/Cargo.toml'),
+    'utf8'
+  )
+  assert.match(
+    cargoManifest,
+    /\[target\.'cfg\(windows\)'\.dependencies\][\s\S]*tauri-plugin-single-instance = "2"/
+  )
+
+  const desktopSource = await readFile(
+    join(repoRoot, 'apps/desktop/src-tauri/src/lib.rs'),
+    'utf8'
+  )
+  const singleInstancePlugin = desktopSource.indexOf('tauri_plugin_single_instance::init')
+  const dialogPlugin = desktopSource.indexOf('.plugin(tauri_plugin_dialog::init())')
+  assert.ok(singleInstancePlugin >= 0 && singleInstancePlugin < dialogPlugin)
+  assert.match(
+    desktopSource,
+    /tauri_plugin_single_instance::init\(\|app, _args, _cwd\| \{\s*show_main_window\(app\);/
+  )
+
+  const windowsWorkflow = await readFile(
+    join(repoRoot, '.github/workflows/windows-x64.yml'),
+    'utf8'
+  )
+  assert.match(windowsWorkflow, /Run Windows distribution contract tests[\s\S]*pnpm run test:release/)
+})
+
 test('prepares canonical release assets, checksums, and manifests', async (context) => {
   const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-test-'))
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
