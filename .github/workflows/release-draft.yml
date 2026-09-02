@@ -724,7 +724,13 @@ jobs:
             test "$is_draft" = "true"
             test "$is_prerelease" = "false"
             test "$is_unpublished" = "true"
-            test "$asset_count" = "20"
+            case "$asset_count" in
+              20|30) ;;
+              *)
+                echo "Expected 20 Windows-only or 30 supplemented Draft assets, found $asset_count" >&2
+                exit 1
+                ;;
+            esac
             mkdir -p supplement-assets
             cp \
               release-assets/SHA256SUMS \
@@ -741,6 +747,7 @@ jobs:
             gh api \
               --method PATCH \
               "repos/$GITHUB_REPOSITORY/releases/$existing_release_id" \
+              -f "tag_name=$tag" \
               -F "body=@$RUNNER_TEMP/release-notes.md" \
               >/dev/null
           else
