@@ -535,18 +535,36 @@ jobs:
             --dir release-input/existing
           (
             cd release-input/existing
-            test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "20"
+            asset_count="$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')"
             sha256sum --check SHA256SUMS
-            test "$(find . -maxdepth 1 -type f -name '*.sha256' | wc -l | tr -d ' ')" = "8"
+            checksum_count="$(find . -maxdepth 1 -type f -name '*.sha256' | wc -l | tr -d ' ')"
             for checksum in ./*.sha256; do
               sha256sum --check "$checksum"
             done
             cmp fabdev-app-v1.json fabdev-stable-v1.json
             test "$(jq '[.artifacts[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-app-v1.json)" = "1"
-            test "$(jq '[.artifacts[] | select(.platform != "windows")] | length' fabdev-app-v1.json)" = "0"
             test "$(jq '.catalogSequence' fabdev-runtime-v1.json)" = "$RUNTIME_CATALOG_SEQUENCE"
             test "$(jq '[.runtimes[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-runtime-v1.json)" = "6"
-            test "$(jq '[.runtimes[] | select(.platform != "windows")] | length' fabdev-runtime-v1.json)" = "0"
+            case "$asset_count" in
+              20)
+                test "$checksum_count" = "8"
+                test "$(jq '[.artifacts[] | select(.platform != "windows")] | length' fabdev-app-v1.json)" = "0"
+                test "$(jq '[.runtimes[] | select(.platform != "windows")] | length' fabdev-runtime-v1.json)" = "0"
+                ;;
+              30)
+                test "$checksum_count" = "13"
+                test "$(jq '[.artifacts[] | select(.platform == "macos" and .architecture == "arm64")] | length' fabdev-app-v1.json)" = "1"
+                test "$(jq '[.runtimes[] | select(.platform == "macos" and .architecture == "arm64")] | length' fabdev-runtime-v1.json)" = "4"
+                ;;
+              *)
+                echo "Expected 20 Windows-only or 30 supplemented Draft assets, found $asset_count" >&2
+                exit 1
+                ;;
+            esac
+            mkdir -p ../existing-windows
+            find . -maxdepth 1 -type f -name '*-windows-x64*' \
+              -exec cp {} ../existing-windows/ \;
+            test "$(find ../existing-windows -maxdepth 1 -type f | wc -l | tr -d ' ')" = "16"
           )
 
       - name: Generate cross-platform release assets and manifests
@@ -555,9 +573,9 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$RELEASE_SCOPE" == "macos" ]]; then
-            windows_installer="$GITHUB_WORKSPACE/release-input/existing/fabDev-Community-$VERSION-windows-x64-setup.exe"
-            windows_connect="$GITHUB_WORKSPACE/release-input/existing/fabDev-Connect-$VERSION-windows-x64.exe"
-            windows_runtime_dir="$GITHUB_WORKSPACE/release-input/existing"
+            windows_installer="$GITHUB_WORKSPACE/release-input/existing-windows/fabDev-Community-$VERSION-windows-x64-setup.exe"
+            windows_connect="$GITHUB_WORKSPACE/release-input/existing-windows/fabDev-Connect-$VERSION-windows-x64.exe"
+            windows_runtime_dir="$GITHUB_WORKSPACE/release-input/existing-windows"
             runtime_args=(
               --runtime-package-dir "$GITHUB_WORKSPACE/release-input/macos-runtimes"
               --runtime-package-dir "$windows_runtime_dir"
