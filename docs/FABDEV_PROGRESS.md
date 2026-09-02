@@ -14,7 +14,7 @@
 - Site Home 預設為 `~/Sites`；第一層非隱藏資料夾自動成為同名 `.test` Site，並保留原有 linked site。
 - Sites 與 Proxy 主控台支援版本化 JSON 匯出／匯入；Sites 依網域略過重複，Proxy 依 ID、網域或 Listener Port 略過重複。
 - PHP 7.4.33、8.2.33、8.4.24 並行 FPM、全域 PHP、Runtime 安裝／移除與持久 `php.ini`；上傳限制為 64M。
-- PHP 設定提供由目前 PHP 8.2 設定初始化的預設 `php.ini` 範本，只套用到尚未建立專屬設定的 PHP minor。
+- 0.1.19 PHP 設定畫面移除共用的「預設 php.ini」項目；各版本的「ERP 參數」改為依 macOS／Windows 平台及 PHP 7.4／8.2／8.4 載入對應內建預設，新安裝 Runtime 的空白 `php.ini` 也會自動初始化為該版本預設。Windows 同時依版本啟用 GD：PHP 7.4 使用 `gd2`，PHP 8.x 使用 `gd`；既有非空白自訂 `php.ini` 不會被覆蓋。
 - PHP 7.4 與 8.2 內建 Runtime 可安全移除；仍保留全域版本與 Site 使用中保護，明確移除後不會在下次啟動自動補回。
 - 左側倒數第二項 Node.js 頁面提供 Windows x64 Node.js 20.20.2／24.20.0 並存選裝；預設均未安裝，支援每個版本安裝／更新／移除、明確設為全域及動態 terminal shim，不使用 nvm，也不接管外部 Node.js。
 - 左側 Proxy Manager、Agent／CLI 的新增／移除、全部與單獨啟動／停止；全新安裝的 Proxy 清單為空，使用者設定與啟動狀態保存在 SQLite，所有 Listener 只綁 loopback，Port 衝突與上游故障互相隔離。
