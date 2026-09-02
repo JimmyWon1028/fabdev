@@ -4655,6 +4655,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     assert!(second_nginx_site.contains("fastcgi_pass 127.0.0.1:19082;"));
     assert!(nginx_global.contains("listen 127.0.0.1:8080 default_server;"));
     assert!(nginx_global.contains("listen 127.0.0.1:8443 ssl default_server;"));
+    assert!(nginx_global.contains("server_names_hash_bucket_size 512;"));
     assert!(nginx_global.contains("log_format fabdev_timing"));
     assert!(nginx_global.contains("request_time=$request_time"));
     assert!(nginx_global.contains("upstream_response_time=$upstream_response_time"));
