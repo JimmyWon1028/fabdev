@@ -347,11 +347,13 @@ Draft Connect 為 749,568 bytes，SHA-256 `2082d724e809a04111a78a74fe7f0aadd0212
 
 macOS ARM64 完成 `0.1.1 → 0.1.3` 覆蓋更新、資料保留、`demo.test`、PHP 8.2.33 與安全 Quit 清理。Parallels Windows 11 ARM64 的 x64 App 相容環境完成 `0.1.1 → 0.1.3` 人工覆蓋、解除安裝資料保留與重新安裝，並另以封裝版 `0.1.2` 實際走 App 內新版偵測、下載、大小／SHA-256 驗證、安全 Quit、開啟 Setup、覆蓋安裝及重新啟動。更新後 Desktop／Agent 皆為 `0.1.3`、Protocol 32，原 Site ID、Site Home、空白 Proxy 與 HTTP 200／PHP 8.2.33 均保留。
 
-### 8.8 `v0.1.20` Windows-only Draft 驗證
+### 8.8 `v0.1.20` Windows-only Draft 與 macOS 補齊驗證
 
 Repository Owner 通過 `0.1.20` Windows 安裝語言、單一實例、Setup.exe SHA-256、FileVersion 與 ProductVersion Gate 後，明確授權建立 Windows-only Draft。Annotated Tag `v0.1.20` 固定在 Commit `441972ea02d5d78d675e952b0dee1d2d14bb1a97`；GitHub Actions Run `33625130392` 的 Windows x64 Runtime、Installer 與 Draft Jobs 全數成功，macOS Job、Artifact 下載及跨平台 Manifest 步驟均為 skipped。
 
 Draft Release ID `381210149` 含 20 個 Windows-only Assets、319,688,655 bytes。全部重新下載後，GitHub API digest `20/20`、`SHA256SUMS` 的八個主要 Assets、八份個別 checksum、App／Stable Manifest、六個 Runtime Archive 與 Runtime Catalog sequence 14 均通過；App Manifest 只包含 `0.1.20` Windows x64 Installer，Catalog 只包含六個 Windows x64 Runtime，沒有 macOS 項目。Windows Setup SHA-256 為 `0344df9ae72aa2dcb306510e137c069e3e213ca50deca9ebc28b4bd5b733fbc7`，App／Stable Manifest 為 `907ba0bc8cbef919ad28b598c875fc0b7196a9d617c9d2afa56d014b620bc4d0`，Runtime Catalog 為 `926147f79c64b667ac3e4dc36b05fd3fbb30e549b059679dc942f42d86cc7057`。Release 維持 `draft=true`、`published_at=null`，公開 Latest 仍為 `v0.1.19`；此驗證不構成 Publish 授權。
+
+後續依明確補齊授權執行 `release_scope=macos`。Run `33630602638` 與 `33636835829` 的 macOS ARM64 Runtime、完整測試、lint、Unsigned Community DMG 與 Artifact Jobs 均成功，Windows Jobs 均 skipped；Draft 續跑揭露的 Tag 保留與 20／30 Asset 邊界已由 Commit `437be40`、`633ea9f` 修正。Release ID 不變，最終含 30 個跨平台 Assets、685,600,881 bytes；全部重新下載後通過 13 個 `SHA256SUMS` 項目、13 份個別 checksum、Windows／macOS App Manifest、10 項 Runtime Catalog sequence 14 與 DMG `hdiutil verify`。`SHA256SUMS`、App／Stable Manifest、Runtime Catalog、DMG 的 SHA-256 依序為 `d27f5c2e2500520cefe1f7e608a7f05c3e252c9a5c4897c69d54ae30d848a832`、`36615138a917a63be41a56732919c0e9c0146a11776f9d326fc0f80c52ee4130`、`71d248604dde5f572b36ec2224dc1429e62e6ae303ef653a9b9262533a6a5b73`、`e4c48d0870e3a08eb4cfcf494a883baeaec92360283fed9ba81590ed94f7207e`。DMG 內 Desktop／CLI／Agent 均為 0.1.20 ARM64，App 深度簽章有效且維持 `Signature=adhoc`、`TeamIdentifier=not set`；沒有加入 Apple Developer ID、notarization、stapling 或 Hardened Runtime。Release 仍為 `draft=true`、`published_at=null`，公開 Latest 仍為 `v0.1.19`，未取得 Repository Owner 明確核准前不得 Publish。
 
 ## 9. Publish 後驗證
 
