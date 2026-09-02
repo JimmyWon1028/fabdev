@@ -17,6 +17,7 @@ fabDev 是 macOS 優先、最終支援 Windows 的 ERP Web 本機開發工具。
 
 開發工具使用獨立的 Node.js 24、pnpm 11 與 Rust stable；不得依賴 Herd 的 NVM 或 binary。
 只有使用者明確說「重新打包」時，才能執行 `pnpm run build:community:macos` 或覆蓋 Community DMG；開始、繼續、測試或完成細節都不構成打包授權。
+macOS Community 發行目前維持既有 Unsigned Community DMG。除非 Repository Owner 明確要求「發行簽章版」，不得加入或變更 Apple Developer ID、notarization、stapling、Hardened Runtime、簽章憑證、CI Secret 或其他簽章／公證設定，也不得為了消除 Gatekeeper 警告擅自修改安裝／移除腳本或 DMG 包裝。GitHub Release 經瀏覽器下載的 DMG 若帶有 quarantine，本機測試只能在 SHA-256 驗證通過後，先退出所有同名舊掛載、只移除該 DMG 的 `com.apple.quarantine`，再重新掛載；這只屬本機檔案 metadata 處理，不得混入 Release Asset 或專案設定。
 
 ## 架構與設定原則
 
