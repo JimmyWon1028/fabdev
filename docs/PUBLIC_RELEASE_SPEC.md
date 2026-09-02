@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.3` 已完成兩平台驗收、Stable Publish、匿名公開下載與 App 內更新驗收
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.20` 已完成 Windows x64／macOS ARM64 30 個 Assets、兩平台驗收與 Stable Publish，目前為 Latest Stable
 
 ## 1. 目標
 
@@ -351,9 +351,9 @@ macOS ARM64 完成 `0.1.1 → 0.1.3` 覆蓋更新、資料保留、`demo.test`�
 
 Repository Owner 通過 `0.1.20` Windows 安裝語言、單一實例、Setup.exe SHA-256、FileVersion 與 ProductVersion Gate 後，明確授權建立 Windows-only Draft。Annotated Tag `v0.1.20` 固定在 Commit `441972ea02d5d78d675e952b0dee1d2d14bb1a97`；GitHub Actions Run `33625130392` 的 Windows x64 Runtime、Installer 與 Draft Jobs 全數成功，macOS Job、Artifact 下載及跨平台 Manifest 步驟均為 skipped。
 
-Draft Release ID `381210149` 含 20 個 Windows-only Assets、319,688,655 bytes。全部重新下載後，GitHub API digest `20/20`、`SHA256SUMS` 的八個主要 Assets、八份個別 checksum、App／Stable Manifest、六個 Runtime Archive 與 Runtime Catalog sequence 14 均通過；App Manifest 只包含 `0.1.20` Windows x64 Installer，Catalog 只包含六個 Windows x64 Runtime，沒有 macOS 項目。Windows Setup SHA-256 為 `0344df9ae72aa2dcb306510e137c069e3e213ca50deca9ebc28b4bd5b733fbc7`，App／Stable Manifest 為 `907ba0bc8cbef919ad28b598c875fc0b7196a9d617c9d2afa56d014b620bc4d0`，Runtime Catalog 為 `926147f79c64b667ac3e4dc36b05fd3fbb30e549b059679dc942f42d86cc7057`。Release 維持 `draft=true`、`published_at=null`，公開 Latest 仍為 `v0.1.19`；此驗證不構成 Publish 授權。
+Draft Release ID `381210149` 建立當時含 20 個 Windows-only Assets、319,688,655 bytes。全部重新下載後，GitHub API digest `20/20`、`SHA256SUMS` 的八個主要 Assets、八份個別 checksum、App／Stable Manifest、六個 Runtime Archive 與 Runtime Catalog sequence 14 均通過；App Manifest 只包含 `0.1.20` Windows x64 Installer，Catalog 只包含六個 Windows x64 Runtime，沒有 macOS 項目。Windows Setup SHA-256 為 `0344df9ae72aa2dcb306510e137c069e3e213ca50deca9ebc28b4bd5b733fbc7`，App／Stable Manifest 為 `907ba0bc8cbef919ad28b598c875fc0b7196a9d617c9d2afa56d014b620bc4d0`，Runtime Catalog 為 `926147f79c64b667ac3e4dc36b05fd3fbb30e549b059679dc942f42d86cc7057`。在這個 Windows-only 驗證階段，Release 維持 `draft=true`、`published_at=null`，公開 Latest 仍為 `v0.1.19`；此驗證不構成 Publish 授權。
 
-後續依明確補齊授權執行 `release_scope=macos`。前兩次 macOS Jobs 均成功並揭露 Draft 續跑的 Tag 保留與 20／30 Asset 邊界，已由 Commit `437be40`、`633ea9f` 修正；完整修正版 Run `33646813350` 的 Request、macOS ARM64 Runtime、完整測試、lint、Unsigned Community DMG、Artifact 與 Draft Jobs 全數成功，Windows Jobs 均 skipped。Release ID 不變，最終含 30 個跨平台 Assets、685,491,934 bytes；CI 最後 Gate 重新下載全部資產並通過 13 個 `SHA256SUMS` 項目、13 份個別 checksum、Windows／macOS App Manifest 與 10 項 Runtime Catalog sequence 14。`SHA256SUMS`、App／Stable Manifest、Runtime Catalog、DMG 的 SHA-256 依序為 `d409ea736226e66b494ba4314cbcdddc9fa0dbad1f2cac10f064d31abf0f0b08`、`54b77c2a39850cf1ce27e1324c5c0825ca98de2a57f991e30847650e93ebd979`、`141e992b94463332edbe63211ade7ac39b7a0c8d0d86cdb46768f37d2e7a132f`、`2a8574b94193cbee6711222d529976ca77981c3ac37e49dd417b41e8aec44c87`。macOS 仍使用既有 ad-hoc Community 規格，沒有加入 Apple Developer ID、notarization、stapling 或 Hardened Runtime。Release 仍為 `draft=true`、`published_at=null`，公開 Latest 仍為 `v0.1.19`，未取得 Repository Owner 明確核准前不得 Publish。
+後續依明確補齊授權執行 `release_scope=macos`。前兩次 macOS Jobs 均成功並揭露 Draft 續跑的 Tag 保留與 20／30 Asset 邊界，已由 Commit `437be40`、`633ea9f` 修正；完整修正版 Run `33646813350` 的 Request、macOS ARM64 Runtime、完整測試、lint、Unsigned Community DMG、Artifact 與 Draft Jobs 全數成功，Windows Jobs 均 skipped。Release ID 不變，補齊完成當下含 30 個跨平台 Assets、685,491,934 bytes；CI 最後 Gate 重新下載全部資產並通過 13 個 `SHA256SUMS` 項目、13 份個別 checksum、Windows／macOS App Manifest 與 10 項 Runtime Catalog sequence 14。`SHA256SUMS`、App／Stable Manifest、Runtime Catalog、DMG 的 SHA-256 依序為 `d409ea736226e66b494ba4314cbcdddc9fa0dbad1f2cac10f064d31abf0f0b08`、`54b77c2a39850cf1ce27e1324c5c0825ca98de2a57f991e30847650e93ebd979`、`141e992b94463332edbe63211ade7ac39b7a0c8d0d86cdb46768f37d2e7a132f`、`2a8574b94193cbee6711222d529976ca77981c3ac37e49dd417b41e8aec44c87`。macOS 仍使用既有 ad-hoc Community 規格，沒有加入 Apple Developer ID、notarization、stapling 或 Hardened Runtime。在這個補齊驗證階段，Release 仍為 `draft=true`、`published_at=null`，公開 Latest 仍為 `v0.1.19`；後續 Publish 結果記錄於第 9.5 節。
 
 ## 9. Publish 後驗證
 
@@ -422,6 +422,20 @@ https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.12
 - 公開 Windows Setup 為 49,305,664 bytes，SHA-256 `0287677c041ed4556db6d93cab99777d90aa2f0baecfec4fd5aa7a65d7a63173`；Release 頁、Setup、PHP 7.4.33 與 PHP 8.2.33 端點的匿名 Range 請求均通過。
 - Windows VM 由 `0.1.11` 使用 `/UPDATE /P /R` 原地更新至 `0.1.12` 並自動重新啟動；Site、全域 PHP 與設定雜湊保留，Agent `0.1.12`、Protocol 36 與 `demo.test` HTTP 200 通過。
 - Publish 後在 VM 依序移除 PHP 7.4.33／8.2.33，再由公開 Catalog 重新下載安裝；兩版 Archive 大小與 SHA-256、CLI、`mysqli`、`pdo_mysql`、移除標記清除與最後恢復 PHP 8.2 均通過。
+
+### 9.5 `v0.1.20` 跨平台 Stable Publish 執行結果
+
+Repository Owner 明確核准後，GitHub Release `381210149` 已於 `2026-09-02T22:32:33Z`，即 2026-09-03 06:32:33（Asia/Taipei, UTC+8）發布為 Stable；狀態為 `draft=false`、`prerelease=false`，並成為 Latest Stable：
+
+```text
+https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.20
+```
+
+- Release 保留補齊驗證通過的 30 個 Windows x64／macOS ARM64 Assets，Release Notes 的 Publish 核准項目已勾選。
+- 未登入 Release 頁面、Latest `fabdev-stable-v1.json` 與 `fabdev-runtime-v1.json` 均回傳 HTTP 200。
+- Stable Manifest 為 App `0.1.20`、Agent Protocol 36，包含 macOS ARM64 DMG 與 Windows x64 Setup；Runtime Catalog sequence 14、minimum App `0.1.20`，包含 Windows 6＋macOS 4 共 10 個 Runtime。
+- Windows Setup SHA-256 維持 `0344df9ae72aa2dcb306510e137c069e3e213ca50deca9ebc28b4bd5b733fbc7`；macOS DMG SHA-256 維持 `2a8574b94193cbee6711222d529976ca77981c3ac37e49dd417b41e8aec44c87`。
+- 本次文件收尾只驗證公開頁面與兩份小型 Manifest，未重新下載 685 MB 的完整 Release 集合；大型 Assets 的逐檔大小、SHA-256 與 Archive 驗證沿用 Publish 前 CI 最後 Gate 的結果。
 
 ## 10. 撤回與回復
 

@@ -1,11 +1,15 @@
-# fabDev 工作進度與 TODO
+# fabDev 穩定基線與 Roadmap
 
 > 更新日期：2026-09-03
-> 目前階段：[`v0.1.19`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.19) 仍是 Latest Stable。`v0.1.20` annotated Tag 固定在 Commit `441972ea02d5d78d675e952b0dee1d2d14bb1a97`；Draft Release ID `381210149` 已由 Windows-only 補齊為 Windows x64／macOS ARM64 共 30 個 Assets，全部重新下載並完成完整性驗證。`v0.1.20` 仍為 `draft=true`、`published_at=null`，未取得 Repository Owner 明確核准前不得 Publish
+> 目前階段：[`v0.1.20`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.20) 已發布為 Latest Stable。Annotated Tag 固定在 Commit `441972ea02d5d78d675e952b0dee1d2d14bb1a97`；Release ID `381210149` 為 `draft=false`、`prerelease=false`，共含 Windows x64／macOS ARM64 30 個 Assets
+
+## 階段結論
+
+fabDev Desktop Community `v0.1.20` 已完成單機、單人本機開發環境的穩定基線：macOS ARM64／Windows x64 安裝包、核心 Web Stack、Site、HTTPS、PHP、MariaDB、Node.js、Proxy、更新與安全生命週期均已有發布及驗收證據。專案目前進入維護與下一階段功能開發；下方未完成項目不否定現有 Stable，但不得被描述為已完成。
 
 ## 已完成
 
-- Tauri／Vue Desktop、Rust Agent／CLI、Unix Socket Protocol 33 與 SQLite Site Registry。
+- Tauri／Vue Desktop、Rust Agent／CLI、macOS Unix Socket／Windows Named Pipe Protocol 36 與 SQLite Site Registry。
 - macOS App 與 `pnpm dev` 內建 dnsmasq 2.93、Nginx 1.30.4、PHP 7.4.33、PHP 8.2.33；首次啟動只補缺少版本，保留既有開發資料。
 - macOS 與 Windows 在 Site Registry 完全空白時建立唯一的 `demo.test`；Community 首次初始化會把 Site Home 固定在範例專案的父目錄，避免掃描其他本機專案，已有任何 Site 時不新增或覆蓋。
 - `.test` DNS、Nginx、53／80／443 固定 Helper，以及 Start All／Stop All 與 menu bar 狀態。
@@ -16,23 +20,24 @@
 - PHP 7.4.33、8.2.33、8.4.24 並行 FPM、全域 PHP、Runtime 安裝／移除與持久 `php.ini`；上傳限制為 64M。
 - 0.1.19 PHP 設定畫面移除共用的「預設 php.ini」項目；各版本的「ERP 參數」改為依 macOS／Windows 平台及 PHP 7.4／8.2／8.4 載入對應內建預設，新安裝 Runtime 的空白 `php.ini` 也會自動初始化為該版本預設。Windows 同時依版本啟用 GD：PHP 7.4 使用 `gd2`，PHP 8.x 使用 `gd`；既有非空白自訂 `php.ini` 不會被覆蓋。
 - PHP 7.4 與 8.2 內建 Runtime 可安全移除；仍保留全域版本與 Site 使用中保護，明確移除後不會在下次啟動自動補回。
-- 左側倒數第二項 Node.js 頁面提供 Windows x64 Node.js 20.20.2／24.20.0 並存選裝；預設均未安裝，支援每個版本安裝／更新／移除、明確設為全域及動態 terminal shim，不使用 nvm，也不接管外部 Node.js。
+- 左側倒數第二項 Node.js 頁面提供 macOS ARM64／Windows x64 Node.js 20.20.2／24.20.0 並存選裝；預設均未安裝，支援每個版本安裝／更新／移除、明確設為全域及動態 terminal shim，不使用 nvm，也不接管外部 Node.js。
 - 左側 Proxy Manager、Agent／CLI 的新增／移除、全部與單獨啟動／停止；全新安裝的 Proxy 清單為空，使用者設定與啟動狀態保存在 SQLite，所有 Listener 只綁 loopback，Port 衝突與上游故障互相隔離。
 - 設定頁可持久開關「App 開啟時自動啟動服務」；預設開啟，已運行不重啟，部分異常會先清理再啟動。
 - Community DMG 讓 App 內建 DNS、Nginx、PHP 7.4／8.2，並含 Helper、安裝／移除程序與唯一 `demo.test`；PHP 8.4、MariaDB 維持獨立選裝套件。
 - 總覽的 Web 服務控制使用單一狀態按鈕：全部運行時顯示「全部停止」，其他狀態顯示「全部啟動」。
 - 總覽的 MariaDB 卡片只顯示連線與運行狀態；啟動、停止及設定操作統一放在 MariaDB 頁面。
 - menu bar、macOS App 選單及 `Command+Q` 的 `Quit fabDev` 會走同一套退出流程，先停止 Web 全部服務與 MariaDB、清理受管孤兒程序，再關閉 Agent 與 Desktop。
-- Community Runtime 使用 `*-macos-arm64-community`、`community-ad-hoc` 描述及獨立 Catalog；開發套件維持 `*-dev`。
+- Community Runtime 依平台使用 `*-macos-arm64-community`／`*-windows-x64-community` 命名、`community-ad-hoc` 描述及獨立 Catalog；開發套件維持 `*-dev`。
 - Windows Named Pipe Agent、Nginx／PHP-CGI Platform Adapter、白名單 Hosts Helper 與單一使用者 NSIS 安裝程式。
 - Windows 首次啟動會安裝內附 Nginx 1.30.4、PHP 7.4.33／8.2.33，並建立唯一的 `demo.test`。
-- macOS ARM64 MariaDB 12.3.2 Runtime、主控台／menu bar／CLI 的獨立 Install／Start／Stop／Remove、3306 衝突檢查及隔離資料目錄。
+- macOS ARM64／Windows x64 MariaDB 12.3.2 Portable Runtime、主控台／menu bar／CLI 的獨立 Install／Start／Stop／Remove、3306 衝突檢查及隔離資料目錄。
 - Sites 畫面的多 Site `LAN Site Share`：多個 Site 共用主機高位 Port 並由 Nginx 依 Host 分流；可逐一停止，最後一個 Site、Stop All、Agent Shutdown 或 App Quit 會釋放 Listener。
 - Windows `fabdev-connect.exe`：UAC 後自動管理多個有明確標記的 `.test` hosts，以非同步 Client `127.0.0.1:80` 代理轉送到主機，保存最後使用的主機與 Sites，並在從 Parallels Shared Folders 啟動時自動轉存本機 Runtime，再要求 UAC。
 
 ## 最近驗證
 
-- 2026-09-03：依 Repository Owner 明確授權，將既有 Windows-only `v0.1.20` Draft 補齊 macOS ARM64。前兩次 macOS Jobs 均成功，最後 Draft Gate 分別揭露更新 Notes 時未明確保留 Tag，以及續跑時仍固定要求 20 個既有 Assets；Commit `437be40`、`633ea9f` 已修正為保留 `tag_name=v0.1.20` 並可從 20／30 Assets 安全續跑。完整修正版 GitHub Actions [Run 33646813350](https://github.com/JimmyWon1028/fabdev/actions/runs/33646813350) 於 2026-09-03 00:10:29（UTC+8）完成，Request、macOS bundled／online Runtime、sidecar、完整測試、lint、Unsigned Community DMG、Artifact 與 Draft Jobs 全數成功，Windows Jobs 均為 skipped。Release ID `381210149` 目前含 30 個跨平台 Assets、685,491,934 bytes，仍為 `draft=true`、`prerelease=false`、`published_at=null`。CI 最後 Gate 重新下載全部 30 個 Assets，`SHA256SUMS` 內 13 個主要檔案、13 份個別 checksum、App／Stable Manifest 逐位元一致性、Windows x64／macOS ARM64 Installer、Windows 6＋macOS 4 共 10 個 Runtime、Catalog sequence 14 與 minimum App `0.1.20` 均通過。`SHA256SUMS` SHA-256 為 `d409ea736226e66b494ba4314cbcdddc9fa0dbad1f2cac10f064d31abf0f0b08`，App／Stable Manifest 為 `54b77c2a39850cf1ce27e1324c5c0825ca98de2a57f991e30847650e93ebd979`，Runtime Catalog 為 `141e992b94463332edbe63211ade7ac39b7a0c8d0d86cdb46768f37d2e7a132f`，macOS DMG 為 `2a8574b94193cbee6711222d529976ca77981c3ac37e49dd417b41e8aec44c87`，Windows Setup 維持 `0344df9ae72aa2dcb306510e137c069e3e213ca50deca9ebc28b4bd5b733fbc7`。macOS 保持既有 ad-hoc Community 規格，未加入 Developer ID、notarization、stapling 或 Hardened Runtime；依規則未重跑 macOS 或 Windows 實機安裝／啟動／移除。Draft checklist 的資產與 Manifest 驗證已勾選，Publish 核准仍未勾選，公開 Latest 仍為 `v0.1.19`。
+- 2026-09-03：Repository Owner 已明確核准 `v0.1.20` Stable Publish。Release ID `381210149` 於 2026-09-03 06:32:33（Asia/Taipei, UTC+8）發布，狀態為 `draft=false`、`prerelease=false`，並成為 Latest Stable；30 個 Windows x64／macOS ARM64 Assets 均保留。未登入 Release 頁面、Latest Stable Manifest 與 Runtime Catalog 均回傳 HTTP 200；Manifest 固定為 App `0.1.20`、Agent Protocol 36、Runtime Catalog sequence 14，並同時列出兩平台 Installer 與 Windows 6＋macOS 4 共 10 個 Runtime。本次文件整理未重新下載大型 Installer 或 Runtime，也未重跑安裝、啟動、更新與移除流程。
+- 2026-09-03：依 Repository Owner 明確授權，將既有 Windows-only `v0.1.20` Draft 補齊 macOS ARM64。前兩次 macOS Jobs 均成功，最後 Draft Gate 分別揭露更新 Notes 時未明確保留 Tag，以及續跑時仍固定要求 20 個既有 Assets；Commit `437be40`、`633ea9f` 已修正為保留 `tag_name=v0.1.20` 並可從 20／30 Assets 安全續跑。完整修正版 GitHub Actions [Run 33646813350](https://github.com/JimmyWon1028/fabdev/actions/runs/33646813350) 於 2026-09-03 00:10:29（UTC+8）完成，Request、macOS bundled／online Runtime、sidecar、完整測試、lint、Unsigned Community DMG、Artifact 與 Draft Jobs 全數成功，Windows Jobs 均為 skipped。補齊完成當下 Release ID `381210149` 含 30 個跨平台 Assets、685,491,934 bytes，狀態仍為 `draft=true`、`prerelease=false`、`published_at=null`。CI 最後 Gate 重新下載全部 30 個 Assets，`SHA256SUMS` 內 13 個主要檔案、13 份個別 checksum、App／Stable Manifest 逐位元一致性、Windows x64／macOS ARM64 Installer、Windows 6＋macOS 4 共 10 個 Runtime、Catalog sequence 14 與 minimum App `0.1.20` 均通過。`SHA256SUMS` SHA-256 為 `d409ea736226e66b494ba4314cbcdddc9fa0dbad1f2cac10f064d31abf0f0b08`，App／Stable Manifest 為 `54b77c2a39850cf1ce27e1324c5c0825ca98de2a57f991e30847650e93ebd979`，Runtime Catalog 為 `141e992b94463332edbe63211ade7ac39b7a0c8d0d86cdb46768f37d2e7a132f`，macOS DMG 為 `2a8574b94193cbee6711222d529976ca77981c3ac37e49dd417b41e8aec44c87`，Windows Setup 維持 `0344df9ae72aa2dcb306510e137c069e3e213ca50deca9ebc28b4bd5b733fbc7`。macOS 保持既有 ad-hoc Community 規格，未加入 Developer ID、notarization、stapling 或 Hardened Runtime；依規則未重跑 macOS 或 Windows 實機安裝／啟動／移除。當時 Draft checklist 的資產與 Manifest 驗證已勾選，Publish 核准仍未勾選，公開 Latest 仍為 `v0.1.19`；後續 Stable Publish 記錄見上一項。
 - 2026-09-02：Windows-only `v0.1.20` Draft 已建立並完成資產驗證。GitHub Actions [Run 33625130392](https://github.com/JimmyWon1028/fabdev/actions/runs/33625130392) 固定使用 Commit `441972ea02d5d78d675e952b0dee1d2d14bb1a97`；Request、Windows x64 Runtime、Windows Installer 與 Draft Jobs 全數成功，macOS ARM64 Job、Artifact 下載及跨平台 Manifest 步驟均為 skipped。Release ID `381210149` 維持 `draft=true`、`prerelease=false`、`published_at=null`，建立時間為 2026-09-02 19:31:54（UTC+8），共 20 個 Windows-only Assets、319,688,655 bytes，沒有 macOS Asset。全部 Assets 重新下載後，GitHub API digest `20/20`、`SHA256SUMS` 的八個主要 Assets 及八份個別 `.sha256` 均通過；App／Stable Manifest 逐位元一致，版本 `0.1.20` 且只有 Windows x64 Installer。Runtime Catalog sequence 14、minimum App `0.1.20`，包含 PHP 三版、MariaDB、Node.js 兩版共六個 Windows x64 Runtime，Catalog validator、Archive gzip、單一版本根目錄、實體大小與 SHA-256 均通過。`SHA256SUMS` SHA-256 為 `cde3366ac331f861d80ba02b12dfee9c6f94aa1bb8b79afe83a6e20b023343c8`，App／Stable Manifest 為 `907ba0bc8cbef919ad28b598c875fc0b7196a9d617c9d2afa56d014b620bc4d0`，Runtime Catalog 為 `926147f79c64b667ac3e4dc36b05fd3fbb30e549b059679dc942f42d86cc7057`，Windows Setup 為 `0344df9ae72aa2dcb306510e137c069e3e213ca50deca9ebc28b4bd5b733fbc7`。Manifest 產生時間為 2026-09-02 19:32:09（UTC+8）；Release Notes 已記錄沿用 Repository Owner 的 `0.1.20` Windows 功能與版本 Gate，Publish 核准仍未勾選，公開 Latest 仍為 `v0.1.19`。
 - 2026-09-01：[`v0.1.17`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.17) 已發布為 Latest Stable Release，Release ID `380491300`，`draft=false`、`prerelease=false`、發布時間 `2026-09-01T13:26:54Z`；Tag 固定在 Commit `533877cc4b3f05d5d8df94aa99758fefaf16735c`。GitHub Actions [Run 33504988884](https://github.com/JimmyWon1028/fabdev/actions/runs/33504988884) 的 Windows x64 Runtime／NSIS、macOS ARM64 Runtime／DMG 與 Draft 組裝 Jobs 全數通過。Release 共 30 個 Assets、685,454,665 bytes；Publish 前全部重新下載後，GitHub API digest `30/30` 逐筆一致，`SHA256SUMS` 內 13 個主要 Assets 與 13 份個別 checksum 全數通過。App／Stable Manifest 逐位元一致，版本 0.1.17、Stable channel、Windows x64 與 macOS ARM64 兩個安裝包；Runtime Catalog sequence 11、minimum App 0.1.17、Protocol 36，含 Windows 6＋macOS 4 共 10 個 Runtime，12 個 Manifest 實體引用的大小、SHA-256 與正式 `v0.1.17` URL 全數一致。`SHA256SUMS` SHA-256 為 `8126ffe9d0a26cb40e6fbda2436d8539fb591f16dd1b13c8edd1aa7f5f146c9f`，App／Stable Manifest 為 `7f6262570c37580bcf0facd4709e5f61f63e6b92cba07fe229fcc208812c978f`，Runtime Catalog 為 `10ec4acbb51e484a3dbf03f19350121c337d5e6feae32ca774586913c657da8e`，DMG 為 `880c912939a6bef47f22f4e71bcdb59b571ad78348d8fd786ea5c267b4724f56`，Windows Setup 為 `40cdd199305d10649279e068058e55c78088d15aeea05917405443ac65589c3d`。DMG `hdiutil verify`、內部 27 筆 checksum、App／Agent／Helper／CLI 簽章與 0.1.17 版本均通過；四份內建 Runtime descriptor 大小／SHA-256 一致，366 個 Runtime Mach-O 全為 ARM64、簽章有效且無 Homebrew／`/usr/local` 執行期依賴。Windows NSIS 可解出 214 個項目，Desktop／Agent／Helper 與 PHP 均為 x64；VC Runtime 安裝前檢查回歸測試通過。依既定分工不重跑 Windows 或 macOS 實機安裝／更新／移除。Publish 後 Release、Latest、App／Stable／Runtime Manifest 均由未帶 Token 的公開 URL 回傳 HTTP 200，Windows Setup／macOS DMG Range 回傳 HTTP 206 且總大小分別為 49,340,299／100,969,057 bytes；公開 Manifest Hash 與 Publish 前驗證值一致，Latest 指向 `v0.1.17`。Repository 目前沒有待清理的 Draft。
 - 2026-09-01：依明確重新打包授權，以 Commit `80033bb971015a88eeb95d08e5fcf54c58a43cec` 建立本機 `fabDev-Community-0.1.17-macos-arm64.dmg`，99,680,458 bytes，SHA-256 `7a5ec3c2ab0e9d290518c251aecd5945e8134c905bd1a22fbfd4135f23ef732f`。`pnpm test`、`pnpm lint`、`hdiutil verify`、DMG 內 27 個 `SHA256SUMS`、App／CLI／Helper 簽章、App／Build／CLI／Agent 0.1.17 及 Desktop／Agent／Helper／CLI ARM64 均通過。內建 Runtime 僅含 dnsmasq 2.93、Nginx 1.30.4、PHP 7.4.33 與 PHP 8.2.33；四份 descriptor 大小／SHA-256 逐筆相符，共 369 個 Runtime Mach-O 皆為 ARM64，未發現 Homebrew／`/usr/local` 執行期依賴。本候選未安裝、未上傳，也未建立 Tag 或 Release。
@@ -174,7 +179,7 @@
 
 ## 驗證邊界
 
-- 目前公開 Stable Manifest 為 `0.1.17`，同時提供 Windows x64 與 macOS ARM64。Windows 已完成封裝版 App 內 `0.1.2 → 0.1.3`、`0.1.11 → 0.1.12` 更新驗收、0.1.12 舊 launcher 失敗重現與 0.1.14 手動覆蓋驗收、0.1.15 VC Runtime prerequisite 與 Proxy 連線 VM 驗收，以及 0.1.17 Managed MariaDB 刪除／半成品復原實機 Gate；0.1.14 新 launcher 發起 `0.1.15` 更新與下載中途取消尚未執行完整 VM UI 補測。macOS 已完成 `0.1.1 → 0.1.3` 與 `0.1.3 → 0.1.12` 覆蓋更新，0.1.17 因安裝程序未變只做重新打包、映像與封裝內容驗證，不重跑人工生命週期測試。
+- 目前公開 Stable Manifest 為 `0.1.20`，同時提供 Windows x64 與 macOS ARM64。Windows 已完成封裝版 App 內 `0.1.2 → 0.1.3`、`0.1.11 → 0.1.12` 更新驗收、0.1.12 舊 launcher 失敗重現與 0.1.14 手動覆蓋驗收、0.1.15 VC Runtime prerequisite 與 Proxy 連線 VM 驗收、0.1.17 Managed MariaDB 刪除／半成品復原實機 Gate，以及 0.1.20 安裝語言、單一實例與版本 Gate；0.1.14 新 launcher 發起後續版本更新與下載中途取消尚未執行完整 VM UI 補測。macOS 已完成 `0.1.1 → 0.1.3` 與 `0.1.3 → 0.1.12` 覆蓋更新，後續版本因安裝程序未變，依既定規則只做重新打包、映像與封裝內容驗證，不重跑人工生命週期測試。
 - 更新失敗與重試由 Updater 聚焦測試覆蓋；公開 Release 的成功下載與覆蓋流程已實測，但不會為了製造故障而修改已發布 Asset 或 Stable Manifest。
 - `fabdev-updater` 已通過 `x86_64-pc-windows-msvc` 交叉編譯；完整 Desktop 的 Windows 本機交叉檢查停在既有 bundled SQLite C 建置缺少 MSVC `stdlib.h`，需由 Windows MSVC GitHub Actions 或實機環境驗證，並非 Updater Rust 程式錯誤。
 - `v0.1.0` 的首次 Site Home、App 選單 Quit 與舊 CA 清理三項阻擋問題，已由 `v0.1.1` Draft 在恢復至 fabDev 未安裝基線的 Mac 完成首次安裝、覆蓋更新與完整移除回歸。
@@ -183,11 +188,11 @@
 - release stripping 工具鏈警告已在 main 修正並以無警告 release App build 驗證；固定的 `v0.1.1` Tag 與既有 Draft Assets 不回寫此未來建置修正。
 - Windows x64 Setup 已在 Parallels Windows 11 ARM 的 x64 模擬層完成生命週期驗收；乾淨實體 Windows x64、SmartScreen 簽章信譽與 IIS／Herd 共存尚未驗證。
 
-## TODO
+## Stable 後續 Roadmap
 
-Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD_REFERENCE_BACKLOG.md`](HERD_REFERENCE_BACKLOG.md)。
+以下項目屬於維護、下一階段功能或長期產品化驗收，不阻擋 `v0.1.20` Community Stable 基線。Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD_REFERENCE_BACKLOG.md`](HERD_REFERENCE_BACKLOG.md)。
 
-### P0：Community Beta
+### 已完成：Community 發布基線
 
 - [x] 完成 Public Repository、Release Asset 命名、Stable Channel、App Manifest v1、Draft／Publish 與回復契約；見 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md)。
 - [x] 建立 Release Asset／Manifest／Checksum 產生器；驗證四個版本來源與 Agent Protocol，不覆蓋既有輸出，也不執行打包或發布。
@@ -201,8 +206,9 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [x] 更新 `v0.1.1` Release Notes、Publish Stable Release，並完成未登入頁面、9 個公開 Assets、Checksum、Manifest、Draft 位元組與固定 Tag 驗證。
 - [x] 建立並驗證 `v0.1.3` Draft Release；完成 macOS／Windows 覆蓋、Windows App 內線上更新、資料保留及 Publish 後公開下載驗收。
 - [x] Repository Owner 已核准 `v0.1.3` Publish；Release Notes 已補上發布後驗收結果，Stable Tag 固定在 Commit `1d6625d`。
+- [x] `v0.1.20` 已完成 Windows x64／macOS ARM64 30 個 Assets、Manifest、Runtime Catalog、Checksum、兩平台 Gate 與 Stable Publish，並由公開 Latest URL 提供 App Manifest 與 Runtime Catalog。
 
-### P1：核心開發體驗
+### 維護與下一階段功能
 
 - [x] App 啟動後每日自動檢查與設定頁手動檢查 Stable Manifest；離線或更新失敗不阻止 App 啟動。
 - [x] 顯示版本、發布資訊、Release Notes、安裝包資料與下載進度；完整安裝包使用 `.part`、大小／SHA-256 驗證、原子改名及開啟前再次驗證。
@@ -225,7 +231,7 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [x] Commit `9f505906731402f610f8ff731e602f5a24b44b3d` 的四個正式版本來源與 13 個 fabDev Cargo.lock 套件皆為 `0.1.20`；Windows x64 Run `33612756679` 成功產出 `fabDev_0.1.20_x64-setup.exe`。Installer Artifact ID `9839992623`，ZIP 為 49,361,493 bytes，GitHub Artifact ZIP SHA-256 為 `aee5cb3c4ad8544f2e4235f131dc2b32f397e243812929f55fd43c2178bbcf19`；Windows 解壓後的 Setup.exe 本體 SHA-256 為 `0ed14fd93c748adc6f5638ef03527375afbdc77a807202b03250e283538fb6c9`。
 - [x] Repository Owner 已在 Windows 確認 Setup.exe `FileVersion = 0.1.20`、`ProductVersion = 0.1.20`；因功能程式碼未再變更，沿用上述實機功能 Gate，不重跑相同人工流程。
 - [x] Draft workflow 提供 `release_scope=windows`，略過整個 macOS Job 與 macOS Artifact，只產生 Windows x64 App／Connect、六個 Windows Runtime、Windows-only App Manifest 與 Runtime Catalog；完整測試、lint、YAML 語法及 Draft 安全契約通過。
-- [x] 建立 annotated Tag `v0.1.20` 與 Windows-only Draft，重新下載全部 20 個 Draft Assets 並核對 GitHub digest、`SHA256SUMS`、個別 checksum、App／Stable Manifest、Runtime Catalog、Archive、大小及 SHA-256；Release ID `381210149` 仍為 `draft=true`、`published_at=null`，未取得 Repository Owner 明確核准前不得 Publish。
+- [x] 建立 annotated Tag `v0.1.20` 與 Windows-only Draft，重新下載全部 20 個 Draft Assets 並核對 GitHub digest、`SHA256SUMS`、個別 checksum、App／Stable Manifest、Runtime Catalog、Archive、大小及 SHA-256；後續已補齊 macOS Assets、取得 Repository Owner 核准並完成 Stable Publish。
 
 #### Windows 更新體驗清單
 
@@ -240,14 +246,14 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [ ] 在實體 Windows x64 與 IIS／Herd 共存環境補做安裝、更新、衝突與長時間運行驗收。
 - [ ] 正式散布需求成熟後加入 Windows Code Signing；目前 Unsigned Community Build 維持 SHA-256 驗證與 SmartScreen 說明。
 
-### P2：選裝與跨平台
+### 選裝與跨平台後續
 
-- [ ] 依 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md) 完成 Runtime Catalog v1 與 PHP 8.4.24 兩平台 Side-by-side 線上安裝；Windows x64 已由 `v0.1.12` 完成 PHP 7.4／8.2／8.4 的 CI、封裝、Publish、匿名 Feed 與 PHP 7.4／8.2 真實線上重裝，macOS 發布流程依目前範圍保留後續處理。
-- [x] 單一穩定版 Node.js LTS 獨立選裝、顯示狀態及移除。
+- [x] 依 [`RUNTIME_ONLINE_UPDATE_SPEC.md`](RUNTIME_ONLINE_UPDATE_SPEC.md) 完成 Runtime Catalog v1 與 PHP 8.4.24 兩平台 Side-by-side 線上安裝；Windows x64 已由 `v0.1.12` 完成 CI、封裝、Publish、匿名 Feed 與真實線上重裝，macOS ARM64 已由 `v0.1.13` 完成本機安裝／更新、公開 Catalog／Package 與檔案級驗收，`v0.1.20` Latest Catalog 持續同時提供兩平台 PHP 8.4.24。
+- [x] 完成 macOS ARM64／Windows x64 Node.js 20／24 並存選裝、安裝／更新／移除、全域版本切換及動態 terminal shim。
 - [x] 完成 Windows x64 Node.js／MariaDB 線上安裝與升級的發布驗收；`v0.1.11` Catalog、Agent、Desktop、可重現產包、Windows CI、封裝版 App、Stable Publish 與匿名 Feed 均已完成。
-- [ ] Node.js 多版本、全域版本、`.nvmrc`／`fabdev.yml` 與選用的專案感知 CLI shim。
+- [ ] 加入 `.nvmrc`／`fabdev.yml` 與選用的 Node.js 專案感知 CLI shim；多版本與全域版本已完成，不納入此待辦。
 - [x] macOS ARM64 MariaDB 選裝服務。
-- [ ] Windows MariaDB 安裝版與 Portable 版的 Runtime、資料及升級策略。
+- [x] Windows MariaDB 採 fabDev 管理的 Portable Runtime，資料、設定與升級流程已完成並發布驗收；不接管外部安裝版 MariaDB。
 - [x] Windows Platform Adapter 與 Unsigned Community NSIS 安裝包。
 - [x] 在 Parallels Windows 11 ARM 的 x64 模擬層以乾淨資料基線驗證安裝 → UAC Helper／Hosts → `demo.test` → PHP 切換 → 完整移除；實體 Windows x64 仍待補測。
 - [ ] 在 Parallels Windows 11 驗證 `fabdev-connect.exe` → UAC → 多 Site hosts → `http://site-one.test`／`http://site-two.test` → 並行載入 → 中斷清理。
@@ -276,11 +282,13 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [x] P4：共同版本 `0.1.13`、Commit／Push／固定 Tag、重新打包、30 檔 Draft、全部 Asset 重新下載驗證、Publish、latest Stable 與公開 Feed 檔案級驗證均已完成；依安裝／更新程序未變的規則，不重跑兩平台生命週期與完整 Runtime／HTTPS 人工流程，macOS 功能對齊至此結案。
 - P5：依使用者決定不執行 macOS Intel x86_64；本次以 macOS ARM64 發布完成為終點，不宣稱 macOS 雙架構支援。
 
-### P3：正式服務產品線
+### 未來獨立產品：fabDev Server
 
-- [ ] 未來另立 `fabDev Server` 產品；不得直接沿用 Desktop 本機開發模式，其 Control Plane、Data Plane、網路安全、備份、更新、監控及第一版驗收架構記錄於 `docs/FABDEV_ARCHITECTURE.md` 第 15 節，不納入目前單機、單人 fabDev Desktop 的實作範圍。
+- [ ] 未來另立 `fabDev Server` 產品；不得直接沿用 Desktop 本機開發模式，其 Control Plane、Data Plane、網路安全、備份、更新、監控及第一版驗收架構記錄於 `docs/FABDEV_ARCHITECTURE.md` 第 15 節。本項不納入也不阻擋目前單機、單人 fabDev Desktop Stable。
 
-### fabDev Desktop 產品化驗收目標
+### fabDev Desktop 長期產品化驗收
+
+以下壓力、長時間與共存測試屬於後續 Hardening，不代表 `v0.1.20` 目前沒有 Stable 發布證據：
 
 - [ ] 可管理至少 100 個 Site，並同時啟用 20 個 Site，不得出現 UI、Registry 或服務狀態錯亂。
 - [ ] 使用固定 ERP 測試 Fixture 驗證同時處理至少 50 個本機 HTTP 請求，過程不得出現請求錯誤或受管程序異常退出。

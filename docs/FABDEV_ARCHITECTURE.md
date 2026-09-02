@@ -1,7 +1,7 @@
 # fabDev 產品與服務架構
 
-> 狀態：Desktop、Agent 與 53／80／443 本機服務及每 Site HTTPS 已完成整合
-> 更新日期：2026-08-25
+> 狀態：fabDev Desktop Community `v0.1.20` 已完成 macOS ARM64／Windows x64 Stable 基線；後續項目屬維護、功能擴充與產品化驗收
+> 更新日期：2026-09-03
 > 本文件記錄架構決策；即時進度與優先工作見 `docs/FABDEV_PROGRESS.md`。
 
 ## 1. 產品定位
@@ -20,11 +20,11 @@ fabDev 本身不是 ERP 系統或 ERP Runtime，也不是低程式碼設計器�
 
 ## 2. 平台範圍
 
-- 最終目標支援 macOS 與 Windows。
-- 第一版先完成 macOS。
+- 目前 Community Stable 支援 macOS 13+／Apple Silicon ARM64 與 Windows 11／x64。
+- macOS Intel x86_64 已依產品決定不納入目前版本；Windows ARM64 與 Linux 暫不支援。
 - 共用核心不得直接依賴單一作業系統功能。
 - macOS 使用 dnsmasq、系統 Helper 與 macOS 憑證機制。
-- Windows 未來透過 Platform Adapter 使用 `hosts`、Windows Service 與 Certificate Store。
+- Windows 透過 Platform Adapter 使用 `hosts`、白名單 Helper、Named Pipe 與 Current User Certificate Store。
 
 ```text
 fabDev Desktop
@@ -106,7 +106,7 @@ Windows 瀏覽器：http://site-one.test
 
 ## 5. PHP 多版本管理
 
-目前要求可選擇安裝 PHP 7.4、8.2、8.3 與 8.4；是否納入 8.0、8.1 及後續大版本仍待確認。
+目前 Community Stable 支援 PHP 7.4.33、8.2.33 與 8.4.24；PHP 8.3 Community Runtime 及其他大版本仍屬後續工作。
 
 PHP Manager 必須支援：
 
@@ -126,15 +126,15 @@ PHP Manager 必須支援：
 範例：
 
 ```text
-Global PHP：8.3
-site1.test：Default → PHP 8.3
+Global PHP：8.2
+site1.test：Default → PHP 8.2
 site2.test：Isolated → PHP 7.4
 site3.test：Isolated → PHP 8.4
 ```
 
 ## 6. 選用 Node.js
 
-Node.js 不一定安裝。未安裝 Node.js 時，PHP Site 與 fabDev 核心仍須正常運作。Windows x64 Catalog 提供經固定 SHA-256 與上游簽章驗證的 Node.js 20.20.2 與 24.20.0 選裝 Runtime；兩者皆不隨 App 預設安裝，Node.js 20 必須標示為 EOL 相容版本。
+Node.js 不一定安裝。未安裝 Node.js 時，PHP Site 與 fabDev 核心仍須正常運作。macOS ARM64／Windows x64 Catalog 均提供經固定 SHA-256 與上游簽章驗證的 Node.js 20.20.2 與 24.20.0 選裝 Runtime；兩者皆不隨 App 預設安裝，Node.js 20 必須標示為 EOL 相容版本。
 
 目前 Site 模式：
 
@@ -163,7 +163,7 @@ Agent Protocol 25 提供 Proxy Manager 查詢、新增／編輯／移除、單�
 
 ## 7. 選用 MariaDB
 
-MariaDB 是選用的 Managed Service，不是 Web stack 的啟動依賴。目前先支援 macOS ARM64 MariaDB 12.3.2；Windows 預留安裝版與 Portable 版，實作前再確認各自的 Runtime、資料與升級策略。
+MariaDB 是選用的 Managed Service，不是 Web stack 的啟動依賴。macOS ARM64／Windows x64 均支援 MariaDB 12.3.2；Windows 採 fabDev 管理的 Portable Runtime、獨立資料目錄與更新流程，不接管外部安裝版 MariaDB。
 
 PHP 專案的 MariaDB 連線來源由 Managed Service 是否實際運行自動決定：
 
@@ -176,7 +176,7 @@ System / Homebrew
 
 fabDev Managed MariaDB 使用獨立 Runtime、資料目錄、設定、PID、Socket 與 Log，只綁 `127.0.0.1`。首次初始化提供本機 PHP 專案常用的 root 空密碼連線；左側 MariaDB 頁面可在服務運行時透過一個多帳號 `ALTER USER` 同步設定 `root@127.0.0.1` 與 `root@localhost`，使 TCP 與 Unix Socket 使用相同密碼，但不建立 `root@%`。變更時第一次可留空目前密碼，後續需提供目前 TCP root 密碼；密碼只透過 Agent 的本機 IPC 送入 MariaDB Client stdin，不寫入設定、Log 或命令列參數。
 
-左側 MariaDB 頁面在 Managed Runtime 已安裝時提供 TCP Port、Data Directory、額外 MariaDB 選項及獨立啟動／停止，不提供連線來源或 Socket 選項。結構化 Managed 設定存放於 `config/mariadb.json`；為相容舊版，System Socket 仍另存於 `config/mariadb-connection.json`，避免舊版 App 以舊格式重寫 `mariadb.json` 時破壞 `localhost` 連線。額外選項在 macOS 存放於 `config/mariadb/my.cnf`，Windows 預留 `config/mariadb/my.ini`。啟動時先合併額外選項，再產生 `services/mariadb/my.cnf`；Port、Runtime/Data Directory、Socket、PID、Log 及 `bind-address` 等受管選項由 fabDev 最後覆寫，且不能在額外設定中指定。Managed 設定只能在 MariaDB 停止時儲存，儲存前由安裝的 `mariadbd` 驗證，並拒絕 `!include`／`!includedir`；Data Directory 必須是空目錄或含 `mysql` 系統資料庫的既有 MariaDB 目錄，不搬移或刪除舊資料。`bind-address` 固定為 `127.0.0.1`。
+左側 MariaDB 頁面在 Managed Runtime 已安裝時提供 TCP Port、Data Directory、額外 MariaDB 選項及獨立啟動／停止，不提供連線來源或 Socket 選項。結構化 Managed 設定存放於 `config/mariadb.json`；為相容舊版，System Socket 仍另存於 `config/mariadb-connection.json`，避免舊版 App 以舊格式重寫 `mariadb.json` 時破壞 `localhost` 連線。額外選項在 macOS 存放於 `config/mariadb/my.cnf`，Windows 存放於 `config/mariadb/my.ini`。啟動時先合併額外選項，再產生平台對應的服務設定；Port、Runtime/Data Directory、Socket／PID、Log 及 `bind-address` 等受管選項由 fabDev 最後覆寫，且不能在額外設定中指定。Managed 設定只能在 MariaDB 停止時儲存，儲存前由安裝的 `mariadbd` 驗證，並拒絕 `!include`／`!includedir`；Data Directory 必須是空目錄或含 `mysql` 系統資料庫的既有 MariaDB 目錄，不搬移或刪除舊資料。`bind-address` 固定為 `127.0.0.1`。
 
 MariaDB 最後一次成功啟動或停止的預期狀態存放於 `state/mariadb.json`。App 啟動時經 Agent Protocol 13 要求恢復該狀態：記錄為啟動且 Runtime 已安裝時才啟動；記錄為停止、尚未產生記錄、或服務已在運行時不執行動作。這個狀態獨立於 Web stack 的自動啟動偏好；Agent 協定升級的暫時關閉不改寫預期狀態。
 
@@ -251,8 +251,8 @@ Rust Core Agent（一般使用者權限）
 
 ### 10.3 特權 Helper
 
-- macOS Helper 使用 Swift、XPC、SMAppService 與 LaunchDaemon。
-- Windows Helper 使用 Rust Windows Service 與 ACL 保護的 Named Pipe。
+- macOS Unsigned Community 使用固定功能的 Swift Helper 與 LaunchDaemon 安裝程序；SMAppService 保留給未來 Signed Distribution。
+- Windows 使用按需提權的 Rust UAC Helper 執行固定白名單操作；Agent IPC 另使用 ACL 保護的 Named Pipe。
 - Helper 只提供白名單操作，例如 DNS、Nginx、憑證與 `hosts`；禁止提供 `runAsAdmin(command)` 類型的通用接口。
 - Desktop 與 Core Agent 維持一般使用者權限。
 
@@ -265,7 +265,7 @@ Rust Core Agent（一般使用者權限）
 
 ### 10.5 Runtime 與更新
 
-- Nginx、dnsmasq、PHP、Node.js 與未來 MariaDB 按 OS、CPU 架構及版本分開發布。
+- Nginx、dnsmasq、PHP、Node.js 與 MariaDB 按 OS、CPU 架構及版本分開發布。
 - Runtime Catalog 至少包含名稱、版本、平台、架構、下載 URL、大小、SHA-256、nullable Package signature 與上游來源驗證紀錄；Unsigned Community v1 的 Catalog／Package signature 固定為 `null`。
 - 安裝採暫存下載、驗證、健康檢查、原子切換及失敗回復。
 - P1 Unsigned Community App 更新由 Desktop 經 Tauri Command 呼叫 `crates/updater`，固定讀取 Public GitHub Releases 的 Stable Manifest。網路連線使用平台原生 TLS、系統 Proxy 與系統信任庫，不接受 UI 或 Manifest 指定任意更新來源。
@@ -274,7 +274,7 @@ Rust Core Agent（一般使用者權限）
 - App 不在背景直接覆蓋自己。使用者確認安裝後，Desktop 先走既有安全 Quit 流程，停止 Web、MariaDB、受管程序與 Agent，再開啟已驗證的完整安裝包並退出。
 - 未來 Tauri signed updater 只更新 fabDev App、Agent、Helper 與 CLI；Runtime 在 P3 導入獨立 signed catalog，P2 Community v1 先使用固定 GitHub Release Catalog 與 SHA-256 完整性驗證。
 - App 更新、Runtime 更新及專案設定遷移不得混成單一不可回復操作。
-- macOS fabDev App 內建 dnsmasq、Nginx、PHP 7.4 與 PHP 8.2；啟動時只補齊缺少且未被使用者明確移除的內建 Runtime，保留既有版本、設定與 Site。PHP 7.4／8.2 可移除，移除標記會阻止下次啟動自動補回，明確重新安裝成功後才清除。PHP 8.3、PHP 8.4 及其他服務維持獨立選裝。
+- macOS fabDev App 內建 dnsmasq、Nginx、PHP 7.4 與 PHP 8.2；啟動時只補齊缺少且未被使用者明確移除的內建 Runtime，保留既有版本、設定與 Site。PHP 7.4／8.2 可移除，移除標記會阻止下次啟動自動補回，明確重新安裝成功後才清除。PHP 8.4 與其他選用服務維持獨立選裝；PHP 8.3 Runtime 尚未建立。
 - 第一個 Runtime 使用 PHP 8.2.33 官方原始碼建置，目標為 macOS ARM64；不得使用 Herd Binary，執行時也不得依賴 Homebrew。
 - 開發階段允許 Homebrew 提供編譯工具與相依函式庫，但 Runtime 必須封裝所需動態函式庫並修正 `rpath`。
 - PHP 更新只偵測並通知，由使用者確認後執行，不得自動替換使用中的版本。
@@ -288,13 +288,13 @@ Rust Core Agent（一般使用者權限）
 ### 10.7 平台支援矩陣
 
 ```text
-第一階段：macOS 13+／Apple Silicon ARM64
-macOS 發布前：補齊 Intel x86_64
-第二平台：Windows 10 1803+／Windows 11／x64
+Stable：macOS 13+／Apple Silicon ARM64
+Stable：Windows 11／x64
+依產品決定不納入：macOS Intel x86_64
 暫不納入：Windows ARM64、Linux
 ```
 
-macOS Intel 的雙機開發、功能分支、原生打包與實機驗收流程見 [`MACOS_INTEL_DEVELOPMENT_TEST_WORKFLOW.md`](MACOS_INTEL_DEVELOPMENT_TEST_WORKFLOW.md)。
+macOS Intel 的歷史評估與測試流程保留於 [`MACOS_INTEL_DEVELOPMENT_TEST_WORKFLOW.md`](MACOS_INTEL_DEVELOPMENT_TEST_WORKFLOW.md)，但目前版本不執行也不宣稱支援。
 
 macOS 使用 WKWebView，Windows 使用 WebView2。UI 必須避免實驗性 Web API，並在兩平台執行互動與視覺測試。Windows Installer 預設檢查並安裝 WebView2；企業離線需求可另提供內含 WebView2 的安裝包。
 
@@ -313,7 +313,7 @@ crates/
   platform/             # Platform interfaces
 helpers/
   macos/                # Swift XPC helper
-  windows/              # Rust Windows Service
+  windows/              # Rust UAC helper
 packages/
   ui/
   contracts/            # TypeScript IPC contracts
@@ -327,14 +327,14 @@ docs/
 
 ## 12. 尚待確認的實作細節
 
-- PHP 8.3 與 Node.js Binary 的實際建置版本。
+- PHP 8.3 Community Runtime，以及未來 Node.js 版本更新政策。
 - App 程式碼簽章、公證、更新 Channel 與私鑰保管流程。
 - Composer／Artisan、Site-aware CLI Shim 與 Shell PATH 的使用者授權流程；全域終端機 PHP 的明確啟用／停用流程已完成。
 - Node.js 開發伺服器是否納入程序監控。
 - PHP 8.0、8.1、8.5 及後續版本的支援範圍。
-- Windows Adapter 與安裝器的詳細實作時程。
+- 實體 Windows x64 與 IIS／Herd 共存、長時間運行及衝突處理驗收時程。
 
-## 13. 第一個開發里程碑
+## 13. 第一個開發里程碑（已完成）
 
 第一個垂直切片固定為 macOS ARM64、單一 HTTP Site、dnsmasq、Nginx 與 PHP 8.2.33 FPM。Site 使用自訂 `.test` 網域，不包含 HTTPS、Herd Site 匯入、Node.js、MariaDB 或其他 PHP 版本。
 

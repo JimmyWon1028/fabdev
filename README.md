@@ -1,6 +1,6 @@
 # fabDev
 
-fabDev 是面向 ERP Web 開發的跨平台本機環境。目前在 macOS Apple Silicon 內建 dnsmasq、Nginx、PHP 7.4 與 PHP 8.2，提供多個 `.test` Sites 及依 Site PHP 版本啟動的獨立 PHP-FPM；PHP 8.4、MariaDB 12.3.2 與 Node.js 保留為選裝元件。
+fabDev 是面向 ERP Web 開發的跨平台本機環境，目前支援 macOS 13+／Apple Silicon ARM64 與 Windows 11／x64。基礎 App 內建 Nginx、PHP 7.4 與 PHP 8.2，macOS 另內建 dnsmasq；兩平台均提供多個 `.test` Sites、依 Site PHP 版本啟動的獨立 PHP 服務，以及選裝的 PHP 8.4、MariaDB 12.3.2 與 Node.js 20／24。
 
 ## 開發需求
 
@@ -32,7 +32,7 @@ cargo run -p fabdev-cli -- status
 FABDEV_DATA_DIR=/tmp/fabdev-local-test pnpm dev
 ```
 
-Desktop 開啟時會先補齊內建的 dnsmasq 2.93、Nginx 1.30.4、PHP 7.4.33 與 PHP 8.2.33，只安裝缺少的版本，不覆蓋既有 Runtime、Site、`php.ini` 或其他開發資料。Site Registry 完全空白時會建立唯一的 `demo.test` 與 fabDev 自有 Demo 專案；只要已有任何 Site 就不新增或覆蓋。接著 Desktop 自行啟動同版本的內建 Agent 與全部開發服務。可在「設定」關閉「App 開啟時自動啟動服務」。若服務已全數運行則保持原狀，部分運行或異常時會先清理再啟動。若發現失效的 Unix Socket，會先安全移除再重連。正式資料仍沿用原本的 Application Support 目錄；Agent 啟動記錄位於其中的 `logs/agent-process.log`。關閉主視窗只會隱藏 Desktop，不會停止服務；從 menu bar 選擇 `Quit fabDev` 時會依序停止 Web 全部服務與 MariaDB、清理受管孤兒程序、關閉 Agent，確認 Agent Socket 消失後才退出 Desktop。
+Desktop 開啟時會先補齊內建的 Nginx 1.30.4、PHP 7.4.33 與 PHP 8.2.33，macOS 另補齊 dnsmasq 2.93；只安裝缺少的版本，不覆蓋既有 Runtime、Site、`php.ini` 或其他開發資料。Site Registry 完全空白時會建立唯一的 `demo.test` 與 fabDev 自有 Demo 專案；只要已有任何 Site 就不新增或覆蓋。接著 Desktop 自行啟動同版本的內建 Agent 與全部開發服務。可在「設定」關閉「App 開啟時自動啟動服務」。若服務已全數運行則保持原狀，部分運行或異常時會先清理再啟動。若發現失效的 Agent IPC 端點，會先安全清理再重連。正式資料仍沿用原本的 Application Support 目錄；Agent 啟動記錄位於其中的 `logs/agent-process.log`。關閉主視窗只會隱藏 Desktop，不會停止服務；從 menu bar 或系統匣選擇 `Quit fabDev` 時會依序停止 Web 全部服務與 MariaDB、清理受管孤兒程序、關閉 Agent，確認 IPC 端點消失後才退出 Desktop。
 
 建立內含 Agent 的本機 macOS App：
 
@@ -52,11 +52,11 @@ open target/debug/bundle/macos/fabDev.app
 pnpm run build:community:macos
 ```
 
-產物位於 `artifacts/fabDev-Community-<version>-macos-arm64.dmg`，並附有同名 `.sha256`。`0.1.1` Community DMG 內建 PHP 7.4.33、PHP 8.2.33、Nginx 1.30.4 與 dnsmasq 2.93，另包含唯一的 `demo.test` 範例及可雙擊的安裝與移除程序。PHP 8.4.24 與 MariaDB 12.3.2 仍會產生獨立的 Community Runtime Package，需由主控台另外安裝，不放入基礎 DMG。內建 PHP 以目前確認的設定作為初始 `php.ini`，其中 `upload_max_filesize` 與 `post_max_size` 均為 64M；首次啟動會依使用者目錄產生正確的 Runtime、Log 與 Session 路徑，不包含建置電腦的絕對路徑。本機候選包與 GitHub Actions 從固定 Tag 重新建置的 Draft Assets 都已完成完整性驗證。
+產物位於 `artifacts/fabDev-Community-<version>-macos-arm64.dmg`，並附有同名 `.sha256`。Community DMG 內建 PHP 7.4.33、PHP 8.2.33、Nginx 1.30.4 與 dnsmasq 2.93，另包含唯一的 `demo.test` 範例及可雙擊的安裝與移除程序。PHP 8.4.24、MariaDB 12.3.2 與 Node.js 20／24 會產生獨立的 Community Runtime Package，需由主控台另外安裝，不放入基礎 DMG。內建 PHP 以目前確認的設定作為初始 `php.ini`，其中 `upload_max_filesize` 與 `post_max_size` 均為 64M；首次啟動會依使用者目錄產生正確的 Runtime、Log 與 Session 路徑，不包含建置電腦的絕對路徑。本機候選包與 GitHub Actions 從固定 Tag 建置的 Release Assets 都會依發布流程完成完整性驗證。
 
 Community 安裝程式會驗證 DMG 內的 `SHA256SUMS`，再要求一次管理員權限安裝 `/Applications/fabDev.app` 與固定功能的 LaunchDaemon。更新會保留 Sites、Runtime 與 `php.ini`；移除程序預設保留資料，只有使用者再次確認才會把資料移到垃圾桶。完整操作說明在 [`distribution/macos/community/INSTALL.zh-TW.md`](distribution/macos/community/INSTALL.zh-TW.md)。
 
-公開下載使用 GitHub Releases；Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish 與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的安裝包並產生 Manifest／Checksum，不會觸發打包或發布。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立 Draft。`v0.1.0` Unsigned Community Draft 的 macOS 驗收發現阻擋問題，不能 Publish；`v0.1.1` Draft 已建立並重新下載驗證 9 個 Assets，macOS 首次安裝、覆蓋更新與完整移除驗收已通過，仍須完成 Windows 驗收與人工核准，因此目前仍沒有正式 Stable Release。
+公開下載使用 [GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；目前 `v0.1.20` 是 Latest Stable，同時提供 macOS ARM64／Windows x64 Installer 與兩平台 Runtime Catalog。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish 與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的安裝包並產生 Manifest／Checksum，不會觸發打包或發布。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
 
 Windows x64 使用 Current User NSIS 單檔安裝程式；完整的建置環境、Runtime／sidecar 準備、Windows 11 驗收及除錯經驗整理在 [`docs/WINDOWS_X64_PACKAGING.md`](docs/WINDOWS_X64_PACKAGING.md)。
 
@@ -91,11 +91,11 @@ cargo run -p fabdev-cli -- install-runtime \
   artifacts/mariadb-12.3.2-macos-arm64-dev.json
 ```
 
-Runtime 由官方原始碼建置並驗證 SHA-256／上游簽章；安裝時再次驗證 SHA-256，再原子切換 `<runtime>/current`。開發產物使用 ad-hoc code signing，正式發布仍需 Developer ID、notarization 與已簽署的 Runtime Catalog。
+Runtime 由官方原始碼建置並驗證 SHA-256／上游簽章；安裝時再次驗證 SHA-256，再原子切換 `<runtime>/current`。Unsigned Community 以 SHA-256 提供完整性驗證；未來 Signed Distribution 才導入 Developer ID、notarization 與已簽署的 Runtime Catalog。
 
 macOS MariaDB 12.3.2 Runtime 與 Homebrew 完全隔離；設定、資料、PID、Socket 與 Log 預設都位於 fabDev 資料目錄。MariaDB 預設只監聽 `127.0.0.1:3306`，首次初始化建立適合本機 PHP 開發的 `root` 空密碼帳號。主控台的 MariaDB 卡片可選擇 Release JSON 與 `.tar.gz` 安裝套件，並提供獨立的安裝、啟動、停止及移除操作；Web 的 Start All／Stop All 不會控制 MariaDB。移除 MariaDB Runtime 前必須先停止服務，且只刪除 Runtime，設定、資料與 Log 都會保留。
 
-左側 MariaDB 頁面可持久修改 TCP Port、Data Directory 與額外的 `my.cnf` 選項；主控台與 menu bar 均可單獨啟動或停止 MariaDB。最後一次成功啟動或停止的狀態保存在 `state/mariadb.json`；App 下次啟動時會獨立恢復 MariaDB，且不受 Web 服務自動啟動設定影響。結構化設定保存在 `config/mariadb.json`，macOS 的額外選項保存在 `config/mariadb/my.cnf`（Windows 預留 `my.ini`），只在下次啟動 MariaDB 時套用。儲存前必須停止 MariaDB，設定會先由安裝的 MariaDB 驗證；Port、路徑、Socket、PID、Log 與 loopback listener 仍由 fabDev 管理。Data Directory 只能選擇空目錄或既有 MariaDB 資料目錄，fabDev 不會自動搬移或刪除舊資料。
+左側 MariaDB 頁面可持久修改 TCP Port、Data Directory 與平台對應的額外選項；主控台與 menu bar 均可單獨啟動或停止 MariaDB。最後一次成功啟動或停止的狀態保存在 `state/mariadb.json`；App 下次啟動時會獨立恢復 MariaDB，且不受 Web 服務自動啟動設定影響。結構化設定保存在 `config/mariadb.json`，macOS 的額外選項保存在 `config/mariadb/my.cnf`，Windows 則使用 `config/mariadb/my.ini`，只在下次啟動 MariaDB 時套用。儲存前必須停止 MariaDB，設定會先由安裝的 MariaDB 驗證；Port、路徑、Socket／PID、Log 與 loopback listener 仍由 fabDev 管理。Data Directory 只能選擇空目錄或既有 MariaDB 資料目錄，fabDev 不會自動搬移或刪除舊資料。
 
 MariaDB 運行時可在同一頁同步設定 `root@127.0.0.1` 與 `root@localhost` 的密碼，讓 PHP 專案透過 TCP 或 Adminer 使用 localhost Socket 都能登入。第一次設定時目前密碼可留空；後續變更必須輸入目前密碼。fabDev 不會保存或回填密碼，也不會把密碼放進 MariaDB Client 的命令列參數。
 
