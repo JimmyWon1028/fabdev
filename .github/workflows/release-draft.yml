@@ -12,6 +12,7 @@ on:
         options:
           - all
           - windows
+          - macos
       version:
         description: Stable SemVer without the v prefix
         required: true
@@ -71,8 +72,8 @@ jobs:
             echo "Stable release version must be SemVer without a prerelease suffix" >&2
             exit 1
           fi
-          if [[ "$RELEASE_SCOPE" != "all" && "$RELEASE_SCOPE" != "windows" ]]; then
-            echo "Release scope must be all or windows" >&2
+          if [[ "$RELEASE_SCOPE" != "all" && "$RELEASE_SCOPE" != "windows" && "$RELEASE_SCOPE" != "macos" ]]; then
+            echo "Release scope must be all, windows, or macos" >&2
             exit 1
           fi
           if [[ ! "$PUBLISHED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
@@ -111,7 +112,20 @@ jobs:
           tag="v$VERSION"
           test "$(git rev-parse "$tag^{commit}")" = "$(git rev-parse HEAD)"
           git tag --points-at HEAD --list "$tag" | grep -Fx "$tag"
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          mapfile -t existing_releases < <(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"$tag\") | [.id, .draft, .prerelease] | @tsv"
+          )
+          if [[ "$RELEASE_SCOPE" == "macos" ]]; then
+            if [[ "${#existing_releases[@]}" -ne 1 ]]; then
+              echo "macOS supplementation requires exactly one existing Release for $tag" >&2
+              exit 1
+            fi
+            IFS=$'\t' read -r release_id is_draft is_prerelease <<< "${existing_releases[0]}"
+            test -n "$release_id"
+            test "$is_draft" = "true"
+            test "$is_prerelease" = "false"
+          elif [[ "${#existing_releases[@]}" -ne 0 ]]; then
             echo "A GitHub Release already exists for $tag" >&2
             exit 1
           fi
@@ -138,7 +152,7 @@ jobs:
 
   build-macos:
     name: Build macOS ARM64 Community DMG and online Runtimes
-    if: inputs.release_scope == 'all'
+    if: inputs.release_scope == 'all' || inputs.release_scope == 'macos'
     needs: validate
     runs-on: macos-15
     timeout-minutes: 240
@@ -282,6 +296,7 @@ jobs:
 
   build-windows:
     name: Build Windows x64 Community installer
+    if: inputs.release_scope != 'macos'
     needs:
       - validate
       - build-windows-online-runtimes
@@ -399,6 +414,7 @@ jobs:
 
   build-windows-online-runtimes:
     name: Build verified Windows x64 Runtime packages
+    if: inputs.release_scope != 'macos'
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -441,12 +457,23 @@ jobs:
       ${{
         always() &&
         needs.validate.result == 'success' &&
-        needs.build-windows.result == 'success' &&
-        needs.build-windows-online-runtimes.result == 'success' &&
-        (inputs.release_scope == 'windows' || needs.build-macos.result == 'success')
+        (
+          (
+            inputs.release_scope == 'macos' &&
+            needs.build-macos.result == 'success' &&
+            needs.build-windows.result == 'skipped' &&
+            needs.build-windows-online-runtimes.result == 'skipped'
+          ) ||
+          (
+            inputs.release_scope != 'macos' &&
+            needs.build-windows.result == 'success' &&
+            needs.build-windows-online-runtimes.result == 'success' &&
+            (inputs.release_scope == 'windows' || needs.build-macos.result == 'success')
+          )
+        )
       }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     permissions:
       contents: write
     env:
@@ -474,45 +501,90 @@ jobs:
         uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
 
       - name: Download Windows assets
+        if: inputs.release_scope != 'macos'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: draft-windows-x64
           path: release-input/windows
 
       - name: Download Windows online Runtime assets
+        if: inputs.release_scope != 'macos'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: draft-windows-online-runtimes
           path: release-input/runtimes
 
       - name: Download macOS installer
-        if: inputs.release_scope == 'all'
+        if: inputs.release_scope == 'all' || inputs.release_scope == 'macos'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: draft-macos-arm64
           path: release-input/macos
 
       - name: Download macOS online Runtime assets
-        if: inputs.release_scope == 'all'
+        if: inputs.release_scope == 'all' || inputs.release_scope == 'macos'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: draft-macos-online-runtimes
           path: release-input/macos-runtimes
 
-      - name: Generate cross-platform release assets and manifests
-        if: inputs.release_scope == 'all'
+      - name: Download and validate existing Windows-only Draft assets
+        if: inputs.release_scope == 'macos'
         shell: bash
         run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          mkdir -p release-input/existing
+          gh release download "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir release-input/existing
+          (
+            cd release-input/existing
+            test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "20"
+            sha256sum --check SHA256SUMS
+            test "$(find . -maxdepth 1 -type f -name '*.sha256' | wc -l | tr -d ' ')" = "8"
+            for checksum in ./*.sha256; do
+              sha256sum --check "$checksum"
+            done
+            cmp fabdev-app-v1.json fabdev-stable-v1.json
+            test "$(jq '[.artifacts[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-app-v1.json)" = "1"
+            test "$(jq '[.artifacts[] | select(.platform != "windows")] | length' fabdev-app-v1.json)" = "0"
+            test "$(jq '.catalogSequence' fabdev-runtime-v1.json)" = "$RUNTIME_CATALOG_SEQUENCE"
+            test "$(jq '[.runtimes[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-runtime-v1.json)" = "6"
+            test "$(jq '[.runtimes[] | select(.platform != "windows")] | length' fabdev-runtime-v1.json)" = "0"
+          )
+
+      - name: Generate cross-platform release assets and manifests
+        if: inputs.release_scope == 'all' || inputs.release_scope == 'macos'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RELEASE_SCOPE" == "macos" ]]; then
+            windows_installer="$GITHUB_WORKSPACE/release-input/existing/fabDev-Community-$VERSION-windows-x64-setup.exe"
+            windows_connect="$GITHUB_WORKSPACE/release-input/existing/fabDev-Connect-$VERSION-windows-x64.exe"
+            windows_runtime_dir="$GITHUB_WORKSPACE/release-input/existing"
+            runtime_args=(
+              --runtime-package-dir "$GITHUB_WORKSPACE/release-input/macos-runtimes"
+              --runtime-package-dir "$windows_runtime_dir"
+            )
+          else
+            windows_installer="$GITHUB_WORKSPACE/release-input/windows/windows-installer.exe"
+            windows_connect="$GITHUB_WORKSPACE/release-input/windows/fabdev-connect.exe"
+            windows_runtime_dir="$GITHUB_WORKSPACE/release-input/windows"
+            runtime_args=(
+              --runtime-package-dir "$GITHUB_WORKSPACE/release-input/macos-runtimes"
+              --runtime-package-dir "$windows_runtime_dir"
+              --runtime-package-dir "$GITHUB_WORKSPACE/release-input/runtimes"
+            )
+          fi
           node scripts/generate-app-release-manifest.mjs \
             --version "$VERSION" \
             --published-at "$PUBLISHED_AT" \
             --output-dir "$GITHUB_WORKSPACE/release-assets" \
             --macos-arm64 "$GITHUB_WORKSPACE/release-input/macos/macos-installer.dmg" \
-            --windows-x64 "$GITHUB_WORKSPACE/release-input/windows/windows-installer.exe" \
-            --windows-connect-x64 "$GITHUB_WORKSPACE/release-input/windows/fabdev-connect.exe" \
-            --runtime-package-dir "$GITHUB_WORKSPACE/release-input/macos-runtimes" \
-            --runtime-package-dir "$GITHUB_WORKSPACE/release-input/windows" \
-            --runtime-package-dir "$GITHUB_WORKSPACE/release-input/runtimes"
+            --windows-x64 "$windows_installer" \
+            --windows-connect-x64 "$windows_connect" \
+            "${runtime_args[@]}"
           cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
             generate-community \
             "$VERSION" \
@@ -535,6 +607,11 @@ jobs:
             checksum_entries="$(awk 'NF { count += 1 } END { print count + 0 }' SHA256SUMS)"
             expected_file_count="$((checksum_entries * 2 + 4))"
             test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "$expected_file_count"
+            test "$checksum_entries" = "13"
+            test "$(jq '[.artifacts[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-app-v1.json)" = "1"
+            test "$(jq '[.artifacts[] | select(.platform == "macos" and .architecture == "arm64")] | length' fabdev-app-v1.json)" = "1"
+            test "$(jq '[.runtimes[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-runtime-v1.json)" = "6"
+            test "$(jq '[.runtimes[] | select(.platform == "macos" and .architecture == "arm64")] | length' fabdev-runtime-v1.json)" = "4"
           )
 
       - name: Generate Windows-only release assets and manifests
@@ -614,27 +691,97 @@ jobs:
             printf -- '- [ ] Obtain explicit Repository Owner approval before Publish.\n'
           } > "$RUNNER_TEMP/release-notes.md"
 
-      - name: Create Draft Release
+      - name: Create supplemented cross-platform release notes skeleton
+        if: inputs.release_scope == 'macos'
+        shell: bash
+        run: |
+          {
+            printf '# fabDev %s\n\n' "$VERSION"
+            printf '> Draft only - do not publish before release asset validation.\n\n'
+            printf '## Unsigned Community Build\n\n'
+            printf 'This build uses the existing ad-hoc macOS signing only. It does not use Apple Developer ID, notarization, stapling, Hardened Runtime, or Windows Code Signing.\n\n'
+            printf 'Verify the downloaded installers against SHA256SUMS before installation.\n\n'
+            printf '## Release checklist\n\n'
+            printf -- '- [ ] Complete release notes and known limitations.\n'
+            printf -- '- [x] Reuse the validated Windows x64 Draft assets without rebuilding Windows.\n'
+            printf -- '- [x] Complete automated macOS ARM64 build, Runtime, lint, and packaging validation.\n'
+            printf -- '- [x] Reuse the Repository Owner Windows installer language, single-instance, and version acceptance.\n'
+            printf -- '- [x] Reuse prior macOS install, startup, and removal acceptance; macOS packaging behavior is unchanged.\n'
+            printf -- '- [ ] Re-download every supplemented Draft asset and verify size and SHA-256.\n'
+            printf -- '- [ ] Validate both platform manifests, Runtime Archives, Runtime Catalog v1, and Draft asset boundaries.\n'
+            printf -- '- [ ] Obtain explicit Repository Owner approval before Publish.\n'
+          } > "$RUNNER_TEMP/release-notes.md"
+
+      - name: Create or supplement Draft Release
         shell: bash
         run: |
           set -euo pipefail
           tag="v$VERSION"
-          existing_release_id="$(
+          mapfile -t existing_release_ids < <(
             gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
               --jq ".[] | select(.tag_name == \"$tag\") | .id"
-          )"
-          if [[ -n "$existing_release_id" ]]; then
-            echo "A GitHub Release already exists for $tag" >&2
-            exit 1
+          )
+          if [[ "$RELEASE_SCOPE" == "macos" ]]; then
+            test "${#existing_release_ids[@]}" = "1"
+            existing_release_id="${existing_release_ids[0]}"
+            mkdir -p supplement-assets
+            cp \
+              release-assets/SHA256SUMS \
+              release-assets/fabdev-app-v1.json \
+              release-assets/fabdev-runtime-v1.json \
+              release-assets/fabdev-stable-v1.json \
+              supplement-assets/
+            find release-assets -maxdepth 1 -type f -name '*-macos-arm64*' \
+              -exec cp {} supplement-assets/ \;
+            test "$(find supplement-assets -maxdepth 1 -type f | wc -l | tr -d ' ')" = "14"
+            gh release upload "$tag" supplement-assets/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+            gh api \
+              --method PATCH \
+              "repos/$GITHUB_REPOSITORY/releases/$existing_release_id" \
+              -F "body=@$RUNNER_TEMP/release-notes.md" \
+              >/dev/null
+          else
+            if [[ "${#existing_release_ids[@]}" -ne 0 ]]; then
+              echo "A GitHub Release already exists for $tag" >&2
+              exit 1
+            fi
+            gh release create "$tag" "$GITHUB_WORKSPACE/release-assets/"* \
+              --repo "$GITHUB_REPOSITORY" \
+              --draft \
+              --verify-tag \
+              --latest=false \
+              --title "fabDev $VERSION" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
-          gh release create "$tag" "$GITHUB_WORKSPACE/release-assets/"* \
-            --repo "$GITHUB_REPOSITORY" \
-            --draft \
-            --verify-tag \
-            --latest=false \
-            --title "fabDev $VERSION" \
-            --notes-file "$RUNNER_TEMP/release-notes.md"
           test "$(
             gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
               --jq ".[] | select(.tag_name == \"$tag\") | .draft"
           )" = "true"
+          if [[ "$RELEASE_SCOPE" == "macos" ]]; then
+            test "$(
+              gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+                --jq ".[] | select(.tag_name == \"$tag\") | (.published_at == null)"
+            )" = "true"
+            test "$(
+              gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+                --jq ".[] | select(.tag_name == \"$tag\") | (.assets | length)"
+            )" = "30"
+            mkdir -p post-upload
+            gh release download "$tag" \
+              --repo "$GITHUB_REPOSITORY" \
+              --dir post-upload
+            test "$(find post-upload -maxdepth 1 -type f | wc -l | tr -d ' ')" = "30"
+            for expected in release-assets/*; do
+              cmp "$expected" "post-upload/$(basename "$expected")"
+            done
+            (
+              cd post-upload
+              sha256sum --check SHA256SUMS
+              for checksum in ./*.sha256; do
+                sha256sum --check "$checksum"
+              done
+              cmp fabdev-app-v1.json fabdev-stable-v1.json
+            )
+          fi

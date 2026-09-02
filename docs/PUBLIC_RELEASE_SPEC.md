@@ -281,9 +281,9 @@ REPACKAGE v<version>
 DRAFT v<version>
 ```
 
-前者代表這次執行已取得重新打包授權，後者只授權建立 Draft。`release_scope=all` 會在 GitHub Hosted `macos-15` ARM64 與 `windows-latest` 建置、測試及整理跨平台 Assets；`release_scope=windows` 必須略過整個 macOS Job、macOS Artifact 下載與 DMG／Runtime 打包，只建立 Windows x64 Installer、Connect、六個 Windows Runtime、Windows-only App Manifest 與 Runtime Catalog。只有最後的 `create-draft` Job 具有 `contents: write`；其餘 Job 都是 `contents: read`。所有第三方 Action 固定到完整 Commit SHA。
+前者代表這次執行已取得重新打包授權，後者只授權建立或補齊 Draft。`release_scope=all` 會在 GitHub Hosted `macos-15` ARM64 與 `windows-latest` 建置、測試及整理跨平台 Assets；`release_scope=windows` 必須略過整個 macOS Job、macOS Artifact 下載與 DMG／Runtime 打包，只建立 Windows x64 Installer、Connect、六個 Windows Runtime、Windows-only App Manifest 與 Runtime Catalog。`release_scope=macos` 只適用於同一 Tag 已存在且仍未發布的 Windows-only Draft：必須略過全部 Windows Build Jobs，重新下載並驗證既有 20 個 Windows Assets，只建置 macOS ARM64 DMG 與四個 macOS Runtime，再加入十個 macOS 檔案並替換 `SHA256SUMS` 與三份跨平台 Manifest；既有 Windows Binary 不得重新建置或覆蓋。補齊後必須維持 `draft=true`、`published_at=null`，重新下載全部 30 個 Assets 並逐位元核對。macOS 只沿用既有 ad-hoc signing，不得加入 Apple Developer ID、notarization、stapling、Hardened Runtime、簽章憑證或 CI Secret。只有最後的 `create-draft` Job 具有 `contents: write`；其餘 Job 都是 `contents: read`。所有第三方 Action 固定到完整 Commit SHA。
 
-最後一步固定使用 `gh release create --draft --verify-tag --latest=false`，不包含 Publish 指令。建立後會從 GitHub Releases 清單確認 Release 仍為 Draft；不能使用 Published Release 的 Tag 查詢端點驗證未發布 Draft。
+初次建立固定使用 `gh release create --draft --verify-tag --latest=false`。`release_scope=macos` 補齊既有 Draft 時，只使用 `gh release upload --clobber` 新增 macOS Assets 並替換共用 checksum／Manifest，再更新 Draft Notes；兩條路徑都不包含 Publish 指令。完成後會從 GitHub Releases 清單確認 Release 仍為 Draft；不能使用 Published Release 的 Tag 查詢端點驗證未發布 Draft。
 
 `v0.1.0` 已在取得 Tag Push、重新打包與 Draft Release 授權後實際執行。macOS ARM64 與 Windows x64 建置、測試及 Artifact 上傳成功；Draft 內 9 個 Assets 已重新下載，總表與個別 SHA-256、Manifest 記錄的大小與 Hash、兩份 Manifest 的逐位元一致性，以及 DMG 內部 checksum 均通過。此結果只代表 Draft Asset 完整，不代表已完成乾淨機安裝驗收或 Publish。
 
