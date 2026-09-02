@@ -1,5 +1,5 @@
 use std::ffi::{OsStr, OsString};
-use std::fs::OpenOptions;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::mem::{size_of, zeroed};
 use std::os::windows::ffi::OsStrExt;
@@ -8,9 +8,6 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, HANDLE};
-use windows_sys::Win32::Storage::FileSystem::{
-  MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
-};
 use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject, INFINITE};
 use windows_sys::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW};
 use windows_sys::Win32::UI::WindowsAndMessaging::SW_HIDE;
@@ -294,33 +291,64 @@ fn sync_hosts_command(
 }
 
 fn replace_hosts(path: &Path, contents: &[u8]) -> Result<()> {
+  replace_hosts_with(path, contents, write_and_sync)
+}
+
+fn replace_hosts_with<F>(path: &Path, contents: &[u8], write_contents: F) -> Result<()>
+where
+  F: FnOnce(&mut File, &[u8]) -> Result<()>,
+{
   let backup = path.with_file_name("hosts.fabdev.backup");
   std::fs::copy(path, &backup)
     .with_context(|| format!("unable to back up Windows hosts file: {}", backup.display()))?;
-  let pending = path.with_file_name("hosts.fabdev.pending");
-  let mut file = OpenOptions::new()
-    .create(true)
-    .truncate(true)
-    .write(true)
-    .open(&pending)?;
-  file.write_all(contents)?;
-  file.sync_all()?;
+
+  let mut file = OpenOptions::new().write(true).open(path).with_context(|| {
+    format!(
+      "unable to open Windows hosts file for writing: {}",
+      path.display()
+    )
+  })?;
+  file
+    .set_len(0)
+    .with_context(|| format!("unable to truncate Windows hosts file: {}", path.display()))?;
+  let update_result = write_contents(&mut file, contents)
+    .with_context(|| format!("unable to update Windows hosts file: {}", path.display()));
   drop(file);
 
-  let pending_wide = wide(pending.as_os_str());
-  let path_wide = wide(path.as_os_str());
-  let moved = unsafe {
-    MoveFileExW(
-      pending_wide.as_ptr(),
-      path_wide.as_ptr(),
-      MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-    )
-  };
-  if moved == 0 {
-    bail!("unable to replace Windows hosts file: {}", unsafe {
-      GetLastError()
-    });
+  if let Err(update_error) = update_result {
+    if let Err(restore_error) = restore_hosts(path, &backup) {
+      bail!(
+        "{update_error:#}; additionally unable to restore the Windows hosts backup: {restore_error:#}"
+      );
+    }
+    bail!("{update_error:#}; original contents were restored");
   }
+
+  // Remove a stale temporary file left by versions that replaced the hosts file.
+  let _ = std::fs::remove_file(path.with_file_name("hosts.fabdev.pending"));
+  Ok(())
+}
+
+fn restore_hosts(path: &Path, backup: &Path) -> Result<()> {
+  let contents = std::fs::read(backup)
+    .with_context(|| format!("unable to read Windows hosts backup: {}", backup.display()))?;
+  let mut file = OpenOptions::new()
+    .write(true)
+    .open(path)
+    .with_context(|| format!("unable to reopen Windows hosts file: {}", path.display()))?;
+  file.set_len(0).with_context(|| {
+    format!(
+      "unable to truncate Windows hosts file during restore: {}",
+      path.display()
+    )
+  })?;
+  write_and_sync(&mut file, &contents)
+    .with_context(|| format!("unable to restore Windows hosts file: {}", path.display()))
+}
+
+fn write_and_sync(file: &mut File, contents: &[u8]) -> Result<()> {
+  file.write_all(contents)?;
+  file.sync_all()?;
   Ok(())
 }
 
@@ -346,6 +374,29 @@ impl Drop for ProcessHandle {
 mod tests {
   use super::*;
 
+  struct TestDirectory(PathBuf);
+
+  impl TestDirectory {
+    fn create(name: &str) -> Self {
+      let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("system clock")
+        .as_nanos();
+      let path = std::env::temp_dir().join(format!(
+        "fabdev-windows-helper-{name}-{}-{unique}",
+        std::process::id()
+      ));
+      std::fs::create_dir_all(&path).expect("create fixture directory");
+      Self(path)
+    }
+  }
+
+  impl Drop for TestDirectory {
+    fn drop(&mut self) {
+      let _ = std::fs::remove_dir_all(&self.0);
+    }
+  }
+
   #[test]
   fn quotes_windows_arguments_without_losing_backslashes() {
     let quoted = |value: &str| {
@@ -357,5 +408,52 @@ mod tests {
       r#""C:\Users\Dev User\FabDev\ca.crt""#
     );
     assert_eq!(quoted(""), r#"""#);
+  }
+
+  #[test]
+  fn updates_hosts_in_place_and_preserves_existing_file_identity() {
+    let fixture = TestDirectory::create("hosts-in-place");
+    let hosts = fixture.0.join("hosts");
+    let linked_hosts = fixture.0.join("hosts-link");
+    std::fs::write(&hosts, b"127.0.0.1 localhost\r\n").expect("write hosts fixture");
+    std::fs::hard_link(&hosts, &linked_hosts).expect("create hosts hard link");
+
+    replace_hosts(&hosts, b"127.0.0.1 localhost\r\n127.0.0.1 dev.test\r\n")
+      .expect("update hosts fixture");
+
+    assert_eq!(
+      std::fs::read(&hosts).expect("read hosts fixture"),
+      b"127.0.0.1 localhost\r\n127.0.0.1 dev.test\r\n"
+    );
+    assert_eq!(
+      std::fs::read(&linked_hosts).expect("read linked hosts fixture"),
+      b"127.0.0.1 localhost\r\n127.0.0.1 dev.test\r\n"
+    );
+    assert_eq!(
+      std::fs::read(fixture.0.join("hosts.fabdev.backup")).expect("read hosts backup"),
+      b"127.0.0.1 localhost\r\n"
+    );
+  }
+
+  #[test]
+  fn restores_hosts_when_an_in_place_update_fails() {
+    let fixture = TestDirectory::create("hosts-restore");
+    let hosts = fixture.0.join("hosts");
+    let original = b"127.0.0.1 localhost\r\n";
+    std::fs::write(&hosts, original).expect("write hosts fixture");
+
+    let error = replace_hosts_with(&hosts, b"127.0.0.1 dev.test\r\n", |file, _| {
+      file.write_all(b"partial")?;
+      bail!("simulated write failure")
+    })
+    .expect_err("reject failed hosts update");
+
+    assert!(error
+      .to_string()
+      .contains("original contents were restored"));
+    assert_eq!(
+      std::fs::read(&hosts).expect("read restored hosts fixture"),
+      original
+    );
   }
 }
