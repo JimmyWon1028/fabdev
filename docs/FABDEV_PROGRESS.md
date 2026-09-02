@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
-> 更新日期：2026-09-01
-> 目前階段：[`v0.1.17`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.17) 已發布為 Latest Stable；Tag 固定在 Commit `533877cc4b3f05d5d8df94aa99758fefaf16735c`，雙平台 CI、完整資產下載、靜態驗證及未登入公開下載驗證均已通過。Windows Repository Owner 實機 Gate 已通過；macOS 安裝／更新流程未變，依既定規則不重跑耗時人工生命週期測試
+> 更新日期：2026-09-02
+> 目前階段：[`v0.1.19`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.19) 已發布為 Latest Stable，Tag 固定在 Commit `be971bed1aa44ab22b6eeeb672420f4284fa4311`，不包含後續的 Windows 安裝語言與單一實例修正。Repository Owner 已通過 Commit `a1e83db7b6c71d692c1eddc4ccbcaea4ca9897a9` 的 Windows 功能實機 Gate，但該候選仍誤標為 `0.1.19`；目前正將版本統一升為 `0.1.20` 並建立 Windows x64 候選，不打包 macOS，也尚未建立 Tag、Draft 或 Publish
 
 ## 已完成
 
@@ -219,7 +219,8 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 
 - [x] Windows NSIS 安裝包支援繁體中文、簡體中文與英文；手動啟動安裝包時，語言選擇必須是第一個畫面，即使已有先前保存的安裝語言也不可略過，並依 Windows 預設 UI 語言預選對應語言。App 既有的 `/UPDATE /P /R` 被動更新流程不得因語言選擇視窗而停住。
 - [x] Windows Desktop 必須維持單一實例；再次啟動只還原、顯示並聚焦既有主視窗，不得建立第二個 Desktop 程序、主視窗或系統匣圖示，也不得另啟 Agent。
-- [ ] Repository Owner 以 Windows x64 候選驗收：分別在無保存語言與已有保存語言時手動啟動安裝包，確認第一個畫面可選三種語言；以 `/UPDATE /P /R` 確認不顯示語言視窗；安裝後連續啟動四次，確認工作管理員只保留一個 `fabDev` 與一個 `fabdev-agent`，且既有視窗會取得焦點。
+- [x] Repository Owner 已以 Commit `a1e83db7b6c71d692c1eddc4ccbcaea4ca9897a9` 的 Windows x64 候選完成實機驗收：無保存語言與已有保存語言時，手動安裝的第一個畫面可選三種語言；`/UPDATE /P /R` 不顯示語言視窗；連續啟動四次只保留一個 `fabDev` 與一個 `fabdev-agent`，既有視窗會取得焦點。此候選功能通過但版本仍誤標為 `0.1.19`，不得取代已發布的 `v0.1.19`。
+- [ ] 產出版本來源、Cargo.lock、NSIS 檔名及安裝程式內部版本皆為 `0.1.20` 的 Windows x64 候選，核對 Commit、Artifact 與 SHA-256；因功能程式碼不再變更，沿用上述實機功能 Gate，不重跑相同人工流程。
 
 #### Windows 更新體驗清單
 
