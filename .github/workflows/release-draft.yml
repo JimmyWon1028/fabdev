@@ -112,22 +112,17 @@ jobs:
           tag="v$VERSION"
           test "$(git rev-parse "$tag^{commit}")" = "$(git rev-parse HEAD)"
           git tag --points-at HEAD --list "$tag" | grep -Fx "$tag"
-          mapfile -t existing_releases < <(
-            gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-              --jq ".[] | select(.tag_name == \"$tag\") | [.id, .draft, .prerelease] | @tsv"
-          )
           if [[ "$RELEASE_SCOPE" == "macos" ]]; then
-            if [[ "${#existing_releases[@]}" -ne 1 ]]; then
-              echo "macOS supplementation requires exactly one existing Release for $tag" >&2
+            echo "Existing Draft state will be verified by the write-scoped final job"
+          else
+            existing_release_id="$(
+              gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+                --jq ".[] | select(.tag_name == \"$tag\") | .id"
+            )"
+            if [[ -n "$existing_release_id" ]]; then
+              echo "A GitHub Release already exists for $tag" >&2
               exit 1
             fi
-            IFS=$'\t' read -r release_id is_draft is_prerelease <<< "${existing_releases[0]}"
-            test -n "$release_id"
-            test "$is_draft" = "true"
-            test "$is_prerelease" = "false"
-          elif [[ "${#existing_releases[@]}" -ne 0 ]]; then
-            echo "A GitHub Release already exists for $tag" >&2
-            exit 1
           fi
 
       - name: Install Node.js
@@ -717,13 +712,19 @@ jobs:
         run: |
           set -euo pipefail
           tag="v$VERSION"
-          mapfile -t existing_release_ids < <(
+          mapfile -t existing_release_states < <(
             gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-              --jq ".[] | select(.tag_name == \"$tag\") | .id"
+              --jq ".[] | select(.tag_name == \"$tag\") | [.id, .draft, .prerelease, (.published_at == null), (.assets | length)] | @tsv"
           )
           if [[ "$RELEASE_SCOPE" == "macos" ]]; then
-            test "${#existing_release_ids[@]}" = "1"
-            existing_release_id="${existing_release_ids[0]}"
+            test "${#existing_release_states[@]}" = "1"
+            IFS=$'\t' read -r existing_release_id is_draft is_prerelease is_unpublished asset_count \
+              <<< "${existing_release_states[0]}"
+            test -n "$existing_release_id"
+            test "$is_draft" = "true"
+            test "$is_prerelease" = "false"
+            test "$is_unpublished" = "true"
+            test "$asset_count" = "20"
             mkdir -p supplement-assets
             cp \
               release-assets/SHA256SUMS \
@@ -743,7 +744,7 @@ jobs:
               -F "body=@$RUNNER_TEMP/release-notes.md" \
               >/dev/null
           else
-            if [[ "${#existing_release_ids[@]}" -ne 0 ]]; then
+            if [[ "${#existing_release_states[@]}" -ne 0 ]]; then
               echo "A GitHub Release already exists for $tag" >&2
               exit 1
             fi
