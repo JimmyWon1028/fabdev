@@ -1317,12 +1317,6 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
           message: format!("PHP {version} is used by Sites: {}", used_by.join(", ")),
         };
       }
-      if let Err(error) = state.services.lock().await.ensure_default_php_ini() {
-        return AgentResponse::Error {
-          code: "php_ini_default_failed".to_owned(),
-          message: error.to_string(),
-        };
-      }
       let runtime_root = state.paths.runtimes.clone();
       let result = tokio::task::spawn_blocking(move || -> Result<()> {
         mark_runtime_removed(&runtime_root, "php", &version)?;

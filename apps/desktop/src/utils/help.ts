@@ -74,8 +74,7 @@ const manuals: Record<Language, OperationManual> = {
           'Available PHP versions come from installed packages and the Runtime Catalog. Install package validates a matching descriptor and archive before installation.',
           'Set as global changes the default PHP series. A Site with an explicit version keeps its own selection.',
           'Open php.ini to edit one installed version. Save and apply validates the file with the matching PHP-FPM first.',
-          'Default php.ini is a template for future installs; editing it does not overwrite existing version-specific files.',
-          'ERP parameters loads the recommended preset into the editor. Review it, then save to apply.'
+          'ERP parameters loads the built-in preset matching the current platform and PHP version. Review it, then save to apply.'
         ],
         notes: [
           'A Runtime cannot be removed while a Site still uses that PHP series.'
@@ -209,8 +208,7 @@ const manuals: Record<Language, OperationManual> = {
           '可用 PHP 版本來自已安裝套件與 Runtime Catalog；「安裝本機套件」會先驗證相符的描述檔與套件。',
           '「設為全域」會變更預設 PHP 系列；已明確指定版本的 Site 不會跟著改變。',
           '開啟個別版本的 `php.ini` 後，「儲存並套用」會先交給對應 PHP-FPM 驗證。',
-          '「Default php.ini」是日後新安裝版本的範本，不會覆蓋現有各版本設定。',
-          '「ERP 參數」只會先把建議值載入編輯器；檢查後仍須儲存才會套用。'
+          '「ERP 參數」會依目前平台與 PHP 版本載入對應內建預設；檢查後仍須儲存才會套用。'
         ],
         notes: [
           '仍有 Site 使用某個 PHP 系列時，該 Runtime 不可移除。'
@@ -344,8 +342,7 @@ const manuals: Record<Language, OperationManual> = {
           '可用 PHP 版本来自已安装包与 Runtime Catalog；“安装本地包”会先验证相符的描述文件与包。',
           '“设为全局”会变更默认 PHP 系列；已明确指定版本的 Site 不会随之改变。',
           '打开个别版本的 `php.ini` 后，“保存并应用”会先交给对应 PHP-FPM 验证。',
-          '“Default php.ini”是日后新安装版本的模板，不会覆盖现有各版本设置。',
-          '“ERP 参数”只会先把建议值载入编辑器；检查后仍须保存才会应用。'
+          '“ERP 参数”会按当前平台和 PHP 版本载入对应的内置预设；检查后仍须保存才会应用。'
         ],
         notes: ['仍有 Site 使用某个 PHP 系列时，该 Runtime 不可移除。']
       },

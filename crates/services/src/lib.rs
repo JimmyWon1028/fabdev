@@ -1178,7 +1178,9 @@ impl ServiceSupervisor {
     if let Some(parent) = path.parent() {
       std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(&path, "")?;
+    if !path.exists() {
+      std::fs::write(&path, "")?;
+    }
     generate_php_config(&self.paths, &self.runtimes, version).map(|_| ())
   }
 
@@ -1201,12 +1203,13 @@ impl ServiceSupervisor {
   }
 
   pub fn read_erp_php_ini(&self, version: Option<&PhpVersion>) -> Result<String> {
-    let template_path = ensure_default_php_ini_template(&self.paths, &self.runtimes)?;
-    let template = std::fs::read_to_string(template_path)?;
     let Some(version) = version else {
-      return Ok(template);
+      let template_path = ensure_default_php_ini_template(&self.paths, &self.runtimes)?;
+      return std::fs::read_to_string(template_path)
+        .context("unable to read legacy default php.ini");
     };
 
+    let template = php_ini_template(version);
     let runtime = self.runtimes.resolve_php(version)?;
     let service = php_service_path(&self.paths, version);
     let mariadb_settings = self.mariadb_settings()?;
@@ -1220,6 +1223,7 @@ impl ServiceSupervisor {
       template
         .replace("@RUNTIME_ROOT@", runtime.to_string_lossy().as_ref())
         .replace("@SERVICE_ROOT@", service.to_string_lossy().as_ref())
+        .replace("@GD_EXTENSION@", php_gd_extension_name(version))
         .replace(
           "@MARIADB_SOCKET@",
           mariadb_socket.to_string_lossy().as_ref(),
@@ -2091,6 +2095,7 @@ fn generate_php_config(
     template
       .replace("@RUNTIME_ROOT@", &php_runtime_value)
       .replace("@SERVICE_ROOT@", &php_service_value)
+      .replace("@GD_EXTENSION@", php_gd_extension_name(version))
       .replace("@MARIADB_SOCKET@", &mariadb_socket_value)
       .replace("@PHP_EXTENSION_API@", &php_extension_api)
   };
@@ -2098,10 +2103,10 @@ fn generate_php_config(
   if let Some(parent) = managed_php_ini.parent() {
     std::fs::create_dir_all(parent)?;
   }
-  if !managed_php_ini.exists() {
-    let template_path = ensure_default_php_ini_template(paths, runtimes)?;
-    let template = std::fs::read_to_string(&template_path)?;
-    std::fs::write(&managed_php_ini, render_php(&template))?;
+  let initialize_managed_php_ini =
+    !managed_php_ini.exists() || std::fs::read_to_string(&managed_php_ini)?.trim().is_empty();
+  if initialize_managed_php_ini {
+    std::fs::write(&managed_php_ini, render_php(php_ini_template(version)))?;
   }
   let managed_php_ini_contents = std::fs::read_to_string(&managed_php_ini)?;
   let service_php_ini_contents =
@@ -2133,6 +2138,14 @@ fn php_ini_template(version: &PhpVersion) -> &'static str {
     "8.2" => PHP_82_INI_TEMPLATE,
     "8.4" => PHP_82_INI_TEMPLATE,
     _ => PHP_INI_TEMPLATE,
+  }
+}
+
+fn php_gd_extension_name(version: &PhpVersion) -> &'static str {
+  if version.major < 8 {
+    "gd2"
+  } else {
+    "gd"
   }
 }
 
@@ -5510,7 +5523,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
   }
 
   #[test]
-  fn renders_php_82_erp_defaults_for_an_installed_php_series() {
+  fn renders_version_specific_erp_defaults_for_an_installed_php_series() {
     let root = std::env::temp_dir().join(format!("fabdev-erp-php-ini-{}", Uuid::new_v4()));
     let paths = AppPaths::from_root(root.join("data"));
     let runtimes = RuntimePaths {
@@ -5520,22 +5533,27 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       mariadb: root.join("runtimes/mariadb"),
     };
     add_php_runtime(&runtimes.php, "7.4.33");
+    let legacy_default = paths.config.join("php/default/php.ini");
+    std::fs::create_dir_all(legacy_default.parent().expect("legacy default parent"))
+      .expect("create legacy default parent");
+    std::fs::write(&legacy_default, "memory_limit = 1M\n").expect("write legacy default php.ini");
     let supervisor = ServiceSupervisor::new(paths, runtimes, ServicePorts::system());
     let version: PhpVersion = "7.4".parse().expect("parse PHP 7.4");
 
     let contents = supervisor
       .read_erp_php_ini(Some(&version))
-      .expect("render PHP 8.2 ERP defaults for PHP 7.4");
+      .expect("render PHP 7.4 ERP defaults");
 
     assert!(contents.contains("date.timezone = \"Asia/Taipei\""));
     assert!(contents.contains("max_input_vars = 99999"));
+    assert!(!contents.contains("memory_limit = 1M"));
     assert!(contents.replace('\\', "/").contains("runtimes/php/7.4.33"));
     assert!(!contents.contains("@RUNTIME_ROOT@"));
     std::fs::remove_dir_all(root).expect("remove ERP php.ini fixture");
   }
 
   #[test]
-  fn preserves_an_empty_managed_php_ini() {
+  fn initializes_an_empty_managed_php_ini_from_the_version_template() {
     let root = std::env::temp_dir().join(format!("fabdev-empty-php-ini-{}", Uuid::new_v4()));
     let paths = AppPaths::from_root(root.join("data"));
     let runtimes = RuntimePaths {
@@ -5557,8 +5575,11 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     let service_contents =
       std::fs::read_to_string(generated.php_ini).expect("read service php.ini");
 
-    assert!(contents.is_empty());
-    assert!(service_contents.is_empty());
+    assert!(!contents.trim().is_empty());
+    assert_eq!(service_contents, contents);
+    assert!(contents.contains("opcache"));
+    assert!(!contents.contains("@RUNTIME_ROOT@"));
+    assert!(!contents.contains("@SERVICE_ROOT@"));
     std::fs::remove_dir_all(root).expect("remove empty php.ini fixture");
   }
 
@@ -5568,13 +5589,31 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       template
         .replace("@RUNTIME_ROOT@", "C:/fabdev/php/8.4.24")
         .replace("@SERVICE_ROOT@", "C:/fabdev/services/php/8.4")
+        .replace("@GD_EXTENSION@", "gd")
         .replace("@MARIADB_SOCKET@", "")
         .replace("@PHP_EXTENSION_API@", "")
     });
 
     assert!(rendered.contains("extension_dir = \"C:/fabdev/php/8.4.24/ext\""));
+    assert!(rendered.contains("extension = gd"));
     assert!(rendered.contains("extension = mysqli"));
     assert!(rendered.contains("extension = pdo_mysql"));
+  }
+
+  #[test]
+  fn selects_the_windows_gd_extension_for_each_supported_php_major() {
+    assert_eq!(
+      php_gd_extension_name(&"7.4".parse().expect("parse PHP 7.4")),
+      "gd2"
+    );
+    assert_eq!(
+      php_gd_extension_name(&"8.2".parse().expect("parse PHP 8.2")),
+      "gd"
+    );
+    assert_eq!(
+      php_gd_extension_name(&"8.4".parse().expect("parse PHP 8.4")),
+      "gd"
+    );
   }
 
   #[test]
@@ -5619,7 +5658,12 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     supervisor
       .validate_php_runtime_install(&version, "8.4.24")
       .expect("initialize online Runtime php.ini");
-    assert_eq!(std::fs::read_to_string(&managed).expect("read php.ini"), "");
+    let initialized = std::fs::read_to_string(&managed).expect("read initialized php.ini");
+    assert!(initialized.contains("opcache.so"));
+    assert!(initialized
+      .replace('\\', "/")
+      .contains("runtimes/php/8.4.24"));
+    assert!(!initialized.contains("@RUNTIME_ROOT@"));
     std::fs::write(&managed, "memory_limit = 256M\n").expect("customize php.ini");
     supervisor
       .validate_php_runtime_install(&version, "8.4.24")
@@ -5632,7 +5676,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
   }
 
   #[test]
-  fn initializes_default_php_ini_from_current_php_82_and_reuses_it() {
+  fn initializes_php_from_its_version_template_and_ignores_the_legacy_default() {
     let root = std::env::temp_dir().join(format!("fabdev-default-php-ini-{}", Uuid::new_v4()));
     let paths = AppPaths::from_root(root.join("data"));
     let runtimes = RuntimePaths {
@@ -5652,20 +5696,24 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       .expect("read PHP 8.2 config")
       .replace("memory_limit = 128M", "memory_limit = 256M");
     std::fs::write(&php_82_ini, customized).expect("customize PHP 8.2 config");
-    std::fs::remove_file(default_php_ini_path(&paths)).expect("remove initial default template");
+    let legacy_default = default_php_ini_path(&paths);
+    std::fs::create_dir_all(legacy_default.parent().expect("legacy default parent"))
+      .expect("create legacy default parent");
+    std::fs::write(&legacy_default, "memory_limit = 512M\n")
+      .expect("write legacy default template");
 
     let generated = generate_php_config(&paths, &runtimes, &php_84)
-      .expect("generate PHP 8.4 config from default");
-    let template =
-      std::fs::read_to_string(default_php_ini_path(&paths)).expect("read default PHP template");
+      .expect("generate PHP 8.4 config from its version template");
     let php_84_ini =
       std::fs::read_to_string(generated.php_ini).expect("read generated PHP 8.4 config");
 
-    assert!(template.contains("memory_limit = 256M"));
-    assert!(template.contains("@RUNTIME_ROOT@"));
-    assert!(template.contains("@SERVICE_ROOT@"));
-    assert!(!template.contains(root.to_string_lossy().as_ref()));
-    assert!(php_84_ini.contains("memory_limit = 256M"));
+    assert_eq!(
+      std::fs::read_to_string(legacy_default).expect("read preserved legacy default"),
+      "memory_limit = 512M\n"
+    );
+    assert!(php_84_ini.contains("memory_limit = 128M"));
+    assert!(!php_84_ini.contains("memory_limit = 512M"));
+    assert!(!php_84_ini.contains("memory_limit = 256M"));
     let normalized_php_84_ini = php_84_ini.replace('\\', "/");
     assert!(normalized_php_84_ini.contains("runtimes/php/8.4.24"));
     assert!(normalized_php_84_ini.contains("services/php/8.4"));

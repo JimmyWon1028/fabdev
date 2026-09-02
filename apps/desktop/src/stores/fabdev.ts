@@ -493,29 +493,6 @@ export const useAppStore = defineStore('fabdev', {
       }
       throw new Error('Agent returned an unexpected response')
     },
-    async getDefaultPhpIni() {
-      const response = await sendRequest({ type: 'getDefaultPhpIni' })
-      if (response.type === 'defaultPhpIni') {
-        return response.payload.contents
-      }
-      if (response.type === 'error') {
-        throw new Error(response.payload.message)
-      }
-      throw new Error('Agent returned an unexpected response')
-    },
-    async saveDefaultPhpIni(contents: string) {
-      const response = await sendRequest({
-        type: 'saveDefaultPhpIni',
-        payload: { contents }
-      })
-      if (response.type === 'defaultPhpIniSaved') {
-        return
-      }
-      if (response.type === 'error') {
-        throw new Error(response.payload.message)
-      }
-      throw new Error('Agent returned an unexpected response')
-    },
     async getErpPhpIni(phpVersion: string | null) {
       const response = await sendRequest({
         type: 'getErpPhpIni',
@@ -709,9 +686,6 @@ export const useAppStore = defineStore('fabdev', {
     },
     async revealPhpIni(phpVersion: string) {
       return invoke<string>('reveal_php_ini', { phpVersion })
-    },
-    async revealDefaultPhpIni() {
-      return invoke<string>('reveal_default_php_ini')
     },
     async openSite(domain: string, secured: boolean) {
       return invoke<void>('open_site', { domain, secured })

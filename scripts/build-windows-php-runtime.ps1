@@ -51,6 +51,7 @@ function Build-PhpRuntimePackage {
   $testIniRoot = Join-Path $buildRoot "config-test"
   $testIni = Join-Path $testIniRoot "php.ini"
   $packagePath = Join-Path $OutputDirectory $packageName
+  $gdExtension = if ([version]$phpVersion -lt [version]"8.0.0") { "gd2" } else { "gd" }
 
   if (Test-Path $buildRoot) {
     Remove-Item -Recurse -Force $buildRoot
@@ -69,6 +70,7 @@ function Build-PhpRuntimePackage {
   $requiredFiles = @(
     "php.exe",
     "php-cgi.exe",
+    "ext/php_$gdExtension.dll",
     "ext/php_mysqli.dll",
     "ext/php_pdo_mysql.dll"
   )
@@ -93,12 +95,13 @@ function Build-PhpRuntimePackage {
   $extensionDirectory = (Join-Path $runtimePath "ext").Replace("\", "/")
   @"
 extension_dir = "$extensionDirectory"
+extension = $gdExtension
 extension = mysqli
 extension = pdo_mysql
 "@ | Set-Content -Path $testIni -Encoding ascii
-  & $phpExe -c $testIni -r "exit(extension_loaded('mysqli') && extension_loaded('pdo_mysql') ? 0 : 1);"
+  & $phpExe -c $testIni -r "exit(extension_loaded('gd') && function_exists('imagecreatetruecolor') && extension_loaded('mysqli') && extension_loaded('pdo_mysql') ? 0 : 1);"
   if ($LASTEXITCODE -ne 0) {
-    throw "PHP $phpVersion MySQL extensions failed to load"
+    throw "PHP $phpVersion required extensions failed to load"
   }
 
   if (Test-Path $packagePath) {

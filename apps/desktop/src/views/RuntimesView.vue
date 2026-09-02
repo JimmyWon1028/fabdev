@@ -328,19 +328,6 @@ async function editPhpIni(runtime: PhpRuntimeInfo) {
   }
 }
 
-async function editDefaultPhpIni() {
-  action.value = 'ini:default'
-  message.value = ''
-  try {
-    phpIniContents.value = await store.getDefaultPhpIni()
-    phpIniSeries.value = 'default'
-  } catch (error) {
-    message.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    action.value = null
-  }
-}
-
 async function savePhpIni() {
   if (!phpIniSeries.value) {
     return
@@ -348,13 +335,8 @@ async function savePhpIni() {
   action.value = `save-ini:${phpIniSeries.value}`
   message.value = ''
   try {
-    if (phpIniSeries.value === 'default') {
-      await store.saveDefaultPhpIni(phpIniContents.value)
-      message.value = t('runtimes.defaultIniSaved')
-    } else {
-      await store.savePhpIni(phpIniSeries.value, phpIniContents.value)
-      message.value = t('runtimes.iniSaved', { version: phpIniSeries.value })
-    }
+    await store.savePhpIni(phpIniSeries.value, phpIniContents.value)
+    message.value = t('runtimes.iniSaved', { version: phpIniSeries.value })
   } catch (error) {
     message.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -369,8 +351,7 @@ async function loadErpPhpIni() {
   action.value = `erp-ini:${phpIniSeries.value}`
   message.value = ''
   try {
-    const version = phpIniSeries.value === 'default' ? null : phpIniSeries.value
-    phpIniContents.value = await store.getErpPhpIni(version)
+    phpIniContents.value = await store.getErpPhpIni(phpIniSeries.value)
     message.value = t('runtimes.erpConfigLoaded')
   } catch (error) {
     message.value = error instanceof Error ? error.message : String(error)
@@ -385,9 +366,7 @@ async function revealPhpIni() {
   }
   message.value = ''
   try {
-    const path = phpIniSeries.value === 'default'
-      ? await store.revealDefaultPhpIni()
-      : await store.revealPhpIni(phpIniSeries.value)
+    const path = await store.revealPhpIni(phpIniSeries.value)
     message.value = t(isWindows ? 'runtimes.revealedInExplorer' : 'runtimes.revealed', {
       path: formatPathForDisplay(path, isWindows)
     })
@@ -481,20 +460,6 @@ async function revealPhpIni() {
     </div>
 
     <section class="runtime-list" :aria-label="t('runtimes.listLabel')">
-      <article class="runtime-card">
-        <div class="runtime-details">
-          <span class="runtime-version">{{ t('runtimes.default') }}</span>
-          <div>
-            <h2>{{ t('runtimes.defaultIniTitle') }}</h2>
-            <p>{{ t('runtimes.defaultIniDescription') }}</p>
-          </div>
-        </div>
-        <div class="runtime-actions">
-          <button class="secondary-button" :disabled="action !== null" @click="editDefaultPhpIni">
-            php.ini
-          </button>
-        </div>
-      </article>
       <article
         v-for="row in catalogRows"
         :key="`runtime:${row.version}`"
@@ -607,7 +572,7 @@ async function revealPhpIni() {
       <div class="php-ini-header">
         <div>
           <p class="eyebrow">
-            {{ phpIniSeries === 'default' ? t('runtimes.defaultIniTitle') : `PHP ${phpIniSeries}` }}
+            PHP {{ phpIniSeries }}
           </p>
           <h2>php.ini</h2>
         </div>
@@ -629,7 +594,7 @@ async function revealPhpIni() {
           {{ action?.startsWith('save-ini:') ? t('runtimes.applying') : t('runtimes.saveApply') }}
         </button>
         <small>
-          {{ phpIniSeries === 'default' ? t('runtimes.defaultIniHelp') : t('runtimes.iniHelp') }}
+          {{ t('runtimes.iniHelp') }}
         </small>
       </div>
     </section>

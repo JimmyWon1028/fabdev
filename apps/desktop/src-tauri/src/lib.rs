@@ -361,21 +361,6 @@ fn reveal_php_ini(php_version: PhpVersion) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn reveal_default_php_ini() -> Result<String, String> {
-  let paths =
-    AppPaths::discover().ok_or_else(|| "unable to locate fabDev application data".to_owned())?;
-  let path = default_php_ini_path(&paths);
-  if !path.is_file() {
-    return Err(format!(
-      "default php.ini does not exist: {}",
-      path.display()
-    ));
-  }
-  reveal_path(&path).map_err(|error| error.to_string())?;
-  Ok(path.to_string_lossy().into_owned())
-}
-
-#[tauri::command]
 fn open_site(domain: String, secured: bool) -> Result<(), String> {
   let url = site_url(&domain, secured)?;
   open_url(&url).map_err(|error| error.to_string())
@@ -607,10 +592,6 @@ fn php_ini_path(paths: &AppPaths, php_version: &PhpVersion) -> PathBuf {
     .join("php.ini")
 }
 
-fn default_php_ini_path(paths: &AppPaths) -> PathBuf {
-  paths.config.join("php/default/php.ini")
-}
-
 #[cfg(any(target_os = "macos", windows))]
 fn initialize_empty_php_ini_for_runtime(paths: &AppPaths, version: &str) -> anyhow::Result<()> {
   let parts = version.split('.').collect::<Vec<_>>();
@@ -624,7 +605,9 @@ fn initialize_empty_php_ini_for_runtime(paths: &AppPaths, version: &str) -> anyh
   if let Some(parent) = path.parent() {
     std::fs::create_dir_all(parent)?;
   }
-  std::fs::write(path, "")?;
+  if !path.exists() {
+    std::fs::write(path, "")?;
+  }
   Ok(())
 }
 
@@ -1997,7 +1980,6 @@ pub fn run() {
       install_downloaded_app_update,
       open_app_release_notes,
       reveal_php_ini,
-      reveal_default_php_ini,
       trust_local_ca
     ])
     .build(tauri::generate_context!())
@@ -2028,7 +2010,7 @@ mod tests {
     BundledRuntimeSpec,
   };
   use super::{
-    default_php_ini_path, is_system_ingress_error, mariadb_toggle_request, php_ini_path, proxy_url,
+    is_system_ingress_error, mariadb_toggle_request, php_ini_path, proxy_url,
     read_config_transfer_file, resolve_agent_executable_from, services_to_restart, site_url,
     status_has_running_services, tray_app_update_label, tray_mariadb_state,
     tray_mariadb_toggle_label, tray_service_state, tray_toggle_label, write_config_transfer_file,
@@ -2447,10 +2429,6 @@ mod tests {
       php_ini_path(&paths, &PhpVersion { major: 8, minor: 2 }),
       std::path::PathBuf::from("/tmp/fabDev/config/php/8.2/php.ini")
     );
-    assert_eq!(
-      default_php_ini_path(&paths),
-      std::path::PathBuf::from("/tmp/fabDev/config/php/default/php.ini")
-    );
   }
 
   #[test]
@@ -2468,6 +2446,26 @@ mod tests {
       ""
     );
     std::fs::remove_dir_all(root).expect("remove empty bundled PHP configuration fixture");
+  }
+
+  #[test]
+  #[cfg(any(target_os = "macos", windows))]
+  fn preserves_an_existing_php_ini_for_a_reinstalled_bundled_runtime() {
+    let root = std::env::temp_dir().join(format!("fabdev-preserved-ini-{}", uuid::Uuid::new_v4()));
+    let paths = AppPaths::from_root(&root);
+    let path = php_ini_path(&paths, &PhpVersion { major: 8, minor: 2 });
+    std::fs::create_dir_all(path.parent().expect("php.ini parent"))
+      .expect("create PHP configuration directory");
+    std::fs::write(&path, "memory_limit = 256M\n").expect("write existing PHP configuration");
+
+    initialize_empty_php_ini_for_runtime(&paths, "8.2.33")
+      .expect("preserve existing bundled PHP configuration");
+
+    assert_eq!(
+      std::fs::read_to_string(path).expect("read preserved bundled PHP configuration"),
+      "memory_limit = 256M\n"
+    );
+    std::fs::remove_dir_all(root).expect("remove preserved bundled PHP configuration fixture");
   }
 
   #[test]
