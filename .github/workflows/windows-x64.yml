@@ -12,6 +12,7 @@ on:
       - "packages/**"
       - "resources/runtime-packages/windows-x64*.json"
       - "scripts/build-desktop-bundle-assets.mjs"
+      - "scripts/generate-app-release-manifest.test.mjs"
       - "scripts/prepare-windows-runtimes.ps1"
       - "Cargo.lock"
       - "Cargo.toml"

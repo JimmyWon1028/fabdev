@@ -789,6 +789,6 @@ test('allows macOS updates when new and legacy app names resolve to the same bun
 
   assert.match(
     installer,
-    /\[\[ -d "\$APP_TARGET" && -d "\$LEGACY_APP_TARGET" \]\] &&\n  \[\[ ! "\$APP_TARGET" -ef "\$LEGACY_APP_TARGET" \]\]/
+    /\[\[ -d "\$APP_TARGET" && -d "\$LEGACY_APP_TARGET" \]\] &&\r?\n  \[\[ ! "\$APP_TARGET" -ef "\$LEGACY_APP_TARGET" \]\]/
   )
 })
