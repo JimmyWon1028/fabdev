@@ -228,7 +228,8 @@ fn slugify(value: &str) -> String {
 }
 
 pub fn default_site_domain(value: &str) -> String {
-  format!("{}.test", slugify(value))
+  let candidate = format!("{value}.test");
+  normalize_domain(&candidate).unwrap_or_else(|_| format!("{}.test", slugify(value)))
 }
 
 #[cfg(test)]
@@ -290,6 +291,13 @@ mod tests {
       root.canonicalize().expect("canonical root").join("public")
     );
     std::fs::remove_dir_all(root).expect("remove test project");
+  }
+
+  #[test]
+  fn preserves_valid_subdomain_labels_in_generated_domain() {
+    assert_eq!(default_site_domain("api.yxr"), "api.yxr.test");
+    assert_eq!(default_site_domain("API.YXR"), "api.yxr.test");
+    assert_eq!(default_site_domain("My ERP"), "my-erp.test");
   }
 
   #[test]
