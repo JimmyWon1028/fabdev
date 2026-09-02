@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ffi::OsStr;
 use std::fs::{File, OpenOptions};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream, UdpSocket};
@@ -798,6 +798,143 @@ impl ServiceSupervisor {
       }
     }
     Ok(())
+  }
+
+  pub async fn apply_site_config_batch(
+    &mut self,
+    previous_sites: &[Site],
+    updated_sites: &[Site],
+    all_sites_before_update: &[Site],
+    all_sites_after_update: &[Site],
+  ) -> Result<()> {
+    if previous_sites == updated_sites {
+      return Ok(());
+    }
+
+    self.paths.ensure()?;
+    let mut affected_paths = BTreeSet::new();
+    for site in previous_sites.iter().chain(updated_sites) {
+      let domain = normalize_domain(&site.domain).context("invalid Site domain in registry")?;
+      if domain != site.domain {
+        bail!("Site domain is not normalized: {}", site.domain);
+      }
+      affected_paths.insert(self.paths.sites.join(format!("{domain}.conf")));
+    }
+
+    let php_versions = updated_sites
+      .iter()
+      .filter_map(|site| site.php_version.clone())
+      .collect::<BTreeSet<_>>();
+    let php_configs = php_versions
+      .iter()
+      .map(|version| generate_php_config(&self.paths, &self.runtimes, version))
+      .collect::<Result<Vec<_>>>()?;
+
+    let new_certificate_domains = updated_sites
+      .iter()
+      .filter(|site| site.secured)
+      .filter(|site| {
+        let directory = self.paths.config.join("tls/sites");
+        !directory.join(format!("{}.crt", site.domain)).is_file()
+          || !directory.join(format!("{}.key", site.domain)).is_file()
+      })
+      .map(|site| site.domain.clone())
+      .collect::<BTreeSet<_>>();
+    let rendered_configs = match updated_sites
+      .iter()
+      .map(|site| render_site_config(&self.paths, &self.runtimes, self.ports, site))
+      .collect::<Result<Vec<_>>>()
+    {
+      Ok(configs) => configs,
+      Err(error) => {
+        remove_new_site_certificates(&self.paths, &new_certificate_domains);
+        return Err(error.context("unable to render Site configuration batch"));
+      }
+    };
+
+    let nginx_running = self.nginx_running();
+    let mut started_php_versions = BTreeSet::new();
+    if nginx_running {
+      for config in &php_configs {
+        if let Err(error) = validate_php_config(config) {
+          remove_new_site_certificates(&self.paths, &new_certificate_domains);
+          return Err(error.context("invalid Site PHP-FPM configuration"));
+        }
+        match self.ensure_php_version_running(config).await {
+          Ok(true) => {
+            started_php_versions.insert(config.version.clone());
+          }
+          Ok(false) => {}
+          Err(error) => {
+            remove_new_site_certificates(&self.paths, &new_certificate_domains);
+            self
+              .stop_unused_started_php_versions(&started_php_versions, all_sites_before_update)
+              .await;
+            return Err(error.context("unable to start Site PHP-FPM Runtime batch"));
+          }
+        }
+      }
+    }
+
+    let nginx_config = self.paths.services.join("nginx/nginx.conf");
+    let apply_result =
+      apply_site_config_files(&affected_paths, &rendered_configs, nginx_running, || {
+        validate_nginx_config(&self.runtimes, &nginx_config)
+          .and_then(|()| reload_nginx(&self.runtimes, &nginx_config))
+      });
+    if let Err(error) = apply_result {
+      remove_new_site_certificates(&self.paths, &new_certificate_domains);
+      self
+        .stop_unused_started_php_versions(&started_php_versions, all_sites_before_update)
+        .await;
+      return Err(error.context("unable to apply Site configuration batch to Nginx"));
+    }
+
+    let updated_secured_domains = updated_sites
+      .iter()
+      .filter(|site| site.secured)
+      .map(|site| site.domain.as_str())
+      .collect::<BTreeSet<_>>();
+    for site in previous_sites
+      .iter()
+      .filter(|site| site.secured && !updated_secured_domains.contains(site.domain.as_str()))
+    {
+      if let Err(error) = remove_site_certificate(&self.paths, &site.domain) {
+        eprintln!(
+          "unable to remove obsolete Site certificate for {}: {error:#}",
+          site.domain
+        );
+      }
+    }
+
+    let previous_php_versions = previous_sites
+      .iter()
+      .filter_map(|site| site.php_version.clone())
+      .collect::<BTreeSet<_>>();
+    for version in previous_php_versions {
+      let version_still_used = all_sites_after_update
+        .iter()
+        .any(|site| site.enabled && site.php_version.as_ref() == Some(&version));
+      if !version_still_used {
+        let _ = self.stop_php_version(&version).await;
+      }
+    }
+    Ok(())
+  }
+
+  async fn stop_unused_started_php_versions(
+    &mut self,
+    versions: &BTreeSet<PhpVersion>,
+    sites: &[Site],
+  ) {
+    for version in versions {
+      let version_was_used = sites
+        .iter()
+        .any(|site| site.enabled && site.php_version.as_ref() == Some(version));
+      if !version_was_used {
+        let _ = self.stop_php_version(version).await;
+      }
+    }
   }
 
   pub async fn update_site_config(&mut self, previous: &Site, updated: &Site) -> Result<()> {
@@ -2161,6 +2298,83 @@ fn restore_site_config(path: &Path, existing_config: Option<Vec<u8>>) -> Result<
   }
 }
 
+fn apply_site_config_files<F>(
+  affected_paths: &BTreeSet<PathBuf>,
+  rendered_configs: &[(PathBuf, String)],
+  apply_running_config: bool,
+  mut apply: F,
+) -> Result<()>
+where
+  F: FnMut() -> Result<()>,
+{
+  let snapshots = affected_paths
+    .iter()
+    .map(|path| {
+      let contents = match std::fs::read(path) {
+        Ok(contents) => Some(contents),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.into()),
+      };
+      Ok((path.clone(), contents))
+    })
+    .collect::<Result<BTreeMap<_, _>>>()?;
+
+  let mut apply_attempted = false;
+  let update_result = (|| {
+    for path in affected_paths {
+      remove_file_if_exists(path)
+        .with_context(|| format!("unable to remove Site config at {}", path.display()))?;
+    }
+    for (path, rendered) in rendered_configs {
+      std::fs::write(path, rendered)
+        .with_context(|| format!("unable to write Site config at {}", path.display()))?;
+    }
+    if apply_running_config {
+      apply_attempted = true;
+      apply()?;
+    }
+    Ok(())
+  })();
+  let Err(error) = update_result else {
+    return Ok(());
+  };
+
+  let restore_errors = snapshots
+    .into_iter()
+    .filter_map(|(path, contents)| {
+      restore_site_config(&path, contents)
+        .err()
+        .map(|error| format!("{}: {error:#}", path.display()))
+    })
+    .collect::<Vec<_>>();
+  let reload_result = if apply_attempted { apply() } else { Ok(()) };
+  if restore_errors.is_empty() && reload_result.is_ok() {
+    return Err(error);
+  }
+  let mut rollback_errors = Vec::new();
+  if !restore_errors.is_empty() {
+    rollback_errors.push(format!(
+      "file restore failed: {}",
+      restore_errors.join(", ")
+    ));
+  }
+  if let Err(reload_error) = reload_result {
+    rollback_errors.push(format!("Nginx restore reload failed: {reload_error:#}"));
+  }
+  Err(error.context(format!(
+    "Site configuration rollback also failed: {}",
+    rollback_errors.join("; ")
+  )))
+}
+
+fn remove_new_site_certificates(paths: &AppPaths, domains: &BTreeSet<String>) {
+  for domain in domains {
+    if let Err(error) = remove_site_certificate(paths, domain) {
+      eprintln!("unable to remove new Site certificate for {domain}: {error:#}");
+    }
+  }
+}
+
 fn validate_configs(runtimes: &RuntimePaths, configs: &GeneratedConfigs) -> Result<()> {
   #[cfg(unix)]
   run_check(
@@ -3241,6 +3455,8 @@ async fn wait_for_ingress(ports: ServicePorts, timeout: Duration) -> Result<()> 
 
 #[cfg(test)]
 mod tests {
+  use std::cell::Cell;
+
   use fabdev_core::PhpVersion;
   use uuid::Uuid;
 
@@ -4764,6 +4980,147 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     assert!(nginx_site.contains("index index.html;"));
     assert!(!nginx_site.contains("fastcgi_pass"));
     assert!(!paths.services.join("php").exists());
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn applies_multiple_site_config_files_once() {
+    let root = std::env::temp_dir().join(format!("fabdev-site-batch-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&root).expect("create batch fixture");
+    let old_one = root.join("old-one.test.conf");
+    let old_two = root.join("old-two.test.conf");
+    let new_one = root.join("new-one.test.conf");
+    let new_two = root.join("new-two.test.conf");
+    std::fs::write(&old_one, "old one").expect("write first old config");
+    std::fs::write(&old_two, "old two").expect("write second old config");
+    let affected = [
+      old_one.clone(),
+      old_two.clone(),
+      new_one.clone(),
+      new_two.clone(),
+    ]
+    .into_iter()
+    .collect::<BTreeSet<_>>();
+    let rendered = vec![
+      (new_one.clone(), "new one".to_owned()),
+      (new_two.clone(), "new two".to_owned()),
+    ];
+    let apply_count = Cell::new(0);
+
+    apply_site_config_files(&affected, &rendered, true, || {
+      apply_count.set(apply_count.get() + 1);
+      Ok(())
+    })
+    .expect("apply Site config batch");
+
+    assert_eq!(apply_count.get(), 1);
+    assert!(!old_one.exists());
+    assert!(!old_two.exists());
+    assert_eq!(
+      std::fs::read_to_string(new_one).expect("read first new config"),
+      "new one"
+    );
+    assert_eq!(
+      std::fs::read_to_string(new_two).expect("read second new config"),
+      "new two"
+    );
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn restores_site_config_batch_after_apply_failure() {
+    let root = std::env::temp_dir().join(format!("fabdev-site-batch-rollback-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&root).expect("create rollback fixture");
+    let existing = root.join("existing.test.conf");
+    let added = root.join("added.test.conf");
+    std::fs::write(&existing, "existing config").expect("write existing config");
+    let affected = [existing.clone(), added.clone()]
+      .into_iter()
+      .collect::<BTreeSet<_>>();
+    let rendered = vec![(added.clone(), "added config".to_owned())];
+    let apply_count = Cell::new(0);
+
+    let error = apply_site_config_files(&affected, &rendered, true, || {
+      let count = apply_count.get() + 1;
+      apply_count.set(count);
+      if count == 1 {
+        bail!("simulated Nginx reload failure");
+      }
+      Ok(())
+    })
+    .expect_err("reject failed Site config batch");
+
+    assert!(error.to_string().contains("simulated Nginx reload failure"));
+    assert_eq!(apply_count.get(), 2);
+    assert_eq!(
+      std::fs::read_to_string(existing).expect("read restored config"),
+      "existing config"
+    );
+    assert!(!added.exists());
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[tokio::test]
+  async fn replaces_multiple_site_configs_before_services_start() {
+    let root = std::env::temp_dir().join(format!("fabdev-site-batch-files-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(root.join("data"));
+    paths.ensure().expect("create data directories");
+    let old_project = root.join("old-project");
+    let new_project = root.join("new-project");
+    std::fs::create_dir_all(&old_project).expect("create old project");
+    std::fs::create_dir_all(&new_project).expect("create new project");
+    let old_site = Site {
+      id: Uuid::new_v4(),
+      name: "Old Site".to_owned(),
+      domain: "old-site.test".to_owned(),
+      project_path: old_project.clone(),
+      document_root: old_project,
+      php_version: None,
+      enabled: true,
+      secured: false,
+    };
+    let new_site = Site {
+      id: old_site.id,
+      name: "New Site".to_owned(),
+      domain: "new-site.test".to_owned(),
+      project_path: new_project.clone(),
+      document_root: new_project,
+      php_version: None,
+      enabled: true,
+      secured: false,
+    };
+    std::fs::write(paths.sites.join("old-site.test.conf"), "old config")
+      .expect("write old Site config");
+    let mut supervisor = ServiceSupervisor::new(
+      paths.clone(),
+      RuntimePaths {
+        dnsmasq: root.join("runtimes/dnsmasq"),
+        nginx: root.join("runtimes/nginx"),
+        php: root.join("runtimes/php"),
+        mariadb: root.join("runtimes/mariadb"),
+      },
+      ServicePorts {
+        dns: 53535,
+        http: 8080,
+        https: 8443,
+        mariadb: 3306,
+      },
+    );
+
+    supervisor
+      .apply_site_config_batch(
+        std::slice::from_ref(&old_site),
+        std::slice::from_ref(&new_site),
+        std::slice::from_ref(&old_site),
+        std::slice::from_ref(&new_site),
+      )
+      .await
+      .expect("replace Site config batch");
+
+    assert!(!paths.sites.join("old-site.test.conf").exists());
+    let config = std::fs::read_to_string(paths.sites.join("new-site.test.conf"))
+      .expect("read new Site config");
+    assert!(config.contains("server_name new-site.test;"));
     std::fs::remove_dir_all(root).expect("remove fixture");
   }
 

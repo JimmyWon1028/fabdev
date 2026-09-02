@@ -757,7 +757,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       Ok(settings) => AgentResponse::SiteHomeSettings(settings),
       Err(error) => AgentResponse::Error {
         code: "site_home_save_failed".to_owned(),
-        message: error.to_string(),
+        message: format!("{error:#}"),
       },
     },
     AgentRequest::AddSite(input) => {
@@ -2820,50 +2820,28 @@ async fn sync_home_sites(state: &AgentState) -> Result<Vec<Site>> {
     .transpose()
     .context("invalid global PHP Runtime series")?;
 
-  let (existing_home, linked_sites) = {
+  let (existing_home, linked_sites, sites_before_update) = {
     let repository = state.sites.lock().await;
     let existing_home = repository.list_home_sites()?;
     let home_ids = existing_home
       .iter()
       .map(|site| site.id)
       .collect::<HashSet<_>>();
-    let linked_sites = repository
-      .list()?
-      .into_iter()
+    let sites = repository.list()?;
+    let linked_sites = sites
+      .iter()
       .filter(|site| !home_ids.contains(&site.id))
+      .cloned()
       .collect::<Vec<_>>();
-    (existing_home, linked_sites)
+    (existing_home, linked_sites, sites)
   };
   let desired_home = discover_home_sites(&home, default_php, &linked_sites, &existing_home)?;
-  let desired_ids = desired_home
-    .iter()
-    .map(|site| site.id)
-    .collect::<HashSet<_>>();
-  let existing_by_id = existing_home
-    .iter()
-    .map(|site| (site.id, site))
-    .collect::<HashMap<_, _>>();
-  let removed = existing_home
-    .iter()
-    .filter(|site| !desired_ids.contains(&site.id))
-    .cloned()
-    .collect::<Vec<_>>();
-  let added_or_changed = desired_home
-    .iter()
-    .filter(|site| {
-      existing_by_id
-        .get(&site.id)
-        .is_none_or(|existing| *existing != *site)
-    })
-    .cloned()
-    .collect::<Vec<_>>();
-
   let sites = {
     let mut repository = state.sites.lock().await;
     repository.replace_home_sites(&desired_home)?;
     repository.list()?
   };
-  if removed.is_empty() && added_or_changed.is_empty() {
+  if existing_home == desired_home {
     return Ok(sites);
   }
 
@@ -2871,12 +2849,9 @@ async fn sync_home_sites(state: &AgentState) -> Result<Vec<Site>> {
     let mut services = state.services.lock().await;
     async {
       services.sync_site_domains(&sites).await?;
-      for site in &removed {
-        services.remove_site_config(site, &sites).await?;
-      }
-      for site in &added_or_changed {
-        services.add_site_config(site).await?;
-      }
+      services
+        .apply_site_config_batch(&existing_home, &desired_home, &sites_before_update, &sites)
+        .await?;
       Ok::<(), anyhow::Error>(())
     }
     .await
@@ -2892,26 +2867,9 @@ async fn sync_home_sites(state: &AgentState) -> Result<Vec<Site>> {
       .context("unable to restore Site Home registry after service sync failed")?;
     repository.list()?
   };
-  let existing_domains = existing_home
-    .iter()
-    .map(|site| site.domain.as_str())
-    .collect::<HashSet<_>>();
   let rollback_result = {
-    let mut services = state.services.lock().await;
-    async {
-      services.sync_site_domains(&restored_sites).await?;
-      for site in desired_home
-        .iter()
-        .filter(|site| !existing_domains.contains(site.domain.as_str()))
-      {
-        services.remove_site_config(site, &restored_sites).await?;
-      }
-      for site in &existing_home {
-        services.add_site_config(site).await?;
-      }
-      Ok::<(), anyhow::Error>(())
-    }
-    .await
+    let services = state.services.lock().await;
+    services.sync_site_domains(&restored_sites).await
   };
   match rollback_result {
     Ok(()) => Err(error),
