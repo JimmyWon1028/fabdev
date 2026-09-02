@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-09-02
-> 目前階段：[`v0.1.19`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.19) 已發布為 Latest Stable，Tag 固定在 Commit `be971bed1aa44ab22b6eeeb672420f4284fa4311`，不包含後續的 Windows 安裝語言與單一實例修正。Repository Owner 已通過 Commit `a1e83db7b6c71d692c1eddc4ccbcaea4ca9897a9` 的 Windows 功能實機 Gate；版本統一為 `0.1.20` 的 Commit `9f505906731402f610f8ff731e602f5a24b44b3d` 已由 Windows x64 Run `33612756679` 成功產出 `fabDev_0.1.20_x64-setup.exe` 候選，Setup.exe 本體 SHA-256、FileVersion 與 ProductVersion 均已由 Windows 端確認，Windows 候選 Gate 全部通過。不打包 macOS，也尚未建立 Tag、Draft 或 Publish
+> 目前階段：[`v0.1.19`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.19) 已發布為 Latest Stable，Tag 固定在 Commit `be971bed1aa44ab22b6eeeb672420f4284fa4311`，不包含後續的 Windows 安裝語言與單一實例修正。Repository Owner 已通過 `0.1.20` Windows 功能、Setup.exe SHA-256、FileVersion 與 ProductVersion Gate，並已授權建立 Windows-only `v0.1.20` Draft；目前正準備只執行 Windows Jobs 的 Draft workflow、Tag 與 Release Assets。不打包 macOS，也未授權 Publish
 
 ## 已完成
 
@@ -222,6 +222,8 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [x] Repository Owner 已以 Commit `a1e83db7b6c71d692c1eddc4ccbcaea4ca9897a9` 的 Windows x64 候選完成實機驗收：無保存語言與已有保存語言時，手動安裝的第一個畫面可選三種語言；`/UPDATE /P /R` 不顯示語言視窗；連續啟動四次只保留一個 `fabDev` 與一個 `fabdev-agent`，既有視窗會取得焦點。此候選功能通過但版本仍誤標為 `0.1.19`，不得取代已發布的 `v0.1.19`。
 - [x] Commit `9f505906731402f610f8ff731e602f5a24b44b3d` 的四個正式版本來源與 13 個 fabDev Cargo.lock 套件皆為 `0.1.20`；Windows x64 Run `33612756679` 成功產出 `fabDev_0.1.20_x64-setup.exe`。Installer Artifact ID `9839992623`，ZIP 為 49,361,493 bytes，GitHub Artifact ZIP SHA-256 為 `aee5cb3c4ad8544f2e4235f131dc2b32f397e243812929f55fd43c2178bbcf19`；Windows 解壓後的 Setup.exe 本體 SHA-256 為 `0ed14fd93c748adc6f5638ef03527375afbdc77a807202b03250e283538fb6c9`。
 - [x] Repository Owner 已在 Windows 確認 Setup.exe `FileVersion = 0.1.20`、`ProductVersion = 0.1.20`；因功能程式碼未再變更，沿用上述實機功能 Gate，不重跑相同人工流程。
+- [x] Draft workflow 提供 `release_scope=windows`，略過整個 macOS Job 與 macOS Artifact，只產生 Windows x64 App／Connect、六個 Windows Runtime、Windows-only App Manifest 與 Runtime Catalog；完整測試、lint、YAML 語法及 Draft 安全契約通過。
+- [ ] 建立 annotated Tag `v0.1.20` 與 Windows-only Draft，重新下載全部 Draft Assets 並核對 Manifest、Runtime Catalog、大小及 SHA-256；未取得 Repository Owner 明確核准前不得 Publish。
 
 #### Windows 更新體驗清單
 

@@ -274,14 +274,14 @@ Draft Release 建立、Tag Push、Asset Upload 與 Publish 都屬於外部狀態
 
 `.github/workflows/release-draft.yml` 只接受 `workflow_dispatch` 手動觸發，不接受 Push、Pull Request、排程或 Release 事件。執行前必須先由人工建立並推送已核准的 `v<version>` Tag；workflow 使用 `--verify-tag`，不會自行建立或移動 Tag。
 
-手動執行時必須提供 Stable SemVer、固定的 UTC `publishedAt`，並分別輸入完全相符的：
+手動執行時必須提供 `release_scope`（`all` 或 `windows`）、Stable SemVer、固定的 UTC `publishedAt`，並分別輸入完全相符的：
 
 ```text
 REPACKAGE v<version>
 DRAFT v<version>
 ```
 
-前者代表這次執行已取得重新打包授權，後者只授權建立 Draft。流程在 GitHub Hosted `macos-15` ARM64 與 `windows-latest` 建置、測試及整理 Assets，只有最後的 `create-draft` Job 具有 `contents: write`；其餘 Job 都是 `contents: read`。所有第三方 Action 固定到完整 Commit SHA。
+前者代表這次執行已取得重新打包授權，後者只授權建立 Draft。`release_scope=all` 會在 GitHub Hosted `macos-15` ARM64 與 `windows-latest` 建置、測試及整理跨平台 Assets；`release_scope=windows` 必須略過整個 macOS Job、macOS Artifact 下載與 DMG／Runtime 打包，只建立 Windows x64 Installer、Connect、六個 Windows Runtime、Windows-only App Manifest 與 Runtime Catalog。只有最後的 `create-draft` Job 具有 `contents: write`；其餘 Job 都是 `contents: read`。所有第三方 Action 固定到完整 Commit SHA。
 
 最後一步固定使用 `gh release create --draft --verify-tag --latest=false`，不包含 Publish 指令。建立後會從 GitHub Releases 清單確認 Release 仍為 Draft；不能使用 Published Release 的 Tag 查詢端點驗證未發布 Draft。
 

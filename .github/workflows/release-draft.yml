@@ -1,9 +1,17 @@
 name: Draft Release
-run-name: Draft v${{ inputs.version }} from ${{ github.ref_name }}
+run-name: Draft v${{ inputs.version }} (${{ inputs.release_scope }}) from ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
     inputs:
+      release_scope:
+        description: Platforms to build for this Draft
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - windows
       version:
         description: Stable SemVer without the v prefix
         required: true
@@ -47,6 +55,7 @@ jobs:
     timeout-minutes: 10
     env:
       VERSION: ${{ inputs.version }}
+      RELEASE_SCOPE: ${{ inputs.release_scope }}
       PUBLISHED_AT: ${{ inputs.published_at }}
       RUNTIME_CATALOG_SEQUENCE: ${{ inputs.runtime_catalog_sequence }}
       RUNTIME_CATALOG_EXPIRES_AT: ${{ inputs.runtime_catalog_expires_at }}
@@ -60,6 +69,10 @@ jobs:
           set -euo pipefail
           if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
             echo "Stable release version must be SemVer without a prerelease suffix" >&2
+            exit 1
+          fi
+          if [[ "$RELEASE_SCOPE" != "all" && "$RELEASE_SCOPE" != "windows" ]]; then
+            echo "Release scope must be all or windows" >&2
             exit 1
           fi
           if [[ ! "$PUBLISHED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
@@ -125,6 +138,7 @@ jobs:
 
   build-macos:
     name: Build macOS ARM64 Community DMG and online Runtimes
+    if: inputs.release_scope == 'all'
     needs: validate
     runs-on: macos-15
     timeout-minutes: 240
@@ -423,12 +437,21 @@ jobs:
       - build-macos
       - build-windows
       - build-windows-online-runtimes
+    if: >-
+      ${{
+        always() &&
+        needs.validate.result == 'success' &&
+        needs.build-windows.result == 'success' &&
+        needs.build-windows-online-runtimes.result == 'success' &&
+        (inputs.release_scope == 'windows' || needs.build-macos.result == 'success')
+      }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: write
     env:
       VERSION: ${{ inputs.version }}
+      RELEASE_SCOPE: ${{ inputs.release_scope }}
       PUBLISHED_AT: ${{ inputs.published_at }}
       RUNTIME_CATALOG_SEQUENCE: ${{ inputs.runtime_catalog_sequence }}
       RUNTIME_CATALOG_EXPIRES_AT: ${{ inputs.runtime_catalog_expires_at }}
@@ -463,18 +486,21 @@ jobs:
           path: release-input/runtimes
 
       - name: Download macOS installer
+        if: inputs.release_scope == 'all'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: draft-macos-arm64
           path: release-input/macos
 
       - name: Download macOS online Runtime assets
+        if: inputs.release_scope == 'all'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: draft-macos-online-runtimes
           path: release-input/macos-runtimes
 
-      - name: Generate release assets and manifests
+      - name: Generate cross-platform release assets and manifests
+        if: inputs.release_scope == 'all'
         shell: bash
         run: |
           node scripts/generate-app-release-manifest.mjs \
@@ -511,7 +537,46 @@ jobs:
             test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "$expected_file_count"
           )
 
-      - name: Create release notes skeleton
+      - name: Generate Windows-only release assets and manifests
+        if: inputs.release_scope == 'windows'
+        shell: bash
+        run: |
+          node scripts/generate-app-release-manifest.mjs \
+            --version "$VERSION" \
+            --published-at "$PUBLISHED_AT" \
+            --output-dir "$GITHUB_WORKSPACE/release-assets" \
+            --windows-x64 "$GITHUB_WORKSPACE/release-input/windows/windows-installer.exe" \
+            --windows-connect-x64 "$GITHUB_WORKSPACE/release-input/windows/fabdev-connect.exe" \
+            --runtime-package-dir "$GITHUB_WORKSPACE/release-input/windows" \
+            --runtime-package-dir "$GITHUB_WORKSPACE/release-input/runtimes"
+          cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
+            generate-windows \
+            "$VERSION" \
+            "$RUNTIME_CATALOG_SEQUENCE" \
+            "$PUBLISHED_AT" \
+            "$RUNTIME_CATALOG_EXPIRES_AT" \
+            "$VERSION" \
+            "$GITHUB_WORKSPACE/resources/runtime-packages/windows-x64.json" \
+            "$GITHUB_WORKSPACE/release-assets" \
+            "$GITHUB_WORKSPACE/release-assets/fabdev-runtime-v1.json"
+          cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
+            validate \
+            "$GITHUB_WORKSPACE/release-assets/fabdev-runtime-v1.json" \
+            "$VERSION"
+          (
+            cd release-assets
+            sha256sum --check SHA256SUMS
+            checksum_entries="$(awk 'NF { count += 1 } END { print count + 0 }' SHA256SUMS)"
+            expected_file_count="$((checksum_entries * 2 + 4))"
+            test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "$expected_file_count"
+            test "$(jq '[.artifacts[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-app-v1.json)" = "1"
+            test "$(jq '[.artifacts[] | select(.platform != "windows")] | length' fabdev-app-v1.json)" = "0"
+            test "$(jq '[.runtimes[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-runtime-v1.json)" = "6"
+            test "$(jq '[.runtimes[] | select(.platform != "windows")] | length' fabdev-runtime-v1.json)" = "0"
+          )
+
+      - name: Create cross-platform release notes skeleton
+        if: inputs.release_scope == 'all'
         shell: bash
         run: |
           {
@@ -527,6 +592,25 @@ jobs:
             printf -- '- [x] Reuse prior macOS install, startup, and removal acceptance; macOS packaging behavior is unchanged.\n'
             printf -- '- [ ] Re-download every Draft asset and verify size and SHA-256.\n'
             printf -- '- [ ] Validate both platform manifests, Runtime Archives, Runtime Catalog v1, and public asset boundaries.\n'
+            printf -- '- [ ] Obtain explicit Repository Owner approval before Publish.\n'
+          } > "$RUNNER_TEMP/release-notes.md"
+
+      - name: Create Windows-only release notes skeleton
+        if: inputs.release_scope == 'windows'
+        shell: bash
+        run: |
+          {
+            printf '# fabDev %s\n\n' "$VERSION"
+            printf '> Draft only - do not publish before release asset validation.\n\n'
+            printf '## Unsigned Community Build\n\n'
+            printf 'This Windows-only build does not use Windows Code Signing.\n\n'
+            printf 'Verify the downloaded installer against SHA256SUMS before installation.\n\n'
+            printf '## Release checklist\n\n'
+            printf -- '- [ ] Complete release notes and known limitations.\n'
+            printf -- '- [x] Complete automated Windows x64 build and test validation.\n'
+            printf -- '- [x] Reuse the Repository Owner Windows installer language and single-instance acceptance.\n'
+            printf -- '- [ ] Re-download every Draft asset and verify size and SHA-256.\n'
+            printf -- '- [ ] Validate the Windows-only App Manifest, Runtime Archives, Runtime Catalog v1, and public asset boundaries.\n'
             printf -- '- [ ] Obtain explicit Repository Owner approval before Publish.\n'
           } > "$RUNNER_TEMP/release-notes.md"
 
