@@ -1,7 +1,7 @@
 # fabDev 工作進度與 TODO
 
 > 更新日期：2026-09-02
-> 目前階段：[`v0.1.19`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.19) 已發布為 Latest Stable，Tag 固定在 Commit `be971bed1aa44ab22b6eeeb672420f4284fa4311`，不包含後續的 Windows 安裝語言與單一實例修正。Repository Owner 已通過 Commit `a1e83db7b6c71d692c1eddc4ccbcaea4ca9897a9` 的 Windows 功能實機 Gate；版本統一為 `0.1.20` 的 Commit `9f505906731402f610f8ff731e602f5a24b44b3d` 已由 Windows x64 Run `33612756679` 成功產出 `fabDev_0.1.20_x64-setup.exe` 候選，目前只待 Windows 端確認安裝程式／App 顯示版本與 Setup.exe SHA-256。不打包 macOS，也尚未建立 Tag、Draft 或 Publish
+> 目前階段：[`v0.1.19`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.19) 已發布為 Latest Stable，Tag 固定在 Commit `be971bed1aa44ab22b6eeeb672420f4284fa4311`，不包含後續的 Windows 安裝語言與單一實例修正。Repository Owner 已通過 Commit `a1e83db7b6c71d692c1eddc4ccbcaea4ca9897a9` 的 Windows 功能實機 Gate；版本統一為 `0.1.20` 的 Commit `9f505906731402f610f8ff731e602f5a24b44b3d` 已由 Windows x64 Run `33612756679` 成功產出 `fabDev_0.1.20_x64-setup.exe` 候選，Setup.exe 本體 SHA-256 已由 Windows 端記錄，目前只待確認安裝程式檔案內容或安裝後 App 顯示版本為 `0.1.20`。不打包 macOS，也尚未建立 Tag、Draft 或 Publish
 
 ## 已完成
 
@@ -220,8 +220,8 @@ Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD
 - [x] Windows NSIS 安裝包支援繁體中文、簡體中文與英文；手動啟動安裝包時，語言選擇必須是第一個畫面，即使已有先前保存的安裝語言也不可略過，並依 Windows 預設 UI 語言預選對應語言。App 既有的 `/UPDATE /P /R` 被動更新流程不得因語言選擇視窗而停住。
 - [x] Windows Desktop 必須維持單一實例；再次啟動只還原、顯示並聚焦既有主視窗，不得建立第二個 Desktop 程序、主視窗或系統匣圖示，也不得另啟 Agent。
 - [x] Repository Owner 已以 Commit `a1e83db7b6c71d692c1eddc4ccbcaea4ca9897a9` 的 Windows x64 候選完成實機驗收：無保存語言與已有保存語言時，手動安裝的第一個畫面可選三種語言；`/UPDATE /P /R` 不顯示語言視窗；連續啟動四次只保留一個 `fabDev` 與一個 `fabdev-agent`，既有視窗會取得焦點。此候選功能通過但版本仍誤標為 `0.1.19`，不得取代已發布的 `v0.1.19`。
-- [x] Commit `9f505906731402f610f8ff731e602f5a24b44b3d` 的四個正式版本來源與 13 個 fabDev Cargo.lock 套件皆為 `0.1.20`；Windows x64 Run `33612756679` 成功產出 `fabDev_0.1.20_x64-setup.exe`。Installer Artifact ID `9839992623`，ZIP 為 49,361,493 bytes，GitHub Artifact ZIP SHA-256 為 `aee5cb3c4ad8544f2e4235f131dc2b32f397e243812929f55fd43c2178bbcf19`。
-- [ ] Repository Owner 在 Windows 解壓候選後，只確認 Setup.exe 檔案／安裝後 App 顯示版本為 `0.1.20`，並記錄 Setup.exe 本體 SHA-256；因功能程式碼未再變更，沿用上述實機功能 Gate，不重跑相同人工流程。
+- [x] Commit `9f505906731402f610f8ff731e602f5a24b44b3d` 的四個正式版本來源與 13 個 fabDev Cargo.lock 套件皆為 `0.1.20`；Windows x64 Run `33612756679` 成功產出 `fabDev_0.1.20_x64-setup.exe`。Installer Artifact ID `9839992623`，ZIP 為 49,361,493 bytes，GitHub Artifact ZIP SHA-256 為 `aee5cb3c4ad8544f2e4235f131dc2b32f397e243812929f55fd43c2178bbcf19`；Windows 解壓後的 Setup.exe 本體 SHA-256 為 `0ed14fd93c748adc6f5638ef03527375afbdc77a807202b03250e283538fb6c9`。
+- [ ] Repository Owner 只確認 Setup.exe 檔案內容或安裝後 App 顯示版本為 `0.1.20`；因功能程式碼未再變更，沿用上述實機功能 Gate，不重跑相同人工流程。
 
 #### Windows 更新體驗清單
 
