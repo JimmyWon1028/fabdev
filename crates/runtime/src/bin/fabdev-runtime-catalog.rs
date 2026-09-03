@@ -8,7 +8,7 @@ use fabdev_runtime::{
   generate_community_catalog, generate_community_catalog_v2, generate_community_macos_catalog,
   generate_community_windows_catalog, parse_and_validate_runtime_catalog, CommunityCatalogInput,
   CommunityCatalogV2Input, CommunityMacosCatalogInput, CommunityWindowsCatalogInput,
-  RuntimeCatalogValidation, COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+  RuntimeCatalogValidation, COMMUNITY_RUNTIME_CATALOG_V2_MINIMUM_PROTOCOL_VERSION,
 };
 
 fn usage() -> &'static str {
@@ -140,7 +140,7 @@ fn validate(args: &[String]) -> Result<(), Box<dyn Error>> {
     &contents,
     &RuntimeCatalogValidation {
       current_app_version: &args[1],
-      current_agent_protocol_version: COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+      current_agent_protocol_version: COMMUNITY_RUNTIME_CATALOG_V2_MINIMUM_PROTOCOL_VERSION,
       now_unix_seconds: now_unix_seconds()?,
       accepted_catalog: None,
     },
