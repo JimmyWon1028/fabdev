@@ -14,15 +14,23 @@ pub const RUNTIME_CATALOG_MAX_BYTES: usize = 1024 * 1024;
 pub const RUNTIME_CATALOG_PRODUCT: &str = "fabdev-runtime";
 pub const RUNTIME_CATALOG_CHANNEL: &str = "community";
 pub const RUNTIME_CATALOG_SCHEMA_VERSION: u16 = 1;
+pub const RUNTIME_CATALOG_SCHEMA_VERSION_V2: u16 = 2;
 pub const RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION: u16 = 33;
 pub const COMMUNITY_RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION: u16 = 36;
-pub const RUNTIME_CATALOG_URL: &str =
+pub const COMMUNITY_RUNTIME_CATALOG_V2_MINIMUM_PROTOCOL_VERSION: u16 = 37;
+pub const RUNTIME_CATALOG_V1_URL: &str =
   "https://github.com/JimmyWon1028/fabdev/releases/latest/download/fabdev-runtime-v1.json";
+pub const RUNTIME_CATALOG_V2_URL: &str =
+  "https://github.com/JimmyWon1028/fabdev-runtimes/releases/latest/download/fabdev-runtime-v2.json";
+pub const RUNTIME_CATALOG_URL: &str = RUNTIME_CATALOG_V1_URL;
 
 const RELEASE_DOWNLOAD_PREFIX: &str = "https://github.com/JimmyWon1028/fabdev/releases/download/v";
+const RUNTIME_RELEASE_DOWNLOAD_PREFIX: &str =
+  "https://github.com/JimmyWon1028/fabdev-runtimes/releases/download/catalog-v";
 const MAX_GENERATED_AT_FUTURE_SECONDS: i64 = 5 * 60;
 const MAX_RUNTIME_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_SAFE_JSON_INTEGER: u64 = 9_007_199_254_740_991;
+const RUNTIME_PACKAGE_RECEIPT_FILE: &str = ".fabdev-package.json";
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RuntimeCatalog {
@@ -36,6 +44,13 @@ pub struct RuntimeCatalog {
   pub integrity: String,
   pub compatibility: RuntimeCatalogCompatibility,
   pub signature: Option<String>,
+  pub runtimes: Vec<RuntimeRelease>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RuntimeCatalogIndex {
+  pub schema_version: u16,
   pub runtimes: Vec<RuntimeRelease>,
 }
 
@@ -130,6 +145,7 @@ pub struct RuntimePackageVerification {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AcceptedRuntimeCatalog {
+  pub schema_version: u16,
   pub sequence: u64,
   pub sha256: String,
 }
@@ -186,6 +202,16 @@ pub struct CommunityCatalogInput<'a> {
   pub now_unix_seconds: i64,
 }
 
+#[derive(Clone, Debug)]
+pub struct CommunityCatalogV2Input<'a> {
+  pub catalog_sequence: u64,
+  pub generated_at: &'a str,
+  pub expires_at: &'a str,
+  pub minimum_app_version: &'a str,
+  pub runtime_index: &'a Path,
+  pub now_unix_seconds: i64,
+}
+
 struct CommunityPackageCatalogInput<'a> {
   release_version: &'a str,
   catalog_sequence: u64,
@@ -204,6 +230,34 @@ pub struct InstallLayout {
   pub runtime_root: PathBuf,
   pub staging_root: PathBuf,
   pub active_link: PathBuf,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RuntimePackageReceipt {
+  pub schema_version: u16,
+  pub name: String,
+  pub version: String,
+  pub package_sha256: String,
+  pub catalog_sequence: u64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RuntimeInstallTransaction {
+  pub layout: InstallLayout,
+  backup_root: Option<PathBuf>,
+  active_before: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct RuntimePackageInstallInput<'a> {
+  pub artifact: &'a Path,
+  pub expected_sha256: &'a str,
+  pub catalog_sequence: u64,
+  pub name: &'a str,
+  pub version: &'a str,
+  pub base: &'a Path,
+  pub activate: bool,
 }
 
 #[derive(Debug, Error)]
@@ -228,6 +282,12 @@ pub enum RuntimeError {
   UnsupportedPlatform,
   #[error("runtime health check failed: {0}")]
   HealthCheckFailed(String),
+  #[error("invalid runtime package receipt: {0}")]
+  InvalidPackageReceipt(String),
+  #[error("unable to parse runtime package receipt: {0}")]
+  PackageReceiptJson(#[from] serde_json::Error),
+  #[error("a runtime replacement backup already exists: {0}")]
+  ReplacementBackupExists(PathBuf),
 }
 
 #[derive(Debug, Error)]
@@ -256,8 +316,12 @@ pub enum RuntimeCatalogBuildError {
   Read(#[from] std::io::Error),
   #[error("unable to parse Runtime package manifest: {0}")]
   PackageManifestJson(serde_json::Error),
+  #[error("unable to parse Runtime Catalog index: {0}")]
+  CatalogIndexJson(serde_json::Error),
   #[error("invalid Runtime package manifest {field}: {message}")]
   InvalidPackageManifest { field: String, message: String },
+  #[error("invalid Runtime Catalog index {field}: {message}")]
+  InvalidCatalogIndex { field: String, message: String },
   #[error(transparent)]
   Catalog(#[from] RuntimeCatalogError),
 }
@@ -333,6 +397,45 @@ pub fn generate_community_windows_catalog(
     expected_platform: "windows",
     expected_architecture: "x64",
   })
+}
+
+pub fn generate_community_catalog_v2(
+  input: &CommunityCatalogV2Input<'_>,
+) -> Result<Vec<u8>, RuntimeCatalogBuildError> {
+  let contents = std::fs::read(input.runtime_index)?;
+  let index = serde_json::from_slice::<RuntimeCatalogIndex>(&contents)
+    .map_err(RuntimeCatalogBuildError::CatalogIndexJson)?;
+  if index.schema_version != 1 {
+    return Err(RuntimeCatalogBuildError::InvalidCatalogIndex {
+      field: "schemaVersion".to_owned(),
+      message: "must be 1".to_owned(),
+    });
+  }
+  let catalog = RuntimeCatalog {
+    schema_version: RUNTIME_CATALOG_SCHEMA_VERSION_V2,
+    product: RUNTIME_CATALOG_PRODUCT.to_owned(),
+    channel: RUNTIME_CATALOG_CHANNEL.to_owned(),
+    catalog_sequence: input.catalog_sequence,
+    generated_at: input.generated_at.to_owned(),
+    expires_at: input.expires_at.to_owned(),
+    unsigned_community_build: true,
+    integrity: "sha256".to_owned(),
+    compatibility: RuntimeCatalogCompatibility {
+      minimum_app_version: input.minimum_app_version.to_owned(),
+      minimum_agent_protocol_version: COMMUNITY_RUNTIME_CATALOG_V2_MINIMUM_PROTOCOL_VERSION,
+    },
+    signature: None,
+    runtimes: index.runtimes,
+  };
+  let validation = RuntimeCatalogValidation {
+    current_app_version: input.minimum_app_version,
+    current_agent_protocol_version: COMMUNITY_RUNTIME_CATALOG_V2_MINIMUM_PROTOCOL_VERSION,
+    now_unix_seconds: input.now_unix_seconds,
+    accepted_catalog: None,
+  };
+  let contents = generate_runtime_catalog(&catalog, &validation)?;
+  parse_and_validate_runtime_catalog(&contents, &validation)?;
+  Ok(contents)
 }
 
 fn generate_community_package_catalog(
@@ -650,9 +753,12 @@ pub fn validate_runtime_catalog(
   validation: &RuntimeCatalogValidation<'_>,
 ) -> Result<(), RuntimeCatalogError> {
   require_catalog_value(
-    catalog.schema_version == RUNTIME_CATALOG_SCHEMA_VERSION,
+    matches!(
+      catalog.schema_version,
+      RUNTIME_CATALOG_SCHEMA_VERSION | RUNTIME_CATALOG_SCHEMA_VERSION_V2
+    ),
     "schemaVersion",
-    format!("must be {RUNTIME_CATALOG_SCHEMA_VERSION}"),
+    format!("must be {RUNTIME_CATALOG_SCHEMA_VERSION} or {RUNTIME_CATALOG_SCHEMA_VERSION_V2}"),
   )?;
   require_catalog_value(
     catalog.product == RUNTIME_CATALOG_PRODUCT,
@@ -726,6 +832,11 @@ pub fn validate_runtime_catalog(
   }
 
   if let Some(accepted) = validation.accepted_catalog {
+    require_catalog_value(
+      accepted.schema_version == catalog.schema_version,
+      "acceptedCatalog.schemaVersion",
+      "must match the Runtime Catalog schemaVersion",
+    )?;
     require_lowercase_sha256(&accepted.sha256, "acceptedCatalog.sha256")?;
     if catalog.catalog_sequence < accepted.sequence {
       return Err(RuntimeCatalogError::SequenceRollback {
@@ -747,7 +858,12 @@ pub fn validate_runtime_catalog(
   )?;
   let mut identities = HashSet::new();
   for (index, release) in catalog.runtimes.iter().enumerate() {
-    validate_catalog_release(release, index)?;
+    validate_catalog_release(
+      release,
+      index,
+      catalog.schema_version,
+      catalog.catalog_sequence,
+    )?;
     let identity = (
       release.name.as_str(),
       release.version.as_str(),
@@ -766,6 +882,8 @@ pub fn validate_runtime_catalog(
 fn validate_catalog_release(
   release: &RuntimeRelease,
   index: usize,
+  schema_version: u16,
+  catalog_sequence: u64,
 ) -> Result<(), RuntimeCatalogError> {
   let field = |name: &str| format!("runtimes[{index}].{name}");
   require_catalog_value(
@@ -811,7 +929,20 @@ fn validate_catalog_release(
     field("fileName"),
     format!("must be {expected_file_name}"),
   )?;
-  validate_versioned_release_url(&release.url, file_name, &field("url"))?;
+  match schema_version {
+    RUNTIME_CATALOG_SCHEMA_VERSION => {
+      validate_versioned_release_url(&release.url, file_name, &field("url"))?;
+    }
+    RUNTIME_CATALOG_SCHEMA_VERSION_V2 => {
+      let package_sequence = validate_runtime_release_url(&release.url, file_name, &field("url"))?;
+      require_catalog_value(
+        package_sequence <= catalog_sequence,
+        field("url"),
+        "must not reference a future Runtime Catalog Release",
+      )?;
+    }
+    _ => unreachable!("Runtime Catalog schema was validated"),
+  }
   require_catalog_value(
     release.size > 0 && release.size <= MAX_RUNTIME_BYTES,
     field("size"),
@@ -925,6 +1056,35 @@ fn validate_versioned_release_url(
   Version::parse(release_version)
     .map_err(|error| invalid_catalog(field, format!("contains an invalid release tag: {error}")))?;
   Ok(())
+}
+
+fn validate_runtime_release_url(
+  url: &str,
+  file_name: &str,
+  field: &str,
+) -> Result<u64, RuntimeCatalogError> {
+  let remainder = url
+    .strip_prefix(RUNTIME_RELEASE_DOWNLOAD_PREFIX)
+    .ok_or_else(|| {
+      invalid_catalog(
+        field,
+        "must use the official versioned fabdev-runtimes Release URL",
+      )
+    })?;
+  let suffix = format!("/{file_name}");
+  let catalog_sequence = remainder
+    .strip_suffix(&suffix)
+    .filter(|sequence| !sequence.is_empty() && !sequence.contains('/'))
+    .ok_or_else(|| invalid_catalog(field, "must end with the declared fileName"))?;
+  let catalog_sequence = catalog_sequence
+    .parse::<u64>()
+    .map_err(|error| invalid_catalog(field, format!("contains an invalid Catalog tag: {error}")))?;
+  require_catalog_value(
+    catalog_sequence > 0 && catalog_sequence <= MAX_SAFE_JSON_INTEGER,
+    field,
+    format!("Catalog tag must be between 1 and {MAX_SAFE_JSON_INTEGER}"),
+  )?;
+  Ok(catalog_sequence)
 }
 
 fn require_optional_catalog_value(
@@ -1167,15 +1327,275 @@ where
   let runtime_parent = layout
     .runtime_root
     .parent()
-    .ok_or_else(|| RuntimeError::InvalidArchive(name.to_owned()))?;
-  std::fs::create_dir_all(runtime_parent)?;
+    .ok_or_else(|| RuntimeError::InvalidArchive(name.to_owned()))?
+    .to_path_buf();
+  std::fs::create_dir_all(&runtime_parent)?;
   rename_runtime_directory(&extracted, &layout.runtime_root)?;
   remove_dir_if_exists(&layout.staging_root)?;
   if activate {
-    switch_current(runtime_parent, version, &layout.active_link)?;
+    switch_current(&runtime_parent, version, &layout.active_link)?;
   }
   clear_runtime_removal_marker(base, name, version)?;
   Ok(layout)
+}
+
+pub fn install_or_replace_tar_gz_with_health_check<F>(
+  input: RuntimePackageInstallInput<'_>,
+  health_check: F,
+) -> Result<RuntimeInstallTransaction, RuntimeError>
+where
+  F: FnOnce(&Path) -> Result<(), RuntimeError>,
+{
+  let RuntimePackageInstallInput {
+    artifact,
+    expected_sha256,
+    catalog_sequence,
+    name,
+    version,
+    base,
+    activate,
+  } = input;
+  validate_identifier(name)?;
+  validate_identifier(version)?;
+  validate_package_sha256(expected_sha256)?;
+  if catalog_sequence == 0 || catalog_sequence > MAX_SAFE_JSON_INTEGER {
+    return Err(RuntimeError::InvalidPackageReceipt(
+      "catalogSequence is outside the safe integer range".to_owned(),
+    ));
+  }
+  verify_sha256(artifact, expected_sha256)?;
+  let layout = InstallLayout::new(base, name, version);
+  let active_before = active_version(base, name)?;
+  let runtime_parent = layout
+    .runtime_root
+    .parent()
+    .ok_or_else(|| RuntimeError::InvalidArchive(name.to_owned()))?
+    .to_path_buf();
+  let backup_root = runtime_parent.join(format!(".{version}.fabdev-backup"));
+  if backup_root.exists() {
+    return Err(RuntimeError::ReplacementBackupExists(backup_root));
+  }
+
+  let replacing = layout.runtime_root.exists();
+  if replacing
+    && installed_runtime_package_sha256(base, name, version)?.as_deref() == Some(expected_sha256)
+  {
+    return Err(RuntimeError::AlreadyInstalled(layout.runtime_root));
+  }
+  if replacing {
+    let metadata = std::fs::symlink_metadata(&layout.runtime_root)?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+      return Err(RuntimeError::AlreadyInstalled(layout.runtime_root));
+    }
+  }
+
+  remove_dir_if_exists(&layout.staging_root)?;
+  std::fs::create_dir_all(&layout.staging_root)?;
+  let staged_result = (|| {
+    let archive = File::open(artifact)?;
+    let mut archive = tar::Archive::new(GzDecoder::new(BufReader::new(archive)));
+    #[cfg(windows)]
+    // Windows can reject directory timestamp writes after all payload files were extracted.
+    archive.set_preserve_mtime(false);
+    archive.unpack(&layout.staging_root)?;
+    let extracted = layout.staging_root.join(version);
+    if !extracted.is_dir() {
+      return Err(RuntimeError::InvalidArchive(version.to_owned()));
+    }
+    write_runtime_package_receipt_at(
+      &extracted,
+      &RuntimePackageReceipt {
+        schema_version: 1,
+        name: name.to_owned(),
+        version: version.to_owned(),
+        package_sha256: expected_sha256.to_owned(),
+        catalog_sequence,
+      },
+    )?;
+    health_check(&extracted)?;
+    Ok(extracted)
+  })();
+  let extracted = match staged_result {
+    Ok(extracted) => extracted,
+    Err(error) => {
+      remove_dir_if_exists(&layout.staging_root)?;
+      return Err(error);
+    }
+  };
+
+  std::fs::create_dir_all(&runtime_parent)?;
+  if replacing {
+    rename_runtime_directory(&layout.runtime_root, &backup_root)?;
+  }
+  if let Err(error) = rename_runtime_directory(&extracted, &layout.runtime_root) {
+    if replacing {
+      let _ = rename_runtime_directory(&backup_root, &layout.runtime_root);
+    }
+    remove_dir_if_exists(&layout.staging_root)?;
+    return Err(error.into());
+  }
+  let transaction = RuntimeInstallTransaction {
+    layout,
+    backup_root: replacing.then_some(backup_root),
+    active_before,
+  };
+  let finish_result = (|| {
+    remove_dir_if_exists(&transaction.layout.staging_root)?;
+    if activate {
+      switch_current(&runtime_parent, version, &transaction.layout.active_link)?;
+    }
+    clear_runtime_removal_marker(base, name, version)
+  })();
+  if let Err(error) = finish_result {
+    rollback_runtime_install_transaction(transaction)?;
+    return Err(error);
+  }
+  Ok(transaction)
+}
+
+pub fn commit_runtime_install_transaction(
+  transaction: RuntimeInstallTransaction,
+) -> Result<InstallLayout, RuntimeError> {
+  if let Some(backup_root) = transaction.backup_root {
+    remove_dir_if_exists(&backup_root)?;
+  }
+  Ok(transaction.layout)
+}
+
+pub fn rollback_runtime_install_transaction(
+  transaction: RuntimeInstallTransaction,
+) -> Result<(), RuntimeError> {
+  remove_dir_if_exists(&transaction.layout.runtime_root)?;
+  if let Some(backup_root) = transaction.backup_root {
+    rename_runtime_directory(&backup_root, &transaction.layout.runtime_root)?;
+  }
+  remove_dir_if_exists(&transaction.layout.staging_root)?;
+  let runtime_parent = transaction
+    .layout
+    .runtime_root
+    .parent()
+    .ok_or_else(|| RuntimeError::InvalidArchive("Runtime parent".to_owned()))?;
+  match transaction.active_before {
+    Some(version) => switch_current(runtime_parent, &version, &transaction.layout.active_link),
+    None => remove_active_link_if_exists(&transaction.layout.active_link),
+  }
+}
+
+fn remove_active_link_if_exists(active_link: &Path) -> Result<(), RuntimeError> {
+  match std::fs::remove_file(active_link) {
+    Ok(()) => Ok(()),
+    Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+    Err(error) => Err(error.into()),
+  }
+}
+
+pub fn installed_runtime_package_sha256(
+  base: impl AsRef<Path>,
+  name: &str,
+  version: &str,
+) -> Result<Option<String>, RuntimeError> {
+  validate_identifier(name)?;
+  validate_identifier(version)?;
+  let runtime_root = base.as_ref().join(name).join(version);
+  let receipt_path = runtime_root.join(RUNTIME_PACKAGE_RECEIPT_FILE);
+  let contents = match std::fs::read(&receipt_path) {
+    Ok(contents) => contents,
+    Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+    Err(error) => return Err(error.into()),
+  };
+  if contents.len() > 4096 {
+    return Err(RuntimeError::InvalidPackageReceipt(
+      "file exceeds 4096 bytes".to_owned(),
+    ));
+  }
+  let receipt = serde_json::from_slice::<RuntimePackageReceipt>(&contents)?;
+  validate_runtime_package_receipt(&receipt, name, version)?;
+  Ok(Some(receipt.package_sha256))
+}
+
+pub fn record_runtime_package_receipt(
+  base: impl AsRef<Path>,
+  name: &str,
+  version: &str,
+  package_sha256: &str,
+  catalog_sequence: u64,
+) -> Result<(), RuntimeError> {
+  validate_identifier(name)?;
+  validate_identifier(version)?;
+  validate_package_sha256(package_sha256)?;
+  if catalog_sequence == 0 || catalog_sequence > MAX_SAFE_JSON_INTEGER {
+    return Err(RuntimeError::InvalidPackageReceipt(
+      "catalogSequence is outside the safe integer range".to_owned(),
+    ));
+  }
+  let runtime_root = base.as_ref().join(name).join(version);
+  if !runtime_root.is_dir() {
+    return Err(RuntimeError::NotInstalled(
+      name.to_owned(),
+      version.to_owned(),
+    ));
+  }
+  write_runtime_package_receipt_at(
+    &runtime_root,
+    &RuntimePackageReceipt {
+      schema_version: 1,
+      name: name.to_owned(),
+      version: version.to_owned(),
+      package_sha256: package_sha256.to_owned(),
+      catalog_sequence,
+    },
+  )
+}
+
+fn write_runtime_package_receipt_at(
+  runtime_root: &Path,
+  receipt: &RuntimePackageReceipt,
+) -> Result<(), RuntimeError> {
+  let path = runtime_root.join(RUNTIME_PACKAGE_RECEIPT_FILE);
+  let pending = runtime_root.join(format!("{RUNTIME_PACKAGE_RECEIPT_FILE}.pending"));
+  let mut contents = serde_json::to_vec_pretty(receipt)?;
+  contents.push(b'\n');
+  std::fs::write(&pending, contents)?;
+  match std::fs::remove_file(&path) {
+    Ok(()) => {}
+    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+    Err(error) => return Err(error.into()),
+  }
+  std::fs::rename(pending, path)?;
+  Ok(())
+}
+
+fn validate_runtime_package_receipt(
+  receipt: &RuntimePackageReceipt,
+  name: &str,
+  version: &str,
+) -> Result<(), RuntimeError> {
+  if receipt.schema_version != 1 || receipt.name != name || receipt.version != version {
+    return Err(RuntimeError::InvalidPackageReceipt(
+      "identity does not match the installed Runtime".to_owned(),
+    ));
+  }
+  validate_package_sha256(&receipt.package_sha256)?;
+  if receipt.catalog_sequence == 0 || receipt.catalog_sequence > MAX_SAFE_JSON_INTEGER {
+    return Err(RuntimeError::InvalidPackageReceipt(
+      "catalogSequence is outside the safe integer range".to_owned(),
+    ));
+  }
+  Ok(())
+}
+
+fn validate_package_sha256(value: &str) -> Result<(), RuntimeError> {
+  if value.len() == 64
+    && value
+      .bytes()
+      .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+  {
+    Ok(())
+  } else {
+    Err(RuntimeError::InvalidPackageReceipt(
+      "packageSha256 must be 64 lowercase hexadecimal characters".to_owned(),
+    ))
+  }
 }
 
 pub fn mark_runtime_removed(
@@ -1862,11 +2282,83 @@ mod tests {
     assert_eq!(validated.sha256.len(), 64);
 
     let accepted = AcceptedRuntimeCatalog {
+      schema_version: validated.catalog.schema_version,
       sequence: validated.catalog.catalog_sequence,
       sha256: validated.sha256.clone(),
     };
     parse_and_validate_runtime_catalog(&contents, &catalog_validation(Some(&accepted)))
       .expect("accept identical catalog sequence and SHA-256");
+  }
+
+  #[test]
+  fn accepts_runtime_catalog_v2_package_urls_from_catalog_releases() {
+    let mut catalog = valid_catalog();
+    catalog.schema_version = RUNTIME_CATALOG_SCHEMA_VERSION_V2;
+    catalog.catalog_sequence = 16;
+    catalog.runtimes[0].url = "https://github.com/JimmyWon1028/fabdev-runtimes/releases/download/catalog-v15/php-8.4.24-macos-arm64-community.tar.gz".to_owned();
+
+    let contents = generate_runtime_catalog(&catalog, &catalog_validation(None))
+      .expect("generate Runtime Catalog v2");
+    let validated = parse_and_validate_runtime_catalog(&contents, &catalog_validation(None))
+      .expect("validate Runtime Catalog v2");
+    assert_eq!(
+      validated.catalog.schema_version,
+      RUNTIME_CATALOG_SCHEMA_VERSION_V2
+    );
+
+    catalog.runtimes[0].url = "https://github.com/JimmyWon1028/fabdev-runtimes/releases/download/catalog-v0/php-8.4.24-macos-arm64-community.tar.gz".to_owned();
+    assert!(generate_runtime_catalog(&catalog, &catalog_validation(None)).is_err());
+
+    catalog.runtimes[0].url = "https://github.com/JimmyWon1028/fabdev-runtimes/releases/download/catalog-v17/php-8.4.24-macos-arm64-community.tar.gz".to_owned();
+    let error = generate_runtime_catalog(&catalog, &catalog_validation(None))
+      .expect_err("reject future Runtime Catalog Release URL");
+    assert!(error.to_string().contains("future Runtime Catalog Release"));
+
+    catalog.runtimes[0].url = "https://github.com/JimmyWon1028/fabdev/releases/download/v0.1.20/php-8.4.24-macos-arm64-community.tar.gz".to_owned();
+    let error = generate_runtime_catalog(&catalog, &catalog_validation(None))
+      .expect_err("reject App Release URL in Runtime Catalog v2");
+    assert!(error.to_string().contains("fabdev-runtimes Release URL"));
+  }
+
+  #[test]
+  fn generates_runtime_catalog_v2_from_a_full_runtime_index() {
+    let root = std::env::temp_dir().join(format!(
+      "fabdev-runtime-catalog-v2-index-{}",
+      uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&root).expect("create Catalog v2 fixture");
+    let index_path = root.join("runtime-index-v1.json");
+    let mut release = valid_catalog().runtimes.remove(0);
+    release.url = "https://github.com/JimmyWon1028/fabdev-runtimes/releases/download/catalog-v12/php-8.4.24-macos-arm64-community.tar.gz".to_owned();
+    std::fs::write(
+      &index_path,
+      serde_json::to_vec_pretty(&RuntimeCatalogIndex {
+        schema_version: 1,
+        runtimes: vec![release],
+      })
+      .expect("serialize Runtime index"),
+    )
+    .expect("write Runtime index");
+
+    let contents = generate_community_catalog_v2(&CommunityCatalogV2Input {
+      catalog_sequence: 13,
+      generated_at: "2026-08-30T00:00:00Z",
+      expires_at: "2027-02-26T00:00:00Z",
+      minimum_app_version: "0.1.21",
+      runtime_index: &index_path,
+      now_unix_seconds: parse_rfc3339_utc("2026-08-30T00:01:00Z", "test").expect("parse test time"),
+    })
+    .expect("generate Runtime Catalog v2");
+    let catalog = serde_json::from_slice::<RuntimeCatalog>(&contents).expect("parse Catalog v2");
+    assert_eq!(catalog.schema_version, RUNTIME_CATALOG_SCHEMA_VERSION_V2);
+    assert_eq!(catalog.catalog_sequence, 13);
+    assert_eq!(catalog.compatibility.minimum_app_version, "0.1.21");
+    assert_eq!(
+      catalog.compatibility.minimum_agent_protocol_version,
+      COMMUNITY_RUNTIME_CATALOG_V2_MINIMUM_PROTOCOL_VERSION
+    );
+    assert_eq!(catalog.runtimes.len(), 1);
+    std::fs::remove_dir_all(root).expect("remove Catalog v2 fixture");
   }
 
   #[test]
@@ -1923,6 +2415,7 @@ mod tests {
       .expect("validate original catalog");
 
     let accepted_newer = AcceptedRuntimeCatalog {
+      schema_version: original.catalog.schema_version,
       sequence: original.catalog.catalog_sequence + 1,
       sha256: "c".repeat(64),
     };
@@ -1935,6 +2428,7 @@ mod tests {
     ));
 
     let accepted_changed = AcceptedRuntimeCatalog {
+      schema_version: original.catalog.schema_version,
       sequence: original.catalog.catalog_sequence,
       sha256: "d".repeat(64),
     };
@@ -2163,6 +2657,102 @@ mod tests {
       Some("8.2.33".to_owned())
     );
     std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn replaces_same_version_by_package_sha_and_supports_rollback() {
+    fn build_archive(root: &Path, label: &str, payload: &[u8]) -> (PathBuf, String) {
+      let source = root.join(format!("source-{label}/8.4.24"));
+      std::fs::create_dir_all(&source).expect("create replacement source");
+      std::fs::write(source.join("marker.txt"), payload).expect("write replacement payload");
+      let artifact = root.join(format!("runtime-{label}.tar.gz"));
+      let archive_file = File::create(&artifact).expect("create replacement archive");
+      let encoder = flate2::write::GzEncoder::new(archive_file, flate2::Compression::default());
+      let mut archive = tar::Builder::new(encoder);
+      archive
+        .append_dir_all("8.4.24", &source)
+        .expect("append replacement fixture");
+      archive.finish().expect("finish replacement archive");
+      drop(archive);
+      let sha256 = hex::encode(Sha256::digest(
+        std::fs::read(&artifact).expect("read replacement archive"),
+      ));
+      (artifact, sha256)
+    }
+
+    let root = std::env::temp_dir().join(format!(
+      "fabdev-runtime-replacement-{}",
+      uuid::Uuid::new_v4()
+    ));
+    std::fs::create_dir_all(&root).expect("create replacement fixture");
+    let runtime_base = root.join("runtimes");
+    let (original_artifact, original_sha256) = build_archive(&root, "original", b"original");
+    let original = install_or_replace_tar_gz_with_health_check(
+      RuntimePackageInstallInput {
+        artifact: &original_artifact,
+        expected_sha256: &original_sha256,
+        catalog_sequence: 1,
+        name: "php",
+        version: "8.4.24",
+        base: &runtime_base,
+        activate: false,
+      },
+      |_| Ok(()),
+    )
+    .expect("install original package");
+    commit_runtime_install_transaction(original).expect("commit original package");
+
+    let (replacement_artifact, replacement_sha256) =
+      build_archive(&root, "replacement", b"replacement");
+    let replacement = install_or_replace_tar_gz_with_health_check(
+      RuntimePackageInstallInput {
+        artifact: &replacement_artifact,
+        expected_sha256: &replacement_sha256,
+        catalog_sequence: 2,
+        name: "php",
+        version: "8.4.24",
+        base: &runtime_base,
+        activate: false,
+      },
+      |_| Ok(()),
+    )
+    .expect("stage replacement package");
+    assert_eq!(
+      installed_runtime_package_sha256(&runtime_base, "php", "8.4.24")
+        .expect("read replacement receipt"),
+      Some(replacement_sha256.clone())
+    );
+    rollback_runtime_install_transaction(replacement).expect("roll back replacement package");
+    assert_eq!(
+      std::fs::read(runtime_base.join("php/8.4.24/marker.txt")).expect("read restored payload"),
+      b"original"
+    );
+    assert_eq!(
+      installed_runtime_package_sha256(&runtime_base, "php", "8.4.24")
+        .expect("read restored receipt"),
+      Some(original_sha256)
+    );
+
+    let replacement = install_or_replace_tar_gz_with_health_check(
+      RuntimePackageInstallInput {
+        artifact: &replacement_artifact,
+        expected_sha256: &replacement_sha256,
+        catalog_sequence: 2,
+        name: "php",
+        version: "8.4.24",
+        base: &runtime_base,
+        activate: false,
+      },
+      |_| Ok(()),
+    )
+    .expect("replace original package");
+    commit_runtime_install_transaction(replacement).expect("commit replacement package");
+    assert_eq!(
+      std::fs::read(runtime_base.join("php/8.4.24/marker.txt")).expect("read committed payload"),
+      b"replacement"
+    );
+    assert!(!runtime_base.join("php/.8.4.24.fabdev-backup").exists());
+    std::fs::remove_dir_all(root).expect("remove replacement fixture");
   }
 
   #[cfg(windows)]

@@ -182,7 +182,7 @@ test('prepares canonical release assets, checksums, and manifests', async (conte
   assert.equal(manifest.version, projectVersion)
   assert.equal(manifest.tag, `v${projectVersion}`)
   assert.equal(manifest.publishedAt, '2026-08-28T12:34:56Z')
-  assert.equal(manifest.compatibility.agentProtocolVersion, 36)
+  assert.equal(manifest.compatibility.agentProtocolVersion, 37)
   assert.equal(manifest.artifacts.length, 2)
   assert.equal(manifest.artifacts[0].fileName, macName)
   assert.equal(manifest.artifacts[0].sha256, digest(macContents))

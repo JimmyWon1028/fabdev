@@ -19,11 +19,15 @@ use fabdev_platform::{
   terminal_node_state, terminal_php_state,
 };
 use fabdev_proxy::ProxyManager;
+#[cfg(test)]
+use fabdev_runtime::install_tar_gz_with_health_check;
 use fabdev_runtime::{
-  active_version, deactivate_runtime, install_tar_gz_with_activation,
-  install_tar_gz_with_health_check, list_installed_versions, mark_runtime_removed,
-  remove_installed_version, set_active_version, RuntimeError, RuntimeRelease,
-  ValidatedRuntimeCatalog,
+  active_version, commit_runtime_install_transaction, deactivate_runtime,
+  install_or_replace_tar_gz_with_health_check, install_tar_gz_with_activation,
+  installed_runtime_package_sha256, list_installed_versions, mark_runtime_removed,
+  record_runtime_package_receipt, remove_installed_version, rollback_runtime_install_transaction,
+  set_active_version, RuntimeError, RuntimeInstallTransaction, RuntimePackageInstallInput,
+  RuntimeRelease, ValidatedRuntimeCatalog, RUNTIME_CATALOG_SCHEMA_VERSION_V2,
 };
 use fabdev_services::{ensure_local_ca, RuntimePaths, ServicePorts, ServiceSupervisor};
 use fabdev_share::ShareServer;
@@ -2101,37 +2105,30 @@ async fn install_downloaded_php_runtime(
 ) -> Result<()> {
   let runtime_root = state.paths.runtimes.clone();
   let active_before = active_version(&runtime_root, "php")?;
-  let runtime_destination = runtime_root.join("php").join(&downloaded.version);
-  if runtime_destination.exists() {
-    bail!(
-      "Runtime {} {} is already installed",
-      downloaded.name,
-      downloaded.version
-    );
-  }
   let artifact_path = downloaded.path.clone();
   let expected_sha256 = downloaded.sha256.clone();
+  let catalog_sequence = downloaded.catalog_sequence;
   let name = downloaded.name.clone();
   let version = downloaded.version.clone();
+  let install_runtime_root = runtime_root.clone();
+  let install_version = version.clone();
   let install_result = tokio::task::spawn_blocking(move || {
-    install_tar_gz_with_health_check(
-      artifact_path,
-      &expected_sha256,
-      &name,
-      &version,
-      runtime_root,
-      false,
-      |staged| validate_staged_php_runtime(staged, &version),
+    install_or_replace_tar_gz_with_health_check(
+      RuntimePackageInstallInput {
+        artifact: &artifact_path,
+        expected_sha256: &expected_sha256,
+        catalog_sequence,
+        name: &name,
+        version: &install_version,
+        base: &install_runtime_root,
+        activate: false,
+      },
+      |staged| validate_staged_php_runtime(staged, &install_version),
     )
   })
   .await
   .context("Runtime installation task failed")?;
-  if let Err(error) = install_result {
-    if runtime_destination.exists() {
-      remove_online_runtime_directory(&runtime_destination)?;
-    }
-    return Err(error.into());
-  }
+  let transaction = install_result?;
 
   let php_version = php_series(&downloaded.version)?
     .parse::<PhpVersion>()
@@ -2150,9 +2147,9 @@ async fn install_downloaded_php_runtime(
     .await
     .validate_php_runtime_install(&php_version, &downloaded.version);
   if let Err(error) = validation {
-    rollback_online_php_install(
+    rollback_online_php_transaction(
+      transaction,
       &state.paths.runtimes,
-      &downloaded.version,
       active_before.as_deref(),
       &config_directory,
       config_existed,
@@ -2164,9 +2161,9 @@ async fn install_downloaded_php_runtime(
   let active_after = match active_version(&state.paths.runtimes, "php") {
     Ok(active_after) => active_after,
     Err(error) => {
-      rollback_online_php_install(
+      rollback_online_php_transaction(
+        transaction,
         &state.paths.runtimes,
-        &downloaded.version,
         active_before.as_deref(),
         &config_directory,
         config_existed,
@@ -2177,9 +2174,9 @@ async fn install_downloaded_php_runtime(
     }
   };
   if active_after != active_before {
-    rollback_online_php_install(
+    rollback_online_php_transaction(
+      transaction,
       &state.paths.runtimes,
-      &downloaded.version,
       active_before.as_deref(),
       &config_directory,
       config_existed,
@@ -2188,6 +2185,7 @@ async fn install_downloaded_php_runtime(
     )?;
     bail!("online Runtime installation changed the active PHP version");
   }
+  commit_runtime_install_transaction(transaction)?;
   Ok(())
 }
 
@@ -2197,36 +2195,39 @@ async fn install_downloaded_node_runtime(
 ) -> Result<()> {
   let runtime_root = state.paths.runtimes.clone();
   let active_before = active_version(&runtime_root, "node")?;
-  let runtime_destination = runtime_root.join("node").join(&downloaded.version);
-  if runtime_destination.exists() {
-    bail!("Runtime node {} is already installed", downloaded.version);
-  }
   let artifact_path = downloaded.path.clone();
   let expected_sha256 = downloaded.sha256.clone();
+  let catalog_sequence = downloaded.catalog_sequence;
   let version = downloaded.version.clone();
   let install_runtime_root = runtime_root.clone();
   let install_version = version.clone();
   let install_result = tokio::task::spawn_blocking(move || {
-    install_tar_gz_with_health_check(
-      artifact_path,
-      &expected_sha256,
-      "node",
-      &install_version,
-      install_runtime_root,
-      false,
+    install_or_replace_tar_gz_with_health_check(
+      RuntimePackageInstallInput {
+        artifact: &artifact_path,
+        expected_sha256: &expected_sha256,
+        catalog_sequence,
+        name: "node",
+        version: &install_version,
+        base: &install_runtime_root,
+        activate: false,
+      },
       |staged| validate_staged_node_runtime(staged, &install_version),
     )
   })
   .await
   .context("Node.js Runtime installation task failed")?;
-  if let Err(error) = install_result {
-    rollback_online_runtime_install(&runtime_root, "node", &version, active_before.as_deref())?;
-    return Err(error.into());
-  }
+  let transaction = install_result?;
   if active_version(&runtime_root, "node")? != active_before {
-    rollback_online_runtime_install(&runtime_root, "node", &version, active_before.as_deref())?;
+    rollback_online_runtime_transaction(
+      transaction,
+      &runtime_root,
+      "node",
+      active_before.as_deref(),
+    )?;
     bail!("online Node.js Runtime installation changed the selected global version");
   }
+  commit_runtime_install_transaction(transaction)?;
   Ok(())
 }
 
@@ -2253,23 +2254,26 @@ async fn install_downloaded_mariadb_runtime(
     }
   }
 
-  let install_result = install_downloaded_mariadb_runtime_while_stopped(state, downloaded).await;
-  if let Err(error) = install_result {
-    if was_running {
-      restart_active_mariadb_runtime(state)
-        .await
-        .context("unable to restore MariaDB after Runtime update failed")?;
+  let transaction = match install_downloaded_mariadb_runtime_while_stopped(state, downloaded).await
+  {
+    Ok(transaction) => transaction,
+    Err(error) => {
+      if was_running {
+        restart_active_mariadb_runtime(state)
+          .await
+          .context("unable to restore MariaDB after Runtime update failed")?;
+      }
+      return Err(error);
     }
-    return Err(error);
-  }
+  };
 
   if was_running {
     if let Err(start_error) = restart_active_mariadb_runtime(state).await {
       let runtime_root = state.paths.runtimes.clone();
-      rollback_online_runtime_install(
+      rollback_online_runtime_transaction(
+        transaction,
         &runtime_root,
         "mariadb",
-        &downloaded.version,
         active_before.as_deref(),
       )
       .context("unable to roll back MariaDB after the updated Runtime failed to start")?;
@@ -2279,46 +2283,47 @@ async fn install_downloaded_mariadb_runtime(
       return Err(start_error.context("updated MariaDB Runtime failed to restart"));
     }
   }
+  commit_runtime_install_transaction(transaction)?;
   Ok(())
 }
 
 async fn install_downloaded_mariadb_runtime_while_stopped(
   state: &AgentState,
   downloaded: &fabdev_updater::DownloadedRuntimeUpdate,
-) -> Result<()> {
+) -> Result<RuntimeInstallTransaction> {
   let runtime_root = state.paths.runtimes.clone();
   let active_before = active_version(&runtime_root, "mariadb")?;
   let runtime_destination = runtime_root.join("mariadb").join(&downloaded.version);
-  if runtime_destination.exists() {
-    bail!(
-      "Runtime mariadb {} is already installed",
-      downloaded.version
-    );
-  }
   let artifact_path = downloaded.path.clone();
   let expected_sha256 = downloaded.sha256.clone();
+  let catalog_sequence = downloaded.catalog_sequence;
   let version = downloaded.version.clone();
   let install_runtime_root = runtime_root.clone();
   let install_version = version.clone();
   let install_result = tokio::task::spawn_blocking(move || {
-    install_tar_gz_with_health_check(
-      artifact_path,
-      &expected_sha256,
-      "mariadb",
-      &install_version,
-      install_runtime_root,
-      true,
+    install_or_replace_tar_gz_with_health_check(
+      RuntimePackageInstallInput {
+        artifact: &artifact_path,
+        expected_sha256: &expected_sha256,
+        catalog_sequence,
+        name: "mariadb",
+        version: &install_version,
+        base: &install_runtime_root,
+        activate: true,
+      },
       |staged| validate_staged_mariadb_runtime(staged, &install_version),
     )
   })
   .await
   .context("MariaDB Runtime installation task failed")?;
-  if let Err(error) = install_result {
-    rollback_online_runtime_install(&runtime_root, "mariadb", &version, active_before.as_deref())?;
-    return Err(error.into());
-  }
+  let transaction = install_result?;
   if active_version(&runtime_root, "mariadb")?.as_deref() != Some(version.as_str()) {
-    rollback_online_runtime_install(&runtime_root, "mariadb", &version, active_before.as_deref())?;
+    rollback_online_runtime_transaction(
+      transaction,
+      &runtime_root,
+      "mariadb",
+      active_before.as_deref(),
+    )?;
     bail!("online MariaDB Runtime installation did not activate the new version");
   }
 
@@ -2328,7 +2333,12 @@ async fn install_downloaded_mariadb_runtime_while_stopped(
     services.refresh_php_mariadb_connection().await
   };
   if let Err(error) = apply_result {
-    rollback_online_runtime_install(&runtime_root, "mariadb", &version, active_before.as_deref())?;
+    rollback_online_runtime_transaction(
+      transaction,
+      &runtime_root,
+      "mariadb",
+      active_before.as_deref(),
+    )?;
     let restored_runtime = match active_before.as_deref() {
       Some(previous) => runtime_root.join("mariadb").join(previous),
       None => runtime_root.join("mariadb/current"),
@@ -2341,7 +2351,7 @@ async fn install_downloaded_mariadb_runtime_while_stopped(
       .context("unable to restore MariaDB connection after Runtime update failed")?;
     return Err(error.context("unable to apply the installed MariaDB Runtime"));
   }
-  Ok(())
+  Ok(transaction)
 }
 
 async fn restart_active_mariadb_runtime(state: &AgentState) -> Result<()> {
@@ -2432,6 +2442,7 @@ fn validate_staged_mariadb_runtime(
   Ok(())
 }
 
+#[cfg(test)]
 fn rollback_online_runtime_install(
   runtime_root: &Path,
   name: &str,
@@ -2449,6 +2460,16 @@ fn rollback_online_runtime_install(
     remove_online_runtime_directory(&destination)?;
   }
   Ok(())
+}
+
+fn rollback_online_runtime_transaction(
+  transaction: RuntimeInstallTransaction,
+  runtime_root: &Path,
+  name: &str,
+  active_before: Option<&str>,
+) -> Result<()> {
+  rollback_runtime_install_transaction(transaction)?;
+  restore_active_runtime(runtime_root, name, active_before)
 }
 
 fn restore_active_runtime(
@@ -2510,6 +2531,7 @@ fn validate_staged_php_runtime(runtime: &Path, expected_version: &str) -> Result
   Ok(())
 }
 
+#[cfg(test)]
 fn rollback_online_php_install(
   runtime_root: &Path,
   version: &str,
@@ -2535,6 +2557,27 @@ fn rollback_online_php_install(
   Ok(())
 }
 
+fn rollback_online_php_transaction(
+  transaction: RuntimeInstallTransaction,
+  runtime_root: &Path,
+  active_before: Option<&str>,
+  config_directory: &Path,
+  config_existed: bool,
+  service_directory: &Path,
+  service_existed: bool,
+) -> Result<()> {
+  rollback_runtime_install_transaction(transaction)?;
+  restore_active_runtime(runtime_root, "php", active_before)?;
+  if !config_existed && config_directory.exists() {
+    std::fs::remove_dir_all(config_directory)?;
+  }
+  if !service_existed && service_directory.exists() {
+    std::fs::remove_dir_all(service_directory)?;
+  }
+  Ok(())
+}
+
+#[cfg(test)]
 fn remove_online_runtime_directory(runtime: &Path) -> Result<()> {
   let metadata = std::fs::symlink_metadata(runtime)
     .with_context(|| format!("unable to inspect failed Runtime: {}", runtime.display()))?;
@@ -2563,7 +2606,7 @@ async fn cached_runtime_update_artifact(
     .into_iter()
     .find(|artifact| artifact.name == name && artifact.version == version)
     .context("the verified Runtime Catalog does not contain the requested Runtime")?;
-  if artifact.installed {
+  if artifact.installed && !artifact.package_update_available {
     bail!(
       "Runtime {} {} is already installed",
       artifact.name,
@@ -2621,6 +2664,30 @@ fn runtime_update_artifacts(
           active_version(runtime_root, &release.name)?,
         );
       }
+      let installed = installed_versions
+        .get(&release.name)
+        .is_some_and(|versions| versions.contains(&release.version));
+      let installed_package_sha256 = if installed {
+        match installed_runtime_package_sha256(runtime_root, &release.name, &release.version)? {
+          Some(sha256) => Some(sha256),
+          None
+            if catalog.catalog.schema_version == RUNTIME_CATALOG_SCHEMA_VERSION_V2
+              && catalog.catalog.catalog_sequence == 1 =>
+          {
+            record_runtime_package_receipt(
+              runtime_root,
+              &release.name,
+              &release.version,
+              &release.sha256,
+              catalog.catalog.catalog_sequence,
+            )?;
+            Some(release.sha256.clone())
+          }
+          None => None,
+        }
+      } else {
+        None
+      };
       Ok(RuntimeUpdateArtifact {
         name: release.name.clone(),
         version: release.version.clone(),
@@ -2637,9 +2704,10 @@ fn runtime_update_artifacts(
         size: release.size,
         sha256: release.sha256.clone(),
         unsigned_community_build: catalog.catalog.unsigned_community_build,
-        installed: installed_versions
-          .get(&release.name)
-          .is_some_and(|versions| versions.contains(&release.version)),
+        installed,
+        package_update_available: installed
+          && catalog.catalog.schema_version == RUNTIME_CATALOG_SCHEMA_VERSION_V2
+          && installed_package_sha256.as_deref() != Some(release.sha256.as_str()),
         active_version: active_versions.get(&release.name).cloned().flatten(),
       })
     })
@@ -3373,6 +3441,38 @@ mod tests {
         |artifact| artifact.installed && artifact.active_version.as_deref() == Some("24.20.0")
       ));
     std::fs::remove_dir_all(root).expect("remove Runtime Catalog fixture");
+  }
+
+  #[test]
+  fn detects_a_same_version_package_replacement_after_catalog_v2_migration() {
+    let root = std::env::temp_dir().join(format!(
+      "fabdev-agent-catalog-replacement-{}",
+      Uuid::new_v4()
+    ));
+    let (platform, architecture) = runtime_update_target().expect("read current Runtime target");
+    std::fs::create_dir_all(root.join("php/8.4.24")).expect("create installed PHP fixture");
+    let release = runtime_release_fixture("php", "8.4.24", platform, architecture);
+    let mut initial_catalog = runtime_catalog_fixture(vec![release.clone()]);
+    initial_catalog.catalog.schema_version = RUNTIME_CATALOG_SCHEMA_VERSION_V2;
+
+    let initial =
+      runtime_update_artifacts(&initial_catalog, &root).expect("migrate installed Runtime receipt");
+    assert!(initial[0].installed);
+    assert!(!initial[0].package_update_available);
+    assert_eq!(
+      installed_runtime_package_sha256(&root, "php", "8.4.24").expect("read migrated receipt"),
+      Some("b".repeat(64))
+    );
+
+    let mut replacement = release;
+    replacement.sha256 = "c".repeat(64);
+    let mut replacement_catalog = runtime_catalog_fixture(vec![replacement]);
+    replacement_catalog.catalog.schema_version = RUNTIME_CATALOG_SCHEMA_VERSION_V2;
+    replacement_catalog.catalog.catalog_sequence = 2;
+    let replacement =
+      runtime_update_artifacts(&replacement_catalog, &root).expect("detect replacement package");
+    assert!(replacement[0].package_update_available);
+    std::fs::remove_dir_all(root).expect("remove Runtime replacement fixture");
   }
 
   #[test]

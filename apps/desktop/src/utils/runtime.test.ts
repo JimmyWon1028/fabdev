@@ -42,6 +42,7 @@ function onlinePhp(version: string) {
     sha256: 'a'.repeat(64),
     unsignedCommunityBuild: true,
     installed: false,
+    packageUpdateAvailable: false,
     activeVersion: null
   }
 }
@@ -104,6 +105,21 @@ describe('PHP Runtime presentation', () => {
       state: 'installed',
       artifact: null
     })
+  })
+
+  it('offers a same-version update when the Catalog package SHA changed', () => {
+    const artifact = {
+      ...onlinePhp('8.2.33'),
+      installed: true,
+      packageUpdateAvailable: true
+    }
+    const rows = buildCatalogRuntimeRows(installed, [artifact])
+
+    expect(rows.find((row) => row.version === '8.2.33')).toMatchObject({
+      state: 'update-available',
+      artifact: { version: '8.2.33', packageUpdateAvailable: true }
+    })
+    expect(catalogRuntimeState('8.2.33', artifact)).toBe('update-available')
   })
 
   it('derives unique installed series and the global series', () => {

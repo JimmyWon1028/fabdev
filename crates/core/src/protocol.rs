@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Site, SiteEditInput, SiteInput};
 
-pub const PROTOCOL_VERSION: u16 = 36;
+pub const PROTOCOL_VERSION: u16 = 37;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(
@@ -352,6 +352,7 @@ pub struct RuntimeUpdateArtifact {
   pub sha256: String,
   pub unsigned_community_build: bool,
   pub installed: bool,
+  pub package_update_available: bool,
   pub active_version: Option<String>,
 }
 
@@ -863,6 +864,7 @@ mod tests {
         sha256: "a".repeat(64),
         unsigned_community_build: true,
         installed: false,
+        package_update_available: false,
         active_version: Some("24.18.0".to_owned()),
       }],
     });
@@ -886,6 +888,7 @@ mod tests {
             "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             "unsignedCommunityBuild": true,
             "installed": false,
+            "packageUpdateAvailable": false,
             "activeVersion": "24.18.0"
           }]
         }

@@ -1,5 +1,7 @@
 # fabDev P2 Runtime Catalog v1 Specification
 
+> 本文件保留 0.1.20 以前的 Catalog v1 相容與驗收紀錄。0.1.21 起的獨立 Runtime 發布與同版本重包規格以 [Runtime Catalog v2](./RUNTIME_CATALOG_V2_SPEC.md) 為準。
+
 > 規劃日期：2026-08-30
 >
 > 狀態：Windows x64 PHP 7.4／8.2／8.4、Node.js 與 MariaDB 的 Catalog、Agent、UI 與 Release pipeline 已完成本機實作及產包驗證；PHP 7.4／8.2 待新版 Windows CI、封裝版 App 與公開 Feed 驗收

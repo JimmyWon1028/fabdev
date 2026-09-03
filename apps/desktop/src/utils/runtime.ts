@@ -79,7 +79,8 @@ export function buildCatalogRuntimeRows(
     const artifact = latestArtifactBySeries.get(runtime.series)
     const updateArtifact = latestInstalled?.version === runtime.version
       && artifact
-      && compareRuntimeVersions(artifact.version, runtime.version) > 0
+      && (compareRuntimeVersions(artifact.version, runtime.version) > 0
+        || (artifact.version === runtime.version && artifact.packageUpdateAvailable))
       ? artifact
       : null
     return {
@@ -139,7 +140,8 @@ export function buildNodeRuntimeRows(
     const latestInstalled = latestInstalledByMajor.get(major)
     const updateArtifact = latestInstalled?.version === runtime.version
       && artifact
-      && compareRuntimeVersions(artifact.version, runtime.version) > 0
+      && (compareRuntimeVersions(artifact.version, runtime.version) > 0
+        || (artifact.version === runtime.version && artifact.packageUpdateAvailable))
       ? artifact
       : null
     return {
@@ -183,7 +185,13 @@ export function catalogRuntimeState(
   if (!installedVersion) {
     return 'not-installed'
   }
-  if (!artifact || compareRuntimeVersions(artifact.version, installedVersion) <= 0) {
+  if (!artifact) {
+    return 'installed'
+  }
+  if (artifact.version === installedVersion && artifact.packageUpdateAvailable) {
+    return 'update-available'
+  }
+  if (compareRuntimeVersions(artifact.version, installedVersion) <= 0) {
     return 'installed'
   }
   return 'update-available'

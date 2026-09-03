@@ -12,12 +12,15 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use fabdev_runtime::{
   parse_and_validate_runtime_catalog, AcceptedRuntimeCatalog, RuntimeCatalogValidation,
-  RuntimeRelease, ValidatedRuntimeCatalog, RUNTIME_CATALOG_MAX_BYTES, RUNTIME_CATALOG_URL,
+  RuntimeRelease, ValidatedRuntimeCatalog, RUNTIME_CATALOG_MAX_BYTES,
+  RUNTIME_CATALOG_SCHEMA_VERSION, RUNTIME_CATALOG_SCHEMA_VERSION_V2, RUNTIME_CATALOG_V1_URL,
+  RUNTIME_CATALOG_V2_URL,
 };
 
 const RUNTIME_UPDATE_DIRECTORY: &str = "runtime-updates";
 const RUNTIME_UPDATE_PENDING_DIRECTORY: &str = "pending";
-const RUNTIME_CATALOG_FILE: &str = "fabdev-runtime-v1.json";
+const RUNTIME_CATALOG_V1_FILE: &str = "fabdev-runtime-v1.json";
+const RUNTIME_CATALOG_V2_FILE: &str = "fabdev-runtime-v2.json";
 const ACCEPTED_CATALOG_FILE: &str = "accepted-catalog.json";
 const MAX_REDIRECTS: usize = 10;
 #[cfg(debug_assertions)]
@@ -25,6 +28,7 @@ const RUNTIME_TEST_BASE_URL_ENV: &str = "FABDEV_RUNTIME_TEST_BASE_URL";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DownloadedRuntimeUpdate {
+  pub catalog_sequence: u64,
   pub name: String,
   pub version: String,
   pub platform: String,
@@ -49,8 +53,14 @@ pub struct RuntimeDownloadRequest<'a> {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct AcceptedCatalogFile {
+  #[serde(default = "legacy_catalog_schema_version")]
+  schema_version: u16,
   sequence: u64,
   sha256: String,
+}
+
+fn legacy_catalog_schema_version() -> u16 {
+  RUNTIME_CATALOG_SCHEMA_VERSION
 }
 
 pub async fn check_for_runtime_updates(
@@ -60,21 +70,77 @@ pub async fn check_for_runtime_updates(
 ) -> anyhow::Result<ValidatedRuntimeCatalog> {
   let test_base_url = runtime_test_base_url()?;
   let client = runtime_http_client(test_base_url.as_ref())?;
-  let catalog_url = runtime_transport_url(
-    test_base_url.as_ref(),
-    RUNTIME_CATALOG_URL,
-    RUNTIME_CATALOG_FILE,
-  )?;
-  let contents = fetch_runtime_catalog(&client, catalog_url.as_str()).await?;
   let accepted = load_accepted_catalog(cache_directory).await?;
+  let accepted_v2 = accepted
+    .as_ref()
+    .filter(|accepted| accepted.schema_version == RUNTIME_CATALOG_SCHEMA_VERSION_V2);
+  let v2_url = runtime_transport_url(
+    test_base_url.as_ref(),
+    RUNTIME_CATALOG_V2_URL,
+    RUNTIME_CATALOG_V2_FILE,
+  )?;
+  let v2_contents = fetch_runtime_catalog(&client, v2_url.as_str()).await;
+  let (contents, validated) = match v2_contents {
+    Ok(contents) => {
+      let validated = validate_fetched_runtime_catalog(
+        &contents,
+        RUNTIME_CATALOG_SCHEMA_VERSION_V2,
+        current_app_version,
+        current_agent_protocol_version,
+        accepted_v2,
+      )?;
+      (contents, validated)
+    }
+    Err(v2_error) if accepted_v2.is_some() => {
+      return Err(v2_error).context("unable to refresh the accepted Runtime Catalog v2");
+    }
+    Err(v2_error) => {
+      let v1_url = runtime_transport_url(
+        test_base_url.as_ref(),
+        RUNTIME_CATALOG_V1_URL,
+        RUNTIME_CATALOG_V1_FILE,
+      )?;
+      let contents = fetch_runtime_catalog(&client, v1_url.as_str())
+        .await
+        .with_context(|| format!("Runtime Catalog v2 is unavailable ({v2_error:#})"))?;
+      let accepted_v1 = accepted
+        .as_ref()
+        .filter(|accepted| accepted.schema_version == RUNTIME_CATALOG_SCHEMA_VERSION);
+      let validated = validate_fetched_runtime_catalog(
+        &contents,
+        RUNTIME_CATALOG_SCHEMA_VERSION,
+        current_app_version,
+        current_agent_protocol_version,
+        accepted_v1,
+      )?;
+      (contents, validated)
+    }
+  };
+  persist_runtime_catalog(cache_directory, &contents, &validated).await?;
+  Ok(validated)
+}
+
+fn validate_fetched_runtime_catalog(
+  contents: &[u8],
+  expected_schema_version: u16,
+  current_app_version: &str,
+  current_agent_protocol_version: u16,
+  accepted_catalog: Option<&AcceptedRuntimeCatalog>,
+) -> anyhow::Result<ValidatedRuntimeCatalog> {
   let validation = runtime_catalog_validation(
     current_app_version,
     current_agent_protocol_version,
-    accepted.as_ref(),
+    accepted_catalog,
   )?;
-  let validated = parse_and_validate_runtime_catalog(&contents, &validation)
+  let validated = parse_and_validate_runtime_catalog(contents, &validation)
     .context("the Runtime Catalog failed validation")?;
-  persist_runtime_catalog(cache_directory, &contents, &validated).await?;
+  if validated.catalog.schema_version != expected_schema_version {
+    bail!(
+      "Runtime Catalog endpoint returned schema {}, expected {}",
+      validated.catalog.schema_version,
+      expected_schema_version
+    );
+  }
   Ok(validated)
 }
 
@@ -84,12 +150,13 @@ pub async fn cached_runtime_catalog(
   current_agent_protocol_version: u16,
 ) -> anyhow::Result<ValidatedRuntimeCatalog> {
   let root = runtime_update_root(cache_directory);
-  let contents = tokio::fs::read(root.join(RUNTIME_CATALOG_FILE))
-    .await
-    .context("no verified Runtime Catalog is cached; check for Runtime updates first")?;
   let accepted = load_accepted_catalog(cache_directory)
     .await?
     .context("accepted Runtime Catalog state is missing; check for Runtime updates again")?;
+  let catalog_file = runtime_catalog_file(accepted.schema_version)?;
+  let contents = tokio::fs::read(root.join(catalog_file))
+    .await
+    .context("no verified Runtime Catalog is cached; check for Runtime updates first")?;
   let validation = runtime_catalog_validation(
     current_app_version,
     current_agent_protocol_version,
@@ -135,26 +202,24 @@ where
     .file_name
     .as_deref()
     .context("the cached Runtime entry is missing its file name")?;
-  let target = pending_directory.join(file_name);
+  let cache_file_name = runtime_package_cache_file_name(&release);
+  let target = pending_directory.join(&cache_file_name);
   if target.is_file() && verify_runtime_artifact(&target, &release).await.is_ok() {
     on_progress(release.size, release.size);
-    return Ok(downloaded_runtime_update(&release, target));
+    return Ok(downloaded_runtime_update(
+      catalog.catalog.catalog_sequence,
+      &release,
+      target,
+    ));
   }
 
   remove_file_if_exists(&target).await?;
-  let partial = pending_directory.join(format!("{file_name}.part"));
+  let partial = pending_directory.join(format!("{cache_file_name}.part"));
   on_progress(0, release.size);
 
   let test_base_url = runtime_test_base_url()?;
   let client = runtime_http_client(test_base_url.as_ref())?;
-  let transport_url = runtime_transport_url(
-    test_base_url.as_ref(),
-    &release.url,
-    release
-      .file_name
-      .as_deref()
-      .context("the cached Runtime entry is missing its file name")?,
-  )?;
+  let transport_url = runtime_transport_url(test_base_url.as_ref(), &release.url, file_name)?;
   let windows_x64 = request.platform == "windows" && request.architecture == "x64";
   let result = if windows_x64 {
     crate::windows_download::download_windows_artifact(
@@ -184,7 +249,11 @@ where
     .await
   };
   result?;
-  Ok(downloaded_runtime_update(&release, target))
+  Ok(downloaded_runtime_update(
+    catalog.catalog.catalog_sequence,
+    &release,
+    target,
+  ))
 }
 
 pub async fn verified_cached_runtime_update(
@@ -203,15 +272,19 @@ pub async fn verified_cached_runtime_update(
     request.platform,
     request.architecture,
   )?;
-  let file_name = release
+  release
     .file_name
     .as_deref()
     .context("the cached Runtime entry is missing its file name")?;
   let path = runtime_update_root(request.cache_directory)
     .join(RUNTIME_UPDATE_PENDING_DIRECTORY)
-    .join(file_name);
+    .join(runtime_package_cache_file_name(release));
   verify_runtime_artifact(&path, release).await?;
-  Ok(downloaded_runtime_update(release, path))
+  Ok(downloaded_runtime_update(
+    catalog.catalog.catalog_sequence,
+    release,
+    path,
+  ))
 }
 
 pub async fn cleanup_runtime_update_partials(cache_directory: &Path) -> anyhow::Result<usize> {
@@ -585,8 +658,10 @@ async fn persist_runtime_catalog(
   tokio::fs::create_dir_all(&root)
     .await
     .context("unable to create the Runtime update cache directory")?;
-  write_file_atomically(&root.join(RUNTIME_CATALOG_FILE), contents).await?;
+  let catalog_file = runtime_catalog_file(validated.catalog.schema_version)?;
+  write_file_atomically(&root.join(catalog_file), contents).await?;
   let mut state = serde_json::to_vec_pretty(&AcceptedCatalogFile {
+    schema_version: validated.catalog.schema_version,
     sequence: validated.catalog.catalog_sequence,
     sha256: validated.sha256.clone(),
   })
@@ -610,9 +685,18 @@ async fn load_accepted_catalog(
   let state = serde_json::from_slice::<AcceptedCatalogFile>(&contents)
     .context("accepted Runtime Catalog state is invalid")?;
   Ok(Some(AcceptedRuntimeCatalog {
+    schema_version: state.schema_version,
     sequence: state.sequence,
     sha256: state.sha256,
   }))
+}
+
+fn runtime_catalog_file(schema_version: u16) -> anyhow::Result<&'static str> {
+  match schema_version {
+    RUNTIME_CATALOG_SCHEMA_VERSION => Ok(RUNTIME_CATALOG_V1_FILE),
+    RUNTIME_CATALOG_SCHEMA_VERSION_V2 => Ok(RUNTIME_CATALOG_V2_FILE),
+    _ => bail!("unsupported cached Runtime Catalog schemaVersion {schema_version}"),
+  }
 }
 
 async fn write_file_atomically(path: &Path, contents: &[u8]) -> anyhow::Result<()> {
@@ -711,8 +795,13 @@ fn select_runtime_release<'a>(
     .context("the cached Runtime Catalog does not contain the requested Runtime")
 }
 
-fn downloaded_runtime_update(release: &RuntimeRelease, path: PathBuf) -> DownloadedRuntimeUpdate {
+fn downloaded_runtime_update(
+  catalog_sequence: u64,
+  release: &RuntimeRelease,
+  path: PathBuf,
+) -> DownloadedRuntimeUpdate {
   DownloadedRuntimeUpdate {
+    catalog_sequence,
     name: release.name.clone(),
     version: release.version.clone(),
     platform: release.platform.clone(),
@@ -725,6 +814,10 @@ fn downloaded_runtime_update(release: &RuntimeRelease, path: PathBuf) -> Downloa
     sha256: release.sha256.clone(),
     path,
   }
+}
+
+fn runtime_package_cache_file_name(release: &RuntimeRelease) -> String {
+  format!("{}.tar.gz", release.sha256)
 }
 
 fn runtime_update_root(cache_directory: &Path) -> PathBuf {
@@ -821,7 +914,7 @@ mod tests {
     assert_eq!(
       runtime_transport_url(
         Some(&base),
-        RUNTIME_CATALOG_URL,
+        RUNTIME_CATALOG_V1_URL,
         "php-8.4.24-macos-arm64-community.tar.gz"
       )
       .expect("rewrite transport URL")
@@ -829,10 +922,10 @@ mod tests {
       "http://127.0.0.1:48123/php-8.4.24-macos-arm64-community.tar.gz"
     );
     assert_eq!(
-      runtime_transport_url(None, RUNTIME_CATALOG_URL, RUNTIME_CATALOG_FILE)
+      runtime_transport_url(None, RUNTIME_CATALOG_V1_URL, RUNTIME_CATALOG_V1_FILE)
         .expect("keep production URL")
         .as_str(),
-      RUNTIME_CATALOG_URL
+      RUNTIME_CATALOG_V1_URL
     );
   }
 
@@ -852,6 +945,74 @@ mod tests {
     assert_eq!(cached.catalog.catalog_sequence, 2);
     assert_eq!(cached.sha256, validated.sha256);
     std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[tokio::test]
+  async fn keeps_runtime_catalog_v2_in_a_separate_cache_file() {
+    let root = std::env::temp_dir().join(format!("fabdev-runtime-cache-v2-{}", Uuid::new_v4()));
+    let mut catalog = catalog();
+    catalog.schema_version = RUNTIME_CATALOG_SCHEMA_VERSION_V2;
+    catalog.catalog_sequence = 2;
+    catalog.runtimes[0].url = "https://github.com/JimmyWon1028/fabdev-runtimes/releases/download/catalog-v2/php-8.4.24-macos-arm64-community.tar.gz".to_owned();
+    let contents = generate_runtime_catalog(&catalog, &validation()).expect("generate Catalog v2");
+    let validated =
+      parse_and_validate_runtime_catalog(&contents, &validation()).expect("validate Catalog v2");
+    persist_runtime_catalog(&root, &contents, &validated)
+      .await
+      .expect("persist Catalog v2");
+
+    let update_root = runtime_update_root(&root);
+    assert!(update_root.join(RUNTIME_CATALOG_V2_FILE).is_file());
+    assert!(!update_root.join(RUNTIME_CATALOG_V1_FILE).exists());
+    let accepted = load_accepted_catalog(&root)
+      .await
+      .expect("load accepted Catalog v2")
+      .expect("accepted Catalog v2 state");
+    assert_eq!(accepted.schema_version, RUNTIME_CATALOG_SCHEMA_VERSION_V2);
+    let cached = cached_runtime_catalog(&root, "0.1.4", RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION)
+      .await
+      .expect("reload Catalog v2");
+    assert_eq!(
+      cached.catalog.schema_version,
+      RUNTIME_CATALOG_SCHEMA_VERSION_V2
+    );
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[tokio::test]
+  async fn treats_accepted_catalog_state_without_schema_as_v1() {
+    let root = std::env::temp_dir().join(format!("fabdev-runtime-legacy-state-{}", Uuid::new_v4()));
+    let update_root = runtime_update_root(&root);
+    tokio::fs::create_dir_all(&update_root)
+      .await
+      .expect("create legacy state fixture");
+    tokio::fs::write(
+      update_root.join(ACCEPTED_CATALOG_FILE),
+      format!("{{\"sequence\":2,\"sha256\":\"{}\"}}", "a".repeat(64)),
+    )
+    .await
+    .expect("write legacy accepted state");
+
+    let accepted = load_accepted_catalog(&root)
+      .await
+      .expect("load legacy accepted state")
+      .expect("legacy accepted state");
+    assert_eq!(accepted.schema_version, RUNTIME_CATALOG_SCHEMA_VERSION);
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn rejects_a_catalog_from_the_wrong_schema_endpoint() {
+    let contents = generate_runtime_catalog(&catalog(), &validation()).expect("generate Catalog");
+    let error = validate_fetched_runtime_catalog(
+      &contents,
+      RUNTIME_CATALOG_SCHEMA_VERSION_V2,
+      "0.1.4",
+      RUNTIME_CATALOG_MINIMUM_PROTOCOL_VERSION,
+      None,
+    )
+    .expect_err("reject Catalog v1 from v2 endpoint");
+    assert!(error.to_string().contains("expected 2"));
   }
 
   #[tokio::test]
@@ -913,8 +1074,8 @@ mod tests {
     tokio::fs::create_dir_all(&pending)
       .await
       .expect("create pending");
-    let file_name = "php-8.4.24-macos-arm64-community.tar.gz";
-    tokio::fs::write(pending.join(file_name), b"payload")
+    let cache_file_name = format!("{}.tar.gz", catalog().runtimes[0].sha256);
+    tokio::fs::write(pending.join(&cache_file_name), b"payload")
       .await
       .expect("write verified package");
     let progress = Arc::new(AtomicU64::new(0));
@@ -936,7 +1097,7 @@ mod tests {
     .await
     .expect("reuse verified package");
 
-    assert_eq!(downloaded.path, pending.join(file_name));
+    assert_eq!(downloaded.path, pending.join(cache_file_name));
     assert_eq!(progress.load(Ordering::Relaxed), 7);
     std::fs::remove_dir_all(root).expect("remove fixture");
   }
@@ -954,8 +1115,8 @@ mod tests {
     tokio::fs::create_dir_all(&pending)
       .await
       .expect("create pending");
-    let file_name = "php-8.4.24-macos-arm64-community.tar.gz";
-    tokio::fs::write(pending.join(file_name), b"payload")
+    let cache_file_name = format!("{}.tar.gz", catalog().runtimes[0].sha256);
+    tokio::fs::write(pending.join(&cache_file_name), b"payload")
       .await
       .expect("write verified package");
     let request = RuntimeDownloadRequest {
@@ -971,7 +1132,7 @@ mod tests {
     let verified = verified_cached_runtime_update(request)
       .await
       .expect("revalidate package");
-    assert_eq!(verified.path, pending.join(file_name));
+    assert_eq!(verified.path, pending.join(cache_file_name));
 
     tokio::fs::write(&verified.path, b"tampered")
       .await
@@ -991,7 +1152,7 @@ mod tests {
       .await
       .expect("create Runtime update cache");
     let contents = generate_runtime_catalog(&catalog(), &validation()).expect("generate Catalog");
-    tokio::fs::write(update_root.join(RUNTIME_CATALOG_FILE), contents)
+    tokio::fs::write(update_root.join(RUNTIME_CATALOG_V1_FILE), contents)
       .await
       .expect("write unaccepted Catalog");
 

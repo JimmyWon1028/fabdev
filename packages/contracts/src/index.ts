@@ -1,4 +1,4 @@
-export const protocolVersion = 36
+export const protocolVersion = 37
 
 export type ServiceState =
   | 'notInstalled'
@@ -128,6 +128,7 @@ export interface RuntimeUpdateArtifact {
   sha256: string
   unsignedCommunityBuild: boolean
   installed: boolean
+  packageUpdateAvailable: boolean
   activeVersion: string | null
 }
 
