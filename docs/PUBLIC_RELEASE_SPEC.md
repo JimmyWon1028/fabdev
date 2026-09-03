@@ -109,7 +109,9 @@ fabDev-Connect-<version>-windows-x64.exe.sha256
 
 ### 5.3 Runtime Package
 
-PHP、Nginx、dnsmasq、MariaDB 與 Node.js 使用獨立 Runtime Catalog。即使 Runtime Package 附在同一 GitHub Release，也不得放入 `fabdev-app-v1.json`；App 與 Runtime 更新生命週期必須保持分離。
+PHP、MariaDB 與 Node.js 的線上安裝包使用獨立 Runtime Catalog，固定由 [`JimmyWon1028/fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes) 的 `catalog-vN` Release 發布。`JimmyWon1028/fabdev` 的 App Release 不得包含 Runtime Catalog、線上 Runtime Package 或其 checksum；App 與 Runtime 的 Release、版本、Tag 與更新生命週期完全分離。
+
+App 安裝器內部為了首次啟動而內建的 Runtime 不屬於公開線上 Runtime Asset，仍隨 App Installer 一起驗證。`scripts/generate-app-release-manifest.mjs` 必須拒絕 `--runtime-package-dir`，避免日後把獨立 Runtime 重新混入 App Release。
 
 ## 6. App Release Manifest v1
 
@@ -281,11 +283,11 @@ REPACKAGE v<version>
 DRAFT v<version>
 ```
 
-前者代表這次執行已取得重新打包授權，後者只授權建立或補齊 Draft。`release_scope=all` 會在 GitHub Hosted `macos-15` ARM64 與 `windows-latest` 建置、測試及整理跨平台 Assets；`release_scope=windows` 必須略過整個 macOS Job、macOS Artifact 下載與 DMG／Runtime 打包，只建立 Windows x64 Installer、Connect、六個 Windows Runtime、Windows-only App Manifest 與 Runtime Catalog。`release_scope=macos` 只適用於同一 Tag 已存在且仍未發布的 Windows-only Draft：必須略過全部 Windows Build Jobs，重新下載並驗證既有 20 個 Windows Assets，只建置 macOS ARM64 DMG 與四個 macOS Runtime，再加入十個 macOS 檔案並替換 `SHA256SUMS` 與三份跨平台 Manifest；既有 Windows Binary 不得重新建置或覆蓋。補齊後必須維持 `draft=true`、`published_at=null`，重新下載全部 30 個 Assets 並逐位元核對。macOS 只沿用既有 ad-hoc signing，不得加入 Apple Developer ID、notarization、stapling、Hardened Runtime、簽章憑證或 CI Secret。只有最後的 `create-draft` Job 具有 `contents: write`；其餘 Job 都是 `contents: read`。所有第三方 Action 固定到完整 Commit SHA。
+前者代表這次執行已取得 App 重新打包授權，後者只授權建立或補齊 Draft。`release_scope=all` 會在 GitHub Hosted `macos-15` ARM64 與 `windows-latest` 建置、測試及整理跨平台 App Assets；`release_scope=windows` 必須略過整個 macOS Job、macOS Artifact 下載與 DMG 打包，只建立 Windows x64 Installer、Connect、Windows-only App Manifest 與 checksum，共 7 個 Assets。`release_scope=macos` 只適用於同一 Tag 已存在且仍未發布的 Windows-only Draft：必須略過全部 Windows Build Jobs，重新下載並驗證既有 7 個 Windows App Assets，只建置 macOS ARM64 DMG，再加入 DMG 與 checksum，並替換 `SHA256SUMS`、App Manifest 與 Stable Manifest；既有 Windows Binary 不得重新建置或覆蓋。補齊後必須維持 `draft=true`、`published_at=null`，重新下載全部 9 個 App Assets 並逐位元核對。任何 scope 都不得建立、下載或上傳線上 Runtime Package 或 Runtime Catalog。macOS 只沿用既有 ad-hoc signing，不得加入 Apple Developer ID、notarization、stapling、Hardened Runtime、簽章憑證或 CI Secret。只有最後的 `create-draft` Job 具有 `contents: write`；其餘 Job 都是 `contents: read`。所有第三方 Action 固定到完整 Commit SHA。
 
 初次建立固定使用 `gh release create --draft --verify-tag --latest=false`。`release_scope=macos` 補齊既有 Draft 時，只使用 `gh release upload --clobber` 新增 macOS Assets 並替換共用 checksum／Manifest，再更新 Draft Notes；兩條路徑都不包含 Publish 指令。完成後會從 GitHub Releases 清單確認 Release 仍為 Draft；不能使用 Published Release 的 Tag 查詢端點驗證未發布 Draft。
 
-`v0.1.0` 已在取得 Tag Push、重新打包與 Draft Release 授權後實際執行。macOS ARM64 與 Windows x64 建置、測試及 Artifact 上傳成功；Draft 內 9 個 Assets 已重新下載，總表與個別 SHA-256、Manifest 記錄的大小與 Hash、兩份 Manifest 的逐位元一致性，以及 DMG 內部 checksum 均通過。此結果只代表 Draft Asset 完整，不代表已完成乾淨機安裝驗收或 Publish。
+`v0.1.0` 已在取得 Tag Push、重新打包與 Draft Release 授權後實際執行。macOS ARM64 與 Windows x64 建置、測試及 Artifact 上傳成功；Draft 內 9 個 Assets 已重新下載，總表與個別 SHA-256、Manifest 記錄的大小與 Hash、兩份 Manifest 的逐位元一致性，以及 DMG 內部 checksum 均通過。此結果只代表 Draft Asset 完整，不代表已完成乾淨機安裝驗收或 Publish。這是 0.1.21 App-only 改造以前的歷史驗收紀錄。
 
 ### 8.2 `v0.1.0` macOS 驗收紀錄
 

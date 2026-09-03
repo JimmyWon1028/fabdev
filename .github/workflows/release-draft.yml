@@ -21,14 +21,6 @@ on:
         description: UTC RFC 3339 timestamp such as 2026-08-28T12:34:56Z
         required: true
         type: string
-      runtime_catalog_sequence:
-        description: Monotonically increasing Runtime Catalog sequence
-        required: true
-        type: string
-      runtime_catalog_expires_at:
-        description: Runtime Catalog expiry as a UTC RFC 3339 timestamp
-        required: true
-        type: string
       confirm_repackage:
         description: Type REPACKAGE v followed by the version
         required: true
@@ -58,8 +50,6 @@ jobs:
       VERSION: ${{ inputs.version }}
       RELEASE_SCOPE: ${{ inputs.release_scope }}
       PUBLISHED_AT: ${{ inputs.published_at }}
-      RUNTIME_CATALOG_SEQUENCE: ${{ inputs.runtime_catalog_sequence }}
-      RUNTIME_CATALOG_EXPIRES_AT: ${{ inputs.runtime_catalog_expires_at }}
       CONFIRM_REPACKAGE: ${{ inputs.confirm_repackage }}
       CONFIRM_DRAFT: ${{ inputs.confirm_draft }}
       GH_TOKEN: ${{ github.token }}
@@ -78,15 +68,6 @@ jobs:
           fi
           if [[ ! "$PUBLISHED_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
             echo "Published time must use UTC RFC 3339 seconds" >&2
-            exit 1
-          fi
-          if [[ ! "$RUNTIME_CATALOG_SEQUENCE" =~ ^[1-9][0-9]*$ ]] ||
-            (( RUNTIME_CATALOG_SEQUENCE > 9007199254740991 )); then
-            echo "Runtime Catalog sequence must be a safe positive JSON integer" >&2
-            exit 1
-          fi
-          if [[ ! "$RUNTIME_CATALOG_EXPIRES_AT" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
-            echo "Runtime Catalog expiry must use UTC RFC 3339 seconds" >&2
             exit 1
           fi
           if [[ "$CONFIRM_REPACKAGE" != "REPACKAGE v$VERSION" ]]; then
@@ -146,7 +127,7 @@ jobs:
           node --test scripts/generate-app-release-manifest.test.mjs
 
   build-macos:
-    name: Build macOS ARM64 Community DMG and online Runtimes
+    name: Build macOS ARM64 Community DMG
     if: inputs.release_scope == 'all' || inputs.release_scope == 'macos'
     needs: validate
     runs-on: macos-15
@@ -155,9 +136,6 @@ jobs:
       contents: read
     env:
       VERSION: ${{ inputs.version }}
-      PUBLISHED_AT: ${{ inputs.published_at }}
-      RUNTIME_CATALOG_SEQUENCE: ${{ inputs.runtime_catalog_sequence }}
-      RUNTIME_CATALOG_EXPIRES_AT: ${{ inputs.runtime_catalog_expires_at }}
       MACOSX_DEPLOYMENT_TARGET: "13.0"
     steps:
       - name: Check out the existing release tag
@@ -230,18 +208,6 @@ jobs:
             "$GITHUB_WORKSPACE/artifacts" \
             dev
 
-      - name: Build verified macOS online Runtimes
-        shell: bash
-        run: |
-          ./scripts/build-macos-online-runtime-packages.sh \
-            "$VERSION" \
-            "$RUNTIME_CATALOG_SEQUENCE" \
-            "$PUBLISHED_AT" \
-            "$RUNTIME_CATALOG_EXPIRES_AT" \
-            "$VERSION" \
-            "$GITHUB_WORKSPACE/resources/runtime-packages/macos-arm64.json" \
-            "$GITHUB_WORKSPACE/release-input/macos-runtimes"
-
       - name: Prepare Desktop sidecars
         run: node scripts/build-desktop-bundle-assets.mjs
 
@@ -280,21 +246,10 @@ jobs:
           retention-days: 7
           compression-level: 0
 
-      - name: Upload macOS online Runtime assets
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: draft-macos-online-runtimes
-          path: release-input/macos-runtimes
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 0
-
   build-windows:
     name: Build Windows x64 Community installer
     if: inputs.release_scope != 'macos'
-    needs:
-      - validate
-      - build-windows-online-runtimes
+    needs: validate
     runs-on: windows-latest
     timeout-minutes: 90
     permissions:
@@ -329,12 +284,6 @@ jobs:
       - name: Install JavaScript dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Download Windows online Runtime assets
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: draft-windows-online-runtimes
-          path: release-input/runtimes
-
       - name: Run frontend tests
         run: pnpm -r --if-present test
 
@@ -349,29 +298,6 @@ jobs:
         run: >-
           ./scripts/prepare-windows-runtimes.ps1
           -ManifestPath resources/runtime-packages/windows-x64-bundled.json
-
-      - name: Build verified online PHP Runtime packages
-        shell: pwsh
-        run: >-
-          ./scripts/build-windows-php-runtime.ps1
-          -OutputDirectory release-input
-          -ManifestPath resources/runtime-packages/windows-x64.json
-
-      - name: Validate packaged Windows PHP Runtime installation
-        env:
-          FABDEV_WINDOWS_RUNTIME_PACKAGE_MANIFEST: ${{ github.workspace }}/resources/runtime-packages/windows-x64.json
-          FABDEV_WINDOWS_RUNTIME_PACKAGE_DIR: ${{ github.workspace }}/release-input
-        run: >-
-          cargo test -p fabdev-runtime installs_real_windows_php_archive
-          --target x86_64-pc-windows-msvc -- --ignored
-
-      - name: Validate packaged Windows Node.js and MariaDB Runtime installation
-        env:
-          FABDEV_WINDOWS_RUNTIME_PACKAGE_MANIFEST: ${{ github.workspace }}/resources/runtime-packages/windows-x64.json
-          FABDEV_WINDOWS_RUNTIME_PACKAGE_DIR: ${{ github.workspace }}/release-input/runtimes
-        run: >-
-          cargo test -p fabdev-agent installs_real_windows_online_service_runtime_archives
-          --target x86_64-pc-windows-msvc -- --ignored
 
       - name: Check Rust workspace
         run: cargo check --workspace --all-targets --target x86_64-pc-windows-msvc
@@ -402,41 +328,6 @@ jobs:
           path: |
             release-input/windows-installer.exe
             release-input/fabdev-connect.exe
-            release-input/php-*-windows-x64-community.tar.gz
-          if-no-files-found: error
-          retention-days: 7
-          compression-level: 0
-
-  build-windows-online-runtimes:
-    name: Build verified Windows x64 Runtime packages
-    if: inputs.release_scope != 'macos'
-    needs: validate
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    permissions:
-      contents: read
-    steps:
-      - name: Check out the existing release tag
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: v${{ inputs.version }}
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Build verified Runtime packages
-        shell: bash
-        env:
-          FABDEV_BUILD_ROOT: ${{ runner.temp }}/windows-runtime-packages
-          FABDEV_ARTIFACT_DIR: ${{ github.workspace }}/release-input/runtimes
-          FABDEV_WINDOWS_RUNTIME_NAMES: mariadb node
-          FABDEV_WINDOWS_PACKAGE_MANIFEST: ${{ github.workspace }}/resources/runtime-packages/windows-x64.json
-        run: ./scripts/build-windows-runtime-packages.sh
-
-      - name: Upload Runtime packages
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: draft-windows-online-runtimes
-          path: release-input/runtimes/*-windows-x64-community.tar.gz
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
@@ -447,7 +338,6 @@ jobs:
       - validate
       - build-macos
       - build-windows
-      - build-windows-online-runtimes
     if: >-
       ${{
         always() &&
@@ -456,13 +346,11 @@ jobs:
           (
             inputs.release_scope == 'macos' &&
             needs.build-macos.result == 'success' &&
-            needs.build-windows.result == 'skipped' &&
-            needs.build-windows-online-runtimes.result == 'skipped'
+            needs.build-windows.result == 'skipped'
           ) ||
           (
             inputs.release_scope != 'macos' &&
             needs.build-windows.result == 'success' &&
-            needs.build-windows-online-runtimes.result == 'success' &&
             (inputs.release_scope == 'windows' || needs.build-macos.result == 'success')
           )
         )
@@ -475,8 +363,6 @@ jobs:
       VERSION: ${{ inputs.version }}
       RELEASE_SCOPE: ${{ inputs.release_scope }}
       PUBLISHED_AT: ${{ inputs.published_at }}
-      RUNTIME_CATALOG_SEQUENCE: ${{ inputs.runtime_catalog_sequence }}
-      RUNTIME_CATALOG_EXPIRES_AT: ${{ inputs.runtime_catalog_expires_at }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Check out the existing release tag
@@ -492,9 +378,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
-
       - name: Download Windows assets
         if: inputs.release_scope != 'macos'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -502,26 +385,12 @@ jobs:
           name: draft-windows-x64
           path: release-input/windows
 
-      - name: Download Windows online Runtime assets
-        if: inputs.release_scope != 'macos'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: draft-windows-online-runtimes
-          path: release-input/runtimes
-
       - name: Download macOS installer
         if: inputs.release_scope == 'all' || inputs.release_scope == 'macos'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: draft-macos-arm64
           path: release-input/macos
-
-      - name: Download macOS online Runtime assets
-        if: inputs.release_scope == 'all' || inputs.release_scope == 'macos'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: draft-macos-online-runtimes
-          path: release-input/macos-runtimes
 
       - name: Download and validate existing Windows-only Draft assets
         if: inputs.release_scope == 'macos'
@@ -543,28 +412,24 @@ jobs:
             done
             cmp fabdev-app-v1.json fabdev-stable-v1.json
             test "$(jq '[.artifacts[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-app-v1.json)" = "1"
-            test "$(jq '.catalogSequence' fabdev-runtime-v1.json)" = "$RUNTIME_CATALOG_SEQUENCE"
-            test "$(jq '[.runtimes[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-runtime-v1.json)" = "6"
             case "$asset_count" in
-              20)
-                test "$checksum_count" = "8"
+              7)
+                test "$checksum_count" = "2"
                 test "$(jq '[.artifacts[] | select(.platform != "windows")] | length' fabdev-app-v1.json)" = "0"
-                test "$(jq '[.runtimes[] | select(.platform != "windows")] | length' fabdev-runtime-v1.json)" = "0"
                 ;;
-              30)
-                test "$checksum_count" = "13"
+              9)
+                test "$checksum_count" = "3"
                 test "$(jq '[.artifacts[] | select(.platform == "macos" and .architecture == "arm64")] | length' fabdev-app-v1.json)" = "1"
-                test "$(jq '[.runtimes[] | select(.platform == "macos" and .architecture == "arm64")] | length' fabdev-runtime-v1.json)" = "4"
                 ;;
               *)
-                echo "Expected 20 Windows-only or 30 supplemented Draft assets, found $asset_count" >&2
+                echo "Expected 7 Windows-only or 9 supplemented Draft assets, found $asset_count" >&2
                 exit 1
                 ;;
             esac
             mkdir -p ../existing-windows
             find . -maxdepth 1 -type f -name '*-windows-x64*' \
               -exec cp {} ../existing-windows/ \;
-            test "$(find ../existing-windows -maxdepth 1 -type f | wc -l | tr -d ' ')" = "16"
+            test "$(find ../existing-windows -maxdepth 1 -type f | wc -l | tr -d ' ')" = "4"
           )
 
       - name: Generate cross-platform release assets and manifests
@@ -575,20 +440,9 @@ jobs:
           if [[ "$RELEASE_SCOPE" == "macos" ]]; then
             windows_installer="$GITHUB_WORKSPACE/release-input/existing-windows/fabDev-Community-$VERSION-windows-x64-setup.exe"
             windows_connect="$GITHUB_WORKSPACE/release-input/existing-windows/fabDev-Connect-$VERSION-windows-x64.exe"
-            windows_runtime_dir="$GITHUB_WORKSPACE/release-input/existing-windows"
-            runtime_args=(
-              --runtime-package-dir "$GITHUB_WORKSPACE/release-input/macos-runtimes"
-              --runtime-package-dir "$windows_runtime_dir"
-            )
           else
             windows_installer="$GITHUB_WORKSPACE/release-input/windows/windows-installer.exe"
             windows_connect="$GITHUB_WORKSPACE/release-input/windows/fabdev-connect.exe"
-            windows_runtime_dir="$GITHUB_WORKSPACE/release-input/windows"
-            runtime_args=(
-              --runtime-package-dir "$GITHUB_WORKSPACE/release-input/macos-runtimes"
-              --runtime-package-dir "$windows_runtime_dir"
-              --runtime-package-dir "$GITHUB_WORKSPACE/release-input/runtimes"
-            )
           fi
           node scripts/generate-app-release-manifest.mjs \
             --version "$VERSION" \
@@ -596,35 +450,18 @@ jobs:
             --output-dir "$GITHUB_WORKSPACE/release-assets" \
             --macos-arm64 "$GITHUB_WORKSPACE/release-input/macos/macos-installer.dmg" \
             --windows-x64 "$windows_installer" \
-            --windows-connect-x64 "$windows_connect" \
-            "${runtime_args[@]}"
-          cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
-            generate-community \
-            "$VERSION" \
-            "$RUNTIME_CATALOG_SEQUENCE" \
-            "$PUBLISHED_AT" \
-            "$RUNTIME_CATALOG_EXPIRES_AT" \
-            "$VERSION" \
-            "$GITHUB_WORKSPACE/resources/runtime-packages/windows-x64.json" \
-            "$GITHUB_WORKSPACE/release-assets" \
-            "$GITHUB_WORKSPACE/resources/runtime-packages/macos-arm64.json" \
-            "$GITHUB_WORKSPACE/release-assets" \
-            "$GITHUB_WORKSPACE/release-assets/fabdev-runtime-v1.json"
-          cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
-            validate \
-            "$GITHUB_WORKSPACE/release-assets/fabdev-runtime-v1.json" \
-            "$VERSION"
+            --windows-connect-x64 "$windows_connect"
           (
             cd release-assets
             sha256sum --check SHA256SUMS
             checksum_entries="$(awk 'NF { count += 1 } END { print count + 0 }' SHA256SUMS)"
-            expected_file_count="$((checksum_entries * 2 + 4))"
+            expected_file_count="$((checksum_entries * 2 + 3))"
             test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "$expected_file_count"
-            test "$checksum_entries" = "13"
+            test "$checksum_entries" = "3"
             test "$(jq '[.artifacts[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-app-v1.json)" = "1"
             test "$(jq '[.artifacts[] | select(.platform == "macos" and .architecture == "arm64")] | length' fabdev-app-v1.json)" = "1"
-            test "$(jq '[.runtimes[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-runtime-v1.json)" = "6"
-            test "$(jq '[.runtimes[] | select(.platform == "macos" and .architecture == "arm64")] | length' fabdev-runtime-v1.json)" = "4"
+            test ! -e fabdev-runtime-v1.json
+            test "$(find . -maxdepth 1 -type f -name '*.tar.gz' | wc -l | tr -d ' ')" = "0"
           )
 
       - name: Generate Windows-only release assets and manifests
@@ -636,33 +473,18 @@ jobs:
             --published-at "$PUBLISHED_AT" \
             --output-dir "$GITHUB_WORKSPACE/release-assets" \
             --windows-x64 "$GITHUB_WORKSPACE/release-input/windows/windows-installer.exe" \
-            --windows-connect-x64 "$GITHUB_WORKSPACE/release-input/windows/fabdev-connect.exe" \
-            --runtime-package-dir "$GITHUB_WORKSPACE/release-input/windows" \
-            --runtime-package-dir "$GITHUB_WORKSPACE/release-input/runtimes"
-          cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
-            generate-windows \
-            "$VERSION" \
-            "$RUNTIME_CATALOG_SEQUENCE" \
-            "$PUBLISHED_AT" \
-            "$RUNTIME_CATALOG_EXPIRES_AT" \
-            "$VERSION" \
-            "$GITHUB_WORKSPACE/resources/runtime-packages/windows-x64.json" \
-            "$GITHUB_WORKSPACE/release-assets" \
-            "$GITHUB_WORKSPACE/release-assets/fabdev-runtime-v1.json"
-          cargo run --locked -p fabdev-runtime --bin fabdev-runtime-catalog -- \
-            validate \
-            "$GITHUB_WORKSPACE/release-assets/fabdev-runtime-v1.json" \
-            "$VERSION"
+            --windows-connect-x64 "$GITHUB_WORKSPACE/release-input/windows/fabdev-connect.exe"
           (
             cd release-assets
             sha256sum --check SHA256SUMS
             checksum_entries="$(awk 'NF { count += 1 } END { print count + 0 }' SHA256SUMS)"
-            expected_file_count="$((checksum_entries * 2 + 4))"
+            expected_file_count="$((checksum_entries * 2 + 3))"
             test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "$expected_file_count"
+            test "$checksum_entries" = "2"
             test "$(jq '[.artifacts[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-app-v1.json)" = "1"
             test "$(jq '[.artifacts[] | select(.platform != "windows")] | length' fabdev-app-v1.json)" = "0"
-            test "$(jq '[.runtimes[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-runtime-v1.json)" = "6"
-            test "$(jq '[.runtimes[] | select(.platform != "windows")] | length' fabdev-runtime-v1.json)" = "0"
+            test ! -e fabdev-runtime-v1.json
+            test "$(find . -maxdepth 1 -type f -name '*.tar.gz' | wc -l | tr -d ' ')" = "0"
           )
 
       - name: Create cross-platform release notes skeleton
@@ -675,13 +497,14 @@ jobs:
             printf '## Unsigned Community Build\n\n'
             printf 'This build does not use Apple Developer ID, notarization, or Windows Code Signing.\n\n'
             printf 'Verify the downloaded installer against SHA256SUMS before installation.\n\n'
+            printf 'Runtime Catalogs and Runtime Packages are published separately from JimmyWon1028/fabdev-runtimes.\n\n'
             printf '## Release checklist\n\n'
             printf -- '- [ ] Complete release notes and known limitations.\n'
             printf -- '- [x] Complete automated macOS ARM64 and Windows x64 build and test validation.\n'
             printf -- '- [ ] Validate the changed Windows in-app update and download cancellation flow on the Windows VM.\n'
             printf -- '- [x] Reuse prior macOS install, startup, and removal acceptance; macOS packaging behavior is unchanged.\n'
             printf -- '- [ ] Re-download every Draft asset and verify size and SHA-256.\n'
-            printf -- '- [ ] Validate both platform manifests, Runtime Archives, Runtime Catalog v1, and public asset boundaries.\n'
+            printf -- '- [ ] Validate both platform App assets, manifests, and public asset boundaries.\n'
             printf -- '- [ ] Obtain explicit Repository Owner approval before Publish.\n'
           } > "$RUNNER_TEMP/release-notes.md"
 
@@ -695,12 +518,13 @@ jobs:
             printf '## Unsigned Community Build\n\n'
             printf 'This Windows-only build does not use Windows Code Signing.\n\n'
             printf 'Verify the downloaded installer against SHA256SUMS before installation.\n\n'
+            printf 'Runtime Catalogs and Runtime Packages are published separately from JimmyWon1028/fabdev-runtimes.\n\n'
             printf '## Release checklist\n\n'
             printf -- '- [ ] Complete release notes and known limitations.\n'
             printf -- '- [x] Complete automated Windows x64 build and test validation.\n'
             printf -- '- [x] Reuse the Repository Owner Windows installer language and single-instance acceptance.\n'
             printf -- '- [ ] Re-download every Draft asset and verify size and SHA-256.\n'
-            printf -- '- [ ] Validate the Windows-only App Manifest, Runtime Archives, Runtime Catalog v1, and public asset boundaries.\n'
+            printf -- '- [ ] Validate the Windows-only App assets, manifests, and public asset boundaries.\n'
             printf -- '- [ ] Obtain explicit Repository Owner approval before Publish.\n'
           } > "$RUNNER_TEMP/release-notes.md"
 
@@ -714,14 +538,15 @@ jobs:
             printf '## Unsigned Community Build\n\n'
             printf 'This build uses the existing ad-hoc macOS signing only. It does not use Apple Developer ID, notarization, stapling, Hardened Runtime, or Windows Code Signing.\n\n'
             printf 'Verify the downloaded installers against SHA256SUMS before installation.\n\n'
+            printf 'Runtime Catalogs and Runtime Packages are published separately from JimmyWon1028/fabdev-runtimes.\n\n'
             printf '## Release checklist\n\n'
             printf -- '- [ ] Complete release notes and known limitations.\n'
             printf -- '- [x] Reuse the validated Windows x64 Draft assets without rebuilding Windows.\n'
-            printf -- '- [x] Complete automated macOS ARM64 build, Runtime, lint, and packaging validation.\n'
+            printf -- '- [x] Complete automated macOS ARM64 build, lint, and packaging validation.\n'
             printf -- '- [x] Reuse the Repository Owner Windows installer language, single-instance, and version acceptance.\n'
             printf -- '- [x] Reuse prior macOS install, startup, and removal acceptance; macOS packaging behavior is unchanged.\n'
             printf -- '- [ ] Re-download every supplemented Draft asset and verify size and SHA-256.\n'
-            printf -- '- [ ] Validate both platform manifests, Runtime Archives, Runtime Catalog v1, and Draft asset boundaries.\n'
+            printf -- '- [ ] Validate both platform App assets, manifests, and Draft asset boundaries.\n'
             printf -- '- [ ] Obtain explicit Repository Owner approval before Publish.\n'
           } > "$RUNNER_TEMP/release-notes.md"
 
@@ -743,9 +568,9 @@ jobs:
             test "$is_prerelease" = "false"
             test "$is_unpublished" = "true"
             case "$asset_count" in
-              20|30) ;;
+              7|9) ;;
               *)
-                echo "Expected 20 Windows-only or 30 supplemented Draft assets, found $asset_count" >&2
+                echo "Expected 7 Windows-only or 9 supplemented Draft assets, found $asset_count" >&2
                 exit 1
                 ;;
             esac
@@ -753,12 +578,11 @@ jobs:
             cp \
               release-assets/SHA256SUMS \
               release-assets/fabdev-app-v1.json \
-              release-assets/fabdev-runtime-v1.json \
               release-assets/fabdev-stable-v1.json \
               supplement-assets/
             find release-assets -maxdepth 1 -type f -name '*-macos-arm64*' \
               -exec cp {} supplement-assets/ \;
-            test "$(find supplement-assets -maxdepth 1 -type f | wc -l | tr -d ' ')" = "14"
+            test "$(find supplement-assets -maxdepth 1 -type f | wc -l | tr -d ' ')" = "5"
             gh release upload "$tag" supplement-assets/* \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
@@ -793,12 +617,12 @@ jobs:
             test "$(
               gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
                 --jq ".[] | select(.tag_name == \"$tag\") | (.assets | length)"
-            )" = "30"
+            )" = "9"
             mkdir -p post-upload
             gh release download "$tag" \
               --repo "$GITHUB_REPOSITORY" \
               --dir post-upload
-            test "$(find post-upload -maxdepth 1 -type f | wc -l | tr -d ' ')" = "30"
+            test "$(find post-upload -maxdepth 1 -type f | wc -l | tr -d ' ')" = "9"
             for expected in release-assets/*; do
               cmp "$expected" "post-upload/$(basename "$expected")"
             done

@@ -19,15 +19,6 @@ function digest(contents) {
   return createHash('sha256').update(contents).digest('hex')
 }
 
-async function createRuntimePackageDirectory(testRoot, packages) {
-  const directory = join(testRoot, 'runtime-packages')
-  await mkdir(directory)
-  for (const [fileName, contents] of Object.entries(packages)) {
-    await writeFile(join(directory, fileName), contents)
-  }
-  return directory
-}
-
 test('blocks Windows installation until the x64 Visual C++ Runtime is complete', async () => {
   const hooks = await readFile(
     join(repoRoot, 'apps/desktop/src-tauri/windows/installer-hooks.nsh'),
@@ -109,15 +100,13 @@ test('keeps the Windows installer language and Desktop single-instance contracts
   assert.match(windowsWorkflow, /Run Windows distribution contract tests[\s\S]*pnpm run test:release/)
 })
 
-test('prepares canonical release assets, checksums, and manifests', async (context) => {
+test('prepares canonical App-only release assets, checksums, and manifests', async (context) => {
   const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-test-'))
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
 
   const macContents = Buffer.from('macOS installer fixture')
   const windowsContents = Buffer.from('Windows installer fixture')
   const connectContents = Buffer.from('fabDev Connect fixture')
-  const macRuntimeContents = Buffer.from('macOS PHP Runtime fixture')
-  const windowsRuntimeContents = Buffer.from('Windows PHP Runtime fixture')
   const macSource = join(testRoot, 'input.dmg')
   const windowsSource = join(testRoot, 'input-setup.exe')
   const connectSource = join(testRoot, 'input-connect.exe')
@@ -125,10 +114,6 @@ test('prepares canonical release assets, checksums, and manifests', async (conte
   await writeFile(macSource, macContents)
   await writeFile(windowsSource, windowsContents)
   await writeFile(connectSource, connectContents)
-  const runtimePackageDir = await createRuntimePackageDirectory(testRoot, {
-    'php-8.4.24-macos-arm64-community.tar.gz': macRuntimeContents,
-    'php-8.4.24-windows-x64-community.tar.gz': windowsRuntimeContents
-  })
 
   const result = await prepareAppRelease({
     repoRoot,
@@ -137,15 +122,12 @@ test('prepares canonical release assets, checksums, and manifests', async (conte
     outputDir,
     macosArm64: macSource,
     windowsX64: windowsSource,
-    windowsConnectX64: connectSource,
-    runtimePackageDirs: [runtimePackageDir]
+    windowsConnectX64: connectSource
   })
 
   const macName = `fabDev-Community-${projectVersion}-macos-arm64.dmg`
   const windowsName = `fabDev-Community-${projectVersion}-windows-x64-setup.exe`
   const connectName = `fabDev-Connect-${projectVersion}-windows-x64.exe`
-  const macRuntimeName = 'php-8.4.24-macos-arm64-community.tar.gz'
-  const windowsRuntimeName = 'php-8.4.24-windows-x64-community.tar.gz'
   assert.deepEqual((await readdir(outputDir)).sort(), [
     'SHA256SUMS',
     'fabdev-app-v1.json',
@@ -154,25 +136,13 @@ test('prepares canonical release assets, checksums, and manifests', async (conte
     `${connectName}.sha256`,
     macName,
     `${macName}.sha256`,
-    macRuntimeName,
-    `${macRuntimeName}.sha256`,
     windowsName,
-    `${windowsName}.sha256`,
-    windowsRuntimeName,
-    `${windowsRuntimeName}.sha256`
+    `${windowsName}.sha256`
   ].sort())
 
   assert.equal(await readFile(join(outputDir, macName), 'utf8'), macContents.toString())
   assert.equal(await readFile(join(outputDir, windowsName), 'utf8'), windowsContents.toString())
   assert.equal(await readFile(join(outputDir, connectName), 'utf8'), connectContents.toString())
-  assert.equal(
-    await readFile(join(outputDir, macRuntimeName), 'utf8'),
-    macRuntimeContents.toString()
-  )
-  assert.equal(
-    await readFile(join(outputDir, windowsRuntimeName), 'utf8'),
-    windowsRuntimeContents.toString()
-  )
 
   const manifest = JSON.parse(await readFile(join(outputDir, 'fabdev-app-v1.json'), 'utf8'))
   const stableManifest = JSON.parse(
@@ -195,9 +165,7 @@ test('prepares canonical release assets, checksums, and manifests', async (conte
     await readFile(join(outputDir, 'SHA256SUMS'), 'utf8'),
     `${digest(macContents)}  ${macName}\n` +
       `${digest(windowsContents)}  ${windowsName}\n` +
-      `${digest(connectContents)}  ${connectName}\n` +
-      `${digest(macRuntimeContents)}  ${macRuntimeName}\n` +
-      `${digest(windowsRuntimeContents)}  ${windowsRuntimeName}\n`
+      `${digest(connectContents)}  ${connectName}\n`
   )
   assert.equal(
     await readFile(join(outputDir, `${macName}.sha256`), 'utf8'),
@@ -224,7 +192,7 @@ test('rejects a release version that differs from project metadata', async (cont
   )
 })
 
-test('prepares a Windows-only release with a Windows-only Runtime package', async (context) => {
+test('prepares a Windows-only App release without Runtime packages', async (context) => {
   const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-windows-test-'))
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
   const windowsSource = join(testRoot, 'input-setup.exe')
@@ -232,14 +200,6 @@ test('prepares a Windows-only release with a Windows-only Runtime package', asyn
   const outputDir = join(testRoot, 'release')
   await writeFile(windowsSource, 'Windows installer fixture')
   await writeFile(connectSource, 'fabDev Connect fixture')
-  const runtimePackageDir = await createRuntimePackageDirectory(testRoot, {
-    'php-7.4.33-windows-x64-community.tar.gz': 'Windows PHP 7.4 Runtime fixture',
-    'php-8.2.33-windows-x64-community.tar.gz': 'Windows PHP 8.2 Runtime fixture',
-    'php-8.4.24-windows-x64-community.tar.gz': 'Windows PHP 8.4 Runtime fixture',
-    'mariadb-12.3.2-windows-x64-community.tar.gz': 'Windows MariaDB Runtime fixture',
-    'node-20.20.2-windows-x64-community.tar.gz': 'Windows Node.js 20 Runtime fixture',
-    'node-24.20.0-windows-x64-community.tar.gz': 'Windows Node.js 24 Runtime fixture'
-  })
 
   const result = await prepareAppRelease({
     repoRoot,
@@ -247,99 +207,60 @@ test('prepares a Windows-only release with a Windows-only Runtime package', asyn
     publishedAt: '2026-08-30T12:34:56Z',
     outputDir,
     windowsX64: windowsSource,
-    windowsConnectX64: connectSource,
-    runtimePackageDirs: [runtimePackageDir]
+    windowsConnectX64: connectSource
   })
 
   assert.equal(result.manifest.artifacts.length, 1)
   assert.equal(result.manifest.artifacts[0].platform, 'windows')
-  assert.equal(result.files.length, 19)
-  assert.equal(
-    result.files.includes('php-7.4.33-windows-x64-community.tar.gz'),
-    true
-  )
-  assert.equal(
-    result.files.includes('php-8.2.33-windows-x64-community.tar.gz'),
-    true
-  )
-  assert.equal(
-    result.files.includes('php-8.4.24-windows-x64-community.tar.gz'),
-    true
-  )
-  assert.equal(
-    result.files.includes('mariadb-12.3.2-windows-x64-community.tar.gz'),
-    true
-  )
-  assert.equal(
-    result.files.includes('node-20.20.2-windows-x64-community.tar.gz'),
-    true
-  )
-  assert.equal(
-    result.files.includes('node-24.20.0-windows-x64-community.tar.gz'),
-    true
-  )
+  assert.equal(result.files.length, 7)
+  assert.equal(result.files.some((fileName) => fileName.endsWith('.tar.gz')), false)
+  assert.equal(result.files.includes('fabdev-runtime-v1.json'), false)
   assert.equal(
     result.files.some((fileName) => fileName.includes('macos')),
     false
   )
 })
 
-test('stages future Runtime versions without adding version-specific options', async (context) => {
+test('rejects Runtime package inputs from the App Release API', async (context) => {
   const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-future-runtime-test-'))
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
   const windowsSource = join(testRoot, 'input-setup.exe')
-  const outputDir = join(testRoot, 'release')
   await writeFile(windowsSource, 'Windows installer fixture')
-  const runtimePackageDir = await createRuntimePackageDirectory(testRoot, {
-    'php-8.5.1-windows-x64-community.tar.gz': 'Future PHP Runtime fixture',
-    'node-26.1.3-windows-x64-community.tar.gz': 'Future Node.js Runtime fixture',
-    'notes.txt': 'Ignored non-package file'
-  })
 
-  const result = await prepareAppRelease({
-    repoRoot,
-    version: projectVersion,
-    publishedAt: '2026-09-01T12:34:56Z',
-    outputDir,
-    windowsX64: windowsSource,
-    runtimePackageDirs: [runtimePackageDir]
-  })
-
-  assert.equal(result.files.includes('php-8.5.1-windows-x64-community.tar.gz'), true)
-  assert.equal(result.files.includes('node-26.1.3-windows-x64-community.tar.gz'), true)
-  assert.equal(result.files.includes('notes.txt'), false)
+  await assert.rejects(
+    prepareAppRelease({
+      repoRoot,
+      version: projectVersion,
+      publishedAt: '2026-09-01T12:34:56Z',
+      outputDir: join(testRoot, 'release'),
+      windowsX64: windowsSource,
+      runtimePackageDirs: [testRoot]
+    }),
+    /Runtime packages must be published from the fabdev-runtimes repository/
+  )
 })
 
-test('prepares a macOS ARM64 release with all online Runtime packages', async (context) => {
+test('prepares a macOS ARM64 App release without online Runtime packages', async (context) => {
   const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-macos-test-'))
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
   const macSource = join(testRoot, 'input.dmg')
   const outputDir = join(testRoot, 'release')
   await writeFile(macSource, 'macOS installer fixture')
-  const runtimePackageDir = await createRuntimePackageDirectory(testRoot, {
-    'php-8.4.24-macos-arm64-community.tar.gz': 'macOS PHP Runtime fixture',
-    'mariadb-12.3.2-macos-arm64-community.tar.gz': 'macOS MariaDB Runtime fixture',
-    'node-20.20.2-macos-arm64-community.tar.gz': 'macOS Node.js 20 Runtime fixture',
-    'node-24.20.0-macos-arm64-community.tar.gz': 'macOS Node.js 24 Runtime fixture'
-  })
 
   const result = await prepareAppRelease({
     repoRoot,
     version: projectVersion,
     publishedAt: '2026-08-31T06:00:00Z',
     outputDir,
-    macosArm64: macSource,
-    runtimePackageDirs: [runtimePackageDir]
+    macosArm64: macSource
   })
 
   assert.equal(result.manifest.artifacts.length, 1)
   assert.equal(result.manifest.artifacts[0].platform, 'macos')
   assert.equal(result.manifest.artifacts[0].architecture, 'arm64')
-  assert.equal(result.files.length, 13)
-  assert.equal(result.files.includes('php-8.4.24-macos-arm64-community.tar.gz'), true)
-  assert.equal(result.files.includes('mariadb-12.3.2-macos-arm64-community.tar.gz'), true)
-  assert.equal(result.files.includes('node-20.20.2-macos-arm64-community.tar.gz'), true)
-  assert.equal(result.files.includes('node-24.20.0-macos-arm64-community.tar.gz'), true)
+  assert.equal(result.files.length, 5)
+  assert.equal(result.files.some((fileName) => fileName.endsWith('.tar.gz')), false)
+  assert.equal(result.files.includes('fabdev-runtime-v1.json'), false)
   assert.equal(result.files.some((fileName) => fileName.includes('windows')), false)
 })
 
@@ -383,8 +304,7 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.match(workflow, /CONFIRM_DRAFT: \$\{\{ inputs\.confirm_draft \}\}/)
   assert.match(workflow, /RELEASE_SCOPE: \$\{\{ inputs\.release_scope \}\}/)
   assert.match(workflow, /Release scope must be all, windows, or macos/)
-  assert.match(workflow, /RUNTIME_CATALOG_SEQUENCE: \$\{\{ inputs\.runtime_catalog_sequence \}\}/)
-  assert.match(workflow, /RUNTIME_CATALOG_EXPIRES_AT: \$\{\{ inputs\.runtime_catalog_expires_at \}\}/)
+  assert.doesNotMatch(workflow, /runtime_catalog_sequence|runtime_catalog_expires_at/)
   assert.match(workflow, /REPACKAGE v\$VERSION/)
   assert.match(workflow, /DRAFT v\$VERSION/)
   assert.match(workflow, /permissions:\n  contents: read/)
@@ -398,21 +318,16 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.doesNotMatch(workflow, /releases\/tags\//)
   assert.doesNotMatch(workflow, /gh release edit|--draft=false|make_latest/)
   assert.doesNotMatch(workflow, /secrets\./)
-  assert.match(workflow, /build-windows-php-runtime\.ps1/)
-  assert.match(workflow, /-OutputDirectory release-input/)
-  assert.match(workflow, /-ManifestPath resources\/runtime-packages\/windows-x64\.json/)
   assert.match(workflow, /prepare-windows-runtimes\.ps1/)
   assert.match(
     workflow,
     /-ManifestPath resources\/runtime-packages\/windows-x64-bundled\.json/
   )
-  assert.match(workflow, /FABDEV_WINDOWS_RUNTIME_PACKAGE_MANIFEST:/)
-  assert.match(workflow, /FABDEV_WINDOWS_RUNTIME_PACKAGE_DIR:/)
-  assert.doesNotMatch(workflow, /FABDEV_WINDOWS_PHP(?:74|82|84)_RUNTIME_PACKAGE:/)
-  assert.match(workflow, /installs_real_windows_php_archive/)
-  assert.match(workflow, /FABDEV_WINDOWS_RUNTIME_NAMES: mariadb node/)
-  assert.match(workflow, /FABDEV_WINDOWS_PACKAGE_MANIFEST:/)
-  assert.match(workflow, /--runtime-package-dir/)
+  assert.doesNotMatch(workflow, /build-windows-php-runtime\.ps1/)
+  assert.doesNotMatch(workflow, /build-windows-runtime-packages\.sh/)
+  assert.doesNotMatch(workflow, /build-macos-online-runtime-packages\.sh/)
+  assert.doesNotMatch(workflow, /draft-(?:windows|macos)-online-runtimes/)
+  assert.doesNotMatch(workflow, /--runtime-package-dir/)
   assert.doesNotMatch(workflow, /--runtime-(?:php|mariadb|node\d|windows|macos)/)
   assert.match(workflow, /build-macos:/)
   assert.match(
@@ -420,24 +335,22 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
     /build-macos:\n[\s\S]*?if: inputs\.release_scope == 'all' \|\| inputs\.release_scope == 'macos'/
   )
   assert.match(workflow, /draft-macos-arm64/)
-  assert.match(workflow, /draft-macos-online-runtimes/)
-  assert.match(workflow, /build-macos-online-runtime-packages\.sh/)
   assert.match(workflow, /--macos-arm64/)
-  assert.match(workflow, /generate-community/)
   assert.match(workflow, /Generate Windows-only release assets and manifests/)
   assert.match(workflow, /if: inputs\.release_scope == 'windows'/)
-  assert.match(workflow, /generate-windows/)
   assert.match(workflow, /This Windows-only build does not use Windows Code Signing/)
+  assert.match(workflow, /Runtime Catalogs and Runtime Packages are published separately/)
   assert.match(workflow, /inputs\.release_scope == 'macos'/)
   assert.match(workflow, /Download and validate existing Windows-only Draft assets/)
   assert.match(workflow, /Existing Draft state will be verified by the write-scoped final job/)
   assert.match(workflow, /test "\$is_draft" = "true"/)
   assert.match(workflow, /test "\$is_unpublished" = "true"/)
-  assert.match(workflow, /20\|30\) ;;/)
-  assert.match(workflow, /Expected 20 Windows-only or 30 supplemented Draft assets/)
+  assert.match(workflow, /7\|9\) ;;/)
+  assert.match(workflow, /Expected 7 Windows-only or 9 supplemented Draft assets/)
   assert.match(workflow, /existing-windows/)
   assert.match(workflow, /-name '\*-windows-x64\*'/)
-  assert.match(workflow, /test "\$checksum_count" = "13"/)
+  assert.match(workflow, /test "\$checksum_count" = "2"/)
+  assert.match(workflow, /test "\$checksum_count" = "3"/)
   assert.match(workflow, /gh release download/)
   assert.match(workflow, /gh release upload/)
   assert.match(workflow, /--clobber/)
@@ -445,12 +358,12 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.match(workflow, /supplement-assets/)
   assert.match(workflow, /existing ad-hoc macOS signing only/)
   assert.match(workflow, /needs\.build-windows\.result == 'skipped'/)
-  assert.match(workflow, /needs\.build-windows-online-runtimes\.result == 'skipped'/)
+  assert.doesNotMatch(workflow, /build-windows-online-runtimes/)
   assert.doesNotMatch(workflow, /xcrun\s+(?:notarytool|stapler)/)
   assert.doesNotMatch(workflow, /APPLE_(?:CERTIFICATE|SIGNING_IDENTITY|NOTARIZATION)/)
-  assert.match(workflow, /--bin fabdev-runtime-catalog/)
-  assert.match(workflow, /release-assets\/fabdev-runtime-v1\.json/)
-  assert.match(workflow, /expected_file_count="\$\(\(checksum_entries \* 2 \+ 4\)\)"/)
+  assert.doesNotMatch(workflow, /--bin fabdev-runtime-catalog/)
+  assert.match(workflow, /test ! -e fabdev-runtime-v1\.json/)
+  assert.match(workflow, /expected_file_count="\$\(\(checksum_entries \* 2 \+ 3\)\)"/)
 
   const usesLines = workflow
     .split('\n')

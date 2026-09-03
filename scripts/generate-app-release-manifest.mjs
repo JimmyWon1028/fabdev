@@ -29,8 +29,7 @@ function parseArgs(argv) {
     ['--repository', 'repository'],
     ['--macos-arm64', 'macosArm64'],
     ['--windows-x64', 'windowsX64'],
-    ['--windows-connect-x64', 'windowsConnectX64'],
-    ['--runtime-package-dir', 'runtimePackageDirs']
+    ['--windows-connect-x64', 'windowsConnectX64']
   ])
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -43,19 +42,14 @@ function parseArgs(argv) {
     if (!name) {
       throw new Error(`Unknown option: ${argument}`)
     }
-    if (name !== 'runtimePackageDirs' && options[name] !== undefined) {
+    if (options[name] !== undefined) {
       throw new Error(`Duplicate option: ${argument}`)
     }
     const value = argv[index + 1]
     if (!value || value.startsWith('--')) {
       throw new Error(`Missing value for ${argument}`)
     }
-    if (name === 'runtimePackageDirs') {
-      options.runtimePackageDirs ??= []
-      options.runtimePackageDirs.push(value)
-    } else {
-      options[name] = value
-    }
+    options[name] = value
     index += 1
   }
 
@@ -71,8 +65,7 @@ function printHelp() {
     [--repository <owner/repository>] \\
     [--macos-arm64 <dmg>] \\
     [--windows-x64 <setup.exe>] \\
-    [--windows-connect-x64 <fabdev-connect.exe>] \\
-    [--runtime-package-dir <directory>]...
+    [--windows-connect-x64 <fabdev-connect.exe>]
 
 At least one App installer must be provided. The output directory must not exist.
 `)
@@ -211,39 +204,6 @@ function optionalToolDefinitions(version, options) {
   ].filter((definition) => definition.source)
 }
 
-async function runtimePackageDefinitions(repoRoot, options) {
-  const packageNamePattern =
-    /^(php|mariadb|node)-\d+\.\d+\.\d+-(macos-arm64|windows-x64)-community\.tar\.gz$/
-  const definitions = []
-  const fileNames = new Set()
-
-  for (const directoryOption of options.runtimePackageDirs ?? []) {
-    const directory = resolve(repoRoot, directoryOption)
-    const directoryStat = await lstat(directory)
-    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
-      throw new Error(`Runtime package directory must be a real directory: ${directory}`)
-    }
-
-    const entries = await readdir(directory, { withFileTypes: true })
-    for (const entry of entries) {
-      if (!entry.isFile() || !packageNamePattern.test(entry.name)) {
-        continue
-      }
-      if (fileNames.has(entry.name)) {
-        throw new Error(`Duplicate Runtime package filename: ${entry.name}`)
-      }
-      fileNames.add(entry.name)
-      definitions.push({
-        source: join(directory, entry.name),
-        label: `Runtime package ${entry.name}`,
-        fileName: entry.name
-      })
-    }
-  }
-
-  return definitions.sort((left, right) => left.fileName.localeCompare(right.fileName))
-}
-
 export async function prepareAppRelease(options) {
   const repoRoot = resolve(options.repoRoot ?? defaultRepoRoot)
   const version = requireString(options.version, '--version')
@@ -254,6 +214,9 @@ export async function prepareAppRelease(options) {
   validateVersion(version)
   validatePublishedAt(publishedAt)
   validateRepository(repository)
+  if (options.runtimePackageDirs !== undefined) {
+    throw new Error('Runtime packages must be published from the fabdev-runtimes repository')
+  }
 
   const projectMetadata = await readProjectMetadata(repoRoot)
   if (version !== projectMetadata.version) {
@@ -267,8 +230,7 @@ export async function prepareAppRelease(options) {
     throw new Error('At least one App installer is required')
   }
   const optionalTools = optionalToolDefinitions(version, options)
-  const runtimePackages = await runtimePackageDefinitions(repoRoot, options)
-  const definitions = [...installers, ...optionalTools, ...runtimePackages]
+  const definitions = [...installers, ...optionalTools]
   for (const definition of definitions) {
     definition.source = await validateSource(resolve(repoRoot, definition.source), definition.label)
   }
