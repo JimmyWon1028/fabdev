@@ -11,6 +11,7 @@ pub use protocol::{
   ProxyConnectionInput, ProxyConnectionSettings, ProxyConnectionState, ProxyManagerState,
   RuntimeUpdateArtifact, RuntimeUpdateCheck, RuntimeUpdateOperation, RuntimeUpdateOperationStatus,
   ServiceState, SiteHomeInput, SiteHomeSettings, TerminalNodeState, TerminalPhpState,
+  DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS, MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
   PROTOCOL_VERSION,
 };
 pub use site::{

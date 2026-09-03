@@ -13,6 +13,7 @@ const connections: ProxyConnectionInfo[] = [
     listenPort: 3020,
     target: 'http://api.example.test',
     allowedOrigins: ['http://erp.test:8100'],
+    upstreamResponseTimeoutSeconds: 60,
     state: 'running',
     lastError: null
   },
@@ -24,6 +25,7 @@ const connections: ProxyConnectionInfo[] = [
     listenPort: 3030,
     target: 'http://192.168.1.20',
     allowedOrigins: [],
+    upstreamResponseTimeoutSeconds: 300,
     state: 'stopped',
     lastError: null
   }

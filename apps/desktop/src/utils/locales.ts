@@ -134,6 +134,9 @@ const en = {
   'proxy.port': 'Local port',
   'proxy.target': 'Remote HTTP target',
   'proxy.targetHelp': 'Only absolute http:// targets are supported.',
+  'proxy.timeout': 'Upstream response timeout (seconds)',
+  'proxy.timeoutHelp': 'Leave blank or enter 0 to use 60 seconds. Maximum 360 seconds (6 minutes).',
+  'proxy.timeoutSummary': 'Response timeout: {seconds}s',
   'proxy.allowedOrigins': 'Credential origins',
   'proxy.allowedOriginsPlaceholder': 'One origin per line, for example http://app.test:8100',
   'proxy.allowedOriginsHelp': 'These exact HTTP/HTTPS origins may use CORS credentials. Leave blank to allow the Proxy domain over HTTP and HTTPS.',
@@ -610,6 +613,18 @@ const zhCNProxySearchCopy = {
   'proxy.noResults': '找不到符合条件的 Proxy 连接'
 } satisfies Partial<TranslationTable>
 
+const zhTWProxyTimeoutCopy = {
+  'proxy.timeout': '上游回應逾時（秒）',
+  'proxy.timeoutHelp': '留空或輸入 0 會使用預設 60 秒；最多 360 秒（6 分鐘）。',
+  'proxy.timeoutSummary': '回應逾時：{seconds} 秒'
+} satisfies Partial<TranslationTable>
+
+const zhCNProxyTimeoutCopy = {
+  'proxy.timeout': '上游响应超时（秒）',
+  'proxy.timeoutHelp': '留空或输入 0 会使用默认 60 秒；最多 360 秒（6 分钟）。',
+  'proxy.timeoutSummary': '响应超时：{seconds} 秒'
+} satisfies Partial<TranslationTable>
+
 const zhCNHomeCopy = {
   'sites.editTitle': '编辑 Site',
   'sites.name': '名称',
@@ -821,6 +836,7 @@ export const translations: Record<Language, TranslationTable> = {
     ...zhTW,
     ...zhTWBuiltInRuntimeCopy,
     ...zhTWLanShareCopy,
+    ...zhTWProxyTimeoutCopy,
     ...zhTWTerminalPhpCopy,
     ...zhTWWindowsRuntimeCatalogCopy,
     ...zhTWOnlineServiceRuntimeCopy
@@ -833,6 +849,7 @@ export const translations: Record<Language, TranslationTable> = {
     ...zhCNNodeCopy,
     ...zhCNSiteSelectionCopy,
     ...zhCNProxySearchCopy,
+    ...zhCNProxyTimeoutCopy,
     ...zhCNUpdateCopy,
     ...zhCNTerminalPhpCopy,
     ...zhCNWindowsRuntimeCatalogCopy,

@@ -265,6 +265,10 @@ impl ServiceSupervisor {
     statuses
   }
 
+  pub const fn supports_php_fpm_pool_statuses(&self) -> bool {
+    cfg!(unix)
+  }
+
   pub fn rotate_logs_if_due(&mut self) -> Result<()> {
     let now = Instant::now();
     if self

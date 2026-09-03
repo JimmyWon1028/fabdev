@@ -19,6 +19,8 @@ fabDev 是 macOS 優先、最終支援 Windows 的 ERP Web 本機開發工具。
 只有使用者明確說「重新打包」時，才能執行 `pnpm run build:community:macos` 或覆蓋 Community DMG；開始、繼續、測試或完成細節都不構成打包授權。
 macOS Community 發行目前維持既有 Unsigned Community DMG。除非 Repository Owner 明確要求「發行簽章版」，不得加入或變更 Apple Developer ID、notarization、stapling、Hardened Runtime、簽章憑證、CI Secret 或其他簽章／公證設定，也不得為了消除 Gatekeeper 警告擅自修改安裝／移除腳本或 DMG 包裝。GitHub Release 經瀏覽器下載的 DMG 若帶有 quarantine，本機測試只能在 SHA-256 驗證通過後，先退出所有同名舊掛載、只移除該 DMG 的 `com.apple.quarantine`，再重新掛載；這只屬本機檔案 metadata 處理，不得混入 Release Asset 或專案設定。
 
+fabDev App Release 與線上 Runtime Distribution 自 `v0.1.21` 起完全分離。`JimmyWon1028/fabdev` 的 App Release 只包含 Windows／macOS App Installer、fabDev Connect、App Manifest 及 checksum；不得加入、重建、複製或上傳線上 PHP、MariaDB、Node.js Runtime Package、Runtime Catalog 或 Runtime `.tar.gz`。選裝 Runtime Package 與 Catalog 只由獨立的 `JimmyWon1028/fabdev-runtimes` 管理，使用自己的 Catalog sequence、最低相容版本與發布生命週期，不跟隨 App SemVer 或 App Tag。一般 App／Agent／Desktop 功能修正及 App 進版不構成 Runtime 重新打包、Catalog 更新或 Runtime Release 授權；只有 Runtime 內容或 Catalog 本身確實變更且 Repository Owner 明確要求時才處理。此分離不改變 App Installer 內既有 bundled Runtime 的產品契約，但 bundled Runtime 內容未變時不得因 App 發布而另外重打選裝 Runtime Package。
+
 ## 架構與設定原則
 
 Desktop 只透過明確定義的 Tauri Command 呼叫 Core Agent。Agent 使用版本化 JSON Protocol 與 Unix Socket；變更 request 或 response 時，必須同步修改 `crates/core/src/protocol.rs` 與 `packages/contracts/src/index.ts`。本機狀態使用 SQLite，可進版控的 Site 設定預留 `fabdev.yml`。平台差異應收斂在 `crates/platform/` 或 `helpers/`，不得散落於共用 Domain Logic。Runtime 安裝到 fabDev Application Support，使用版本目錄與 `current` 連結；封裝內的 Mach-O 不得保留 `/opt/homebrew` 執行期依賴。
@@ -58,6 +60,16 @@ Windows 修正與發布採分段 Gate，不得因每個小問題重跑整套流�
 4. Repository Owner 實機 Gate：預設由 Repository Owner 測試安裝、啟動、移除、更新等耗時 Windows 流程，Codex 提供候選、步驟及通過標準；除非 Repository Owner 明確要求，Codex 不自行重跑這些實機流程。
 5. 只有 Repository Owner 明確回報目前 Gate 通過後，才進入下一 Gate。任一 Gate 失敗即停止，不執行後續完整 Runtime、跨平台或發布驗證。
 6. Stable 發布前再集中執行一次實際受影響的必要驗證；Windows-only 修正不得因此打包或重測 macOS，也不得重跑未受影響的 PHP、MariaDB、Node.js、HTTPS 完整人工流程。
+
+## 固定的跨平台進版與發布順序
+
+後續 App 版本固定由 Windows x64 推進版本號：先完成 Windows 實作、候選、CI 與 Repository Owner 實機 Gate；取得明確 Publish 授權後發布 Windows-first Stable Release。macOS ARM64 不獨立進版，也不阻擋 Windows 繼續下一個 App 版本；Repository Owner 可選擇暫時忽略 macOS，較舊的 Windows-only 版本不必逐版補齊。
+
+Windows-first 只代表開發與發布順序，不代表產品功能永久改成 Windows-only。共用 Domain Logic、Agent Protocol、TypeScript Contracts、設定格式與 UI 契約必須從實作開始就保留兩平台一致性；不得因 macOS 延後發布而加入未說明的 `platform` 條件或破壞既有 macOS 能力。Windows Publish 完成後即可結束該次 Windows Release 並開始下一個 Windows App 版本；Release Notes 與 `docs/FABDEV_PROGRESS.md` 必須如實標示該 Release 是否包含 macOS，不得把尚未補入的 macOS 描述為已發布。
+
+Repository Owner 要求補 macOS 時，只補當時最新 Windows Stable 的相同版本，並使用該版本已發布 Annotated Tag 的相同程式碼與 Tag Commit；不得替較舊 Windows-only Release 補版後把它重新設為 Latest。補版不增加版本號、不建立或移動 Tag，也不重新建置或覆蓋已發布的 Windows Binary。若 macOS 建置或驗證發現必須修改任何程式碼、共用設定或既有 Binary，禁止把不同 Commit 或 dirty-worktree 產物補入原 Release；必須停止並告知 Repository Owner，先把修正納入下一個 Windows Patch 版本並完成 Windows-first Publish，之後 macOS 再補該最新版本。已發布 Release 的同版補齊只能新增 macOS DMG 與其個別 checksum，並依 `docs/PUBLIC_RELEASE_SPEC.md` 替換跨平台 `SHA256SUMS`、App Manifest、Stable Manifest 與 Release Notes；Windows Setup、fabDev Connect、其個別 checksum、版本、Tag、Commit、`publishedAt` 與 Release ID 必須保持不變。
+
+Windows-only Stable 公開期間，macOS App 可能因 Latest Manifest 尚無對應 Installer 而回報更新檢查錯誤；這是延後或忽略 macOS 發布時必須接受並如實記錄的影響，不得誤稱 macOS 已有該版本。macOS 補齊完成後必須從公開 URL 重新下載並驗證全部 App Assets、大小、GitHub digest、個別與總 SHA-256、兩份 Manifest 的逐位元一致性，以及 Latest Manifest 同時且只包含 Windows x64 與 macOS ARM64 Installer；完成這些檢查後才可宣稱最新 Stable 已補齊 macOS。
 
 ## HTTPS、Helper 與 MCP 開發經驗
 

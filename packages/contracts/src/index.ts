@@ -1,4 +1,4 @@
-export const protocolVersion = 37
+export const protocolVersion = 38
 
 export type ServiceState =
   | 'notInstalled'
@@ -171,6 +171,7 @@ export interface ProxyConnectionInfo {
   listenPort: number
   target: string
   allowedOrigins: string[]
+  upstreamResponseTimeoutSeconds: number
   state: ProxyConnectionState
   lastError: string | null
 }
@@ -181,6 +182,7 @@ export interface ProxyConnectionInput {
   listenPort: number
   target: string
   allowedOrigins: string[]
+  upstreamResponseTimeoutSeconds?: number | null
 }
 
 export interface ProxyManagerState {

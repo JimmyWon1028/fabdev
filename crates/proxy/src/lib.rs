@@ -2,13 +2,14 @@ use std::collections::{BTreeMap, HashMap};
 use std::convert::Infallible;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use bytes::Bytes;
 use fabdev_core::{
   normalize_domain, ProxyConnectionInfo, ProxyConnectionInput, ProxyConnectionSettings,
-  ProxyConnectionState, ProxyManagerState,
+  ProxyConnectionState, ProxyManagerState, DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
+  MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
 };
 use http_body_util::{combinators::BoxBody, BodyExt, Full};
 use hyper::body::Incoming;
@@ -31,31 +32,173 @@ const UPSTREAM_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const UPSTREAM_HEALTH_INTERVAL: Duration = Duration::from_secs(15);
 const UPSTREAM_HEALTH_TIMEOUT: Duration = Duration::from_secs(5);
 const CONNECTION_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
+const UPSTREAM_HEALTH_FAILURE_THRESHOLD: u8 = 3;
+const UPSTREAM_HEALTH_RECOVERY_THRESHOLD: u8 = 2;
+const UPSTREAM_REQUEST_RECOVERY_THRESHOLD: u8 = 2;
 
 type ProxyBody = BoxBody<Bytes, hyper::Error>;
 type ProxyClient = Client<HttpConnector, Incoming>;
 
 struct ConnectionHealth {
-  last_error: Mutex<Option<String>>,
+  connection_id: String,
+  target_authority: String,
+  state: Mutex<ConnectionHealthState>,
+}
+
+#[derive(Default)]
+struct ConnectionHealthState {
+  periodic_error: Option<String>,
+  periodic_failures: u8,
+  periodic_successes: u8,
+  request_error: Option<String>,
+  request_successes: u8,
+  runtime_error: Option<String>,
+}
+
+struct UpstreamHealthFailure {
+  message: String,
+  error_kind: &'static str,
+  os_error_code: Option<i32>,
 }
 
 impl ConnectionHealth {
-  fn new() -> Self {
+  fn new(settings: &ProxyConnectionSettings) -> Self {
     Self {
-      last_error: Mutex::new(None),
+      connection_id: settings.id.clone(),
+      target_authority: masked_target_authority(&settings.target),
+      state: Mutex::new(ConnectionHealthState::default()),
     }
   }
 
-  async fn set_error(&self, error: impl Into<String>) {
-    *self.last_error.lock().await = Some(error.into());
+  async fn record_periodic_failure(&self, failure: UpstreamHealthFailure, elapsed: Duration) {
+    let mut state = self.state.lock().await;
+    state.periodic_successes = 0;
+    state.periodic_failures = state.periodic_failures.saturating_add(1);
+    if state.periodic_failures < UPSTREAM_HEALTH_FAILURE_THRESHOLD {
+      return;
+    }
+    let entering_degraded = state.periodic_error.is_none();
+    state.periodic_error = Some(failure.message.clone());
+    if entering_degraded {
+      self.log_transition(
+        "tcp",
+        "degraded",
+        elapsed,
+        failure.error_kind,
+        failure.os_error_code,
+        Some(&failure.message),
+      );
+    }
   }
 
-  async fn clear_error(&self) {
-    self.last_error.lock().await.take();
+  async fn record_periodic_success(&self, elapsed: Duration) {
+    let mut state = self.state.lock().await;
+    state.periodic_failures = 0;
+    if state.periodic_error.is_none() {
+      state.periodic_successes = 0;
+      return;
+    }
+    state.periodic_successes = state.periodic_successes.saturating_add(1);
+    if state.periodic_successes < UPSTREAM_HEALTH_RECOVERY_THRESHOLD {
+      return;
+    }
+    state.periodic_error = None;
+    state.periodic_successes = 0;
+    self.log_transition("tcp", "recovered", elapsed, "none", None, None);
+  }
+
+  async fn record_request_failure(
+    &self,
+    message: String,
+    error_kind: &'static str,
+    elapsed: Duration,
+  ) {
+    let mut state = self.state.lock().await;
+    state.request_successes = 0;
+    let entering_degraded = state.request_error.is_none();
+    state.request_error = Some(message.clone());
+    if entering_degraded {
+      self.log_transition(
+        "request",
+        "degraded",
+        elapsed,
+        error_kind,
+        None,
+        Some(&message),
+      );
+    }
+  }
+
+  async fn record_request_success(&self, elapsed: Duration) {
+    let mut state = self.state.lock().await;
+    if state.request_error.is_none() {
+      state.request_successes = 0;
+      return;
+    }
+    state.request_successes = state.request_successes.saturating_add(1);
+    if state.request_successes < UPSTREAM_REQUEST_RECOVERY_THRESHOLD {
+      return;
+    }
+    state.request_error = None;
+    state.request_successes = 0;
+    self.log_transition("request", "recovered", elapsed, "none", None, None);
+  }
+
+  async fn record_runtime_failure(&self, message: String) {
+    let mut state = self.state.lock().await;
+    let entering_degraded = state.runtime_error.is_none();
+    state.runtime_error = Some(message.clone());
+    if entering_degraded {
+      self.log_transition(
+        "listener",
+        "degraded",
+        Duration::ZERO,
+        "accept",
+        None,
+        Some(&message),
+      );
+    }
+  }
+
+  async fn record_runtime_success(&self) {
+    let mut state = self.state.lock().await;
+    if state.runtime_error.take().is_some() {
+      self.log_transition("listener", "recovered", Duration::ZERO, "none", None, None);
+    }
   }
 
   async fn last_error(&self) -> Option<String> {
-    self.last_error.lock().await.clone()
+    let state = self.state.lock().await;
+    state
+      .runtime_error
+      .clone()
+      .or_else(|| state.request_error.clone())
+      .or_else(|| state.periodic_error.clone())
+  }
+
+  fn log_transition(
+    &self,
+    check_type: &str,
+    state: &str,
+    elapsed: Duration,
+    error_kind: &str,
+    os_error_code: Option<i32>,
+    message: Option<&str>,
+  ) {
+    let timestamp_ms = SystemTime::now()
+      .duration_since(UNIX_EPOCH)
+      .unwrap_or_default()
+      .as_millis();
+    eprintln!(
+      "Proxy health transition timestamp_ms={timestamp_ms} connection_id={} target_authority={} check_type={check_type} elapsed_ms={} error_kind={error_kind} os_error_code={} state={state} message={}",
+      self.connection_id,
+      self.target_authority,
+      elapsed.as_millis(),
+      os_error_code
+        .map(|code| code.to_string())
+        .unwrap_or_else(|| "none".to_owned()),
+      message.unwrap_or("none")
+    );
   }
 }
 
@@ -126,9 +269,10 @@ impl ProxyManager {
 
   pub async fn restore_update(
     &mut self,
-    settings: ProxyConnectionSettings,
+    mut settings: ProxyConnectionSettings,
     should_run: bool,
   ) -> Result<()> {
+    normalize_connection_settings(&mut settings);
     let id = settings.id.clone();
     validate_connection(&settings)?;
     self.validate_unique(&settings, Some(&id))?;
@@ -157,7 +301,8 @@ impl ProxyManager {
     self.add_settings(settings)
   }
 
-  fn add_settings(&mut self, settings: ProxyConnectionSettings) -> Result<()> {
+  fn add_settings(&mut self, mut settings: ProxyConnectionSettings) -> Result<()> {
+    normalize_connection_settings(&mut settings);
     validate_connection(&settings)?;
     self.validate_unique(&settings, None)?;
     self.connections.insert(settings.id.clone(), settings);
@@ -223,6 +368,7 @@ impl ProxyManager {
         listen_port: settings.listen_port,
         target: settings.target.clone(),
         allowed_origins: settings.allowed_origins.clone(),
+        upstream_response_timeout_seconds: settings.upstream_response_timeout_seconds,
         state,
         last_error,
       });
@@ -259,7 +405,7 @@ impl ProxyManager {
         return Ok(());
       }
     };
-    let health = Arc::new(ConnectionHealth::new());
+    let health = Arc::new(ConnectionHealth::new(&settings));
     let (stop, stop_receiver) = oneshot::channel();
     let task_health = Arc::clone(&health);
     let task = tokio::spawn(async move {
@@ -347,6 +493,7 @@ fn connection(
     listen_port,
     target: target.to_owned(),
     allowed_origins: vec![format!("http://{domain}"), format!("https://{domain}")],
+    upstream_response_timeout_seconds: DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
   }
 }
 
@@ -363,7 +510,18 @@ fn connection_from_input(input: ProxyConnectionInput) -> Result<ProxyConnectionS
     &target,
   );
   settings.allowed_origins = normalize_allowed_origins(input.allowed_origins, &domain)?;
+  settings.upstream_response_timeout_seconds = input
+    .upstream_response_timeout_seconds
+    .filter(|seconds| *seconds != 0)
+    .unwrap_or(DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS);
+  validate_connection(&settings)?;
   Ok(settings)
+}
+
+fn normalize_connection_settings(settings: &mut ProxyConnectionSettings) {
+  if settings.upstream_response_timeout_seconds == 0 {
+    settings.upstream_response_timeout_seconds = DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS;
+  }
 }
 
 fn normalize_allowed_origins(origins: Vec<String>, domain: &str) -> Result<Vec<String>> {
@@ -411,6 +569,12 @@ fn validate_connection(settings: &ProxyConnectionSettings) -> Result<()> {
   if settings.listen_port < 1024 {
     bail!("Proxy listen port must be between 1024 and 65535");
   }
+  if settings.upstream_response_timeout_seconds > MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS {
+    bail!(
+      "Proxy upstream response timeout must be between 1 and {} seconds after defaults are applied",
+      MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS
+    );
+  }
   normalize_domain(&settings.domain)
     .with_context(|| format!("invalid Proxy domain: {}", settings.domain))?;
   let address = proxy_listen_address(settings)?;
@@ -438,6 +602,51 @@ fn proxy_listen_address(settings: &ProxyConnectionSettings) -> Result<SocketAddr
   Ok(SocketAddr::new(host, settings.listen_port))
 }
 
+fn health_initial_delay(connection_id: &str) -> Duration {
+  let interval_millis = UPSTREAM_HEALTH_INTERVAL.as_millis() as u64;
+  let offset = connection_id.bytes().fold(0_u64, |hash, byte| {
+    hash.wrapping_mul(31).wrapping_add(u64::from(byte))
+  });
+  Duration::from_millis(1 + offset % interval_millis.saturating_sub(1).max(1))
+}
+
+fn masked_target_authority(target: &str) -> String {
+  let Ok(uri) = target.parse::<Uri>() else {
+    return "invalid".to_owned();
+  };
+  let Some(authority) = uri.authority() else {
+    return "invalid".to_owned();
+  };
+  let host = authority.host();
+  let host = if host.contains(':') {
+    format!("[{host}]")
+  } else {
+    host.to_owned()
+  };
+  match authority.port_u16() {
+    Some(port) => format!("{host}:{port}"),
+    None => host,
+  }
+}
+
+fn classify_io_error(error: &std::io::Error) -> &'static str {
+  if matches!(error.raw_os_error(), Some(11_001..=11_004)) {
+    return "dns";
+  }
+  match error.kind() {
+    std::io::ErrorKind::NotFound => "dns",
+    std::io::ErrorKind::ConnectionRefused => "connection_refused",
+    std::io::ErrorKind::ConnectionReset => "connection_reset",
+    std::io::ErrorKind::ConnectionAborted => "connection_aborted",
+    std::io::ErrorKind::NotConnected => "not_connected",
+    std::io::ErrorKind::TimedOut => "timeout",
+    std::io::ErrorKind::AddrNotAvailable => "address_unavailable",
+    std::io::ErrorKind::NetworkUnreachable => "network_unreachable",
+    std::io::ErrorKind::HostUnreachable => "host_unreachable",
+    _ => "io",
+  }
+}
+
 async fn run_proxy(
   listener: TcpListener,
   settings: ProxyConnectionSettings,
@@ -446,10 +655,11 @@ async fn run_proxy(
 ) {
   let mut connector = HttpConnector::new();
   connector.enforce_http(true);
+  connector.set_connect_timeout(Some(UPSTREAM_CONNECT_TIMEOUT));
   let client: ProxyClient = Client::builder(TokioExecutor::new()).build(connector);
   let mut connections = JoinSet::new();
   let mut health_interval = tokio::time::interval_at(
-    tokio::time::Instant::now() + UPSTREAM_HEALTH_INTERVAL,
+    tokio::time::Instant::now() + health_initial_delay(&settings.id),
     UPSTREAM_HEALTH_INTERVAL,
   );
   health_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
@@ -458,13 +668,15 @@ async fn run_proxy(
     tokio::select! {
       _ = &mut stop => break,
       _ = health_interval.tick() => {
+        let started = Instant::now();
         match check_upstream(&settings).await {
-          Ok(()) => health.clear_error().await,
-          Err(error) => health.set_error(error.to_string()).await,
+          Ok(()) => health.record_periodic_success(started.elapsed()).await,
+          Err(error) => health.record_periodic_failure(error, started.elapsed()).await,
         }
       }
       accepted = listener.accept() => match accepted {
         Ok((stream, _)) => {
+          health.record_runtime_success().await;
           let client = client.clone();
           let settings = settings.clone();
           let health = Arc::clone(&health);
@@ -473,7 +685,9 @@ async fn run_proxy(
           });
         }
         Err(error) => {
-          health.set_error(format!("unable to accept Proxy connection: {error}")).await;
+          health
+            .record_runtime_failure(format!("unable to accept Proxy connection: {error}"))
+            .await;
           tokio::time::sleep(Duration::from_millis(100)).await;
         }
       }
@@ -490,23 +704,36 @@ async fn run_proxy(
   }
 }
 
-async fn check_upstream(settings: &ProxyConnectionSettings) -> Result<()> {
-  let target: Uri = settings
-    .target
-    .parse()
-    .with_context(|| format!("invalid Proxy target: {}", settings.target))?;
-  let authority = target
-    .authority()
-    .with_context(|| format!("Proxy target has no authority: {}", settings.target))?;
+async fn check_upstream(
+  settings: &ProxyConnectionSettings,
+) -> std::result::Result<(), UpstreamHealthFailure> {
+  let target: Uri = settings.target.parse().map_err(|_| UpstreamHealthFailure {
+    message: "Proxy upstream health check has an invalid target".to_owned(),
+    error_kind: "invalid_target",
+    os_error_code: None,
+  })?;
+  let authority = target.authority().ok_or_else(|| UpstreamHealthFailure {
+    message: "Proxy upstream health check target has no authority".to_owned(),
+    error_kind: "invalid_target",
+    os_error_code: None,
+  })?;
   let host = authority.host();
   let port = authority.port_u16().unwrap_or(80);
   match tokio::time::timeout(UPSTREAM_HEALTH_TIMEOUT, TcpStream::connect((host, port))).await {
     Ok(Ok(_)) => Ok(()),
-    Ok(Err(error)) => bail!("Proxy upstream health check failed: {error}"),
-    Err(_) => bail!(
-      "Proxy upstream health check timed out after {} seconds",
-      UPSTREAM_HEALTH_TIMEOUT.as_secs()
-    ),
+    Ok(Err(error)) => Err(UpstreamHealthFailure {
+      message: format!("Proxy upstream health check failed: {error}"),
+      error_kind: classify_io_error(&error),
+      os_error_code: error.raw_os_error(),
+    }),
+    Err(_) => Err(UpstreamHealthFailure {
+      message: format!(
+        "Proxy upstream health check timed out after {} seconds",
+        UPSTREAM_HEALTH_TIMEOUT.as_secs()
+      ),
+      error_kind: "timeout",
+      os_error_code: None,
+    }),
   }
 }
 
@@ -579,13 +806,17 @@ async fn proxy_request(
     Ok(uri) => uri,
     Err(error) => {
       let message = format!("unable to build Proxy target URI: {error}");
-      health.set_error(message.clone()).await;
+      health
+        .record_request_failure(message.clone(), "invalid_target", Duration::ZERO)
+        .await;
       return Ok(error_response(StatusCode::BAD_GATEWAY, &message));
     }
   };
   let Some(authority) = target_uri.authority().cloned() else {
     let message = "Proxy target URI has no authority".to_owned();
-    health.set_error(message.clone()).await;
+    health
+      .record_request_failure(message.clone(), "invalid_target", Duration::ZERO)
+      .await;
     return Ok(error_response(StatusCode::BAD_GATEWAY, &message));
   };
   *request.uri_mut() = target_uri;
@@ -593,23 +824,35 @@ async fn proxy_request(
     request.headers_mut().insert(HOST, host);
   }
 
-  let upstream = tokio::time::timeout(UPSTREAM_CONNECT_TIMEOUT, client.request(request)).await;
+  let response_timeout = Duration::from_secs(settings.upstream_response_timeout_seconds.into());
+  let request_started = Instant::now();
+  let upstream = tokio::time::timeout(response_timeout, client.request(request)).await;
   let mut response = match upstream {
     Ok(Ok(response)) => {
-      health.clear_error().await;
+      health
+        .record_request_success(request_started.elapsed())
+        .await;
       response.map(|body| body.boxed())
     }
     Ok(Err(error)) => {
       let message = format!("Proxy upstream request failed: {error}");
-      health.set_error(message.clone()).await;
+      health
+        .record_request_failure(message.clone(), "request", request_started.elapsed())
+        .await;
       error_response(StatusCode::BAD_GATEWAY, &message)
     }
     Err(_) => {
       let message = format!(
-        "Proxy upstream timed out after {} seconds",
-        UPSTREAM_CONNECT_TIMEOUT.as_secs()
+        "Proxy upstream response timed out after {} seconds",
+        settings.upstream_response_timeout_seconds
       );
-      health.set_error(message.clone()).await;
+      health
+        .record_request_failure(
+          message.clone(),
+          "response_timeout",
+          request_started.elapsed(),
+        )
+        .await;
       error_response(StatusCode::GATEWAY_TIMEOUT, &message)
     }
   };
@@ -696,6 +939,7 @@ mod tests {
       listen_port: port,
       target,
       allowed_origins: vec![format!("http://{id}.test")],
+      upstream_response_timeout_seconds: DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
     }
   }
 
@@ -710,6 +954,7 @@ mod tests {
         listen_port: port,
         target: "http://127.0.0.1:9/".to_owned(),
         allowed_origins: Vec::new(),
+        upstream_response_timeout_seconds: None,
       })
       .expect("add Proxy connection");
 
@@ -718,6 +963,10 @@ mod tests {
     assert_eq!(settings.len(), 1);
     assert_eq!(settings[0].domain, "custom-api.test");
     assert_eq!(settings[0].target, "http://127.0.0.1:9");
+    assert_eq!(
+      settings[0].upstream_response_timeout_seconds,
+      DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS
+    );
     assert_eq!(
       settings[0].allowed_origins,
       vec![
@@ -744,6 +993,7 @@ mod tests {
         listen_port: original_port,
         target: "http://127.0.0.1:9".to_owned(),
         allowed_origins: vec!["http://example-edit.test:8100".to_owned()],
+        upstream_response_timeout_seconds: None,
       })
       .expect("add Proxy connection");
     manager.start(&id).await.expect("start Proxy connection");
@@ -760,6 +1010,7 @@ mod tests {
             "http://example-edit.test:8100/".to_owned(),
             "http://example-edit.test:8100".to_owned(),
           ],
+          upstream_response_timeout_seconds: Some(300),
         },
       )
       .await
@@ -770,6 +1021,7 @@ mod tests {
     let settings = manager.connections();
     assert_eq!(settings[0].listen_port, updated_port);
     assert_eq!(settings[0].target, "http://127.0.0.1:10");
+    assert_eq!(settings[0].upstream_response_timeout_seconds, 300);
     assert_eq!(
       settings[0].allowed_origins,
       vec!["http://example-edit.test:8100".to_owned()]
@@ -784,6 +1036,48 @@ mod tests {
   }
 
   #[test]
+  fn normalizes_zero_timeout_and_accepts_maximum_timeout() {
+    let mut persisted =
+      test_connection("persisted-timeout", 31_099, "http://127.0.0.1:9".to_owned());
+    persisted.upstream_response_timeout_seconds = 0;
+    let persisted_manager =
+      ProxyManager::new(vec![persisted]).expect("normalize a persisted zero timeout");
+    assert_eq!(
+      persisted_manager.connections()[0].upstream_response_timeout_seconds,
+      DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS
+    );
+
+    let mut manager = ProxyManager::new(Vec::new()).expect("create Proxy Manager");
+    manager
+      .add(ProxyConnectionInput {
+        id: "default-timeout".to_owned(),
+        domain: "default-timeout.test".to_owned(),
+        listen_port: 31_100,
+        target: "http://127.0.0.1:9".to_owned(),
+        allowed_origins: Vec::new(),
+        upstream_response_timeout_seconds: Some(0),
+      })
+      .expect("accept zero as the default timeout");
+    manager
+      .add(ProxyConnectionInput {
+        id: "maximum-timeout".to_owned(),
+        domain: "maximum-timeout.test".to_owned(),
+        listen_port: 31_101,
+        target: "http://127.0.0.1:9".to_owned(),
+        allowed_origins: Vec::new(),
+        upstream_response_timeout_seconds: Some(360),
+      })
+      .expect("accept the maximum timeout");
+
+    let settings = manager.connections();
+    assert_eq!(
+      settings[0].upstream_response_timeout_seconds,
+      DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS
+    );
+    assert_eq!(settings[1].upstream_response_timeout_seconds, 360);
+  }
+
+  #[test]
   fn rejects_invalid_or_conflicting_custom_connections() {
     let port = reserve_port();
     let mut manager = ProxyManager::new(Vec::new()).expect("create Proxy Manager");
@@ -794,6 +1088,7 @@ mod tests {
         listen_port: port,
         target: "http://127.0.0.1:9".to_owned(),
         allowed_origins: Vec::new(),
+        upstream_response_timeout_seconds: None,
       })
       .expect("add first Proxy connection");
 
@@ -805,6 +1100,7 @@ mod tests {
           listen_port: reserve_port(),
           target: "http://127.0.0.1:9".to_owned(),
           allowed_origins: Vec::new(),
+          upstream_response_timeout_seconds: None,
         },
         "duplicate Proxy connection id",
       ),
@@ -815,6 +1111,7 @@ mod tests {
           listen_port: port,
           target: "http://127.0.0.1:9".to_owned(),
           allowed_origins: Vec::new(),
+          upstream_response_timeout_seconds: None,
         },
         "both use port",
       ),
@@ -825,6 +1122,7 @@ mod tests {
           listen_port: reserve_port(),
           target: "http://127.0.0.1:9".to_owned(),
           allowed_origins: Vec::new(),
+          upstream_response_timeout_seconds: None,
         },
         "both use domain",
       ),
@@ -835,6 +1133,7 @@ mod tests {
           listen_port: reserve_port(),
           target: "http://127.0.0.1:9".to_owned(),
           allowed_origins: Vec::new(),
+          upstream_response_timeout_seconds: None,
         },
         "invalid Proxy domain",
       ),
@@ -845,6 +1144,7 @@ mod tests {
           listen_port: reserve_port(),
           target: "https://api.example.test".to_owned(),
           allowed_origins: Vec::new(),
+          upstream_response_timeout_seconds: None,
         },
         "absolute HTTP URL",
       ),
@@ -855,13 +1155,74 @@ mod tests {
           listen_port: reserve_port(),
           target: "http://127.0.0.1:9".to_owned(),
           allowed_origins: vec!["*".to_owned()],
+          upstream_response_timeout_seconds: None,
         },
         "must use http or https",
+      ),
+      (
+        ProxyConnectionInput {
+          id: "timeout".to_owned(),
+          domain: "timeout.test".to_owned(),
+          listen_port: reserve_port(),
+          target: "http://127.0.0.1:9".to_owned(),
+          allowed_origins: Vec::new(),
+          upstream_response_timeout_seconds: Some(361),
+        },
+        "between 1 and 360 seconds",
       ),
     ] {
       let error = manager.add(input).expect_err("reject Proxy connection");
       assert!(error.to_string().contains(expected), "{error:#}");
     }
+  }
+
+  #[tokio::test]
+  async fn requires_repeated_health_results_before_state_transitions() {
+    let settings = test_connection("stable", reserve_port(), "http://127.0.0.1:9".to_owned());
+    let health = ConnectionHealth::new(&settings);
+    let failure = || UpstreamHealthFailure {
+      message: "Proxy upstream health check failed: refused".to_owned(),
+      error_kind: "connection_refused",
+      os_error_code: Some(10061),
+    };
+
+    health
+      .record_periodic_failure(failure(), Duration::from_millis(10))
+      .await;
+    health
+      .record_periodic_failure(failure(), Duration::from_millis(10))
+      .await;
+    assert_eq!(health.last_error().await, None);
+
+    health
+      .record_periodic_failure(failure(), Duration::from_millis(10))
+      .await;
+    assert_eq!(
+      health.last_error().await.as_deref(),
+      Some("Proxy upstream health check failed: refused")
+    );
+
+    health
+      .record_periodic_success(Duration::from_millis(5))
+      .await;
+    assert!(health.last_error().await.is_some());
+    health
+      .record_periodic_success(Duration::from_millis(5))
+      .await;
+    assert_eq!(health.last_error().await, None);
+  }
+
+  #[test]
+  fn staggers_health_checks_and_masks_target_credentials() {
+    let first = health_initial_delay("first");
+    let second = health_initial_delay("second");
+    assert!(first > Duration::ZERO && first <= UPSTREAM_HEALTH_INTERVAL);
+    assert!(second > Duration::ZERO && second <= UPSTREAM_HEALTH_INTERVAL);
+    assert_ne!(first, second);
+    assert_eq!(
+      masked_target_authority("http://user:secret@example.test:8080/path"),
+      "example.test:8080"
+    );
   }
 
   #[tokio::test]
@@ -938,6 +1299,117 @@ mod tests {
 
     manager.stop("test").await.expect("stop Proxy");
     StdTcpListener::bind((Ipv4Addr::LOCALHOST, proxy_port)).expect("Proxy port should be released");
+  }
+
+  #[tokio::test]
+  async fn applies_response_timeout_without_interrupting_a_streaming_body() {
+    let delayed_upstream = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+      .await
+      .expect("start delayed upstream");
+    let delayed_address = delayed_upstream
+      .local_addr()
+      .expect("delayed upstream address");
+    let delayed_task = tokio::spawn(async move {
+      let (mut stream, _) = delayed_upstream
+        .accept()
+        .await
+        .expect("accept delayed request");
+      let mut request = [0_u8; 1024];
+      let _ = stream.read(&mut request).await;
+      tokio::time::sleep(Duration::from_millis(1_100)).await;
+      let _ = stream
+        .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK")
+        .await;
+    });
+    let delayed_port = reserve_port();
+    let mut delayed_connection = test_connection(
+      "delayed-response",
+      delayed_port,
+      format!("http://{delayed_address}"),
+    );
+    delayed_connection.upstream_response_timeout_seconds = 1;
+    let mut delayed_manager =
+      ProxyManager::new(vec![delayed_connection]).expect("create delayed Proxy Manager");
+    delayed_manager
+      .start("delayed-response")
+      .await
+      .expect("start delayed Proxy");
+    let mut delayed_client = TcpStream::connect((Ipv4Addr::LOCALHOST, delayed_port))
+      .await
+      .expect("connect to delayed Proxy");
+    delayed_client
+      .write_all(b"GET / HTTP/1.1\r\nHost: delayed-response.test\r\nConnection: close\r\n\r\n")
+      .await
+      .expect("write delayed Proxy request");
+    let mut delayed_response = Vec::new();
+    delayed_client
+      .read_to_end(&mut delayed_response)
+      .await
+      .expect("read delayed Proxy response");
+    assert!(String::from_utf8(delayed_response)
+      .expect("UTF-8 delayed response")
+      .starts_with("HTTP/1.1 504 Gateway Timeout"));
+    delayed_manager
+      .stop("delayed-response")
+      .await
+      .expect("stop delayed Proxy");
+    delayed_task.await.expect("complete delayed upstream");
+
+    let streaming_upstream = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+      .await
+      .expect("start streaming upstream");
+    let streaming_address = streaming_upstream
+      .local_addr()
+      .expect("streaming upstream address");
+    let streaming_task = tokio::spawn(async move {
+      let (mut stream, _) = streaming_upstream
+        .accept()
+        .await
+        .expect("accept streaming request");
+      let mut request = [0_u8; 1024];
+      let _ = stream.read(&mut request).await;
+      stream
+        .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n")
+        .await
+        .expect("write streaming headers");
+      stream.flush().await.expect("flush streaming headers");
+      tokio::time::sleep(Duration::from_millis(1_100)).await;
+      stream.write_all(b"OK").await.expect("write streaming body");
+    });
+    let streaming_port = reserve_port();
+    let mut streaming_connection = test_connection(
+      "streaming-response",
+      streaming_port,
+      format!("http://{streaming_address}"),
+    );
+    streaming_connection.upstream_response_timeout_seconds = 1;
+    let mut streaming_manager =
+      ProxyManager::new(vec![streaming_connection]).expect("create streaming Proxy Manager");
+    streaming_manager
+      .start("streaming-response")
+      .await
+      .expect("start streaming Proxy");
+    let mut streaming_client = TcpStream::connect((Ipv4Addr::LOCALHOST, streaming_port))
+      .await
+      .expect("connect to streaming Proxy");
+    streaming_client
+      .write_all(b"GET / HTTP/1.1\r\nHost: streaming-response.test\r\nConnection: close\r\n\r\n")
+      .await
+      .expect("write streaming Proxy request");
+    let mut streaming_response = Vec::new();
+    streaming_client
+      .read_to_end(&mut streaming_response)
+      .await
+      .expect("read streaming Proxy response");
+    let streaming_response =
+      String::from_utf8(streaming_response).expect("UTF-8 streaming response");
+    assert!(streaming_response.starts_with("HTTP/1.1 200 OK"));
+    assert!(streaming_response.ends_with("OK"));
+    streaming_task.await.expect("complete streaming upstream");
+    streaming_manager
+      .stop("streaming-response")
+      .await
+      .expect("stop streaming Proxy");
   }
 
   #[tokio::test]

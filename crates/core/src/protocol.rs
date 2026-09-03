@@ -4,7 +4,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Site, SiteEditInput, SiteInput};
 
-pub const PROTOCOL_VERSION: u16 = 37;
+pub const PROTOCOL_VERSION: u16 = 38;
+pub const DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 60;
+pub const MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 360;
+
+const fn default_proxy_upstream_response_timeout_seconds() -> u16 {
+  DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(
@@ -394,6 +400,8 @@ pub struct ProxyConnectionSettings {
   pub listen_port: u16,
   pub target: String,
   pub allowed_origins: Vec<String>,
+  #[serde(default = "default_proxy_upstream_response_timeout_seconds")]
+  pub upstream_response_timeout_seconds: u16,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -404,6 +412,8 @@ pub struct ProxyConnectionInput {
   pub listen_port: u16,
   pub target: String,
   pub allowed_origins: Vec<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub upstream_response_timeout_seconds: Option<u16>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -422,6 +432,7 @@ pub struct ProxyConnectionInfo {
   pub listen_port: u16,
   pub target: String,
   pub allowed_origins: Vec<String>,
+  pub upstream_response_timeout_seconds: u16,
   pub state: ProxyConnectionState,
   pub last_error: Option<String>,
 }
@@ -606,6 +617,7 @@ mod tests {
       listen_port: 3020,
       target: "http://api.example.test".to_owned(),
       allowed_origins: vec!["http://custom.test:8100".to_owned()],
+      upstream_response_timeout_seconds: Some(300),
     });
     assert_eq!(
       serde_json::to_value(add).expect("serialize add Proxy request"),
@@ -616,7 +628,8 @@ mod tests {
           "domain": "custom.test",
           "listenPort": 3020,
           "target": "http://api.example.test",
-          "allowedOrigins": ["http://custom.test:8100"]
+          "allowedOrigins": ["http://custom.test:8100"],
+          "upstreamResponseTimeoutSeconds": 300
         }
       })
     );
@@ -630,6 +643,7 @@ mod tests {
           listen_port: 3021,
           target: "http://api.changed.test".to_owned(),
           allowed_origins: vec!["http://custom.test:8100".to_owned()],
+          upstream_response_timeout_seconds: None,
         },
       })
       .expect("serialize update Proxy request"),
@@ -657,6 +671,25 @@ mod tests {
         "type": "removeProxyConnection",
         "payload": { "connectionId": "custom" }
       })
+    );
+  }
+
+  #[test]
+  fn defaults_legacy_proxy_settings_to_sixty_seconds() {
+    let settings: ProxyConnectionSettings = serde_json::from_value(json!({
+      "id": "legacy",
+      "name": "LEGACY",
+      "domain": "legacy.test",
+      "listenHost": "127.0.0.1",
+      "listenPort": 3020,
+      "target": "http://api.example.test",
+      "allowedOrigins": []
+    }))
+    .expect("deserialize legacy Proxy settings");
+
+    assert_eq!(
+      settings.upstream_response_timeout_seconds,
+      DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS
     );
   }
 

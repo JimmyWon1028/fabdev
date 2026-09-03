@@ -32,7 +32,8 @@ const newConnection = reactive<ProxyConnectionInput>({
   domain: '',
   listenPort: 3000,
   target: '',
-  allowedOrigins: []
+  allowedOrigins: [],
+  upstreamResponseTimeoutSeconds: null
 })
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
@@ -143,6 +144,7 @@ function openAddForm() {
   newConnection.listenPort = nextAvailablePort()
   newConnection.target = ''
   newConnection.allowedOrigins = []
+  newConnection.upstreamResponseTimeoutSeconds = null
   allowedOriginsText.value = ''
   showAddForm.value = true
   formMessage.value = ''
@@ -155,6 +157,7 @@ function openEditForm(connection: ProxyConnectionInfo) {
   newConnection.listenPort = connection.listenPort
   newConnection.target = connection.target
   newConnection.allowedOrigins = [...connection.allowedOrigins]
+  newConnection.upstreamResponseTimeoutSeconds = connection.upstreamResponseTimeoutSeconds
   allowedOriginsText.value = connection.allowedOrigins.join('\n')
   showAddForm.value = true
   formMessage.value = ''
@@ -279,7 +282,8 @@ async function saveConnection() {
     domain: newConnection.domain,
     listenPort: newConnection.listenPort,
     target: newConnection.target,
-    allowedOrigins: allowedOrigins()
+    allowedOrigins: allowedOrigins(),
+    upstreamResponseTimeoutSeconds: Number(newConnection.upstreamResponseTimeoutSeconds) || 0
   }
   const savedId = newConnection.id.trim().toLowerCase()
   try {
@@ -591,6 +595,9 @@ async function openConnection(connection: ProxyConnectionInfo) {
         <div class="proxy-target">
           <small>{{ t('proxy.remoteTarget') }}</small>
           <code>{{ connection.target }}</code>
+          <small>{{ t('proxy.timeoutSummary', {
+            seconds: connection.upstreamResponseTimeoutSeconds
+          }) }}</small>
         </div>
 
         <div class="proxy-state">
@@ -707,6 +714,18 @@ async function openConnection(connection: ProxyConnectionInfo) {
             spellcheck="false"
           >
           <small>{{ t('proxy.targetHelp') }}</small>
+        </label>
+        <label>
+          {{ t('proxy.timeout') }}
+          <input
+            v-model.number="newConnection.upstreamResponseTimeoutSeconds"
+            type="number"
+            min="0"
+            max="360"
+            step="1"
+            placeholder="60"
+          >
+          <small>{{ t('proxy.timeoutHelp') }}</small>
         </label>
         <label class="proxy-origins-field">
           {{ t('proxy.allowedOrigins') }}

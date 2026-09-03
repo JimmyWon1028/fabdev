@@ -113,6 +113,8 @@ enum Command {
     target: String,
     #[arg(long = "origin")]
     allowed_origins: Vec<String>,
+    #[arg(long)]
+    timeout: Option<u16>,
   },
   UpdateProxy {
     id: String,
@@ -124,6 +126,8 @@ enum Command {
     target: String,
     #[arg(long = "origin")]
     allowed_origins: Vec<String>,
+    #[arg(long)]
+    timeout: Option<u16>,
   },
   RemoveProxy {
     id: String,
@@ -299,12 +303,14 @@ async fn main() -> Result<()> {
       port,
       target,
       allowed_origins,
+      timeout,
     } => AgentRequest::AddProxyConnection(ProxyConnectionInput {
       id,
       domain,
       listen_port: port,
       target,
       allowed_origins,
+      upstream_response_timeout_seconds: timeout,
     }),
     Command::UpdateProxy {
       id,
@@ -312,6 +318,7 @@ async fn main() -> Result<()> {
       port,
       target,
       allowed_origins,
+      timeout,
     } => AgentRequest::UpdateProxyConnection {
       connection_id: id.clone(),
       input: ProxyConnectionInput {
@@ -320,6 +327,7 @@ async fn main() -> Result<()> {
         listen_port: port,
         target,
         allowed_origins,
+        upstream_response_timeout_seconds: timeout,
       },
     },
     Command::RemoveProxy { id } => AgentRequest::RemoveProxyConnection { connection_id: id },

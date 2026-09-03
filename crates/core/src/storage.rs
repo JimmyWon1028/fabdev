@@ -721,6 +721,7 @@ mod tests {
       listen_port: port,
       target: "http://127.0.0.1:9".to_owned(),
       allowed_origins: vec![format!("http://{id}.test")],
+      upstream_response_timeout_seconds: crate::DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
     };
     let expected = vec![connection("first", 3020), connection("second", 3021)];
 

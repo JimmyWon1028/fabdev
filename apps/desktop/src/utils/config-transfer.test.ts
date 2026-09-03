@@ -30,6 +30,7 @@ const connection: ProxyConnectionInfo = {
   listenPort: 3020,
   target: 'http://api.example.test',
   allowedOrigins: ['http://erp.test'],
+  upstreamResponseTimeoutSeconds: 300,
   state: 'stopped',
   lastError: null
 }
@@ -89,8 +90,47 @@ describe('Proxy configuration transfer', () => {
       domain: 'erp-api.test',
       listenPort: 3020,
       target: 'http://api.example.test',
-      allowedOrigins: ['http://erp.test']
+      allowedOrigins: ['http://erp.test'],
+      upstreamResponseTimeoutSeconds: 300
     }])
+  })
+
+  it('uses 60 seconds for legacy, missing, or zero Proxy timeouts', () => {
+    const legacy = JSON.stringify({
+      format: 'fabdev-proxy',
+      version: 1,
+      connections: [{
+        id: 'legacy',
+        domain: 'legacy.test',
+        listenPort: 3021,
+        target: 'http://legacy.example.test',
+        allowedOrigins: []
+      }]
+    })
+    const zero = JSON.stringify({
+      format: 'fabdev-proxy',
+      version: 2,
+      connections: [{
+        id: 'zero',
+        domain: 'zero.test',
+        listenPort: 3022,
+        target: 'http://zero.example.test',
+        allowedOrigins: [],
+        upstreamResponseTimeoutSeconds: 0
+      }]
+    })
+
+    expect(parseProxyImport(legacy)[0].upstreamResponseTimeoutSeconds).toBe(60)
+    expect(parseProxyImport(zero)[0].upstreamResponseTimeoutSeconds).toBe(60)
+  })
+
+  it('rejects Proxy timeouts above 360 seconds', () => {
+    const contents = serializeProxyConnections([{
+      ...connection,
+      upstreamResponseTimeoutSeconds: 361
+    }])
+
+    expect(() => parseProxyImport(contents)).toThrow('between 1 and 360')
   })
 
   it('ignores ID, domain, and port conflicts including conflicts inside the file', () => {

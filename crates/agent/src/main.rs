@@ -741,7 +741,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
         eprintln!("unable to rotate managed logs: {error:#}");
       }
       let mut status = services.status();
-      if status.php_fpm == ServiceState::Running {
+      if status.php_fpm == ServiceState::Running && services.supports_php_fpm_pool_statuses() {
         status.php_fpm_pools = services.php_fpm_pool_statuses(&sites).await;
       }
       AgentResponse::Status(status)

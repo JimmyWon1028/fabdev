@@ -5,7 +5,11 @@ import type {
   SiteInput
 } from '@fabdev/contracts'
 
-const TRANSFER_VERSION = 1
+const SITE_TRANSFER_VERSION = 1
+const PROXY_TRANSFER_VERSION = 2
+const LEGACY_PROXY_TRANSFER_VERSION = 1
+const DEFAULT_PROXY_TIMEOUT_SECONDS = 60
+const MAX_PROXY_TIMEOUT_SECONDS = 360
 
 interface SiteTransferEntry extends SiteInput {
   name: string
@@ -34,7 +38,7 @@ export interface ImportSelection<T> {
 export function serializeSites(sites: Site[]): string {
   const document: SiteTransferDocument = {
     format: 'fabdev-sites',
-    version: TRANSFER_VERSION,
+    version: SITE_TRANSFER_VERSION,
     sites: sites.map((site) => ({
       name: site.name,
       domain: site.domain,
@@ -49,7 +53,7 @@ export function serializeSites(sites: Site[]): string {
 
 export function parseSitesImport(contents: string): SiteTransferEntry[] {
   const document = parseDocument(contents)
-  if (document.format !== 'fabdev-sites' || document.version !== TRANSFER_VERSION) {
+  if (document.format !== 'fabdev-sites' || document.version !== SITE_TRANSFER_VERSION) {
     throw new Error('Unsupported fabDev Sites import format')
   }
   if (!Array.isArray(document.sites)) {
@@ -80,13 +84,14 @@ export function selectNewSites(
 export function serializeProxyConnections(connections: ProxyConnectionInfo[]): string {
   const document: ProxyTransferDocument = {
     format: 'fabdev-proxy',
-    version: TRANSFER_VERSION,
+    version: PROXY_TRANSFER_VERSION,
     connections: connections.map((connection) => ({
       id: connection.id,
       domain: connection.domain,
       listenPort: connection.listenPort,
       target: connection.target,
-      allowedOrigins: [...connection.allowedOrigins]
+      allowedOrigins: [...connection.allowedOrigins],
+      upstreamResponseTimeoutSeconds: connection.upstreamResponseTimeoutSeconds
     }))
   }
   return `${JSON.stringify(document, null, 2)}\n`
@@ -94,7 +99,11 @@ export function serializeProxyConnections(connections: ProxyConnectionInfo[]): s
 
 export function parseProxyImport(contents: string): ProxyConnectionInput[] {
   const document = parseDocument(contents)
-  if (document.format !== 'fabdev-proxy' || document.version !== TRANSFER_VERSION) {
+  if (
+    document.format !== 'fabdev-proxy'
+    || (document.version !== LEGACY_PROXY_TRANSFER_VERSION
+      && document.version !== PROXY_TRANSFER_VERSION)
+  ) {
     throw new Error('Unsupported fabDev Proxy import format')
   }
   if (!Array.isArray(document.connections)) {
@@ -176,8 +185,21 @@ function parseProxyEntry(value: unknown, index: number): ProxyConnectionInput {
     domain: requiredString(value.domain, `Proxy import entry ${index + 1} domain`),
     listenPort: value.listenPort as number,
     target: requiredString(value.target, `Proxy import entry ${index + 1} target`),
-    allowedOrigins: [...value.allowedOrigins]
+    allowedOrigins: [...value.allowedOrigins],
+    upstreamResponseTimeoutSeconds: proxyTimeoutSeconds(value.upstreamResponseTimeoutSeconds, index)
   }
+}
+
+function proxyTimeoutSeconds(value: unknown, index: number): number {
+  if (value === undefined || value === null || value === 0) {
+    return DEFAULT_PROXY_TIMEOUT_SECONDS
+  }
+  if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > MAX_PROXY_TIMEOUT_SECONDS) {
+    throw new Error(
+      `Proxy import entry ${index + 1} upstreamResponseTimeoutSeconds must be 0 or an integer between 1 and ${MAX_PROXY_TIMEOUT_SECONDS}`
+    )
+  }
+  return value as number
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
