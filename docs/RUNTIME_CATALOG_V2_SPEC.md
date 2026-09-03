@@ -1,5 +1,9 @@
 # Runtime Catalog v2 規格
 
+> 更新日期：2026-09-03
+>
+> 目前狀態：獨立公開儲存庫 `JimmyWon1028/fabdev-runtimes` 已建立；`catalog-v1` 完成 11 個既有 Runtime Package 移轉，`catalog-v2` 驗證只變更安裝列表，`catalog-v3` 已恢復 Node.js 20.20.2 並成為 Latest。App `v0.1.21`／Agent Protocol 37 已固定使用 Catalog schema v2。
+
 ## 目的
 
 fabDev App、Runtime 安裝列表與 Runtime Package 分開管理：
@@ -18,12 +22,17 @@ fabdev-runtimes/
   releases/
     catalog-v1/
       fabdev-runtime-v2.json
+      SHA256SUMS
       php-8.2.33-windows-x64-community.tar.gz
-      ...初始移轉的既有 Package
+      ...初始移轉的 11 個既有 Package
     catalog-v2/
       fabdev-runtime-v2.json
-      php-8.2.33-windows-x64-community.tar.gz
-      ...只有本次新增或重包的 Package
+      SHA256SUMS
+      ...本次只移除 Node.js 20.20.2，沒有上傳 Package
+    catalog-v3/
+      fabdev-runtime-v2.json
+      SHA256SUMS
+      ...重用 catalog-v1 Package 恢復 Node.js 20.20.2
 ```
 
 `runtime-index-v1.json` 是版本控制中的完整 Runtime 索引；每次產生的 `fabdev-runtime-v2.json` 也是完整安裝列表。Catalog Release 不必重新上傳未變動的 Package，未變動項目繼續使用先前 `catalog-vN` 的完整 URL。
@@ -80,6 +89,23 @@ https://github.com/JimmyWon1028/fabdev-runtimes/releases/latest/download/fabdev-
 ```
 
 產生器只讀取完整索引，不要求所有歷史 Package 存在於本機，也不會重新打包 Package。
+
+## 目前發布狀態
+
+[`catalog-v3`](https://github.com/JimmyWon1028/fabdev-runtimes/releases/tag/catalog-v3) 於 2026-09-03 14:11:54（Asia/Taipei, UTC+8）發布為 Latest，Release 只包含 `fabdev-runtime-v2.json` 與 `SHA256SUMS`。Catalog Manifest 為 9,235 bytes、SHA-256 `abfdd876bee9b59d828d74452c26f32e5a0720e63d698b35e497081c0bb92676`，主要欄位如下：
+
+```text
+schemaVersion=2
+catalogSequence=3
+generatedAt=2026-09-03T06:09:54Z
+expiresAt=2027-03-02T23:59:59Z
+minimumAppVersion=0.1.21
+minimumAgentProtocolVersion=37
+Windows x64=7 items
+macOS ARM64=4 items
+```
+
+`catalog-v1` 保存所有 11 個 Package bytes；`catalog-v2` 只以新 Manifest 從清單移除 Windows／macOS Node.js 20.20.2，Repository Owner 重新整理後確認項目消失；`catalog-v3` 以更高 sequence 恢復相同兩個 `catalog-v1` URL、大小及 SHA-256，Repository Owner 已確認重新整理、下載與安裝成功。這兩次清單變更都沒有重打或複製任何 Package。
 
 ## 用戶端行為
 

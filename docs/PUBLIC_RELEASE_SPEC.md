@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.20` 已完成 Windows x64／macOS ARM64 30 個 Assets、兩平台驗收與 Stable Publish，目前為 Latest Stable
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 已完成 App-only 與 Runtime Distribution 分離，並發布 Windows x64／macOS ARM64 9 個 App Assets，目前為 Latest Stable
 
 ## 1. 目標
 
@@ -15,6 +15,8 @@ P0 建立可供人工下載、驗證及覆蓋安裝的公開發布基礎。第�
 ```text
 Repository: https://github.com/JimmyWon1028/fabdev
 Download page: https://github.com/JimmyWon1028/fabdev/releases
+Runtime repository: https://github.com/JimmyWon1028/fabdev-runtimes
+Runtime download page: https://github.com/JimmyWon1028/fabdev-runtimes/releases
 ```
 
 大型安裝包、Checksum 與版本 Manifest 放在 GitHub Releases，不使用 FTP。未來即使改用 GitHub Pages、物件儲存或自訂網域，也必須保留相同的 Manifest 資料契約。
@@ -34,7 +36,7 @@ Download page: https://github.com/JimmyWon1028/fabdev/releases
 - App 內檢查、下載或啟動安裝包；此項屬於 P1。
 - Tauri Updater 的差分或背景自動安裝。
 - Apple Developer ID、notarization 或 Windows Code Signing。
-- Runtime Catalog 線上發布與 Runtime 自動切換。
+- App Release 內混入 Runtime Catalog 或線上 Runtime Package；Runtime 線上發布由獨立 `fabdev-runtimes` 契約管理。
 - GitHub Pages、自訂下載網站或自備 FTP／SFTP Server。
 - 未經明確「重新打包」授權的 DMG／EXE 建置。
 
@@ -54,8 +56,8 @@ Download page: https://github.com/JimmyWon1028/fabdev/releases
 - App 版本使用 SemVer，例如 `0.1.0`、`0.1.1`、`0.2.0`。
 - Git Tag 使用 `v<version>`，例如 `v0.1.0`。
 - Tag 必須建立在已通過發布檢查的 `main` Commit。
-- 公開過的 Tag、安裝包與版本 Manifest 不得覆蓋或重用。
-- 修正任何已發布內容都必須增加版本號並建立新 Release。
+- 公開過的 Tag 與已存在平台的安裝包不得覆蓋或重用；任何程式內容修正都必須增加版本號並建立新 Release。
+- Repository Owner 若明確要求 Windows-first Publish 後以同一 App 版本補齊原本缺少的 macOS 平台，可新增同版本 DMG 與 checksum，並只為加入新平台而替換 `SHA256SUMS`、`fabdev-app-v1.json`、`fabdev-stable-v1.json` 與 Release Notes。既有 Windows Binary、Connect、其個別 checksum、版本、Tag、Commit、`publishedAt` 與 GitHub Release ID 必須保持不變；這是缺少平台補齊，不可用於修正或替換已發布 Binary。
 - Draft 可刪除重建；一旦 Publish，就視為外部可能已下載。
 
 目前版本必須在下列來源完全一致：
@@ -92,7 +94,7 @@ fabdev-app-v1.json
 fabdev-stable-v1.json
 ```
 
-`fabdev-app-v1.json` 是該版本不可變的 Manifest。`fabdev-stable-v1.json` 內容與它相同，但使用固定檔名，供 GitHub Latest Release URL 取得目前 Stable 版本。
+`fabdev-app-v1.json` 是該版本的版本化 Manifest；正常發布後保持不變。若依第 4 節的明確同版平台補齊例外加入原本缺少的平台，可在既有 Binary 完全不變的前提下更新一次。`fabdev-stable-v1.json` 內容與它相同，但使用固定檔名，供 GitHub Latest Release URL 取得目前 Stable 版本。
 
 `SHA256SUMS` 收錄所有安裝包與選用工具，不收錄 Manifest 或 `.sha256` 檔，避免產生循環 Checksum。
 
@@ -110,6 +112,10 @@ fabDev-Connect-<version>-windows-x64.exe.sha256
 ### 5.3 Runtime Package
 
 PHP、MariaDB 與 Node.js 的線上安裝包使用獨立 Runtime Catalog，固定由 [`JimmyWon1028/fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes) 的 `catalog-vN` Release 發布。`JimmyWon1028/fabdev` 的 App Release 不得包含 Runtime Catalog、線上 Runtime Package 或其 checksum；App 與 Runtime 的 Release、版本、Tag 與更新生命週期完全分離。
+
+`catalog-vN` 同時是可保存 Package 的 GitHub Release，但每次 Catalog 換版不必重新上傳所有 Package。Catalog Manifest 可以引用較早 Release 中已驗證且未變更的 Package URL；例如 `catalog-v2` 只移除 Node.js 20.20.2，`catalog-v3` 恢復時仍引用 `catalog-v1` 的相同檔名、大小與 SHA-256。若同一 Runtime 版本需要重新打包，Package 可在新的 Release Tag 下沿用相同檔名，但 URL、大小與 SHA-256 必須由新的 Catalog sequence 明確宣告；已發布的舊 Package Asset 不得覆蓋。
+
+目前 Latest `catalog-v3` 使用 Runtime Catalog schema v2：`catalogSequence=3`、最低 App `0.1.21`、最低 Agent Protocol `37`，列出 Windows x64 7 項與 macOS ARM64 4 項。Client 依 Latest 固定 URL 取得清單，首次開啟 Runtime 頁面或使用者重新整理時重新下載；已接受的 sequence 不得回退或以不同內容重用。
 
 App 安裝器內部為了首次啟動而內建的 Runtime 不屬於公開線上 Runtime Asset，仍隨 App Installer 一起驗證。`scripts/generate-app-release-manifest.mjs` 必須拒絕 `--runtime-package-dir`，避免日後把獨立 Runtime 重新混入 App Release。
 
@@ -197,7 +203,7 @@ https://github.com/JimmyWon1028/fabdev/releases
 https://github.com/JimmyWon1028/fabdev/releases/latest/download/fabdev-stable-v1.json
 ```
 
-版本不可變 Manifest：
+版本化 Manifest URL（正常發布後不可變；同版缺少平台補齊例外見第 4 節）：
 
 ```text
 https://github.com/JimmyWon1028/fabdev/releases/download/v<version>/fabdev-app-v1.json
@@ -266,7 +272,7 @@ P0 的 SHA-256 可以偵測下載中斷或檔案內容不一致，但不是正�
 7. 建立 `v<version>` Tag 及 GitHub Draft Release；不得直接 Publish。
 8. 上傳符合第 5 節命名的 Assets。
 9. 從 GitHub Draft Release 重新下載所有 Assets，重新計算大小與 SHA-256。
-10. 在乾淨 macOS／Windows 執行安裝、啟動、`demo.test`、覆蓋更新及移除驗收。
+10. 首次發布或安裝／更新程序變更時，在乾淨 macOS／Windows 執行安裝、啟動、`demo.test`、覆蓋更新及移除驗收；程序未變時依既有驗收沿用規則，不重跑人工流程。
 11. 人工核對 Release Notes、支援平台、Unsigned 警告與已知限制。
 12. Repository Owner 明確核准後才 Publish。
 
@@ -276,7 +282,7 @@ Draft Release 建立、Tag Push、Asset Upload 與 Publish 都屬於外部狀態
 
 `.github/workflows/release-draft.yml` 只接受 `workflow_dispatch` 手動觸發，不接受 Push、Pull Request、排程或 Release 事件。執行前必須先由人工建立並推送已核准的 `v<version>` Tag；workflow 使用 `--verify-tag`，不會自行建立或移動 Tag。
 
-手動執行時必須提供 `release_scope`（`all` 或 `windows`）、Stable SemVer、固定的 UTC `publishedAt`，並分別輸入完全相符的：
+手動執行時必須提供 `release_scope`（`all`、`windows` 或 `macos`）、Stable SemVer、固定的 UTC `publishedAt`，並分別輸入完全相符的：
 
 ```text
 REPACKAGE v<version>
@@ -286,6 +292,12 @@ DRAFT v<version>
 前者代表這次執行已取得 App 重新打包授權，後者只授權建立或補齊 Draft。`release_scope=all` 會在 GitHub Hosted `macos-15` ARM64 與 `windows-latest` 建置、測試及整理跨平台 App Assets；`release_scope=windows` 必須略過整個 macOS Job、macOS Artifact 下載與 DMG 打包，只建立 Windows x64 Installer、Connect、Windows-only App Manifest 與 checksum，共 7 個 Assets。`release_scope=macos` 只適用於同一 Tag 已存在且仍未發布的 Windows-only Draft：必須略過全部 Windows Build Jobs，重新下載並驗證既有 7 個 Windows App Assets，只建置 macOS ARM64 DMG，再加入 DMG 與 checksum，並替換 `SHA256SUMS`、App Manifest 與 Stable Manifest；既有 Windows Binary 不得重新建置或覆蓋。補齊後必須維持 `draft=true`、`published_at=null`，重新下載全部 9 個 App Assets 並逐位元核對。任何 scope 都不得建立、下載或上傳線上 Runtime Package 或 Runtime Catalog。macOS 只沿用既有 ad-hoc signing，不得加入 Apple Developer ID、notarization、stapling、Hardened Runtime、簽章憑證或 CI Secret。只有最後的 `create-draft` Job 具有 `contents: write`；其餘 Job 都是 `contents: read`。所有第三方 Action 固定到完整 Commit SHA。
 
 初次建立固定使用 `gh release create --draft --verify-tag --latest=false`。`release_scope=macos` 補齊既有 Draft 時，只使用 `gh release upload --clobber` 新增 macOS Assets 並替換共用 checksum／Manifest，再更新 Draft Notes；兩條路徑都不包含 Publish 指令。完成後會從 GitHub Releases 清單確認 Release 仍為 Draft；不能使用 Published Release 的 Tag 查詢端點驗證未發布 Draft。
+
+#### 已發布 Windows-first Release 的同版 macOS 補齊
+
+現有 Draft-only Workflow 不會修改已發布 Release。若 Repository Owner 在 Windows-first Publish 後明確要求同版補齊 macOS，必須使用 Tag 內相同程式碼與四個一致的版本來源建立既有 ad-hoc Unsigned Community DMG，完整執行測試、lint、Disk Image、內層 checksum、版本、ARM64 架構與簽章驗證，再下載目前公開的 Windows Assets 作為不可變輸入，重新產生 9 個跨平台 App-only Assets。
+
+上傳順序固定為：先新增 DMG 與其個別 checksum，確認 GitHub API 的大小及 digest；再以 `--clobber` 替換 `SHA256SUMS`、`fabdev-app-v1.json`、`fabdev-stable-v1.json`。不得覆蓋 Windows Setup、fabDev Connect 或其個別 checksum，不得改版本、移動 Tag、建立新 Tag、重打 Windows、加入 Runtime Asset，亦不得改變原 Manifest 的 `publishedAt`。最後必須從公開 URL 重新下載全部 9 個 App Assets，逐位元比對、驗證三個主要檔案的總表與個別 SHA-256，並確認 Latest Manifest 同時只有 Windows x64 與 macOS ARM64 App Installer。
 
 `v0.1.0` 已在取得 Tag Push、重新打包與 Draft Release 授權後實際執行。macOS ARM64 與 Windows x64 建置、測試及 Artifact 上傳成功；Draft 內 9 個 Assets 已重新下載，總表與個別 SHA-256、Manifest 記錄的大小與 Hash、兩份 Manifest 的逐位元一致性，以及 DMG 內部 checksum 均通過。此結果只代表 Draft Asset 完整，不代表已完成乾淨機安裝驗收或 Publish。這是 0.1.21 App-only 改造以前的歷史驗收紀錄。
 
@@ -438,6 +450,22 @@ https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.20
 - Stable Manifest 為 App `0.1.20`、Agent Protocol 36，包含 macOS ARM64 DMG 與 Windows x64 Setup；Runtime Catalog sequence 14、minimum App `0.1.20`，包含 Windows 6＋macOS 4 共 10 個 Runtime。
 - Windows Setup SHA-256 維持 `0344df9ae72aa2dcb306510e137c069e3e213ca50deca9ebc28b4bd5b733fbc7`；macOS DMG SHA-256 維持 `2a8574b94193cbee6711222d529976ca77981c3ac37e49dd417b41e8aec44c87`。
 - 本次文件收尾只驗證公開頁面與兩份小型 Manifest，未重新下載 685 MB 的完整 Release 集合；大型 Assets 的逐檔大小、SHA-256 與 Archive 驗證沿用 Publish 前 CI 最後 Gate 的結果。
+
+### 9.6 `v0.1.21` App-only Stable Publish 與同版 macOS 補齊
+
+Repository Owner 明確核准後，GitHub Release `381793140` 已於 `2026-09-03T06:47:20Z`，即 2026-09-03 14:47:20（Asia/Taipei, UTC+8）發布為 Stable，並成為 Latest：
+
+```text
+https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.21
+```
+
+- Annotated Tag `v0.1.21`、`main` 與 `origin/main` 均固定在 Commit `ac1c32ab37ceaab441c96fe4973b066379597232`，四個版本來源維持 `0.1.21`。
+- 初次 Windows-only Draft／Publish 含 7 個 App-only Assets；後續依 Repository Owner 明確「不進版」補齊授權，在相同 Tag 程式碼建立 macOS ARM64 DMG。沒有建立新版本或新 Tag，Windows Setup、Connect 與其個別 checksum 未重建、未覆蓋。
+- 補齊後共有 9 個實際上傳 Assets：macOS DMG、Windows Setup、Connect、三份個別 `.sha256`、`SHA256SUMS`、App Manifest 與 Stable Manifest；不含 Runtime Catalog、線上 Runtime Package 或 `.tar.gz`。GitHub 頁面另顯示的兩個 Source code 壓縮檔為平台自動產生，不計入 Release Asset API 的 9 項。
+- 9 個 Assets 已從公開 URL 全部重新下載並與本次產物逐位元一致；`SHA256SUMS` 與三份個別 checksum 全數通過。Windows Setup 為 49,382,713 bytes、SHA-256 `ff5d5f82085d3e10fbd1cc7ed1ae9c6bf018005c832aa8810d2e22d3a4a8bf34`；macOS DMG 為 99,977,611 bytes、SHA-256 `299c7b9957104d7e935dcd66210495fb05006163eb92a8b3138fdabe84bd9d56`；Connect 為 749,568 bytes、SHA-256 `1f3eeee8ccf4c667eba1f5b041132c144e311b4392faa8361740a42d8c77be56`。
+- `fabdev-app-v1.json` 與 `fabdev-stable-v1.json` 皆為 1,420 bytes、逐位元一致，SHA-256 `59337b58be3b9241e494435b0e32ad5c73d45be027ccf8cf520cc12154566d6c`；內容為 App `0.1.21`、Agent Protocol 37、`requiresFullInstaller=true`，並只列出 macOS ARM64 與 Windows x64 兩個 Installer。`publishedAt` 保持初次 Windows Draft 的 `2026-09-03T06:29:14Z`。
+- 公開 DMG 通過 Disk Image checksum；28 個內層檔案 checksum、App／Build `0.1.21`、ARM64 Desktop／Agent／CLI 與 `Signature=adhoc` 均通過。沒有加入 Apple Developer ID、notarization、stapling、Hardened Runtime、簽章憑證或 CI Secret。
+- 完整 `pnpm test` 與 `pnpm lint` 通過。安裝與更新程序沒有改變，依既有驗收沿用規則未重跑 macOS／Windows 安裝、啟動與移除人工流程。
 
 ## 10. 撤回與回復
 

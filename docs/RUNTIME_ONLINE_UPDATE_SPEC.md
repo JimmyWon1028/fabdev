@@ -4,9 +4,9 @@
 
 > 規劃日期：2026-08-30
 >
-> 狀態：Windows x64 PHP 7.4／8.2／8.4、Node.js 與 MariaDB 的 Catalog、Agent、UI 與 Release pipeline 已完成本機實作及產包驗證；PHP 7.4／8.2 待新版 Windows CI、封裝版 App 與公開 Feed 驗收
+> 歷史狀態：Windows x64 PHP 7.4／8.2／8.4、Node.js 與 MariaDB 的 Catalog、Agent、UI 與 Release pipeline 已完成本機實作及產包驗證；後續驗收結果已完成，0.1.21 起不再使用本文件的同 App Release 發布結構
 >
-> 目前目標：Windows x64 的 PHP 7.4.33／8.2.33／8.4.24、Node.js 20.20.2／24.20.0 與 MariaDB 12.3.2 線上安裝及升級
+> 當時目標：Windows x64 的 PHP 7.4.33／8.2.33／8.4.24、Node.js 20.20.2／24.20.0 與 MariaDB 12.3.2 線上安裝及升級
 
 ## 1. 目標
 

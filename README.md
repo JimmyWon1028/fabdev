@@ -56,11 +56,20 @@ pnpm run build:community:macos
 
 Community 安裝程式會驗證 DMG 內的 `SHA256SUMS`，再要求一次管理員權限安裝 `/Applications/fabDev.app` 與固定功能的 LaunchDaemon。更新會保留 Sites、Runtime 與 `php.ini`；移除程序預設保留資料，只有使用者再次確認才會把資料移到垃圾桶。完整操作說明在 [`distribution/macos/community/INSTALL.zh-TW.md`](distribution/macos/community/INSTALL.zh-TW.md)。
 
-App 公開下載使用 [fabdev GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；目前 `v0.1.20` 是 Latest Stable。`v0.1.21` 起 App Release 只提供 App Installer、fabDev Connect、App Manifest 與 SHA-256；Runtime Catalog 與 Package 改由 [fabdev-runtimes Releases](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish 與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的 App 安裝包並產生 Manifest／Checksum，不會觸發打包或發布，也拒絕 Runtime Package 輸入。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
+App 公開下載使用 [fabdev GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；目前跨平台 `v0.1.21` 是 Latest Stable。`v0.1.21` 起 App Release 只提供 App Installer、fabDev Connect、App Manifest 與 SHA-256；Runtime Catalog 與 Package 改由 [fabdev-runtimes Releases](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish、同版平台補齊與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的 App 安裝包並產生 Manifest／Checksum，不會觸發打包或發布，也拒絕 Runtime Package 輸入。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
+
+公開發布分成兩個互不綁定版本的儲存庫：
+
+| 儲存庫 | 管理內容 | 版本生命週期 |
+| --- | --- | --- |
+| [`JimmyWon1028/fabdev`](https://github.com/JimmyWon1028/fabdev) | Desktop App、macOS DMG、Windows Setup、fabDev Connect、App Manifest | 使用 App SemVer 與 `v<version>` Tag |
+| [`JimmyWon1028/fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes) | Runtime Catalog、選裝 Runtime Package 及 checksum | 使用單調遞增的 `catalog-vN`，不跟隨 App 版號 |
+
+目前 Runtime Latest 是 `catalog-v3`：`fabdev-runtime-v2.json` 的 `catalogSequence=3`、最低 App `0.1.21`、最低 Agent Protocol `37`，共列出 Windows x64 7 項與 macOS ARM64 4 項。Catalog 換版只更新可安裝清單，不會把所有 Package 重新打包；`catalog-v2` 曾移除 Node.js 20.20.2，`catalog-v3` 直接恢復原本 `catalog-v1` 的相同 Package URL、大小及 SHA-256，沒有重新上傳 Package。
 
 Windows x64 使用 Current User NSIS 單檔安裝程式；完整的建置環境、Runtime／sidecar 準備、Windows 11 驗收及除錯經驗整理在 [`docs/WINDOWS_X64_PACKAGING.md`](docs/WINDOWS_X64_PACKAGING.md)。
 
-Windows x64 的 PHP 8.4.24、MariaDB 12.3.2 與 Node.js 20.20.2／24.20.0 維持獨立選裝套件，可由 `./scripts/build-windows-runtime-packages.sh` 建立，輸出為 `artifacts/windows-x64/runtimes/` 下配對的 Release JSON 與 `.tar.gz`，但只能發布至 `fabdev-runtimes` 的下一個 `catalog-vN`，不得混入 App Release。MariaDB 與 Node.js 來源除了固定 SHA-256，也會驗證官方 PGP 簽章與完整 Fingerprint。
+Windows x64 的 PHP 7.4.33／8.2.33／8.4.24／8.5.10、MariaDB 12.3.2 與 Node.js 20.20.2／24.20.0，以及 macOS ARM64 的 PHP 8.4.24、MariaDB 12.3.2 與 Node.js 20.20.2／24.20.0，均由 Runtime Catalog 管理為獨立選裝套件。Windows 套件可由 `./scripts/build-windows-runtime-packages.sh` 建立，輸出為 `artifacts/windows-x64/runtimes/` 下配對的 Release JSON 與 `.tar.gz`。新建或替換 Package 必須發布到 `fabdev-runtimes` 的新 Release，再由下一個 `catalog-vN` 引用，不得混入 App Release；單純修改安裝清單時只發布新 Catalog，不重打未變更的 Package。MariaDB 與 Node.js 來源除了固定 SHA-256，也會驗證官方 PGP 簽章與完整 Fingerprint。
 
 ## Runtime 建置與安裝
 
