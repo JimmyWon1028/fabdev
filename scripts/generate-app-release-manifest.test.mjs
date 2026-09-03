@@ -192,7 +192,7 @@ test('rejects a release version that differs from project metadata', async (cont
   )
 })
 
-test('prepares a Windows-only App release without Runtime packages', async (context) => {
+test('prepares Windows-first App assets without Runtime packages', async (context) => {
   const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-windows-test-'))
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
   const windowsSource = join(testRoot, 'input-setup.exe')
@@ -336,17 +336,20 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   )
   assert.match(workflow, /draft-macos-arm64/)
   assert.match(workflow, /--macos-arm64/)
-  assert.match(workflow, /Generate Windows-only release assets and manifests/)
+  assert.match(workflow, /Generate Windows-first release assets and manifests/)
   assert.match(workflow, /if: inputs\.release_scope == 'windows'/)
-  assert.match(workflow, /This Windows-only build does not use Windows Code Signing/)
+  assert.match(
+    workflow,
+    /This Windows-first release currently provides the Windows x64 build, which does not use Windows Code Signing/
+  )
   assert.match(workflow, /Runtime Catalogs and Runtime Packages are published separately/)
   assert.match(workflow, /inputs\.release_scope == 'macos'/)
-  assert.match(workflow, /Download and validate existing Windows-only Draft assets/)
+  assert.match(workflow, /Download and validate existing Windows-first Draft assets/)
   assert.match(workflow, /Existing Draft state will be verified by the write-scoped final job/)
   assert.match(workflow, /test "\$is_draft" = "true"/)
   assert.match(workflow, /test "\$is_unpublished" = "true"/)
   assert.match(workflow, /7\|9\) ;;/)
-  assert.match(workflow, /Expected 7 Windows-only or 9 supplemented Draft assets/)
+  assert.match(workflow, /Expected 7 Windows-first or 9 supplemented Draft assets/)
   assert.match(workflow, /existing-windows/)
   assert.match(workflow, /-name '\*-windows-x64\*'/)
   assert.match(workflow, /test "\$checksum_count" = "2"/)

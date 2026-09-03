@@ -392,7 +392,7 @@ jobs:
           name: draft-macos-arm64
           path: release-input/macos
 
-      - name: Download and validate existing Windows-only Draft assets
+      - name: Download and validate existing Windows-first Draft assets
         if: inputs.release_scope == 'macos'
         shell: bash
         run: |
@@ -422,7 +422,7 @@ jobs:
                 test "$(jq '[.artifacts[] | select(.platform == "macos" and .architecture == "arm64")] | length' fabdev-app-v1.json)" = "1"
                 ;;
               *)
-                echo "Expected 7 Windows-only or 9 supplemented Draft assets, found $asset_count" >&2
+                echo "Expected 7 Windows-first or 9 supplemented Draft assets, found $asset_count" >&2
                 exit 1
                 ;;
             esac
@@ -464,7 +464,7 @@ jobs:
             test "$(find . -maxdepth 1 -type f -name '*.tar.gz' | wc -l | tr -d ' ')" = "0"
           )
 
-      - name: Generate Windows-only release assets and manifests
+      - name: Generate Windows-first release assets and manifests
         if: inputs.release_scope == 'windows'
         shell: bash
         run: |
@@ -508,7 +508,7 @@ jobs:
             printf -- '- [ ] Obtain explicit Repository Owner approval before Publish.\n'
           } > "$RUNNER_TEMP/release-notes.md"
 
-      - name: Create Windows-only release notes skeleton
+      - name: Create Windows-first release notes skeleton
         if: inputs.release_scope == 'windows'
         shell: bash
         run: |
@@ -516,7 +516,7 @@ jobs:
             printf '# fabDev %s\n\n' "$VERSION"
             printf '> Draft only - do not publish before release asset validation.\n\n'
             printf '## Unsigned Community Build\n\n'
-            printf 'This Windows-only build does not use Windows Code Signing.\n\n'
+            printf 'This Windows-first release currently provides the Windows x64 build, which does not use Windows Code Signing.\n\n'
             printf 'Verify the downloaded installer against SHA256SUMS before installation.\n\n'
             printf 'Runtime Catalogs and Runtime Packages are published separately from JimmyWon1028/fabdev-runtimes.\n\n'
             printf '## Release checklist\n\n'
@@ -524,7 +524,7 @@ jobs:
             printf -- '- [x] Complete automated Windows x64 build and test validation.\n'
             printf -- '- [x] Reuse the Repository Owner Windows installer language and single-instance acceptance.\n'
             printf -- '- [ ] Re-download every Draft asset and verify size and SHA-256.\n'
-            printf -- '- [ ] Validate the Windows-only App assets, manifests, and public asset boundaries.\n'
+            printf -- '- [ ] Validate the current Windows x64 App assets, manifests, and public asset boundaries.\n'
             printf -- '- [ ] Obtain explicit Repository Owner approval before Publish.\n'
           } > "$RUNNER_TEMP/release-notes.md"
 
@@ -570,7 +570,7 @@ jobs:
             case "$asset_count" in
               7|9) ;;
               *)
-                echo "Expected 7 Windows-only or 9 supplemented Draft assets, found $asset_count" >&2
+                echo "Expected 7 Windows-first or 9 supplemented Draft assets, found $asset_count" >&2
                 exit 1
                 ;;
             esac
