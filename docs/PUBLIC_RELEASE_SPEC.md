@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 已完成 App-only 與 Runtime Distribution 分離，並發布 Windows x64／macOS ARM64 9 個 App Assets，目前為 Latest Stable
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 完成 App-only 與 Runtime Distribution 分離；`v0.1.22` 已發布 Windows x64／macOS ARM64 9 個 App Assets，目前為 Latest Stable
 
 ## 1. 目標
 

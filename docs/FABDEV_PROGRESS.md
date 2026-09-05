@@ -192,7 +192,7 @@ fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。現�
 
 ## 驗證邊界
 
-- 目前公開 Stable Manifest 為 `0.1.20`，同時提供 Windows x64 與 macOS ARM64。Windows 已完成封裝版 App 內 `0.1.2 → 0.1.3`、`0.1.11 → 0.1.12` 更新驗收、0.1.12 舊 launcher 失敗重現與 0.1.14 手動覆蓋驗收、0.1.15 VC Runtime prerequisite 與 Proxy 連線 VM 驗收、0.1.17 Managed MariaDB 刪除／半成品復原實機 Gate，以及 0.1.20 安裝語言、單一實例與版本 Gate；0.1.14 新 launcher 發起後續版本更新與下載中途取消尚未執行完整 VM UI 補測。macOS 已完成 `0.1.1 → 0.1.3` 與 `0.1.3 → 0.1.12` 覆蓋更新，後續版本因安裝程序未變，依既定規則只做重新打包、映像與封裝內容驗證，不重跑人工生命週期測試。
+- 目前公開 Stable Manifest 為 `0.1.22`，同時提供 Windows x64 與 macOS ARM64。Windows 已完成封裝版 App 內 `0.1.2 → 0.1.3`、`0.1.11 → 0.1.12` 更新驗收、0.1.12 舊 launcher 失敗重現與 0.1.14 手動覆蓋驗收、0.1.15 VC Runtime prerequisite 與 Proxy 連線 VM 驗收、0.1.17 Managed MariaDB 刪除／半成品復原實機 Gate，以及 0.1.20 安裝語言、單一實例與版本 Gate；0.1.14 新 launcher 發起後續版本更新與下載中途取消尚未執行完整 VM UI 補測。macOS 已完成 `0.1.1 → 0.1.3` 與 `0.1.3 → 0.1.12` 覆蓋更新，後續版本因安裝程序未變，依既定規則只做重新打包、映像與封裝內容驗證，不重跑人工生命週期測試。
 - 更新失敗與重試由 Updater 聚焦測試覆蓋；公開 Release 的成功下載與覆蓋流程已實測，但不會為了製造故障而修改已發布 Asset 或 Stable Manifest。
 - `fabdev-updater` 已通過 `x86_64-pc-windows-msvc` 交叉編譯；完整 Desktop 的 Windows 本機交叉檢查停在既有 bundled SQLite C 建置缺少 MSVC `stdlib.h`，需由 Windows MSVC GitHub Actions 或實機環境驗證，並非 Updater Rust 程式錯誤。
 - `v0.1.0` 的首次 Site Home、App 選單 Quit 與舊 CA 清理三項阻擋問題，已由 `v0.1.1` Draft 在恢復至 fabDev 未安裝基線的 Mac 完成首次安裝、覆蓋更新與完整移除回歸。
@@ -203,7 +203,7 @@ fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。現�
 
 ## Stable 後續 Roadmap
 
-以下項目屬於維護、下一階段功能或長期產品化驗收，不阻擋 `v0.1.20` Community Stable 基線。Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD_REFERENCE_BACKLOG.md`](HERD_REFERENCE_BACKLOG.md)。
+以下項目屬於維護、下一階段功能或長期產品化驗收，不阻擋 `v0.1.22` Community Stable 基線。Laravel Herd 可借鏡但尚未完成的完整盤點與優先順序，見 [`HERD_REFERENCE_BACKLOG.md`](HERD_REFERENCE_BACKLOG.md)。
 
 ### 已完成：Community 發布基線
 
@@ -228,23 +228,14 @@ fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。現�
 - [x] 顯示版本、發布資訊、Release Notes、安裝包資料與下載進度；完整安裝包使用 `.part`、大小／SHA-256 驗證、原子改名及開啟前再次驗證。
 - [x] 使用者確認後先走既有安全 Quit，停止 Web、MariaDB、受管程序與 Agent，再開啟 DMG／Setup.exe；不做背景自動覆蓋安裝。
 - [x] 使用高於 `0.1.1` 的封裝版完成 App 更新驗收：Windows 實測 `0.1.2 → 0.1.3` 的偵測、下載、完整性驗證、Quit、開啟 Setup 與覆蓋更新；macOS 完成 `0.1.1 → 0.1.3` 覆蓋及安裝器回歸，失敗與重試由 Updater 測試覆蓋。
-- [ ] `0.1.22` Windows 候選：修正 Proxy 偶發顯示「連線異常」、稍後又自行恢復的狀態抖動，並補齊可追查的健康檢查紀錄；程式與本機自動測試已完成，待 Windows x64 CI、NSIS 靜態驗證及 Repository Owner Gate。
-  - 已觀察到同一時間只有部分 Connection 進入 Degraded，其餘 Connection 維持 Running；異常文字為 `Proxy upstream health check...`，表示本機 loopback Listener 仍在，失敗發生於 Windows 主機連至遠端 Target 的 TCP Health Check。
-  - `v0.1.21` 每 15 秒檢查一次、單次最多等待 5 秒；任何一次失敗便立即設為 Degraded，下一次成功則立即清除錯誤，Desktop 每 3 秒更新畫面。此機制容易把 DNS、VPN、路由、遠端重啟、連線佇列或短暫防火牆抖動直接顯示為異常；多個 Connection 同時啟動時，Health Check 也可能集中在相近時間執行。
-  - `v0.1.20` 的 `UPSTREAM_CONNECT_TIMEOUT` 雖命名為連線逾時，實際包住完整 `client.request(...)`；POST 上傳、上游處理及等待 response headers 合計超過 30 秒時，Proxy 會回傳 504 並中斷等待。下一版必須將 TCP connect timeout 與上游回應 timeout 分離。
-  - 每條 Proxy Connection 新增獨立的「上游回應逾時（秒）」設定；留空或 `0` 使用預設 60 秒，接受 1～360 的整數，最多 6 分鐘。新增與編輯畫面皆可設定，執行中的 Connection 修改後沿用既有行為自動重新啟動；Windows 與 macOS 使用相同契約及行為。
-  - 舊版保存的 Connection 若沒有 timeout 欄位，升級後自動使用 60 秒且保留其他設定；版本化 JSON 匯出需包含此欄位，匯入舊格式時使用 60 秒，匯入新格式時驗證留空／`0` 或 1～360。Rust Core Protocol、TypeScript Contracts、Agent 回應、SQLite JSON 設定與匯入／匯出必須同步更新。
-  - 加入 Proxy Health Check 狀態轉換 Log；至少記錄時間、Connection ID、已遮罩的 Target authority、檢查類型、耗時、錯誤種類／Windows OS error code、Degraded 與恢復事件。正常的每 15 秒成功檢查不逐筆寫入，避免製造大量 Log。
-  - 將定期 TCP Health Check 與實際 Proxy Request 錯誤分開記錄；定期檢查連續 3 次失敗才進入 Degraded，連續 2 次成功才恢復，並分散各 Connection 的首次檢查時間，避免單次短暫失敗及同時檢查造成 UI 閃爍。
-  - 錯開多個 Connection 的檢查時間，避免全部啟動後同時向相同或相關遠端服務建立 TCP 連線。
-  - Windows 驗收需涵蓋單次短暫失敗、連續失敗、DNS 失敗、Connection refused、5 秒 Health Check timeout、恢復正常及多 Connection 並行；另以短 timeout 重現 POST 504、以較長 timeout 驗證同一 POST 成功，並確認 response headers 回傳後的 streaming body 不會被此設定提前中斷。真正持續故障必須顯示 Degraded、短暫抖動不得反覆閃爍、其他 Connection 不受影響，且 Log 足以還原事件時間與原因。
+- [x] `v0.1.22` 已完成並發布 Proxy 健康狀態防抖、分散檢查時間、狀態轉換診斷紀錄，以及每條 Connection 1～360 秒的獨立上游回應逾時；TCP connect timeout 與等待 response headers 的 timeout 已分離，streaming body 不會被此設定提前中斷。
 - [ ] 後續版本（版本號未指定）：改善 Windows App 線上更新的下載進度回報，避免按下開始後長時間停在 0%，再一次跳到 30～40%。
   - Windows Setup 目前切成 8 MiB 分段並最多使用 4 路並行下載，但只在完整分段完成後回報進度；約 49 MiB 的 Setup 每完成一段約增加 16%，兩段接近同時完成時便會一次跳到約 32～33%。下載前的 HTTP Range 支援驗證也可能增加第一次非零進度前的等待時間。
   - 保留既有 4 路並行、分段重試、取消、大小與 SHA-256 驗證；改為依各分段收到的網路 chunk 彙總實際下載 bytes，經節流後持續回報 Desktop，不等待完整 8 MiB 分段完成。
   - 分段重試不得重複累計 bytes；重試、取消、續傳及分段完成順序不同時，總進度必須正確、不得超過 100%，並避免無說明的大幅倒退。
   - UI 明確區分「檢查下載來源／Range 支援」、「下載中」、「合併分段」、「驗證 SHA-256」與「準備安裝」，非下載階段不得只顯示靜止的 0% 或 100%。
   - Windows 驗收標準：已有網路資料傳輸時，第一次可見進度應在 1 秒內出現；持續下載期間畫面更新間隔不超過 500 ms。若尚未收到資料，必須顯示目前處理階段；並驗證正常下載、慢速下載、四路完成順序不同、單段重試、取消及完整下載後驗章。
-- [ ] `0.1.22` Windows 候選：PHP-CGI 已略過只適用 Unix PHP-FPM 的狀態端點，避免狀態輪詢持續收到 404 並重複寫入日誌；Site HTTP／PHP 流程未改，待 Windows x64 CI 驗證。
+- [x] `v0.1.22` Windows PHP-CGI 已略過只適用 Unix PHP-FPM 的狀態端點，避免狀態輪詢持續收到 404 並重複寫入日誌；Site HTTP／PHP 流程未改。
 - [ ] 提供可由一般本機瀏覽器操作的 Web UI；新增只綁定 loopback、具身分驗證與權限限制的 HTTP／WebSocket API，並讓前端在非 Tauri 環境改走該 API。
 - [ ] 建立 PHP 8.3 Community Runtime 與升級偵測通知。
 - [x] 提供 macOS／Windows 全域終端機 PHP shim；切換全域版本時由固定 shim 動態跟隨 `current`／`current.version`。macOS 以可還原標記停用 Herd PHP PATH，Windows 使用目前使用者 PATH，不修改 Machine PATH。
@@ -318,7 +309,7 @@ fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。現�
 
 ### fabDev Desktop 長期產品化驗收
 
-以下壓力、長時間與共存測試屬於後續 Hardening，不代表 `v0.1.20` 目前沒有 Stable 發布證據：
+以下壓力、長時間與共存測試屬於後續 Hardening，不代表 `v0.1.22` 目前沒有 Stable 發布證據：
 
 - [ ] 可管理至少 100 個 Site，並同時啟用 20 個 Site，不得出現 UI、Registry 或服務狀態錯亂。
 - [ ] 使用固定 ERP 測試 Fixture 驗證同時處理至少 50 個本機 HTTP 請求，過程不得出現請求錯誤或受管程序異常退出。

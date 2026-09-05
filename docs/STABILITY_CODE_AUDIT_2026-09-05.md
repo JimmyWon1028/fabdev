@@ -175,12 +175,12 @@
 
 以上只提出維護建議，本輪不改動既有架構、不拆 Store，也不搬移服務管理邏輯。新增的產品內部模組限於 LAN Share HTTP 驗證／轉送、下載取消等待與 Store 請求管理，用於上述缺陷；沒有更動領域架構。
 
-## 記錄但未修改的項目
+## 記錄項目
 
 | 項目 | 證據與狀態 |
 | --- | --- |
 | macOS App 更新取消差異 | `SettingsView.vue:22` 與 Tauri `cancel_app_update_download` 明確只開放 Windows。依「保持現在功能」指示只記錄，沒有替 macOS 新增取消功能。 |
-| 發布進度文件不一致 | `README.zh-TW.md:61` 記錄 `v0.1.22` 已補齊兩平台；`FABDEV_PROGRESS.md:4`、架構文件開頭及部分 TODO 仍停在 `v0.1.21`／`0.1.22` 候選。此次只核對本機文件，未查驗 GitHub 現況，因此沒有自行改寫發布結論。 |
+| 發布進度文件不一致 | 後續已由 GitHub Releases 確認 `v0.1.22` 為 Latest Stable，並同步修正 `FABDEV_PROGRESS.md`、架構文件、發布規格首頁及兩項已完成的 `0.1.22` 候選待辦；此項不再是待處理問題。 |
 
 ## 驗證結果
 
