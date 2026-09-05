@@ -268,7 +268,7 @@ P2.2 的背景下載、取消、快取與狀態輪詢已由 Windows x64 `v0.1.12
 - [x] 解壓 staging 後執行固定 PHP CLI／版本檢查，安裝後驗證必要 MySQL extensions 及 macOS FPM／Windows CGI 設定。
 - [x] PHP 8.4.24 採 Side-by-side 安裝，不自動切換 Site、全域 PHP 或 `current`；失敗時清除本次新增的 Runtime、設定及 staging。
 
-P2.3 已完成程式、前端呈現、本機 fixture 與 Windows x64 公開 Runtime 驗證。`v0.1.12` 已由公開 Catalog 實際移除後重新下載安裝 PHP 7.4.33／8.2.33，CLI、`mysqli`、`pdo_mysql`、移除標記清除、Site PHP 恢復與 HTTP 200 均通過；PHP 8.4.24 的真實 Package 健康檢查由 CI 與既有 VM 安裝驗收通過。macOS 公開發布與重啟持久性仍屬後續 P2.4 範圍。
+P2.3 已完成程式、前端呈現、本機 fixture 與 Windows x64 公開 Runtime 驗證。`v0.1.12` 已由公開 Catalog 實際移除後重新下載安裝 PHP 7.4.33／8.2.33，CLI、`mysqli`、`pdo_mysql`、移除標記清除、Site PHP 恢復與 HTTP 200 均通過；PHP 8.4.24 的真實 Package 健康檢查由 CI 與既有 VM 安裝驗收通過。後續 P2.4 已由 `v0.1.13` 完成 macOS 公開 Runtime、重啟持久性與 Stable Publish 驗收。
 
 ### P2.4：兩平台 Draft 與 Stable 驗收
 
@@ -279,7 +279,7 @@ P2.3 已完成程式、前端呈現、本機 fixture 與 Windows x64 公開 Runt
 - [x] 取得明確重新打包授權後建立 Windows PHP 7.4／8.2／8.4、MariaDB 及 Node.js 20／24 Runtime Packages。
 - [x] 建立 `v0.1.12` Windows-only Draft Release，重新下載並驗證 20 個 Runtime／App Assets。
 - [x] Windows VM 端到端與 Repository Owner 核准後 Publish；匿名 Stable Feed 與 PHP 7.4／8.2 移除後線上重裝通過。
-- [ ] 完成 macOS ARM64 公開 Draft、端到端與 Stable Publish；不得以 Windows 驗收取代。
+- [x] `v0.1.13` 完成 macOS ARM64 公開 Draft、端到端與 Stable Publish；沿用 P4 實機 Runtime、重啟持久性與資料保留結果，並完成公開 Catalog／Package 檔案級驗收。
 
 ### P2.5：Windows Node.js／MariaDB 線上安裝與升級
 

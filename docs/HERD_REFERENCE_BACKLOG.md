@@ -27,7 +27,7 @@
 - `php.ini` 編輯、驗證與安全套用。
 - Start All／Stop All、menu bar 狀態與受管程序清理。
 - 短時間、區域網路用的 LAN Site Share 與 Windows `fabdev-connect`。
-- 單一 Node.js 24.19.0 LTS 獨立選裝／移除；預設不安裝、不與 Site 綁定，且不接管外部 Node.js。
+- Node.js 20.20.2／24.20.0 獨立並存選裝、更新、移除與全域版本切換；預設不安裝、不與 Site 綁定，且不接管外部 Node.js。
 
 ## 3. 優先摘要
 
@@ -39,7 +39,7 @@
 | P0 | `fabdev-mcp` 唯讀工具 | 尚未實作 | 作為 Agent Protocol 薄型轉接層 |
 | P0 | Runtime 更新偵測 | 部分 Runtime 管理已完成 | 加入 PHP／服務版本通知與安全更新流程 |
 | P1 | PHP Extension 管理 | 部分 Extension 內建 | 優先 Redis、LDAP、ODBC、SQL Server／PostgreSQL 驅動 |
-| P1 | Node.js 多版本 | 單一獨立 LTS Runtime 已完成 | 補多版本、`.nvmrc` 與選用的專案感知 CLI shim |
+| P1 | Node.js 專案感知 | 20／24 多版本、全域版本及動態 CLI shim 已完成 | 補 `.nvmrc`／`fabdev.yml` 的每 Site 版本選擇 |
 | P1 | 選裝服務目錄 | 只有 MariaDB | 優先 Redis／Valkey，再評估其他資料庫與搜尋服務 |
 | P1 | Xdebug | 尚未整合 | 各 PHP 版本選裝、按需啟用及 IDE 設定指引 |
 | P1 | 本機 Mail Catcher | 尚未實作 | SMTP 攔截、Site inbox、HTML／raw／附件檢視 |
@@ -155,11 +155,11 @@ Herd 能管理多個 Node.js 版本，並在 Site 選擇版本時建立 `.nvmrc`
 fabDev 建議：
 
 - [x] Node Runtime 與 Desktop 建置用 Node 完全隔離。
-- [x] 提供單一穩定 LTS 的選裝、移除及每 Site 啟用／停用。
-- [ ] 支援多版本、全域 Node 與每 Site `.nvmrc`／`fabdev.yml` 版本。
-- [ ] 提供 `node`、`npm`、`npx`、Corepack、pnpm、Yarn shim。
+- [x] 提供 Node.js 20／24 並存選裝、更新、移除及全域版本切換。
+- [x] 提供 Windows／macOS 相同版本選擇規則的動態 `node`、`npm`、`npx`、`corepack` shim。
+- [ ] 支援每 Site `.nvmrc`／`fabdev.yml` 版本與選用的專案感知 CLI shim。
+- [ ] 評估是否另行提供 pnpm／Yarn shim；避免繞過既有 Corepack 契約。
 - [ ] 評估是否由 Agent 管理 `npm run dev`；預設不自動執行專案 script。
-- [ ] Windows 與 macOS 使用相同版本選擇規則。
 
 ### 5.3 選裝服務目錄
 
@@ -296,7 +296,7 @@ fabDev 不應直接依賴 Herd 的公共服務。若有需求，優先使用使�
 4. 唯讀 `fabdev-mcp`。
 5. Runtime 更新偵測、PHP 8.3／8.5 評估。
 6. Redis／Valkey 與 PHP Extension 管理。
-7. Node.js 多版本與選用的專案感知 shim。
+7. Node.js `.nvmrc`／`fabdev.yml` 與選用的專案感知 shim。
 8. Xdebug、本機 Mail Catcher、Site 操作捷徑。
 9. MCP 受控變更工具。
 10. Dumps／Profiler／Framework Adapter。
