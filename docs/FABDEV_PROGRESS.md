@@ -1,7 +1,7 @@
 # fabDev 穩定基線與 Roadmap
 
 > 更新日期：2026-09-05
-> 目前階段：[`v0.1.22`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.22) 已發布為 Latest Stable；目前 `main` 工作目錄另有尚未進版、提交或發布的穩定性修正與 UI 整理，完整紀錄見 [`STABILITY_CODE_AUDIT_2026-09-05.md`](STABILITY_CODE_AUDIT_2026-09-05.md)。工作區維持 App `0.1.22`／Agent Protocol `38`，尚未觸發 Windows CI、打包、Tag、Draft 或 Publish。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v3`
+> 目前階段：[`v0.1.22`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.22) 已發布為 Latest Stable；Commit `75e09cc` 已將後續穩定性修正與 UI 整理合入 `main`，完整紀錄見 [`STABILITY_CODE_AUDIT_2026-09-05.md`](STABILITY_CODE_AUDIT_2026-09-05.md)。Push 自動觸發的 Windows x64 Run [`33955789378`](https://github.com/JimmyWon1028/fabdev/actions/runs/33955789378) 已成功，但目前仍維持 App `0.1.22`／Agent Protocol `38`，尚未進版、建立 Tag、Draft 或 Publish。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v3`
 
 ## 階段結論
 
@@ -123,7 +123,8 @@ fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。現�
 - 依 Repository Owner「穩定、保持現在功能、不擴充」要求完成重點路徑查驗，共記錄並修正 20 項可重現問題。範圍包含 LAN Share 每次 HTTP 請求白名單及停止清理、Site document root 與錯誤回復鎖、Runtime 停滯下載取消／任務生命週期／套件身分／安裝互斥／回滾、MariaDB 更新回復順序、版本切換 symlink、終端整合寫入順序、Proxy 任務回收／重試／SQLite 交易，以及 Desktop 輪詢與 busy 競態。完整重現、修正及限制見 [`STABILITY_CODE_AUDIT_2026-09-05.md`](STABILITY_CODE_AUDIT_2026-09-05.md)。
 - UI 只整理既有資訊與排版：Agent 狀態移到設定下方；總覽明確標示 Web 服務控制範圍；MariaDB 顯示自動連線來源；PHP、Node.js、MariaDB Runtime 卡片改為緊湊一致，PHP 只顯示使用中的 Site 數量；Proxy 頂部將資料操作與服務操作分組。依 Repository Owner 後續確認，Sites 與 Proxy 既有清單排版保持不變，後續不再自行調整 UI。
 - 最後完整驗證通過 Desktop 88、Release 規則 18、Rust 281、macOS Helper 9 項測試，7 項需外部環境的 Rust 測試維持 ignored；`pnpm lint`、rustfmt、Clippy、TypeScript typecheck 與 `git diff --check` 通過。隔離 Vite 預覽確認總覽、Sites、PHP、Proxy、設定的渲染與導覽；原生 Tauri 視窗因已有同識別碼 App 正在執行，未列為實機驗收。
-- 本輪沒有變更 App `0.1.22`／Agent Protocol `38`，沒有觸發 Windows CI、建立安裝包、重打 Runtime、提交、推送、Tag、Draft 或 Publish；原本未追蹤的 `note.txt` 保持原狀。
+- 查驗完成時沒有變更 App `0.1.22`／Agent Protocol `38`，也沒有重打 Runtime、進版、Tag、Draft 或 Publish；原本未追蹤的 `note.txt` 保持原狀。後續依 Repository Owner 明確指示，以 Commit `75e09cc` 提交並推送全部修正。
+- 推送後由既有 push trigger 自動執行 Windows x64 Run [`33955789378`](https://github.com/JimmyWon1028/fabdev/actions/runs/33955789378)，MSVC、前端測試、Windows 發布契約、Rust workspace、fabDev Connect、Unsigned NSIS 與兩個 Artifact 上傳皆成功。此結果不等同 Windows 實機啟動，也沒有建立 Draft 或 Release。
 
 ## 2026-08-30 工作日誌
 
@@ -236,6 +237,7 @@ fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。現�
   - UI 明確區分「檢查下載來源／Range 支援」、「下載中」、「合併分段」、「驗證 SHA-256」與「準備安裝」，非下載階段不得只顯示靜止的 0% 或 100%。
   - Windows 驗收標準：已有網路資料傳輸時，第一次可見進度應在 1 秒內出現；持續下載期間畫面更新間隔不超過 500 ms。若尚未收到資料，必須顯示目前處理階段；並驗證正常下載、慢速下載、四路完成順序不同、單段重試、取消及完整下載後驗章。
 - [x] `v0.1.22` Windows PHP-CGI 已略過只適用 Unix PHP-FPM 的狀態端點，避免狀態輪詢持續收到 404 並重複寫入日誌；Site HTTP／PHP 流程未改。
+- [ ] 更新 GitHub Actions dependencies，消除 Hosted Runner 將仍以 Node.js 20 執行的 `actions/checkout@v4`、`actions/setup-node@v4`、`actions/upload-artifact@v4` 與 `pnpm/action-setup@v4` 強制改用 Node.js 24 的棄用警告；Run `33955789378` 目前成功，此項屬非阻擋維護。
 - [ ] 提供可由一般本機瀏覽器操作的 Web UI；新增只綁定 loopback、具身分驗證與權限限制的 HTTP／WebSocket API，並讓前端在非 Tauri 環境改走該 API。
 - [ ] 建立 PHP 8.3 Community Runtime 與升級偵測通知。
 - [x] 提供 macOS／Windows 全域終端機 PHP shim；切換全域版本時由固定 shim 動態跟隨 `current`／`current.version`。macOS 以可還原標記停用 Herd PHP PATH，Windows 使用目前使用者 PATH，不修改 Machine PATH。

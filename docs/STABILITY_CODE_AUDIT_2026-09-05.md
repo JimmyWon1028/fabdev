@@ -193,6 +193,7 @@
 | Updater 測試 | `cargo test -p fabdev-updater`：29 項通過、3 項既有外部下載測試 ignored。涵蓋既有下載／續傳／校驗與新增停滯取消測試；後續修正包含 Agent 任務管理與 Runtime 安裝失敗回復，下載成功／續傳行為未變。 |
 | Proxy 回歸 | `cargo test -p fabdev-proxy`：12 項通過，包含新增的連線清理、背景 task 結束後重試及正常重複啟動三項回歸。 |
 | Agent 回歸 | `cargo test -p fabdev-agent`：47 項通過、2 項需要外部 Runtime Archive 的測試 ignored；包含任務管理新增 8 項、MariaDB 回復新增 3 項、套件一致性新增 3 項、安裝互斥新增 3 項及 Site 刪除失敗回復新增 1 項，以及清單讀取失敗新增 1 項（含四種操作）及正常 Site 操作／PHP 切換拒絕新增 1 項回歸。 |
+| Windows x64 CI | 修正推送後由既有 push trigger 自動執行 Run [`33955789378`](https://github.com/JimmyWon1028/fabdev/actions/runs/33955789378)；MSVC、前端測試、Windows 發布契約、Rust workspace、fabDev Connect、Unsigned NSIS 與 Artifact 上傳皆成功。這是 Commit `75e09cc` 的 CI／封裝靜態驗證，不是 Windows 實機啟動或 Release 驗收。 |
 | 真實 PHP 流程 | [php-flow.rs](../crates/share/tests/php-flow.rs) 另行執行通過，使用既有 fabDev PHP 8.2.33 binary、`-n`、PHP 內建 HTTP server、獨立暫存目錄及隨機 loopback 埠，完成 Share Start → PHP 執行回應 → 未分享 Host 拒絕 → Stop。PHP 子程序已等待結束，兩個 listener 可重新綁定，暫存目錄已移除。 |
 | Desktop UI 導覽 | 以目前工作區另開 `127.0.0.1:1421` 隔離 Vite 預覽，逐頁確認總覽、Sites、PHP 設定、Proxy 與設定可正常導覽及渲染；確認 Agent 狀態位於設定下方、總覽服務範圍說明及 Proxy 頂部操作分組生效。純瀏覽器預覽無 Tauri IPC，因此預期顯示 Agent 未連線與 `invoke` 錯誤，不計為產品缺陷。原生 Tauri smoke 因電腦上已有相同 App 識別碼與開發服務埠，無法可靠區分新舊視窗；隔離資料目錄自動啟動的 PHP-FPM 已正常停止，相關測試程序與暫存資料均已清除。 |
 | `git diff --check` | 通過。 |
@@ -203,10 +204,10 @@
 
 ## 驗證邊界與變更範圍
 
-- 本輪沒有觸發 Windows CI、NSIS、Windows 實機流程或安裝／更新／移除驗收；macOS 上的 Rust 測試不代表 Windows 實機通過。
+- 查驗執行期間沒有觸發 Windows CI、NSIS、Windows 實機流程或安裝／更新／移除驗收；後續 push 自動觸發的 Windows x64 CI 與 NSIS 已成功，但仍不代表 Windows 實機通過。
 - 真實 PHP 測試驗證的是 PHP 內建 HTTP server 經 LAN Share 的流程，不宣稱已重跑完整 Nginx → PHP-FPM、DNS、HTTPS、MariaDB 或 Desktop UI 人工驗收。
 - 尚未做長時間連線壓力測試、HTTP fuzzing 或完整瀏覽器相容性測試。
-- UI 變更限於既有資訊與排版：Agent 狀態移至設定下方；總覽的全部啟停明確標示為 Web 服務並補充控制範圍；MariaDB 連線來源改為自動切換說明；PHP、Node.js、MariaDB Runtime 卡片統一為較緊湊的樣式，PHP 僅顯示使用中的 Site 數量；Proxy 頂部將資料操作與服務操作分組。Sites 與 Proxy 的既有清單排版已保留，沒有增加產品操作或改變服務行為。Agent Protocol、TypeScript Contracts、App 版本、Runtime Package／Catalog、打包與發布設定未變，也未 commit／push／打包／發布。原本未追蹤的 `note.txt` 保留原狀。
+- UI 變更限於既有資訊與排版：Agent 狀態移至設定下方；總覽的全部啟停明確標示為 Web 服務並補充控制範圍；MariaDB 連線來源改為自動切換說明；PHP、Node.js、MariaDB Runtime 卡片統一為較緊湊的樣式，PHP 僅顯示使用中的 Site 數量；Proxy 頂部將資料操作與服務操作分組。Sites 與 Proxy 的既有清單排版已保留，沒有增加產品操作或改變服務行為。Agent Protocol、TypeScript Contracts、App 版本、Runtime Package／Catalog、打包與發布設定未變。查驗完成後已依 Repository Owner 指示 commit／push，但仍未進版、Tag、Draft 或發布；原本未追蹤的 `note.txt` 保留原狀。
 - 程式變更限於 Site 驗證／錯誤回復鎖範圍、LAN Share、Proxy 任務清理／啟動重試／設定保存交易、Updater 取消、Agent 停止錯誤清理／Runtime 任務生命週期與安裝一致性／MariaDB 更新回復、Runtime 安裝移除偏好回滾／版本切換目錄檢查、Desktop Store 請求競態、Runtime 畫面任務資料及 macOS 終端整合寫入前檢查；Share 只引用 workspace 已使用且已鎖版的 `bytes`、`http-body-util`、`hyper`、`hyper-util`，Agent 測試另引用既有 rusqlite；`Cargo.lock` 僅增加這些依賴關聯，沒有升級套件。
 
 本機查驗紀錄位於 `/tmp/fabdev-audit-final-test.log`、`/tmp/fabdev-audit-lint.log`、`/tmp/fabdev-audit-share-final.log` 與 `/tmp/fabdev-audit-php-flow.log`；修正前的失敗證據保存在對應的 `share-before`、`lifecycle-before`、`site-before` log。這些是本機暫存證據，不納入發布產物。
@@ -215,7 +216,7 @@
 
 本次後續 Agent 修正的全測試與 lint 紀錄：`/tmp/fabdev-stability-followup-full-test.log`、`/tmp/fabdev-stability-followup-full-lint.log`；針對性結果：`/tmp/fabdev-stability-followup-regressions.log`；本批修改後另行重跑的 PHP 分享啟停測試通過，紀錄為 `/tmp/fabdev-stability-followup-php.log`；三個主要缺陷的修正前失敗證據：`/tmp/fabdev-stability-followup-before.log`。
 
-Repository Owner 已明確表示上一版可用、不急著產生 Windows x64 CI 或發布新版。本批修改維持本機工作目錄，沿用 App 0.1.22／Protocol 38；未進版、未觸發 CI、未打包、未提交或推送，也未變更已發布版本。
+Repository Owner 已明確表示上一版可用、不急著發布新版。本批修改沿用 App 0.1.22／Protocol 38；查驗完成後依明確指示以 Commit `75e09cc` 推送，既有 push trigger 自動執行的 Windows x64 Run `33955789378` 已成功。未進版、建立 Tag、Draft 或 Release，也未變更已發布的 `v0.1.22`。
 
 安裝／更新回復這一批的驗證紀錄：`/tmp/fabdev-stability-rollback-full-test.log`、`/tmp/fabdev-stability-rollback-full-lint.log`、`/tmp/fabdev-stability-rollback-focused.log`。Runtime marker 原缺陷重現於 `/tmp/fabdev-stability-rollback-before.log`，MariaDB 原回復順序的失敗證據於 `/tmp/fabdev-stability-mariadb-rollback-before.log`。新增 6 項測試並擴充既有 Socket 切換測試；正式 Runtime Archive、安裝目錄與資料庫均未操作。由於本批涉及安裝／更新回復程式，未來若準備發布，仍需按專案規範完成受影響的人工回歸，不能把此次單元測試視為實機驗收。
 

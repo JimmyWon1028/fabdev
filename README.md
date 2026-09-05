@@ -50,7 +50,7 @@ This creates an ad-hoc signed App for local testing. A future Signed Distributio
 
 The current `main` worktree contains local, unreleased stability fixes for LAN Share request boundaries and connection cleanup, Site validation and rollback paths, Runtime download cancellation and installation transactions, Proxy lifecycle and state persistence, terminal integration writes, and Desktop request races. It also contains the approved UI refinements for the sidebar status, Dashboard service scope, compact Runtime cards, PHP Site usage count, and grouped Proxy header actions. Existing Sites and Proxy list layouts remain unchanged.
 
-The complete issue record, compatibility notes, and validation boundaries are in [`docs/STABILITY_CODE_AUDIT_2026-09-05.md`](docs/STABILITY_CODE_AUDIT_2026-09-05.md). The latest full local run passed 88 Desktop tests, 18 Release rule tests, 281 Rust tests, 9 macOS Helper tests, `pnpm lint`, and `git diff --check`. These worktree changes remain at App `0.1.22` and Agent Protocol `38`; they have not been versioned, packaged, committed, pushed, or released.
+The complete issue record, compatibility notes, and validation boundaries are in [`docs/STABILITY_CODE_AUDIT_2026-09-05.md`](docs/STABILITY_CODE_AUDIT_2026-09-05.md). The latest full local run passed 88 Desktop tests, 18 Release rule tests, 281 Rust tests, 9 macOS Helper tests, `pnpm lint`, and `git diff --check`. Commit `75e09cc` is now on `main`, and its push-triggered Windows x64 workflow passed the MSVC, frontend, Rust, NSIS, and Artifact steps. The code remains at App `0.1.22` and Agent Protocol `38` and has not been versioned, tagged, drafted, or released after the published `v0.1.22`.
 
 ## Unsigned Community Build
 

@@ -50,7 +50,7 @@ open target/debug/bundle/macos/fabDev.app
 
 目前 `main` 工作目錄包含尚未發布的穩定性修正，涵蓋 LAN Share 請求邊界與連線清理、Site 驗證與錯誤回復、Runtime 下載取消與安裝交易、Proxy 生命週期與狀態保存、終端整合寫入，以及 Desktop 請求競態；另包含已確認的側欄狀態、總覽服務範圍、緊湊 Runtime 卡片、PHP Site 使用數量與 Proxy 頂部操作分組。Sites 與 Proxy 的既有清單排版保持不變。
 
-完整問題紀錄、相容性說明及驗證邊界見 [`docs/STABILITY_CODE_AUDIT_2026-09-05.md`](docs/STABILITY_CODE_AUDIT_2026-09-05.md)。最近一次完整本機驗證通過 Desktop 88、Release 規則 18、Rust 281、macOS Helper 9 項測試，以及 `pnpm lint` 與 `git diff --check`。目前工作區仍維持 App `0.1.22`／Agent Protocol `38`，尚未進版、打包、提交、推送或發布。
+完整問題紀錄、相容性說明及驗證邊界見 [`docs/STABILITY_CODE_AUDIT_2026-09-05.md`](docs/STABILITY_CODE_AUDIT_2026-09-05.md)。最近一次完整本機驗證通過 Desktop 88、Release 規則 18、Rust 281、macOS Helper 9 項測試，以及 `pnpm lint` 與 `git diff --check`。Commit `75e09cc` 已合入 `main`，其 push 自動觸發的 Windows x64 workflow 亦通過 MSVC、前端、Rust、NSIS 與 Artifact 步驟。目前程式仍維持 App `0.1.22`／Agent Protocol `38`，尚未在已發布的 `v0.1.22` 之後進版、建立 Tag、Draft 或發布。
 
 ## Unsigned Community Build
 
