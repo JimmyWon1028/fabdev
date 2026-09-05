@@ -1100,6 +1100,7 @@ dependencies = [
  "fabdev-share",
  "fabdev-updater",
  "hex",
+ "rusqlite",
  "serde_json",
  "sha2",
  "tokio",
@@ -1225,7 +1226,11 @@ name = "fabdev-share"
 version = "0.1.22"
 dependencies = [
  "anyhow",
+ "bytes",
  "clap",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "tokio",
 ]
 

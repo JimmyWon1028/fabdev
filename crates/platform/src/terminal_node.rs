@@ -206,16 +206,15 @@ fn enable_macos_terminal_node(
   rc_path: &Path,
 ) -> Result<TerminalNodeIntegrationState, PlatformError> {
   let bin_path = data_root.join("bin");
-  std::fs::create_dir_all(&bin_path)?;
-  for command in MACOS_NODE_SHIM_NAMES {
-    write_macos_node_shim(&bin_path.join(command), command)?;
-  }
-
   let existing_profile = read_optional_text(profile_path)?;
   let existing_rc = read_optional_text(rc_path)?;
   let shell_block = macos_shell_block(&bin_path)?;
   let updated_profile = append_macos_shell_block(&existing_profile, &shell_block)?;
   let updated_rc = append_macos_shell_block(&existing_rc, &shell_block)?;
+  std::fs::create_dir_all(&bin_path)?;
+  for command in MACOS_NODE_SHIM_NAMES {
+    write_macos_node_shim(&bin_path.join(command), command)?;
+  }
   atomic_write(rc_path, updated_rc.as_bytes())?;
   if let Err(error) = atomic_write(profile_path, updated_profile.as_bytes()) {
     let _ = atomic_write(rc_path, existing_rc.as_bytes());
@@ -420,6 +419,56 @@ fn platform_disable_terminal_node(
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  #[cfg(target_os = "macos")]
+  fn rejects_invalid_node_profiles_before_writing_shims() {
+    for (case, (profile, rc)) in [
+      (MACOS_SHELL_BLOCK_START, "export EDITOR=vi\n"),
+      ("export EDITOR=vi\n", MACOS_SHELL_BLOCK_START),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+      for existing in [false, true] {
+        let root = std::env::temp_dir().join(format!(
+          "fabdev-node-preflight-{}-{case}-{existing}",
+          std::process::id()
+        ));
+        let data_root = root.join("data");
+        let profile_path = root.join(".zprofile");
+        let rc_path = root.join(".zshrc");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(&profile_path, profile).unwrap();
+        std::fs::write(&rc_path, rc).unwrap();
+        let commands: &[&str] = MACOS_NODE_SHIM_NAMES;
+        if existing {
+          std::fs::create_dir_all(data_root.join("bin")).unwrap();
+          for command in commands {
+            std::fs::write(data_root.join("bin").join(command), "original shim\n").unwrap();
+          }
+        }
+        let result = enable_macos_terminal_node(&data_root, &profile_path, &rc_path);
+        let profiles_preserved = std::fs::read_to_string(&profile_path).unwrap() == profile
+          && std::fs::read_to_string(&rc_path).unwrap() == rc;
+        let shims_preserved = commands.iter().all(|command| {
+          let path = data_root.join("bin").join(command);
+          if existing {
+            std::fs::read_to_string(path).unwrap() == "original shim\n"
+          } else {
+            !path.exists()
+          }
+        });
+        std::fs::remove_dir_all(root).unwrap();
+        assert!(result.is_err());
+        assert!(profiles_preserved);
+        assert!(
+          shims_preserved,
+          "invalid profile must not create or overwrite node shims"
+        );
+      }
+    }
+  }
 
   #[test]
   fn windows_node_shims_follow_the_selected_version() {

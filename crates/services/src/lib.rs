@@ -4873,10 +4873,21 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     let managed_socket = paths.services.join("mariadb/mariadb.sock");
     std::fs::create_dir_all(managed_socket.parent().expect("Managed Socket parent"))
       .expect("create Managed Socket directory");
-    let _managed_listener = std::os::unix::net::UnixListener::bind(&managed_socket)
+    let managed_listener = std::os::unix::net::UnixListener::bind(&managed_socket)
       .expect("bind running Managed MariaDB Socket");
     let mut supervisor =
       ServiceSupervisor::new(paths.clone(), runtimes.clone(), ServicePorts::system());
+    let system_socket = root.join("system-mysql.sock");
+    let system_listener = std::os::unix::net::UnixListener::bind(&system_socket)
+      .expect("bind isolated System MariaDB Socket");
+    supervisor
+      .save_mariadb_settings(MariaDbSettings {
+        port: 3306,
+        data_dir: root.join("unused-managed-data"),
+        connection_mode: MariaDbConnectionMode::System,
+        system_socket: system_socket.clone(),
+      })
+      .expect("save the detected System Socket fixture");
 
     supervisor
       .refresh_php_mariadb_connection()
@@ -4899,6 +4910,28 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
         managed_socket.display()
       )));
     }
+    drop(managed_listener);
+    std::fs::remove_file(&managed_socket).expect("remove stopped Managed Socket");
+    supervisor
+      .refresh_php_mariadb_connection()
+      .await
+      .expect("restore System Socket after Managed MariaDB stops for rollback");
+    for version in ["8.2", "8.4"] {
+      let php_pool = std::fs::read_to_string(
+        paths
+          .services
+          .join(format!("php/{version}/php-fpm.d/www.conf")),
+      )
+      .expect("read restored System Socket pool");
+      for setting in ["mysqli.default_socket", "pdo_mysql.default_socket"] {
+        assert!(php_pool.contains(&format!(
+          "php_admin_value[{setting}] = {}",
+          system_socket.display()
+        )));
+      }
+      assert!(!php_pool.contains(managed_socket.to_string_lossy().as_ref()));
+    }
+    drop(system_listener);
     std::fs::remove_dir_all(root).expect("remove fixture");
   }
 

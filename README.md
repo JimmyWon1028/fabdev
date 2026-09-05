@@ -46,6 +46,12 @@ open target/debug/bundle/macos/fabDev.app
 
 This creates an ad-hoc signed App for local testing. A future Signed Distribution will still require a Developer ID and notarization.
 
+### Current unreleased stability work
+
+The current `main` worktree contains local, unreleased stability fixes for LAN Share request boundaries and connection cleanup, Site validation and rollback paths, Runtime download cancellation and installation transactions, Proxy lifecycle and state persistence, terminal integration writes, and Desktop request races. It also contains the approved UI refinements for the sidebar status, Dashboard service scope, compact Runtime cards, PHP Site usage count, and grouped Proxy header actions. Existing Sites and Proxy list layouts remain unchanged.
+
+The complete issue record, compatibility notes, and validation boundaries are in [`docs/STABILITY_CODE_AUDIT_2026-09-05.md`](docs/STABILITY_CODE_AUDIT_2026-09-05.md). The latest full local run passed 88 Desktop tests, 18 Release rule tests, 281 Rust tests, 9 macOS Helper tests, `pnpm lint`, and `git diff --check`. These worktree changes remain at App `0.1.22` and Agent Protocol `38`; they have not been versioned, packaged, committed, pushed, or released.
+
 ## Unsigned Community Build
 
 Build the Community DMG without an Apple Developer ID:

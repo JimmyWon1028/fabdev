@@ -436,30 +436,34 @@ async function openConnection(connection: ProxyConnectionInfo) {
       <h1>{{ t('proxy.title') }}</h1>
       <p>{{ t('proxy.description') }}</p>
     </div>
-    <div class="header-actions">
-      <button class="secondary-button" :disabled="action !== null" @click="importConnections">
-        {{ t('proxy.import') }}
-      </button>
-      <button class="secondary-button" :disabled="action !== null" @click="exportConnections">
-        {{ t('proxy.export') }}
-      </button>
-      <button
-        class="primary-button"
-        :disabled="action !== null"
-        aria-haspopup="dialog"
-        @click="openAddForm"
-      >
-        ＋ {{ t('proxy.add') }}
-      </button>
-      <button class="secondary-button" :disabled="action !== null" @click="refresh">
-        {{ t('common.refresh') }}
-      </button>
-      <button class="danger-button" :disabled="action !== null" @click="stopAll">
-        {{ action === 'all-stop' ? t('proxy.working') : t('proxy.stopAll') }}
-      </button>
-      <button class="primary-button" :disabled="action !== null" @click="startAll">
-        {{ action === 'all-start' ? t('proxy.working') : t('proxy.startAll') }}
-      </button>
+    <div class="header-actions proxy-header-actions">
+      <div class="proxy-action-group" role="group" :aria-label="t('proxy.listLabel')">
+        <button class="secondary-button" :disabled="action !== null" @click="importConnections">
+          {{ t('proxy.import') }}
+        </button>
+        <button class="secondary-button" :disabled="action !== null" @click="exportConnections">
+          {{ t('proxy.export') }}
+        </button>
+        <button
+          class="primary-button"
+          :disabled="action !== null"
+          aria-haspopup="dialog"
+          @click="openAddForm"
+        >
+          ＋ {{ t('proxy.add') }}
+        </button>
+      </div>
+      <div class="proxy-action-group proxy-service-actions" role="group" :aria-label="t('dashboard.serviceStatus')">
+        <button class="secondary-button" :disabled="action !== null" @click="refresh">
+          {{ t('common.refresh') }}
+        </button>
+        <button class="danger-button" :disabled="action !== null" @click="stopAll">
+          {{ action === 'all-stop' ? t('proxy.working') : t('proxy.stopAll') }}
+        </button>
+        <button class="secondary-button" :disabled="action !== null" @click="startAll">
+          {{ action === 'all-start' ? t('proxy.working') : t('proxy.startAll') }}
+        </button>
+      </div>
     </div>
   </header>
 
@@ -587,17 +591,19 @@ async function openConnection(connection: ProxyConnectionInfo) {
           </button>
         </div>
 
-        <div class="proxy-endpoint">
-          <small>{{ t('proxy.localEndpoint') }}</small>
-          <code>{{ connection.listenHost }}:{{ connection.listenPort }}</code>
-        </div>
+        <div class="proxy-addresses">
+          <div class="proxy-endpoint">
+            <small>{{ t('proxy.localEndpoint') }}</small>
+            <code>{{ connection.listenHost }}:{{ connection.listenPort }}</code>
+          </div>
 
-        <div class="proxy-target">
-          <small>{{ t('proxy.remoteTarget') }}</small>
-          <code>{{ connection.target }}</code>
-          <small>{{ t('proxy.timeoutSummary', {
-            seconds: connection.upstreamResponseTimeoutSeconds
-          }) }}</small>
+          <div class="proxy-target">
+            <small>{{ t('proxy.remoteTarget') }}</small>
+            <code>{{ connection.target }}</code>
+            <small>{{ t('proxy.timeoutSummary', {
+              seconds: connection.upstreamResponseTimeoutSeconds
+            }) }}</small>
+          </div>
         </div>
 
         <div class="proxy-state">

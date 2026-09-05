@@ -33,10 +33,10 @@ const manuals: Record<Language, OperationManual> = {
           'Confirm that “Agent connected” appears at the bottom of the sidebar.',
           'Open Sites. Use Site Home to scan first-level folders, or add one linked Site manually.',
           'Confirm the domain, Web Root, and PHP Runtime. Laravel projects normally use public as the Web Root.',
-          'Return to Overview and select Start All, then open the Site from the Sites page.'
+          'Return to Overview and select Start Web Services, then open the Site from the Sites page.'
         ],
         notes: [
-          'Start All manages DNS, Nginx, and the PHP-FPM instances required by enabled Sites. MariaDB and Proxy connections are managed independently.'
+          'Start Web Services manages DNS, Nginx, and the PHP-FPM instances required by enabled Sites. MariaDB and Proxy connections are managed independently.'
         ]
       },
       {
@@ -44,7 +44,7 @@ const manuals: Record<Language, OperationManual> = {
         title: 'Overview and service status',
         summary: 'Overview shows the current state of DNS, Nginx, PHP, MariaDB, Node.js, and Proxy Manager.',
         steps: [
-          'Use Start All or Stop All for the Web stack.',
+          'Use Start Web Services or Stop Web Services for the Web stack.',
           'Select Refresh after changing a service outside the App or when checking recovery from an error.',
           'If PHP-FPM reports queued or slow requests, inspect the project and slow log before increasing worker capacity.'
         ]
@@ -141,7 +141,7 @@ const manuals: Record<Language, OperationManual> = {
         summary: 'Check the narrowest layer first: Agent, Site, Runtime, service, then browser.',
         steps: [
           'Agent disconnected: select Refresh. If it remains disconnected, quit and reopen fabDev.',
-          'A .test Site does not open: confirm the Site is registered and enabled, PHP is installed, then Stop All and Start All.',
+          'A .test Site does not open: confirm the Site is registered and enabled, PHP is installed, then Stop Web Services and Start Web Services.',
           'HTTPS warning: confirm HTTPS is enabled for the Site and the fabDev CA is trusted in the current user Login Keychain.',
           'MariaDB cannot start: check whether another service already uses port 3306 and verify the selected data directory.',
           'Proxy failed: verify that the local port is free, the target uses http://, and the remote server is reachable.'
@@ -167,10 +167,10 @@ const manuals: Record<Language, OperationManual> = {
           '先確認左側底部顯示「Agent 已連線」。',
           '進入 Sites。可用 Site Home 掃描第一層資料夾，或手動新增一個 linked Site。',
           '確認網域、Web Root 與 PHP Runtime；Laravel 專案的 Web Root 通常是 `public`。',
-          '回到總覽按「全部啟動」，再到 Sites 頁面按「開啟」。'
+          '回到總覽按「啟動 Web 服務」，再到 Sites 頁面按「開啟」。'
         ],
         notes: [
-          '「全部啟動」只管理 DNS、Nginx 與 Sites 所需的 PHP-FPM；MariaDB 與 Proxy 連線各自獨立管理。'
+          '「啟動 Web 服務」只管理 DNS、Nginx 與 Sites 所需的 PHP-FPM；MariaDB 與 Proxy 連線各自獨立管理。'
         ]
       },
       {
@@ -178,7 +178,7 @@ const manuals: Record<Language, OperationManual> = {
         title: '總覽與服務狀態',
         summary: '總覽顯示 DNS、Nginx、PHP、MariaDB、Node.js 與 Proxy Manager 的目前狀態。',
         steps: [
-          '使用「全部啟動／全部停止」管理 Web Stack。',
+          '使用「啟動 Web 服務／停止 Web 服務」管理 Web Stack。',
           '若曾在 App 外變更服務，或要確認錯誤是否已恢復，請按「重新整理」。',
           'PHP-FPM 顯示排隊或慢請求時，先檢查專案與 Slow Log，再決定是否增加 Worker。'
         ]
@@ -275,7 +275,7 @@ const manuals: Record<Language, OperationManual> = {
         summary: '依序確認 Agent、Site、Runtime、服務與瀏覽器，可較快找到失敗層。',
         steps: [
           'Agent 未連線：先按「重新整理」；仍未連線時，完整退出再重新開啟 fabDev。',
-          '`.test` Site 無法開啟：確認 Site 已登錄且啟用、PHP 已安裝，再執行「全部停止 → 全部啟動」。',
+          '`.test` Site 無法開啟：確認 Site 已登錄且啟用、PHP 已安裝，再執行「停止 Web 服務 → 啟動 Web 服務」。',
           'HTTPS 警告：確認 Site 已啟用 HTTPS，且目前使用者的 Login Keychain 已信任 fabDev CA。',
           'MariaDB 無法啟動：檢查 3306 是否已被其他服務占用，並確認所選 Data Directory 有效。',
           'Proxy 啟動失敗：確認本機 Port 未占用、Target 使用 `http://`，且遠端主機可連線。'
@@ -301,10 +301,10 @@ const manuals: Record<Language, OperationManual> = {
           '先确认左侧底部显示“Agent 已连接”。',
           '进入 Sites。可用 Site Home 扫描第一层文件夹，或手动新增一个 linked Site。',
           '确认域名、Web Root 与 PHP Runtime；Laravel 项目的 Web Root 通常是 `public`。',
-          '回到总览按“全部启动”，再到 Sites 页面按“打开”。'
+          '回到总览按“启动 Web 服务”，再到 Sites 页面按“打开”。'
         ],
         notes: [
-          '“全部启动”只管理 DNS、Nginx 与 Sites 所需的 PHP-FPM；MariaDB 与 Proxy 连接各自独立管理。'
+          '“启动 Web 服务”只管理 DNS、Nginx 与 Sites 所需的 PHP-FPM；MariaDB 与 Proxy 连接各自独立管理。'
         ]
       },
       {
@@ -312,7 +312,7 @@ const manuals: Record<Language, OperationManual> = {
         title: '总览与服务状态',
         summary: '总览显示 DNS、Nginx、PHP、MariaDB、Node.js 与 Proxy Manager 的当前状态。',
         steps: [
-          '使用“全部启动／全部停止”管理 Web Stack。',
+          '使用“启动 Web 服务／停止 Web 服务”管理 Web Stack。',
           '若曾在 App 外变更服务，或要确认错误是否已恢复，请按“刷新”。',
           'PHP-FPM 显示排队或慢请求时，先检查项目与 Slow Log，再决定是否增加 Worker。'
         ]
@@ -407,7 +407,7 @@ const manuals: Record<Language, OperationManual> = {
         summary: '依次确认 Agent、Site、Runtime、服务与浏览器，可较快找到失败层。',
         steps: [
           'Agent 未连接：先按“刷新”；仍未连接时，完整退出再重新打开 fabDev。',
-          '`.test` Site 无法打开：确认 Site 已登记且启用、PHP 已安装，再执行“全部停止 → 全部启动”。',
+          '`.test` Site 无法打开：确认 Site 已登记且启用、PHP 已安装，再执行“停止 Web 服务 → 启动 Web 服务”。',
           'HTTPS 警告：确认 Site 已启用 HTTPS，且当前用户的 Login Keychain 已信任 fabDev CA。',
           'MariaDB 无法启动：检查 3306 是否已被其他服务占用，并确认所选 Data Directory 有效。',
           'Proxy 启动失败：确认本地 Port 未占用、Target 使用 `http://`，且远端主机可连接。'

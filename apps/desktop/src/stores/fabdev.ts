@@ -20,6 +20,8 @@ import {
 import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
 
+import { RequestGate } from '../utils/request-gate'
+
 import type {
   AppUpdateCheck,
   AppUpdateDownloadProgress,
@@ -74,6 +76,70 @@ interface StoreState {
 
 async function sendRequest(request: AgentRequest): Promise<AgentResponse> {
   return invoke<AgentResponse>('agent_request', { request })
+}
+
+interface StoreRequests {
+  status: RequestGate<AgentStatus>
+  proxy: RequestGate<ProxyManagerState>
+  foregroundCount: number
+}
+
+const storeRequests = new WeakMap<object, StoreRequests>()
+
+function requestsFor(store: object): StoreRequests {
+  let requests = storeRequests.get(store)
+  if (!requests) {
+    requests = {
+      status: new RequestGate<AgentStatus>(),
+      proxy: new RequestGate<ProxyManagerState>(),
+      foregroundCount: 0
+    }
+    storeRequests.set(store, requests)
+  }
+  return requests
+}
+
+function beginStatusAction(store: StoreState): () => void {
+  const requests = requestsFor(store)
+  requests.status.invalidate()
+  requests.foregroundCount += 1
+  store.busy = true
+  return () => {
+    requests.foregroundCount -= 1
+    store.busy = requests.foregroundCount > 0
+  }
+}
+
+function applyStatus(store: StoreState, status: AgentStatus) {
+  requestsFor(store).status.invalidate()
+  store.status = status
+  store.connected = true
+}
+
+function applyProxyManager(store: StoreState, state: ProxyManagerState) {
+  requestsFor(store).proxy.invalidate()
+  store.proxyManager = state
+}
+
+function requestStatus(store: StoreState, reportError: boolean): Promise<AgentStatus> {
+  return requestsFor(store).status.run(async () => {
+    const response = await sendRequest({ type: 'getStatus' })
+    if (response.type === 'status') {
+      return response.payload
+    }
+    if (response.type === 'error') {
+      throw new Error(response.payload.message)
+    }
+    throw new Error('Agent returned an unexpected response')
+  }, (status) => {
+    store.status = status
+    store.connected = true
+  }, (error) => {
+    store.connected = false
+    if (reportError) {
+      store.error = error instanceof Error ? error.message : String(error)
+    }
+  })
 }
 
 export const useAppStore = defineStore('fabdev', {
@@ -246,34 +312,24 @@ export const useAppStore = defineStore('fabdev', {
       }
     },
     async refreshStatus() {
-      this.busy = true
+      const finish = beginStatusAction(this)
       this.error = null
       try {
-        const response = await sendRequest({ type: 'getStatus' })
-        if (response.type === 'status') {
-          this.status = response.payload
-          this.connected = true
-        } else if (response.type === 'error') {
-          throw new Error(response.payload.message)
-        }
-      } catch (error) {
-        this.connected = false
-        this.error = error instanceof Error ? error.message : String(error)
+        await requestStatus(this, true)
+      } catch {
+        // Only the current request can update connection and error state.
       } finally {
-        this.busy = false
+        finish()
       }
     },
     async pollStatus() {
+      if (this.busy) {
+        return
+      }
       try {
-        const response = await sendRequest({ type: 'getStatus' })
-        if (response.type === 'status') {
-          this.status = response.payload
-          this.connected = true
-        } else if (response.type === 'error') {
-          throw new Error(response.payload.message)
-        }
+        await requestStatus(this, false)
       } catch {
-        this.connected = false
+        // Background failures update connection state without replacing the visible error.
       }
     },
     async loadSites() {
@@ -580,21 +636,24 @@ export const useAppStore = defineStore('fabdev', {
       throw new Error('Agent returned an unexpected response')
     },
     async loadProxyManager() {
-      const response = await sendRequest({ type: 'getProxyManager' })
-      if (response.type === 'proxyManager') {
-        this.proxyManager = response.payload
+      return requestsFor(this).proxy.run(async () => {
+        const response = await sendRequest({ type: 'getProxyManager' })
+        if (response.type === 'proxyManager') {
+          return response.payload
+        }
+        if (response.type === 'error') {
+          throw new Error(response.payload.message)
+        }
+        throw new Error('Agent returned an unexpected response')
+      }, (state) => {
+        this.proxyManager = state
         this.connected = true
-        return response.payload
-      }
-      if (response.type === 'error') {
-        throw new Error(response.payload.message)
-      }
-      throw new Error('Agent returned an unexpected response')
+      })
     },
     async addProxyConnection(input: ProxyConnectionInput) {
       const response = await sendRequest({ type: 'addProxyConnection', payload: input })
       if (response.type === 'proxyManager') {
-        this.proxyManager = response.payload
+        applyProxyManager(this, response.payload)
         return response.payload
       }
       if (response.type === 'error') {
@@ -608,7 +667,7 @@ export const useAppStore = defineStore('fabdev', {
         payload: { connectionId, input }
       })
       if (response.type === 'proxyManager') {
-        this.proxyManager = response.payload
+        applyProxyManager(this, response.payload)
         return response.payload
       }
       if (response.type === 'error') {
@@ -622,7 +681,7 @@ export const useAppStore = defineStore('fabdev', {
         payload: { connectionId }
       })
       if (response.type === 'proxyManager') {
-        this.proxyManager = response.payload
+        applyProxyManager(this, response.payload)
         return response.payload
       }
       if (response.type === 'error') {
@@ -636,7 +695,7 @@ export const useAppStore = defineStore('fabdev', {
         payload: { connectionId }
       })
       if (response.type === 'proxyManager') {
-        this.proxyManager = response.payload
+        applyProxyManager(this, response.payload)
         return response.payload
       }
       if (response.type === 'error') {
@@ -650,7 +709,7 @@ export const useAppStore = defineStore('fabdev', {
         payload: { connectionId }
       })
       if (response.type === 'proxyManager') {
-        this.proxyManager = response.payload
+        applyProxyManager(this, response.payload)
         return response.payload
       }
       if (response.type === 'error') {
@@ -665,7 +724,7 @@ export const useAppStore = defineStore('fabdev', {
     async startAllProxyConnections() {
       const response = await sendRequest({ type: 'startAllProxyConnections' })
       if (response.type === 'proxyManager') {
-        this.proxyManager = response.payload
+        applyProxyManager(this, response.payload)
         return response.payload
       }
       if (response.type === 'error') {
@@ -676,7 +735,7 @@ export const useAppStore = defineStore('fabdev', {
     async stopAllProxyConnections() {
       const response = await sendRequest({ type: 'stopAllProxyConnections' })
       if (response.type === 'proxyManager') {
-        this.proxyManager = response.payload
+        applyProxyManager(this, response.payload)
         return response.payload
       }
       if (response.type === 'error') {
@@ -839,7 +898,7 @@ export const useAppStore = defineStore('fabdev', {
       throw new Error('Agent returned an unexpected response')
     },
     async startServicesOnLaunch() {
-      this.busy = true
+      const finish = beginStatusAction(this)
       this.error = null
       try {
         const statusResponse = await sendRequest({ type: 'getStatus' })
@@ -850,7 +909,7 @@ export const useAppStore = defineStore('fabdev', {
           throw new Error('Agent returned an unexpected response')
         }
 
-        this.status = statusResponse.payload
+        applyStatus(this, statusResponse.payload)
         this.connected = true
         const sitesResponse = await sendRequest({ type: 'listSites' })
         if (sitesResponse.type === 'error') {
@@ -876,7 +935,7 @@ export const useAppStore = defineStore('fabdev', {
           if (stoppedStatus.type !== 'status') {
             throw new Error('Agent returned an unexpected response')
           }
-          this.status = stoppedStatus.payload
+          applyStatus(this, stoppedStatus.payload)
           return
         }
 
@@ -909,15 +968,15 @@ export const useAppStore = defineStore('fabdev', {
         if (finalStatus.type !== 'status') {
           throw new Error('Agent returned an unexpected response')
         }
-        this.status = finalStatus.payload
+        applyStatus(this, finalStatus.payload)
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error)
       } finally {
-        this.busy = false
+        finish()
       }
     },
     async startAll() {
-      this.busy = true
+      const finish = beginStatusAction(this)
       this.error = null
       try {
         const response = await sendRequest({ type: 'startAll' })
@@ -931,11 +990,11 @@ export const useAppStore = defineStore('fabdev', {
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error)
       } finally {
-        this.busy = false
+        finish()
       }
     },
     async stopAll() {
-      this.busy = true
+      const finish = beginStatusAction(this)
       this.error = null
       try {
         const response = await sendRequest({ type: 'stopAll' })
@@ -950,11 +1009,11 @@ export const useAppStore = defineStore('fabdev', {
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error)
       } finally {
-        this.busy = false
+        finish()
       }
     },
     async startMariaDb() {
-      this.busy = true
+      const finish = beginStatusAction(this)
       this.error = null
       try {
         const response = await sendRequest({ type: 'startMariaDb' })
@@ -968,11 +1027,11 @@ export const useAppStore = defineStore('fabdev', {
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error)
       } finally {
-        this.busy = false
+        finish()
       }
     },
     async stopMariaDb() {
-      this.busy = true
+      const finish = beginStatusAction(this)
       this.error = null
       try {
         const response = await sendRequest({ type: 'stopMariaDb' })
@@ -986,7 +1045,7 @@ export const useAppStore = defineStore('fabdev', {
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error)
       } finally {
-        this.busy = false
+        finish()
       }
     },
     async restoreMariaDbOnLaunch() {
@@ -1006,7 +1065,7 @@ export const useAppStore = defineStore('fabdev', {
         if (statusResponse.type !== 'status') {
           throw new Error('Agent returned an unexpected response')
         }
-        this.status = statusResponse.payload
+        applyStatus(this, statusResponse.payload)
         this.connected = true
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error)

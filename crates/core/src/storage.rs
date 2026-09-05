@@ -336,6 +336,18 @@ impl SiteRepository {
     Ok(())
   }
 
+  pub fn save_proxy_state(
+    &self,
+    connections: &[ProxyConnectionSettings],
+    running_ids: &[String],
+  ) -> Result<(), StorageError> {
+    let transaction = self.connection.unchecked_transaction()?;
+    self.save_proxy_connections(connections)?;
+    self.save_proxy_running_ids(running_ids)?;
+    transaction.commit()?;
+    Ok(())
+  }
+
   pub fn remove(&self, id: &Uuid) -> Result<Option<Site>, StorageError> {
     let site = self.list()?.into_iter().find(|site| &site.id == id);
     let Some(site) = site else {
@@ -734,6 +746,82 @@ mod tests {
         .proxy_connections()
         .expect("load Proxy connections"),
       Some(expected)
+    );
+  }
+
+  fn proxy_state_fixture(id: &str, port: u16) -> ProxyConnectionSettings {
+    ProxyConnectionSettings {
+      id: id.to_owned(),
+      name: id.to_ascii_uppercase(),
+      domain: format!("{id}.test"),
+      listen_host: "127.0.0.1".to_owned(),
+      listen_port: port,
+      target: "http://127.0.0.1:9".to_owned(),
+      allowed_origins: vec![format!("http://{id}.test")],
+      upstream_response_timeout_seconds: crate::DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
+    }
+  }
+
+  #[test]
+  fn preserves_both_proxy_settings_when_the_second_write_fails() {
+    for populated in [false, true] {
+      let repository = SiteRepository::in_memory().unwrap();
+      if populated {
+        repository
+          .save_proxy_state(
+            &[proxy_state_fixture("original", 3020)],
+            &["original".to_owned()],
+          )
+          .unwrap();
+      }
+      let previous_connections = repository.proxy_connections().unwrap();
+      let previous_running = repository.proxy_running_ids().unwrap();
+      repository
+        .connection
+        .execute_batch(
+          "CREATE TRIGGER reject_proxy_running BEFORE INSERT ON app_settings
+         WHEN NEW.key = 'proxy_running_ids'
+         BEGIN SELECT RAISE(ABORT, 'fixture state write failed'); END;",
+        )
+        .unwrap();
+      let result = repository.save_proxy_state(
+        &[proxy_state_fixture("replacement", 3030)],
+        &["replacement".to_owned()],
+      );
+      assert!(result.is_err());
+      assert_eq!(
+        repository.proxy_connections().unwrap(),
+        previous_connections
+      );
+      assert_eq!(repository.proxy_running_ids().unwrap(), previous_running);
+      repository
+        .connection
+        .execute_batch("DROP TRIGGER reject_proxy_running;")
+        .unwrap();
+      repository.save_proxy_state(&[], &[]).unwrap();
+      assert_eq!(repository.proxy_connections().unwrap(), Some(Vec::new()));
+      assert!(repository.proxy_running_ids().unwrap().is_empty());
+    }
+  }
+
+  #[test]
+  fn saves_proxy_state_with_existing_sorting_and_deduplication() {
+    let repository = SiteRepository::in_memory().unwrap();
+    let first = proxy_state_fixture("first", 3020);
+    let second = proxy_state_fixture("second", 3021);
+    repository
+      .save_proxy_state(
+        &[second.clone(), first.clone()],
+        &["second".to_owned(), "first".to_owned(), "second".to_owned()],
+      )
+      .unwrap();
+    assert_eq!(
+      repository.proxy_connections().unwrap(),
+      Some(vec![first, second])
+    );
+    assert_eq!(
+      repository.proxy_running_ids().unwrap(),
+      vec!["first".to_owned(), "second".to_owned()]
     );
   }
 }

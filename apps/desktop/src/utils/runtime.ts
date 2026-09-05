@@ -2,6 +2,7 @@ import {
   type NodeRuntimeInfo,
   type PhpRuntimeInfo,
   type RuntimeUpdateArtifact,
+  type RuntimeUpdateOperation,
   type RuntimeUpdateOperationStatus
 } from '@fabdev/contracts'
 
@@ -250,4 +251,27 @@ export function runtimeProgressPercent(downloaded: number, total: number): numbe
 
 export function isRuntimeDownloadActive(status: RuntimeUpdateOperationStatus): boolean {
   return status === 'queued' || status === 'downloading'
+}
+
+export function runtimeOperationForArtifact(
+  artifact: RuntimeUpdateArtifact | null,
+  operation: RuntimeUpdateOperation | null
+): RuntimeUpdateOperation | null {
+  // Keep in-flight progress and cancellation visible when the catalog replaces a package.
+  return artifact
+    && operation?.name === artifact.name
+    && operation.version === artifact.version
+    && operation.platform === artifact.platform
+    && operation.architecture === artifact.architecture
+    && (
+      isRuntimeDownloadActive(operation.status)
+      || operation.status === 'installing'
+      || (
+        operation.fileName === artifact.fileName
+        && operation.totalBytes === artifact.size
+        && operation.sha256 === artifact.sha256
+      )
+    )
+    ? operation
+    : null
 }

@@ -78,69 +78,83 @@ where
     bail!("Windows update artifact has an invalid size");
   }
   let segments = build_segments(partial, size, segment_size)?;
-  if is_cancelled() {
+  let result = crate::cancellation::with_cancellation(
+    async {
+      if is_cancelled() {
+        remove_file_if_exists(partial).await?;
+        cleanup_segments(&segments).await;
+        bail!("Windows update download was cancelled");
+      }
+
+      remove_file_if_exists(partial).await?;
+      let mut resumed = 0_u64;
+      let mut pending = Vec::new();
+      for segment in &segments {
+        match tokio::fs::metadata(&segment.path).await {
+          Ok(metadata) if metadata.is_file() && metadata.len() == segment.length() => {
+            resumed += segment.length();
+          }
+          Ok(_) => {
+            remove_file_if_exists(&segment.path).await?;
+            pending.push(segment.clone());
+          }
+          Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            pending.push(segment.clone());
+          }
+          Err(error) => return Err(error.into()),
+        }
+      }
+      on_progress(resumed, size);
+
+      if !pending.is_empty() {
+        verify_range_support(client, url, size).await?;
+      }
+
+      let downloads = stream::iter(pending.into_iter().map(|segment| async move {
+        download_segment(client, url, size, &segment, is_cancelled).await
+      }))
+      .buffer_unordered(MAX_PARALLEL_SEGMENTS);
+      tokio::pin!(downloads);
+
+      let mut downloaded = resumed;
+      while let Some(result) = downloads.next().await {
+        match result {
+          Ok(count) => {
+            downloaded = downloaded
+              .checked_add(count)
+              .context("Windows update download size overflow")?;
+            on_progress(downloaded, size);
+          }
+          Err(error) => {
+            if is_cancelled() {
+              cleanup_segments(&segments).await;
+              bail!("Windows update download was cancelled");
+            }
+            return Err(error);
+          }
+        }
+      }
+
+      if is_cancelled() {
+        cleanup_segments(&segments).await;
+        bail!("Windows update download was cancelled");
+      }
+      if downloaded != size {
+        bail!("Windows update download is incomplete");
+      }
+
+      Ok(())
+    },
+    is_cancelled,
+    "Windows update download was cancelled",
+  )
+  .await;
+  // The download future is dropped before cleanup, closing active segment handles.
+  if result.is_err() && is_cancelled() {
     remove_file_if_exists(partial).await?;
     cleanup_segments(&segments).await;
-    bail!("Windows update download was cancelled");
   }
-
-  remove_file_if_exists(partial).await?;
-  let mut resumed = 0_u64;
-  let mut pending = Vec::new();
-  for segment in &segments {
-    match tokio::fs::metadata(&segment.path).await {
-      Ok(metadata) if metadata.is_file() && metadata.len() == segment.length() => {
-        resumed += segment.length();
-      }
-      Ok(_) => {
-        remove_file_if_exists(&segment.path).await?;
-        pending.push(segment.clone());
-      }
-      Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-        pending.push(segment.clone());
-      }
-      Err(error) => return Err(error.into()),
-    }
-  }
-  on_progress(resumed, size);
-
-  if !pending.is_empty() {
-    verify_range_support(client, url, size).await?;
-  }
-
-  let downloads = stream::iter(pending.into_iter().map(|segment| async move {
-    download_segment(client, url, size, &segment, is_cancelled).await
-  }))
-  .buffer_unordered(MAX_PARALLEL_SEGMENTS);
-  tokio::pin!(downloads);
-
-  let mut downloaded = resumed;
-  while let Some(result) = downloads.next().await {
-    match result {
-      Ok(count) => {
-        downloaded = downloaded
-          .checked_add(count)
-          .context("Windows update download size overflow")?;
-        on_progress(downloaded, size);
-      }
-      Err(error) => {
-        if is_cancelled() {
-          cleanup_segments(&segments).await;
-          bail!("Windows update download was cancelled");
-        }
-        return Err(error);
-      }
-    }
-  }
-
-  if is_cancelled() {
-    cleanup_segments(&segments).await;
-    bail!("Windows update download was cancelled");
-  }
-  if downloaded != size {
-    bail!("Windows update download is incomplete");
-  }
-
+  result?;
   let checksum = combine_and_hash_segments(&segments, partial).await?;
   if checksum != sha256 {
     remove_file_if_exists(partial).await?;
@@ -391,6 +405,160 @@ mod tests {
   use super::*;
   use tokio::io::{AsyncReadExt, AsyncWriteExt};
   use uuid::Uuid;
+
+  async fn assert_cancels_stalled_download(stage: &str) {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use tokio::sync::oneshot;
+    use tokio::time::timeout;
+
+    let root = std::env::temp_dir().join(format!("fabdev-stalled-download-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&root).unwrap();
+    let partial = root.join("fixture.part");
+    let target = root.join("fixture.exe");
+    let segments = build_segments(&partial, 16, 8).unwrap();
+    std::fs::write(&segments[0].path, b"complete").unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let (ready, reached) = oneshot::channel();
+    let body_stalled = stage == "body";
+    let stage = stage.to_owned();
+    let mut tasks = tokio::task::JoinSet::new();
+    tasks.spawn(async move {
+      let (mut socket, _) = listener.accept().await.unwrap();
+      let mut request = [0; 2048];
+      assert!(socket.read(&mut request).await.unwrap() > 0);
+      if stage != "range" {
+        socket.write_all(b"HTTP/1.1 206 Partial Content\r\nContent-Length: 1\r\nContent-Range: bytes 0-0/16\r\nConnection: close\r\n\r\nc").await.unwrap();
+        drop(socket);
+        let (next, _) = listener.accept().await.unwrap();
+        socket = next;
+        assert!(socket.read(&mut request).await.unwrap() > 0);
+        if stage == "body" {
+          socket.write_all(b"HTTP/1.1 206 Partial Content\r\nContent-Length: 8\r\nContent-Range: bytes 8-15/16\r\n\r\nx").await.unwrap();
+        }
+      }
+      ready.send(()).unwrap();
+      let mut remainder = Vec::new();
+      socket.read_to_end(&mut remainder).await.unwrap();
+      drop(socket);
+      if stage == "body" {
+        let payload = b"0123456789abcdef";
+        for _ in 0..3 {
+          let (mut socket, _) = listener.accept().await.unwrap();
+          let count = socket.read(&mut request).await.unwrap();
+          let request = String::from_utf8_lossy(&request[..count]);
+          let range = request.lines().find_map(|line| {
+            line.strip_prefix("range: bytes=").or_else(|| line.strip_prefix("Range: bytes="))
+          }).unwrap();
+          let (start, end) = range.split_once('-').unwrap();
+          let start = start.parse::<usize>().unwrap();
+          let end = end.parse::<usize>().unwrap();
+          let body = &payload[start..=end];
+          let headers = format!(
+            "HTTP/1.1 206 Partial Content\r\nContent-Length: {}\r\nContent-Range: bytes {start}-{end}/16\r\nConnection: close\r\n\r\n",
+            body.len()
+          );
+          socket.write_all(headers.as_bytes()).await.unwrap();
+          socket.write_all(body).await.unwrap();
+        }
+      }
+    });
+    let cancelled = AtomicBool::new(false);
+    let client = Client::builder().no_proxy().build().unwrap();
+    let url = format!("http://{address}/fixture.exe");
+    let checksum = "0".repeat(64);
+    let result = {
+      let mut on_progress = |_, _| {};
+      let is_cancelled = || cancelled.load(Ordering::SeqCst);
+      let download = download_windows_artifact_with_segment_size(
+        &client,
+        &url,
+        16,
+        &checksum,
+        &partial,
+        &target,
+        8,
+        &mut on_progress,
+        &is_cancelled,
+      );
+      let cancel = async {
+        reached.await.unwrap();
+        if body_stalled {
+          timeout(Duration::from_secs(1), async {
+            loop {
+              if tokio::fs::metadata(&segments[1].path)
+                .await
+                .is_ok_and(|metadata| metadata.len() > 0)
+              {
+                break;
+              }
+              tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+          })
+          .await
+          .expect("the first body byte must reach disk before cancellation");
+        }
+        cancelled.store(true, Ordering::SeqCst);
+      };
+      let (result, ()) = tokio::join!(timeout(Duration::from_secs(2), download), cancel);
+      result
+    };
+    let cleaned =
+      !partial.exists() && !target.exists() && segments.iter().all(|part| !part.path.exists());
+    let error = result
+      .expect("cancellation must interrupt a stalled network operation")
+      .unwrap_err();
+    assert!(error
+      .to_string()
+      .contains("Windows update download was cancelled"));
+    assert!(
+      cleaned,
+      "explicit cancellation must clean partial and resumable files"
+    );
+    if body_stalled {
+      timeout(
+        Duration::from_secs(2),
+        download_windows_artifact_with_segment_size(
+          &client,
+          &url,
+          16,
+          &hex::encode(Sha256::digest(b"0123456789abcdef")),
+          &partial,
+          &target,
+          8,
+          &mut |_, _| {},
+          &|| false,
+        ),
+      )
+      .await
+      .expect("retry must complete")
+      .expect("retry the cancelled download");
+      assert_eq!(tokio::fs::read(&target).await.unwrap(), b"0123456789abcdef");
+      assert!(!partial.exists());
+      assert!(segments.iter().all(|segment| !segment.path.exists()));
+    }
+    timeout(Duration::from_secs(2), tasks.join_next())
+      .await
+      .expect("cancelled request must close its connection")
+      .unwrap()
+      .unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[tokio::test]
+  async fn cancels_while_range_probe_is_stalled() {
+    assert_cancels_stalled_download("range").await;
+  }
+
+  #[tokio::test]
+  async fn cancels_while_segment_headers_are_stalled() {
+    assert_cancels_stalled_download("headers").await;
+  }
+
+  #[tokio::test]
+  async fn cancels_while_segment_body_is_stalled() {
+    assert_cancels_stalled_download("body").await;
+  }
 
   #[test]
   fn builds_ordered_segments_without_exceeding_the_artifact() {

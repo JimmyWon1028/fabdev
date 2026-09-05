@@ -98,6 +98,8 @@ pub enum SiteError {
   ProjectIsNotDirectory(PathBuf),
   #[error("document root must be inside the project directory")]
   DocumentRootOutsideProject,
+  #[error("document root is not a directory: {0}")]
+  DocumentRootIsNotDirectory(PathBuf),
   #[error("invalid .test domain: {0}")]
   InvalidDomain(String),
   #[error("invalid PHP version: {0}")]
@@ -143,6 +145,9 @@ pub fn create_site(input: SiteInput) -> Result<Site, SiteError> {
       let candidate = candidate.canonicalize()?;
       if !candidate.starts_with(&project_path) {
         return Err(SiteError::DocumentRootOutsideProject);
+      }
+      if !candidate.is_dir() {
+        return Err(SiteError::DocumentRootIsNotDirectory(candidate));
       }
       candidate
     }
@@ -347,5 +352,24 @@ mod tests {
   #[test]
   fn rejects_domains_outside_test_tld() {
     assert!(normalize_domain("erp.local").is_err());
+  }
+
+  #[test]
+  fn rejects_a_file_as_the_document_root() {
+    let root = temp_project();
+    for document_root in [
+      PathBuf::from("public/index.php"),
+      root.join("public/index.php"),
+    ] {
+      let result = create_site(SiteInput {
+        name: None,
+        domain: None,
+        project_path: root.clone(),
+        document_root: Some(document_root),
+        php_version: None,
+      });
+      assert!(result.is_err(), "a document root must be a directory");
+    }
+    std::fs::remove_dir_all(root).expect("remove test project");
   }
 }

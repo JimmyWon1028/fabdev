@@ -1,3 +1,4 @@
+import type { RuntimeUpdateOperation } from '@fabdev/contracts'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -12,6 +13,7 @@ import {
   isRuntimeDownloadActive,
   latestRuntimeArtifact,
   runtimeProgressPercent,
+  runtimeOperationForArtifact,
   phpSeriesFromVersion
 } from './runtime'
 
@@ -226,5 +228,40 @@ describe('PHP Runtime presentation', () => {
     expect(catalogRuntimeState('24.18.0', node)).toBe('update-available')
     expect(catalogRuntimeState('24.20.0', node)).toBe('installed')
     expect(compareRuntimeVersions('24.19.0', '24.18.9')).toBeGreaterThan(0)
+  })
+})
+
+describe('Runtime operation package identity', () => {
+  const artifact = onlinePhp('8.4.24')
+  const operation: RuntimeUpdateOperation = {
+    operationId: 'fixture', status: 'verified', name: artifact.name, version: artifact.version,
+    platform: artifact.platform, architecture: artifact.architecture, fileName: artifact.fileName,
+    bytesDownloaded: artifact.size, totalBytes: artifact.size, sha256: artifact.sha256, error: null
+  }
+
+  it('matches the downloaded package after installed state changes', () => {
+    expect(runtimeOperationForArtifact({ ...artifact, installed: true }, operation)).toBe(operation)
+    expect(runtimeOperationForArtifact(null, operation)).toBeNull()
+    expect(runtimeOperationForArtifact(artifact, null)).toBeNull()
+  })
+
+  it('keeps ongoing tasks visible for cancellation and progress after a Catalog replacement', () => {
+    for (const status of ['queued', 'downloading', 'installing'] as const) {
+      const running = { ...operation, status }
+      expect(runtimeOperationForArtifact({ ...artifact, sha256: 'b'.repeat(64) }, running)).toBe(running)
+    }
+  })
+
+  it('does not reuse a previous operation for a replacement package at the same version', () => {
+    expect(runtimeOperationForArtifact({ ...artifact, sha256: 'b'.repeat(64) }, operation)).toBeNull()
+  })
+
+  it('does not associate an operation with a different target or package size', () => {
+    for (const changed of [
+      { ...artifact, platform: 'macos' }, { ...artifact, architecture: 'arm64' },
+      { ...artifact, fileName: 'replacement.tar.gz' }, { ...artifact, size: artifact.size + 1 }
+    ]) {
+      expect(runtimeOperationForArtifact(changed, operation)).toBeNull()
+    }
   })
 })

@@ -12,6 +12,7 @@ import {
   formatRuntimeBytes,
   formatRuntimeTarget,
   isRuntimeDownloadActive,
+  runtimeOperationForArtifact,
   runtimeProgressPercent
 } from '../utils/runtime'
 
@@ -38,11 +39,7 @@ onBeforeUnmount(() => { mounted = false })
 
 function operationFor(artifact: RuntimeUpdateArtifact | null) {
   const operation = store.runtimeUpdateOperation
-  return artifact
-    && operation?.name === artifact.name
-    && operation.version === artifact.version
-    ? operation
-    : null
+  return runtimeOperationForArtifact(artifact, operation)
 }
 
 function operationStatusLabel(artifact: RuntimeUpdateArtifact | null) {
@@ -79,9 +76,9 @@ async function installOrUpdate(artifact: RuntimeUpdateArtifact) {
     return
   }
   const approved = await confirm(t('node.onlineInstallConfirm', {
-    version: artifact.version,
-    size: formatRuntimeBytes(artifact.size),
-    sha256: artifact.sha256
+    version: operation.version,
+    size: formatRuntimeBytes(operation.totalBytes),
+    sha256: operation.sha256
   }), {
     title: t('node.onlineInstallTitle'),
     kind: 'warning',
@@ -225,25 +222,6 @@ async function removeRuntime(version: string) {
   <div class="page-body">
     <div v-if="message" class="notice"><span>{{ message }}</span></div>
 
-    <section v-if="store.nodeRuntime.installed.length" class="settings-card">
-      <div>
-        <p class="eyebrow">{{ t('node.terminalEyebrow') }}</p>
-        <h2>{{ t('node.terminalTitle') }}</h2>
-        <p>{{ t('node.terminalDescription') }}</p>
-      </div>
-      <div class="runtime-actions">
-        <span class="state-pill" :data-state="store.nodeRuntime.terminal.enabled ? 'installed' : undefined">
-          {{ store.nodeRuntime.terminal.enabled ? t('state.enabled') : t('state.disabled') }}
-        </span>
-        <button class="secondary-button" :disabled="action !== null || !store.nodeRuntime.activeVersion" @click="repairTerminal">
-          {{ t('node.repairTerminal') }}
-        </button>
-        <button v-if="store.nodeRuntime.terminal.enabled" class="danger-button" :disabled="action !== null" @click="disableTerminal">
-          {{ t('state.disable') }}
-        </button>
-      </div>
-    </section>
-
     <section class="runtime-list" :aria-label="t('node.listLabel')">
       <article v-for="row in rows" :key="row.version" class="runtime-card">
         <div class="runtime-details">
@@ -251,8 +229,6 @@ async function removeRuntime(version: string) {
           <div>
             <h2>Node.js {{ row.version }}</h2>
             <p v-if="row.state === 'update-available'">{{ t('node.updateDescription', { version: row.artifact?.version ?? row.version }) }}</p>
-            <p v-else-if="row.runtime">{{ t('node.installedDescription') }}</p>
-            <p v-else>{{ t('node.notInstalledDescription') }}</p>
             <small>{{ targetLabel(row.artifact) }}</small>
             <div v-if="operationFor(row.artifact)" class="runtime-row-progress">
               <progress :value="operationFor(row.artifact)?.bytesDownloaded ?? 0" :max="operationFor(row.artifact)?.totalBytes || 1" />
@@ -261,7 +237,7 @@ async function removeRuntime(version: string) {
           </div>
         </div>
         <div class="runtime-actions">
-          <span class="state-pill" :data-state="row.state === 'update-available' ? 'warning' : row.runtime ? 'installed' : undefined">
+          <span class="state-pill" :data-state="row.state === 'update-available' ? 'warning' : row.runtime?.active ? 'running' : row.runtime ? 'installed' : undefined">
             {{ row.runtime?.active ? t('runtimes.globalVersion') : row.state === 'update-available' ? t('runtimes.updateAvailable') : row.runtime ? t('state.installed') : t('state.notInstalled') }}
           </span>
           <button v-if="row.artifact && !isRuntimeDownloadActive(operationFor(row.artifact)?.status ?? 'failed')" class="primary-button" :disabled="action !== null" @click="installOrUpdate(row.artifact)">
@@ -278,6 +254,27 @@ async function removeRuntime(version: string) {
           </button>
         </div>
       </article>
+    </section>
+
+    <section v-if="store.nodeRuntime.installed.length" class="terminal-card" :aria-label="t('node.terminalTitle')">
+      <div class="terminal-details">
+        <div>
+          <p class="eyebrow">{{ t('node.terminalEyebrow') }}</p>
+          <h2>{{ t('node.terminalTitle') }}</h2>
+          <p>{{ t('node.terminalDescription') }}</p>
+        </div>
+        <span class="state-pill" :data-state="store.nodeRuntime.terminal.enabled ? 'running' : undefined">
+          {{ store.nodeRuntime.terminal.enabled ? t('state.enabled') : t('state.disabled') }}
+        </span>
+      </div>
+      <div class="runtime-actions">
+        <button class="secondary-button" :disabled="action !== null || !store.nodeRuntime.activeVersion" @click="repairTerminal">
+          {{ t('node.repairTerminal') }}
+        </button>
+        <button v-if="store.nodeRuntime.terminal.enabled" class="danger-button" :disabled="action !== null" @click="disableTerminal">
+          {{ t('state.disable') }}
+        </button>
+      </div>
     </section>
 
     <p class="runtime-footnote">{{ t('node.isolationNote') }}</p>

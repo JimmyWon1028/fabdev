@@ -192,6 +192,7 @@ onUnmounted(() => {
   </header>
 
   <div class="page-body">
+    <p class="service-scope-note">{{ t('dashboard.serviceScope') }}</p>
     <div v-if="store.error" class="notice warning">
       <strong>{{ t('dashboard.notReady') }}</strong>
       <span>{{ localizedError }}</span>
@@ -236,8 +237,7 @@ onUnmounted(() => {
       </article>
     </section>
 
-    <section class="milestone-card">
-      <p class="eyebrow">{{ t('dashboard.milestone') }}</p>
+    <section class="runtime-help-card">
       <h2>{{ t('dashboard.multiplePhp') }}</h2>
       <p>{{ t('dashboard.multiplePhpDescription') }}</p>
     </section>

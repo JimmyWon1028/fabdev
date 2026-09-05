@@ -16,6 +16,7 @@ import {
   formatRuntimeBytes,
   formatRuntimeTarget,
   isRuntimeDownloadActive,
+  runtimeOperationForArtifact,
   latestRuntimeArtifact,
   runtimeProgressPercent
 } from '../utils/runtime'
@@ -56,11 +57,7 @@ const runtimeState = computed(() => {
 const onlineOperation = computed(() => {
   const operation = store.runtimeUpdateOperation
   const artifact = onlineArtifact.value
-  return artifact
-    && operation?.name === artifact.name
-    && operation.version === artifact.version
-    ? operation
-    : null
+  return runtimeOperationForArtifact(artifact, operation)
 })
 const onlineProgress = computed(() => onlineOperation.value
   ? runtimeProgressPercent(
@@ -228,9 +225,9 @@ async function installOnlineRuntime(
 ) {
   const updating = runtimeState.value === 'update-available'
   const approved = await confirm(t('mariadb.onlineInstallConfirm', {
-    version: artifact.version,
-    size: formatRuntimeBytes(artifact.size),
-    sha256: artifact.sha256
+    version: operation.version,
+    size: formatRuntimeBytes(operation.totalBytes),
+    sha256: operation.sha256
   }), {
     title: t(updating ? 'mariadb.onlineUpdateTitle' : 'mariadb.onlineInstallTitle'),
     kind: 'warning',

@@ -15,6 +15,7 @@ import {
   formatRuntimeBytes,
   formatRuntimeTarget,
   isRuntimeDownloadActive,
+  runtimeOperationForArtifact,
   runtimeProgressPercent
 } from '../utils/runtime'
 
@@ -186,9 +187,9 @@ async function installOnlineRuntime(
   }
   const approved = await confirm(
     t('runtimes.onlineInstallConfirm', {
-      version: artifact.version,
-      size: formatRuntimeBytes(artifact.size),
-      sha256: artifact.sha256
+      version: operation.version,
+      size: formatRuntimeBytes(operation.totalBytes),
+      sha256: operation.sha256
     }),
     {
       title: t('runtimes.onlineInstallTitle'),
@@ -221,11 +222,7 @@ async function installOnlineRuntime(
 
 function operationForArtifact(artifact: RuntimeUpdateArtifact | null): RuntimeUpdateOperation | null {
   const operation = onlineOperation.value
-  return artifact
-    && operation?.name === artifact.name
-    && operation.version === artifact.version
-    ? operation
-    : null
+  return runtimeOperationForArtifact(artifact, operation)
 }
 
 function operationProgress(artifact: RuntimeUpdateArtifact | null): number {
@@ -400,43 +397,6 @@ async function revealPhpIni() {
       <small>{{ t('runtimes.existingSitesIndependent') }}</small>
     </div>
 
-    <section class="terminal-php-card" :aria-label="t('runtimes.terminalTitle')">
-      <div class="terminal-php-details">
-        <div>
-          <p class="eyebrow">{{ t('runtimes.terminalEyebrow') }}</p>
-          <h2>{{ t('runtimes.terminalTitle') }}</h2>
-          <p>{{ t(isWindows ? 'runtimes.terminalDescriptionWindows' : 'runtimes.terminalDescriptionMac') }}</p>
-        </div>
-        <span
-          class="state-pill"
-          :data-state="store.terminalPhp?.enabled ? 'running' : 'installed'"
-        >
-          {{ t(store.terminalPhp?.enabled ? 'runtimes.terminalOn' : 'runtimes.terminalOff') }}
-        </span>
-      </div>
-      <code v-if="store.terminalPhp">{{ formatPathForDisplay(store.terminalPhp.binPath, isWindows) }}</code>
-      <div class="runtime-actions">
-        <button
-          class="secondary-button"
-          :disabled="action !== null || !store.phpRuntimes.globalVersion"
-          @click="enableTerminalPhp"
-        >
-          {{ action === 'terminal-php:enable'
-            ? t('runtimes.terminalWorking')
-            : t(store.terminalPhp?.enabled ? 'runtimes.terminalRepair' : 'runtimes.terminalEnable') }}
-        </button>
-        <button
-          v-if="store.terminalPhp?.enabled"
-          class="danger-button"
-          :disabled="action !== null"
-          @click="disableTerminalPhp"
-        >
-          {{ action === 'terminal-php:disable' ? t('runtimes.terminalWorking') : t('runtimes.terminalDisable') }}
-        </button>
-      </div>
-      <small>{{ t('runtimes.terminalRestartHelp') }}</small>
-    </section>
-
     <section class="runtime-online-card" :aria-label="t('runtimes.onlineTitle')">
       <div class="runtime-online-header">
         <div>
@@ -478,8 +438,7 @@ async function revealPhpIni() {
               </template>
               <template v-else-if="row.runtime?.sites.length">
                 {{ t('runtimes.siteCount', {
-                  count: row.runtime.sites.length,
-                  sites: row.runtime.sites.join(', ')
+                  count: row.runtime.sites.length
                 }) }}
               </template>
               <template v-else-if="row.runtime">{{ t('runtimes.noSites') }}</template>
@@ -566,6 +525,43 @@ async function revealPhpIni() {
           </button>
         </div>
       </article>
+    </section>
+
+    <section class="terminal-card" :aria-label="t('runtimes.terminalTitle')">
+      <div class="terminal-details">
+        <div>
+          <p class="eyebrow">{{ t('runtimes.terminalEyebrow') }}</p>
+          <h2>{{ t('runtimes.terminalTitle') }}</h2>
+          <p>{{ t(isWindows ? 'runtimes.terminalDescriptionWindows' : 'runtimes.terminalDescriptionMac') }}</p>
+        </div>
+        <span
+          class="state-pill"
+          :data-state="store.terminalPhp?.enabled ? 'running' : 'installed'"
+        >
+          {{ t(store.terminalPhp?.enabled ? 'runtimes.terminalOn' : 'runtimes.terminalOff') }}
+        </span>
+      </div>
+      <code v-if="store.terminalPhp">{{ formatPathForDisplay(store.terminalPhp.binPath, isWindows) }}</code>
+      <div class="runtime-actions">
+        <button
+          class="secondary-button"
+          :disabled="action !== null || !store.phpRuntimes.globalVersion"
+          @click="enableTerminalPhp"
+        >
+          {{ action === 'terminal-php:enable'
+            ? t('runtimes.terminalWorking')
+            : t(store.terminalPhp?.enabled ? 'runtimes.terminalRepair' : 'runtimes.terminalEnable') }}
+        </button>
+        <button
+          v-if="store.terminalPhp?.enabled"
+          class="danger-button"
+          :disabled="action !== null"
+          @click="disableTerminalPhp"
+        >
+          {{ action === 'terminal-php:disable' ? t('runtimes.terminalWorking') : t('runtimes.terminalDisable') }}
+        </button>
+      </div>
+      <small>{{ t('runtimes.terminalRestartHelp') }}</small>
     </section>
 
     <section v-if="phpIniSeries" class="php-ini-editor">

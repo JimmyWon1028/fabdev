@@ -429,6 +429,27 @@ where
   F: FnMut(u64, u64),
   C: Fn() -> bool,
 {
+  let result =
+    download_runtime_artifact_inner(client, release, partial, target, on_progress, is_cancelled)
+      .await;
+  if result.is_err() && is_cancelled() {
+    remove_file_if_exists(partial).await?;
+  }
+  result
+}
+
+async fn download_runtime_artifact_inner<F, C>(
+  client: &Client,
+  release: &RuntimeRelease,
+  partial: &Path,
+  target: &Path,
+  on_progress: &mut F,
+  is_cancelled: &C,
+) -> anyhow::Result<()>
+where
+  F: FnMut(u64, u64),
+  C: Fn() -> bool,
+{
   if is_cancelled() {
     bail!("Runtime download was cancelled");
   }
@@ -450,10 +471,17 @@ where
   if downloaded > 0 {
     request = request.header(RANGE, format!("bytes={downloaded}-"));
   }
-  let response = request
-    .send()
-    .await
-    .context("unable to download the Runtime package")?;
+  let response = crate::cancellation::with_cancellation(
+    async {
+      request
+        .send()
+        .await
+        .context("unable to download the Runtime package")
+    },
+    is_cancelled,
+    "Runtime download was cancelled",
+  )
+  .await?;
   let append = if downloaded == 0 {
     response
       .error_for_status_ref()
@@ -508,7 +536,13 @@ where
       .context("unable to create the partial Runtime package")?
   };
   let mut stream = response.bytes_stream();
-  while let Some(result) = stream.next().await {
+  while let Some(result) = crate::cancellation::with_cancellation(
+    async { Ok(stream.next().await) },
+    is_cancelled,
+    "Runtime download was cancelled",
+  )
+  .await?
+  {
     if is_cancelled() {
       drop(file);
       remove_file_if_exists(partial).await?;
@@ -1163,6 +1197,128 @@ mod tests {
       .to_string()
       .contains("accepted Runtime Catalog state is missing"));
     std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  async fn assert_cancels_stalled_runtime(send_headers: bool) {
+    use std::sync::atomic::AtomicBool;
+    use tokio::sync::oneshot;
+    use tokio::time::timeout;
+
+    let root = std::env::temp_dir().join(format!("fabdev-runtime-stalled-{}", Uuid::new_v4()));
+    std::fs::create_dir_all(&root).unwrap();
+    let partial = root.join("runtime.part");
+    let target = root.join("runtime.tar.gz");
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let (ready, reached) = oneshot::channel();
+    let mut tasks = tokio::task::JoinSet::new();
+    tasks.spawn(async move {
+      let (mut socket, _) = listener.accept().await.unwrap();
+      let mut request = [0; 2048];
+      assert!(socket.read(&mut request).await.unwrap() > 0);
+      if send_headers {
+        socket
+          .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\n\r\np")
+          .await
+          .unwrap();
+      }
+      ready.send(()).unwrap();
+      let mut remainder = Vec::new();
+      socket.read_to_end(&mut remainder).await.unwrap();
+      drop(socket);
+      if send_headers {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let count = socket.read(&mut request).await.unwrap();
+        let request = String::from_utf8_lossy(&request[..count]);
+        assert!(!request
+          .lines()
+          .any(|line| line.to_ascii_lowercase().starts_with("range:")));
+        socket
+          .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 7\r\nConnection: close\r\n\r\npayload")
+          .await
+          .unwrap();
+      }
+    });
+    let mut release = catalog().runtimes.remove(0);
+    release.url = format!("http://{address}/runtime.tar.gz");
+    let cancelled = AtomicBool::new(false);
+    let client = Client::builder().no_proxy().build().unwrap();
+    let result = {
+      let mut on_progress = |_, _| {};
+      let is_cancelled = || cancelled.load(Ordering::SeqCst);
+      let download = download_runtime_artifact(
+        &client,
+        &release,
+        &partial,
+        &target,
+        &mut on_progress,
+        &is_cancelled,
+      );
+      let cancel = async {
+        reached.await.unwrap();
+        if send_headers {
+          timeout(Duration::from_secs(1), async {
+            loop {
+              if tokio::fs::metadata(&partial)
+                .await
+                .is_ok_and(|metadata| metadata.len() > 0)
+              {
+                break;
+              }
+              tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+          })
+          .await
+          .expect("the first body byte must reach disk before cancellation");
+        }
+        cancelled.store(true, Ordering::SeqCst);
+      };
+      let (result, ()) = tokio::join!(timeout(Duration::from_secs(2), download), cancel);
+      result
+    };
+    let cleaned = !partial.exists() && !target.exists();
+    let error = result
+      .expect("Runtime cancellation must interrupt stalled network IO")
+      .unwrap_err();
+    assert!(error.to_string().contains("Runtime download was cancelled"));
+    assert!(
+      cleaned,
+      "explicit cancellation must remove the incomplete Runtime file"
+    );
+    if send_headers {
+      timeout(
+        Duration::from_secs(2),
+        download_runtime_artifact(
+          &client,
+          &release,
+          &partial,
+          &target,
+          &mut |_, _| {},
+          &|| false,
+        ),
+      )
+      .await
+      .expect("retry must complete")
+      .expect("retry the cancelled Runtime download");
+      assert_eq!(tokio::fs::read(&target).await.unwrap(), b"payload");
+      assert!(!partial.exists());
+    }
+    timeout(Duration::from_secs(2), tasks.join_next())
+      .await
+      .expect("cancelled request must close its connection")
+      .unwrap()
+      .unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[tokio::test]
+  async fn cancels_while_runtime_headers_are_stalled() {
+    assert_cancels_stalled_runtime(false).await;
+  }
+
+  #[tokio::test]
+  async fn cancels_while_runtime_body_is_stalled() {
+    assert_cancels_stalled_runtime(true).await;
   }
 
   #[tokio::test]

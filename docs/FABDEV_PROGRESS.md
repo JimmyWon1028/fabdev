@@ -1,11 +1,11 @@
 # fabDev 穩定基線與 Roadmap
 
-> 更新日期：2026-09-03
-> 目前階段：[`v0.1.21`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.21) 已發布為 Latest Stable；`0.1.22` 正進行 Windows-first 候選驗證。`v0.1.21` Annotated Tag 固定在 Commit `ac1c32ab37ceaab441c96fe4973b066379597232`；Release ID `381793140` 為 `draft=false`、`prerelease=false`，共含 Windows x64／macOS ARM64 9 個 App-only Assets。選裝 Runtime 已移至 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases)，目前 Latest 為 `catalog-v3`
+> 更新日期：2026-09-05
+> 目前階段：[`v0.1.22`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.22) 已發布為 Latest Stable；目前 `main` 工作目錄另有尚未進版、提交或發布的穩定性修正與 UI 整理，完整紀錄見 [`STABILITY_CODE_AUDIT_2026-09-05.md`](STABILITY_CODE_AUDIT_2026-09-05.md)。工作區維持 App `0.1.22`／Agent Protocol `38`，尚未觸發 Windows CI、打包、Tag、Draft 或 Publish。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v3`
 
 ## 階段結論
 
-fabDev Desktop Community `v0.1.21` 已完成單機、單人本機開發環境的穩定基線，以及 App Release 與 Runtime Distribution 的拆分：macOS ARM64／Windows x64 安裝包、核心 Web Stack、Site、HTTPS、PHP、MariaDB、Node.js、Proxy、更新與安全生命週期均已有發布及驗收證據。專案目前進入維護與下一階段功能開發；下方未完成項目不否定現有 Stable，但不得被描述為已完成。
+fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。現有本機工作區以保持功能為前提完成一輪穩定性修正與 UI 整理，但仍屬未發布開發內容；自動測試通過不等同 Windows／macOS 安裝、更新或實機驗收。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
 ## 已完成
 
@@ -117,6 +117,13 @@ fabDev Desktop Community `v0.1.21` 已完成單機、單人本機開發環境的
 - `fabdev-connect` 通過 `x86_64-pc-windows-msvc` 交叉編譯檢查；Windows GUI、UAC、實際 hosts 與瀏覽器流程待 Parallels Windows 11 驗收。
 - Node.js 24.19.0 LTS 官方 macOS ARM64 Archive SHA-256 與發布者 PGP 簽章驗證通過；選裝套件已產生並確認 Node v24.19.0、npm 11.17.0、描述檔與單一 `24.19.0/` 封裝根目錄。
 - Proxy 聚焦測試確認自訂新增／移除與驗證、設定持久化、HTTP Host 改寫、Credential CORS、實際 streaming response、單一 Port 衝突隔離及停止後 Port 釋放。
+
+## 2026-09-05 工作日誌
+
+- 依 Repository Owner「穩定、保持現在功能、不擴充」要求完成重點路徑查驗，共記錄並修正 20 項可重現問題。範圍包含 LAN Share 每次 HTTP 請求白名單及停止清理、Site document root 與錯誤回復鎖、Runtime 停滯下載取消／任務生命週期／套件身分／安裝互斥／回滾、MariaDB 更新回復順序、版本切換 symlink、終端整合寫入順序、Proxy 任務回收／重試／SQLite 交易，以及 Desktop 輪詢與 busy 競態。完整重現、修正及限制見 [`STABILITY_CODE_AUDIT_2026-09-05.md`](STABILITY_CODE_AUDIT_2026-09-05.md)。
+- UI 只整理既有資訊與排版：Agent 狀態移到設定下方；總覽明確標示 Web 服務控制範圍；MariaDB 顯示自動連線來源；PHP、Node.js、MariaDB Runtime 卡片改為緊湊一致，PHP 只顯示使用中的 Site 數量；Proxy 頂部將資料操作與服務操作分組。依 Repository Owner 後續確認，Sites 與 Proxy 既有清單排版保持不變，後續不再自行調整 UI。
+- 最後完整驗證通過 Desktop 88、Release 規則 18、Rust 281、macOS Helper 9 項測試，7 項需外部環境的 Rust 測試維持 ignored；`pnpm lint`、rustfmt、Clippy、TypeScript typecheck 與 `git diff --check` 通過。隔離 Vite 預覽確認總覽、Sites、PHP、Proxy、設定的渲染與導覽；原生 Tauri 視窗因已有同識別碼 App 正在執行，未列為實機驗收。
+- 本輪沒有變更 App `0.1.22`／Agent Protocol `38`，沒有觸發 Windows CI、建立安裝包、重打 Runtime、提交、推送、Tag、Draft 或 Publish；原本未追蹤的 `note.txt` 保持原狀。
 
 ## 2026-08-30 工作日誌
 

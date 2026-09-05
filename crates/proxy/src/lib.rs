@@ -43,6 +43,8 @@ struct ConnectionHealth {
   connection_id: String,
   target_authority: String,
   state: Mutex<ConnectionHealthState>,
+  #[cfg(test)]
+  connection_tasks: std::sync::atomic::AtomicUsize,
 }
 
 #[derive(Default)]
@@ -67,6 +69,8 @@ impl ConnectionHealth {
       connection_id: settings.id.clone(),
       target_authority: masked_target_authority(&settings.target),
       state: Mutex::new(ConnectionHealthState::default()),
+      #[cfg(test)]
+      connection_tasks: std::sync::atomic::AtomicUsize::new(0),
     }
   }
 
@@ -384,8 +388,11 @@ impl ProxyManager {
   }
 
   pub async fn start(&mut self, id: &str) -> Result<()> {
-    if self.running.contains_key(id) {
-      return Ok(());
+    if let Some(running) = self.running.get(id) {
+      if !running.task.is_finished() {
+        return Ok(());
+      }
+      self.stop(id).await?;
     }
     let settings = self
       .connections
@@ -665,8 +672,13 @@ async fn run_proxy(
   health_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
   loop {
+    #[cfg(test)]
+    health
+      .connection_tasks
+      .store(connections.len(), std::sync::atomic::Ordering::SeqCst);
     tokio::select! {
       _ = &mut stop => break,
+      _ = connections.join_next(), if !connections.is_empty() => {}
       _ = health_interval.tick() => {
         let started = Instant::now();
         match check_upstream(&settings).await {
@@ -979,6 +991,106 @@ mod tests {
     manager.remove(&id).await.expect("remove Proxy connection");
     assert!(manager.connections().is_empty());
     StdTcpListener::bind((Ipv4Addr::LOCALHOST, port)).expect("removed Proxy port should be free");
+  }
+
+  #[tokio::test]
+  async fn reaps_completed_connections_while_the_proxy_is_running() {
+    use std::sync::atomic::Ordering;
+
+    let port = reserve_port();
+    let mut manager = ProxyManager::new(vec![test_connection(
+      "cleanup",
+      port,
+      "http://127.0.0.1:9".to_owned(),
+    )])
+    .unwrap();
+    manager.start("cleanup").await.unwrap();
+    let health = Arc::clone(&manager.running["cleanup"].health);
+    let result = tokio::time::timeout(Duration::from_secs(2), async {
+      for _ in 0..3 {
+        let client = TcpStream::connect((Ipv4Addr::LOCALHOST, port))
+          .await
+          .unwrap();
+        while health.connection_tasks.load(Ordering::SeqCst) == 0 {
+          tokio::task::yield_now().await;
+        }
+        drop(client);
+        while health.connection_tasks.load(Ordering::SeqCst) != 0 {
+          tokio::task::yield_now().await;
+        }
+      }
+    })
+    .await;
+    let listener_running = !manager.running["cleanup"].task.is_finished();
+    manager.stop("cleanup").await.unwrap();
+    StdTcpListener::bind((Ipv4Addr::LOCALHOST, port)).unwrap();
+    assert!(listener_running);
+    assert!(
+      result.is_ok(),
+      "completed connection tasks must be reaped before Proxy stop"
+    );
+  }
+
+  #[tokio::test]
+  async fn restarts_a_proxy_after_its_background_task_finishes() {
+    let port = reserve_port();
+    let mut manager = ProxyManager::new(vec![test_connection(
+      "restart",
+      port,
+      "http://127.0.0.1:9".to_owned(),
+    )])
+    .unwrap();
+    manager.start("restart").await.unwrap();
+    manager.running["restart"].task.abort();
+    tokio::time::timeout(Duration::from_secs(2), async {
+      while !manager.running["restart"].task.is_finished() {
+        tokio::task::yield_now().await;
+      }
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+      manager.state().await.connections[0].state,
+      ProxyConnectionState::Failed
+    );
+    manager.start("restart").await.unwrap();
+    let state = manager.state().await.connections[0].state.clone();
+    let connected = TcpStream::connect((Ipv4Addr::LOCALHOST, port)).await;
+    let accepts_connections = connected.is_ok();
+    drop(connected);
+    manager.stop("restart").await.unwrap();
+    StdTcpListener::bind((Ipv4Addr::LOCALHOST, port)).unwrap();
+    assert_eq!(state, ProxyConnectionState::Running);
+    assert!(accepts_connections);
+  }
+
+  #[tokio::test]
+  async fn starting_a_live_proxy_keeps_its_task_and_connections() {
+    let port = reserve_port();
+    let mut manager = ProxyManager::new(vec![test_connection(
+      "idempotent",
+      port,
+      "http://127.0.0.1:9".to_owned(),
+    )])
+    .unwrap();
+    manager.start("idempotent").await.unwrap();
+    let health = Arc::clone(&manager.running["idempotent"].health);
+    let mut client = TcpStream::connect((Ipv4Addr::LOCALHOST, port))
+      .await
+      .unwrap();
+    manager.start("idempotent").await.unwrap();
+    assert!(Arc::ptr_eq(&health, &manager.running["idempotent"].health));
+    client.write_all(b"OPTIONS / HTTP/1.1\r\nHost: idempotent.test\r\nOrigin: http://idempotent.test\r\nAccess-Control-Request-Method: GET\r\nConnection: close\r\n\r\n").await.unwrap();
+    let mut response = Vec::new();
+    tokio::time::timeout(Duration::from_secs(2), client.read_to_end(&mut response))
+      .await
+      .unwrap()
+      .unwrap();
+    manager.stop("idempotent").await.unwrap();
+    assert!(String::from_utf8(response)
+      .unwrap()
+      .starts_with("HTTP/1.1 204"));
+    StdTcpListener::bind((Ipv4Addr::LOCALHOST, port)).unwrap();
   }
 
   #[tokio::test]

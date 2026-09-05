@@ -11,6 +11,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use fabdev_runtime::{RuntimeCatalog, RuntimeRelease};
 
+mod cancellation;
 mod runtime_updates;
 mod windows_download;
 
@@ -173,7 +174,12 @@ where
   C: Fn() -> bool + Sync,
 {
   let client = http_client()?;
-  let manifest = fetch_stable_manifest(&client).await?;
+  let manifest = cancellation::with_cancellation(
+    fetch_stable_manifest(&client),
+    &is_cancelled,
+    "Windows update download was cancelled",
+  )
+  .await?;
   let check = build_update_check(&manifest, current_version, platform, architecture)?;
   if !check.update_available {
     bail!("no newer stable fabDev version is available");

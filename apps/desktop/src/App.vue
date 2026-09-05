@@ -126,11 +126,6 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="agent-state" :class="{ offline: !store.connected }">
-        <span class="status-dot" />
-        <span>{{ store.connected ? t('agent.connected') : t('agent.disconnected') }}</span>
-      </div>
-
       <nav class="navigation" :aria-label="t('nav.label')">
         <div class="navigation-section">
           <RouterLink to="/">{{ t('nav.dashboard') }}</RouterLink>
@@ -156,6 +151,10 @@ onUnmounted(() => {
 
       <div class="sidebar-footer">
         <RouterLink class="settings-link" to="/settings">{{ t('nav.settings') }}</RouterLink>
+        <div class="agent-state" role="status" :class="{ offline: !store.connected }">
+          <span class="status-dot" />
+          <span>{{ store.connected ? t('agent.connected') : t('agent.disconnected') }}</span>
+        </div>
       </div>
     </aside>
 

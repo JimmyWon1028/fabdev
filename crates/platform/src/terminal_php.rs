@@ -138,9 +138,6 @@ fn enable_macos_terminal_php(
   rc_path: &Path,
 ) -> Result<TerminalPhpIntegrationState, PlatformError> {
   let bin_path = terminal_bin_path(data_root);
-  std::fs::create_dir_all(&bin_path)?;
-  write_macos_php_shim(&bin_path.join("php"))?;
-
   let existing_profile = read_optional_text(profile_path)?;
   let existing_rc = read_optional_text(rc_path)?;
   let mut updated_profile = mark_herd_php_paths(&remove_shell_block(&existing_profile)?)?;
@@ -153,6 +150,8 @@ fn enable_macos_terminal_php(
   }
   updated_profile.push_str(&macos_shell_block(&bin_path)?);
   updated_profile.push('\n');
+  std::fs::create_dir_all(&bin_path)?;
+  write_macos_php_shim(&bin_path.join("php"))?;
   if updated_rc != existing_rc {
     atomic_write(rc_path, updated_rc.as_bytes())?;
   }
@@ -704,6 +703,56 @@ fn platform_disable_terminal_php(
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  #[cfg(target_os = "macos")]
+  fn rejects_invalid_php_profiles_before_writing_shims() {
+    for (case, (profile, rc)) in [
+      (SHELL_BLOCK_START, "export EDITOR=vi\n"),
+      ("export EDITOR=vi\n", HERD_BLOCK_START),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+      for existing in [false, true] {
+        let root = std::env::temp_dir().join(format!(
+          "fabdev-php-preflight-{}-{case}-{existing}",
+          std::process::id()
+        ));
+        let data_root = root.join("data");
+        let profile_path = root.join(".zprofile");
+        let rc_path = root.join(".zshrc");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(&profile_path, profile).unwrap();
+        std::fs::write(&rc_path, rc).unwrap();
+        let commands: &[&str] = &["php"];
+        if existing {
+          std::fs::create_dir_all(data_root.join("bin")).unwrap();
+          for command in commands {
+            std::fs::write(data_root.join("bin").join(command), "original shim\n").unwrap();
+          }
+        }
+        let result = enable_macos_terminal_php(&data_root, &profile_path, &rc_path);
+        let profiles_preserved = std::fs::read_to_string(&profile_path).unwrap() == profile
+          && std::fs::read_to_string(&rc_path).unwrap() == rc;
+        let shims_preserved = commands.iter().all(|command| {
+          let path = data_root.join("bin").join(command);
+          if existing {
+            std::fs::read_to_string(path).unwrap() == "original shim\n"
+          } else {
+            !path.exists()
+          }
+        });
+        std::fs::remove_dir_all(root).unwrap();
+        assert!(result.is_err());
+        assert!(profiles_preserved);
+        assert!(
+          shims_preserved,
+          "invalid profile must not create or overwrite php shims"
+        );
+      }
+    }
+  }
 
   #[test]
   fn path_entry_matching_is_case_insensitive_and_separator_independent() {

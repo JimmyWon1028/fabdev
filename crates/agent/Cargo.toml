@@ -21,4 +21,5 @@ uuid.workspace = true
 
 [dev-dependencies]
 hex.workspace = true
+rusqlite.workspace = true
 sha2.workspace = true

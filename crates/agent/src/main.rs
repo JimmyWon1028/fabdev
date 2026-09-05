@@ -36,7 +36,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader
 use tokio::net::windows::named_pipe::ServerOptions;
 #[cfg(unix)]
 use tokio::net::{UnixListener, UnixStream};
-use tokio::sync::{Mutex, Notify};
+use tokio::sync::{watch, Mutex, Notify};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -110,11 +110,25 @@ struct RuntimeDownloadTask {
   snapshot: StdMutex<RuntimeUpdateOperation>,
   cancelled: AtomicBool,
   bytes_downloaded: AtomicU64,
+  download_finished: watch::Sender<bool>,
+}
+
+struct RuntimeDownloadCompletion(Arc<RuntimeDownloadTask>);
+
+impl Drop for RuntimeDownloadCompletion {
+  fn drop(&mut self) {
+    self.0.download_finished.send_replace(true);
+  }
 }
 
 impl RuntimeDownloadTask {
   fn new(operation: RuntimeUpdateOperation) -> Self {
+    let finished = !matches!(
+      operation.status,
+      RuntimeUpdateOperationStatus::Queued | RuntimeUpdateOperationStatus::Downloading
+    );
     Self {
+      download_finished: watch::channel(finished).0,
       bytes_downloaded: AtomicU64::new(operation.bytes_downloaded),
       snapshot: StdMutex::new(operation),
       cancelled: AtomicBool::new(false),
@@ -155,6 +169,26 @@ impl RuntimeDownloadTask {
       .unwrap_or_else(|poisoned| poisoned.into_inner());
     snapshot.status = status;
     snapshot.error = error;
+  }
+
+  fn finish_download(&self, error: Option<String>) -> bool {
+    let mut snapshot = self
+      .snapshot
+      .lock()
+      .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if self.is_cancelled() {
+      snapshot.status = RuntimeUpdateOperationStatus::Cancelled;
+      snapshot.error = None;
+      return true;
+    }
+    snapshot.status = if error.is_some() {
+      RuntimeUpdateOperationStatus::Failed
+    } else {
+      self.set_progress(snapshot.total_bytes);
+      RuntimeUpdateOperationStatus::Verified
+    };
+    snapshot.error = error;
+    false
   }
 
   fn begin_install(&self) -> Result<RuntimeUpdateOperation> {
@@ -217,8 +251,26 @@ impl RuntimeUpdateManager {
       error: None,
     };
     let task = Arc::new(RuntimeDownloadTask::new(operation.clone()));
-    {
+    loop {
       let mut operations = self.operations.lock().await;
+      let pending_cleanup = operations.values().find_map(|existing| {
+        let snapshot = existing.snapshot();
+        (snapshot.name == operation.name
+          && snapshot.version == operation.version
+          && snapshot.platform == operation.platform
+          && snapshot.architecture == operation.architecture
+          && existing.is_cancelled()
+          && !*existing.download_finished.borrow())
+        .then(|| existing.download_finished.subscribe())
+      });
+      if let Some(mut finished) = pending_cleanup {
+        drop(operations);
+        finished
+          .wait_for(|finished| *finished)
+          .await
+          .context("unable to wait for cancelled Runtime download cleanup")?;
+        continue;
+      }
       let duplicate_active = operations.values().any(|existing| {
         let existing = existing.snapshot();
         existing.name == operation.name
@@ -235,20 +287,27 @@ impl RuntimeUpdateManager {
       }
       if operations.len() >= MAX_RUNTIME_UPDATE_OPERATIONS {
         operations.retain(|_, existing| {
-          matches!(
-            existing.snapshot().status,
-            RuntimeUpdateOperationStatus::Queued | RuntimeUpdateOperationStatus::Downloading
-          )
+          !*existing.download_finished.borrow()
+            || matches!(
+              existing.snapshot().status,
+              RuntimeUpdateOperationStatus::Queued
+                | RuntimeUpdateOperationStatus::Downloading
+                | RuntimeUpdateOperationStatus::Verified
+                | RuntimeUpdateOperationStatus::Installing
+            )
         });
       }
       if operations.len() >= MAX_RUNTIME_UPDATE_OPERATIONS {
         bail!("too many Runtime downloads are active");
       }
       operations.insert(operation_id, Arc::clone(&task));
+      break;
     }
 
     let background_operation = operation.clone();
+    let completion = RuntimeDownloadCompletion(Arc::clone(&task));
     tokio::spawn(async move {
+      let _completion = completion;
       if !task.begin_download() {
         return;
       }
@@ -268,21 +327,13 @@ impl RuntimeUpdateManager {
         move || cancellation_task.is_cancelled(),
       )
       .await;
-      if task.is_cancelled() {
+      let result = result.and_then(|downloaded| {
+        validate_runtime_operation_package(&background_operation, &downloaded)?;
+        Ok(downloaded)
+      });
+      if task.finish_download(result.as_ref().err().map(|error| error.to_string())) {
         if let Ok(downloaded) = result {
           let _ = tokio::fs::remove_file(downloaded.path).await;
-        }
-        task.set_status(RuntimeUpdateOperationStatus::Cancelled, None);
-      } else {
-        match result {
-          Ok(_) => {
-            task.set_progress(background_operation.total_bytes);
-            task.set_status(RuntimeUpdateOperationStatus::Verified, None);
-          }
-          Err(error) => task.set_status(
-            RuntimeUpdateOperationStatus::Failed,
-            Some(error.to_string()),
-          ),
         }
       }
     });
@@ -311,13 +362,16 @@ impl RuntimeUpdateManager {
   }
 
   async fn begin_install(&self, operation_id: uuid::Uuid) -> Result<RuntimeUpdateOperation> {
-    let operation = self
-      .operations
-      .lock()
-      .await
+    let operations = self.operations.lock().await;
+    let operation = operations
       .get(&operation_id)
-      .cloned()
       .context("Runtime update operation was not found")?;
+    if operations
+      .values()
+      .any(|existing| existing.snapshot().status == RuntimeUpdateOperationStatus::Installing)
+    {
+      bail!("another Runtime installation is already in progress");
+    }
     operation.begin_install()
   }
 
@@ -480,11 +534,21 @@ impl LanShareState {
   }
 
   async fn stop(&mut self) -> Result<()> {
-    if let Some(mut server) = self.server.take() {
-      server.stop().await?;
-    }
+    let server = self.server.take();
+    self
+      .stop_with(async move {
+        if let Some(mut server) = server {
+          server.stop().await?;
+        }
+        Ok(())
+      })
+      .await
+  }
+
+  async fn stop_with(&mut self, stop: impl std::future::Future<Output = Result<()>>) -> Result<()> {
+    let result = stop.await;
     self.info = None;
-    Ok(())
+    result
   }
 }
 
@@ -777,7 +841,8 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       if let Err(error) = state.sites.lock().await.insert(&site) {
         return internal_error(error);
       }
-      let sites_after_add = match state.sites.lock().await.list() {
+      let sites_result = state.sites.lock().await.list();
+      let sites_after_add = match sites_result {
         Ok(sites) => sites,
         Err(error) => {
           let _ = state.sites.lock().await.remove(&site.id);
@@ -861,7 +926,8 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
           message: error.to_string(),
         };
       }
-      let sites_after_update = match state.sites.lock().await.list() {
+      let sites_result = state.sites.lock().await.list();
+      let sites_after_update = match sites_result {
         Ok(sites) => sites,
         Err(error) => {
           let _ = state.sites.lock().await.update_site(&previous);
@@ -950,7 +1016,8 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
         }
         Err(error) => return internal_error(error),
       };
-      let remaining_sites = match state.sites.lock().await.list() {
+      let sites_result = state.sites.lock().await.list();
+      let remaining_sites = match sites_result {
         Ok(sites) => sites,
         Err(error) => {
           let _ = state.sites.lock().await.insert(&site);
@@ -967,13 +1034,13 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
         let _ = state.sites.lock().await.insert(&site);
         return internal_error(error);
       }
-      if let Err(error) = state
+      let removal_result = state
         .services
         .lock()
         .await
         .remove_site_config(&site, &remaining_sites)
-        .await
-      {
+        .await;
+      if let Err(error) = removal_result {
         let rollback = state.sites.lock().await.insert(&site);
         if rollback.is_ok() {
           let restored_sites = state.sites.lock().await.list().unwrap_or_default();
@@ -1016,7 +1083,8 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
         }
         Err(error) => return internal_error(error),
       };
-      let sites_after_update = match state.sites.lock().await.list() {
+      let sites_result = state.sites.lock().await.list();
+      let sites_after_update = match sites_result {
         Ok(sites) => sites,
         Err(error) => {
           let _ = state
@@ -1605,16 +1673,13 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
           }
           let persistence_result = {
             let repository = state.sites.lock().await;
-            repository
-              .save_proxy_connections(&manager.connections())
-              .and_then(|()| repository.save_proxy_running_ids(&manager.running_ids()))
+            repository.save_proxy_state(&manager.connections(), &manager.running_ids())
           };
           if let Err(error) = persistence_result {
             let _ = manager.restore_update(previous, was_running).await;
             let _ = sync_windows_proxy_domains(&manager).await;
             let repository = state.sites.lock().await;
-            let _ = repository.save_proxy_connections(&manager.connections());
-            let _ = repository.save_proxy_running_ids(&manager.running_ids());
+            let _ = repository.save_proxy_state(&manager.connections(), &manager.running_ids());
             return AgentResponse::Error {
               code: "proxy_save_failed".to_owned(),
               message: error.to_string(),
@@ -1652,9 +1717,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
           }
           let persistence_result = {
             let repository = state.sites.lock().await;
-            repository
-              .save_proxy_connections(&manager.connections())
-              .and_then(|()| repository.save_proxy_running_ids(&manager.running_ids()))
+            repository.save_proxy_state(&manager.connections(), &manager.running_ids())
           };
           if let Err(error) = persistence_result {
             let _ = manager.restore(settings);
@@ -1663,8 +1726,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
             }
             let _ = sync_windows_proxy_domains(&manager).await;
             let repository = state.sites.lock().await;
-            let _ = repository.save_proxy_connections(&manager.connections());
-            let _ = repository.save_proxy_running_ids(&manager.running_ids());
+            let _ = repository.save_proxy_state(&manager.connections(), &manager.running_ids());
             return AgentResponse::Error {
               code: "proxy_save_failed".to_owned(),
               message: error.to_string(),
@@ -2078,9 +2140,23 @@ async fn install_downloaded_runtime_inner(
       operation.platform
     );
   }
+  let downloaded = verified_runtime_for_operation(&state.paths.cache, operation).await?;
+
+  match downloaded.name.as_str() {
+    "php" => install_downloaded_php_runtime(state, &downloaded).await,
+    "node" => install_downloaded_node_runtime(state, &downloaded).await,
+    "mariadb" => install_downloaded_mariadb_runtime(state, &downloaded).await,
+    _ => bail!("unsupported downloaded Runtime: {}", downloaded.name),
+  }
+}
+
+async fn verified_runtime_for_operation(
+  cache_directory: &Path,
+  operation: &RuntimeUpdateOperation,
+) -> Result<fabdev_updater::DownloadedRuntimeUpdate> {
   let downloaded =
     fabdev_updater::verified_cached_runtime_update(fabdev_updater::RuntimeDownloadRequest {
-      cache_directory: &state.paths.cache,
+      cache_directory,
       current_app_version: env!("CARGO_PKG_VERSION"),
       current_agent_protocol_version: PROTOCOL_VERSION,
       name: &operation.name,
@@ -2091,12 +2167,25 @@ async fn install_downloaded_runtime_inner(
     .await
     .context("Runtime package revalidation failed before installation")?;
 
-  match downloaded.name.as_str() {
-    "php" => install_downloaded_php_runtime(state, &downloaded).await,
-    "node" => install_downloaded_node_runtime(state, &downloaded).await,
-    "mariadb" => install_downloaded_mariadb_runtime(state, &downloaded).await,
-    _ => bail!("unsupported downloaded Runtime: {}", downloaded.name),
+  validate_runtime_operation_package(operation, &downloaded)?;
+  Ok(downloaded)
+}
+
+fn validate_runtime_operation_package(
+  operation: &RuntimeUpdateOperation,
+  downloaded: &fabdev_updater::DownloadedRuntimeUpdate,
+) -> Result<()> {
+  if operation.name != downloaded.name
+    || operation.version != downloaded.version
+    || operation.platform != downloaded.platform
+    || operation.architecture != downloaded.architecture
+    || operation.file_name != downloaded.file_name
+    || operation.total_bytes != downloaded.size
+    || operation.sha256 != downloaded.sha256
+  {
+    bail!("Runtime package no longer matches the requested download; refresh the Runtime list and download it again");
   }
+  Ok(())
 }
 
 async fn install_downloaded_php_runtime(
@@ -2270,21 +2359,39 @@ async fn install_downloaded_mariadb_runtime(
   if was_running {
     if let Err(start_error) = restart_active_mariadb_runtime(state).await {
       let runtime_root = state.paths.runtimes.clone();
-      rollback_online_runtime_transaction(
-        transaction,
-        &runtime_root,
-        "mariadb",
-        active_before.as_deref(),
+      restore_mariadb_after_failed_restart(
+        async { state.services.lock().await.stop_mariadb().await },
+        || {
+          rollback_online_runtime_transaction(
+            transaction,
+            &runtime_root,
+            "mariadb",
+            active_before.as_deref(),
+          )
+        },
+        restart_active_mariadb_runtime(state),
       )
-      .context("unable to roll back MariaDB after the updated Runtime failed to start")?;
-      restart_active_mariadb_runtime(state)
-        .await
-        .context("unable to restart the previous MariaDB Runtime after update failed")?;
+      .await
+      .with_context(|| format!("updated MariaDB Runtime failed to restart: {start_error:#}"))?;
       return Err(start_error.context("updated MariaDB Runtime failed to restart"));
     }
   }
   commit_runtime_install_transaction(transaction)?;
   Ok(())
+}
+
+async fn restore_mariadb_after_failed_restart(
+  stop: impl std::future::Future<Output = Result<()>>,
+  rollback: impl FnOnce() -> Result<()>,
+  restart: impl std::future::Future<Output = Result<()>>,
+) -> Result<()> {
+  stop
+    .await
+    .context("unable to stop updated MariaDB before Runtime rollback")?;
+  rollback().context("unable to roll back MariaDB after the updated Runtime failed to start")?;
+  restart
+    .await
+    .context("unable to restart the previous MariaDB Runtime after update failed")
 }
 
 async fn install_downloaded_mariadb_runtime_while_stopped(
@@ -2786,14 +2893,37 @@ fn runtime_os_version_supported(current: &[u16], minimum: &str) -> bool {
 }
 
 async fn stop_all(state: &AgentState) -> Result<()> {
-  state.lan_share.lock().await.stop().await?;
-  state.services.lock().await.stop_all().await
+  stop_with_cleanup(async { state.lan_share.lock().await.stop().await }, async {
+    state.services.lock().await.stop_all().await
+  })
+  .await
 }
 
 async fn stop_for_shutdown(state: &AgentState) -> Result<()> {
-  state.lan_share.lock().await.stop().await?;
-  state.proxy_manager.lock().await.stop_all().await;
-  state.services.lock().await.shutdown().await
+  stop_with_cleanup(async { state.lan_share.lock().await.stop().await }, async {
+    state.proxy_manager.lock().await.stop_all().await;
+    state.services.lock().await.shutdown().await
+  })
+  .await
+}
+
+async fn stop_with_cleanup(
+  share: impl std::future::Future<Output = Result<()>>,
+  services: impl std::future::Future<Output = Result<()>>,
+) -> Result<()> {
+  let share_result = share.await;
+  let services_result = services.await;
+  let mut errors = Vec::new();
+  if let Err(error) = share_result {
+    errors.push(format!("LAN Site Share: {error:#}"));
+  }
+  if let Err(error) = services_result {
+    errors.push(format!("Services: {error:#}"));
+  }
+  if !errors.is_empty() {
+    bail!(errors.join("; "));
+  }
+  Ok(())
 }
 
 fn discover_lan_ipv4() -> Result<Ipv4Addr> {
@@ -3294,6 +3424,889 @@ mod tests {
   use uuid::Uuid;
 
   use super::*;
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn static_site_lifecycle_preserves_config_after_rejected_php_switch() {
+    async fn request(state: &AgentState, request: AgentRequest) -> AgentResponse {
+      tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        handle_request(request, state),
+      )
+      .await
+      .expect("Site operation must complete")
+    }
+
+    let root = std::env::temp_dir().join(format!("fabdev-static-site-flow-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(&root);
+    paths.ensure().unwrap();
+    let project = root.join("project");
+    std::fs::create_dir_all(&project).unwrap();
+    let index = project.join("index.html");
+    std::fs::write(&index, "original project content").unwrap();
+    let state = AgentState {
+      paths: paths.clone(),
+      sites: Mutex::new(SiteRepository::in_memory().unwrap()),
+      services: Mutex::new(ServiceSupervisor::new(
+        paths.clone(),
+        RuntimePaths::from_runtime_root(&paths.runtimes),
+        ServicePorts {
+          dns: 53535,
+          http: 8080,
+          https: 8443,
+          mariadb: 3306,
+        },
+      )),
+      lan_share: Mutex::new(LanShareState::new(8080)),
+      proxy_manager: Mutex::new(ProxyManager::new(Vec::new()).unwrap()),
+      runtime_updates: RuntimeUpdateManager::default(),
+      shutdown: Arc::new(Notify::new()),
+    };
+    let added = request(
+      &state,
+      AgentRequest::AddSite(SiteInput {
+        name: Some("static fixture".to_owned()),
+        domain: Some("static-fixture.test".to_owned()),
+        project_path: project.clone(),
+        document_root: None,
+        php_version: None,
+      }),
+    )
+    .await;
+    let AgentResponse::SiteAdded(site) = added else {
+      panic!("static Site addition failed: {added:?}");
+    };
+    let original_config = paths.sites.join("static-fixture.test.conf");
+    assert!(std::fs::read_to_string(&original_config)
+      .unwrap()
+      .contains("server_name static-fixture.test;"));
+
+    let edited = request(
+      &state,
+      AgentRequest::UpdateSite {
+        site_id: site.id,
+        input: fabdev_core::SiteEditInput {
+          name: "edited fixture".to_owned(),
+          domain: "edited-fixture.test".to_owned(),
+          project_path: project,
+          document_root: None,
+        },
+      },
+    )
+    .await;
+    let AgentResponse::SiteUpdated(updated) = edited else {
+      panic!("Site edit failed: {edited:?}");
+    };
+    assert_eq!(updated.id, site.id);
+    assert!(!original_config.exists());
+    let config = paths.sites.join("edited-fixture.test.conf");
+    let before = std::fs::read(&config).unwrap();
+    assert!(String::from_utf8_lossy(&before).contains("server_name edited-fixture.test;"));
+
+    let rejected = request(
+      &state,
+      AgentRequest::SetSitePhp {
+        site_id: site.id,
+        php_version: Some("8.2".parse().unwrap()),
+      },
+    )
+    .await;
+    assert!(
+      matches!(rejected, AgentResponse::Error { code, .. } if code == "site_php_switch_failed")
+    );
+    assert_eq!(
+      state.sites.lock().await.list().unwrap(),
+      vec![updated.clone()]
+    );
+    assert_eq!(std::fs::read(&config).unwrap(), before);
+    assert!(matches!(
+      request(&state, AgentRequest::GetStatus).await,
+      AgentResponse::Status(_)
+    ));
+
+    let removed = request(&state, AgentRequest::RemoveSite { site_id: site.id }).await;
+    assert!(matches!(removed, AgentResponse::SiteRemoved(removed) if removed == updated));
+    assert!(state.sites.lock().await.list().unwrap().is_empty());
+    assert!(!config.exists());
+    assert_eq!(
+      std::fs::read_to_string(index).unwrap(),
+      "original project content"
+    );
+    drop(state);
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[tokio::test]
+  async fn site_registry_read_failures_return_without_holding_the_registry_lock() {
+    let mut stalled = Vec::new();
+    for action in ["add", "edit", "remove", "php"] {
+      let root = std::env::temp_dir().join(format!("fabdev-site-read-error-{}", Uuid::new_v4()));
+      let paths = AppPaths::from_root(&root);
+      paths.ensure().unwrap();
+      let project = root.join("project");
+      std::fs::create_dir_all(&project).unwrap();
+      let site = create_site(SiteInput {
+        name: Some("target".to_owned()),
+        domain: Some("target.test".to_owned()),
+        project_path: project.clone(),
+        document_root: None,
+        php_version: None,
+      })
+      .unwrap();
+      let mut other = site.clone();
+      other.id = Uuid::new_v4();
+      other.domain = "other.test".to_owned();
+      let repository = SiteRepository::open(paths.database()).unwrap();
+      repository.insert(&other).unwrap();
+      if action != "add" {
+        repository.insert(&site).unwrap();
+      }
+      let database = rusqlite::Connection::open(paths.database()).unwrap();
+      let event = match action {
+        "add" => "INSERT",
+        "remove" => "DELETE",
+        _ => "UPDATE",
+      };
+      let row = if action == "remove" { "OLD" } else { "NEW" };
+      database
+        .execute_batch(&format!(
+          "CREATE TRIGGER invalidate_site_read AFTER {event} ON sites
+         WHEN {row}.domain = 'target.test'
+         BEGIN UPDATE sites SET php_version = 'invalid' WHERE domain = 'other.test'; END;"
+        ))
+        .unwrap();
+      let state = AgentState {
+        paths: paths.clone(),
+        sites: Mutex::new(repository),
+        services: Mutex::new(ServiceSupervisor::new(
+          paths.clone(),
+          RuntimePaths::from_runtime_root(&paths.runtimes),
+          ServicePorts {
+            dns: 53535,
+            http: 8080,
+            https: 8443,
+            mariadb: 3306,
+          },
+        )),
+        lan_share: Mutex::new(LanShareState::new(8080)),
+        proxy_manager: Mutex::new(ProxyManager::new(Vec::new()).unwrap()),
+        runtime_updates: RuntimeUpdateManager::default(),
+        shutdown: Arc::new(Notify::new()),
+      };
+      let request = match action {
+        "add" => AgentRequest::AddSite(SiteInput {
+          name: Some("target".to_owned()),
+          domain: Some("target.test".to_owned()),
+          project_path: project.clone(),
+          document_root: None,
+          php_version: None,
+        }),
+        "edit" => AgentRequest::UpdateSite {
+          site_id: site.id,
+          input: fabdev_core::SiteEditInput {
+            name: "edited".to_owned(),
+            domain: site.domain.clone(),
+            project_path: project,
+            document_root: None,
+          },
+        },
+        "remove" => AgentRequest::RemoveSite { site_id: site.id },
+        _ => AgentRequest::SetSitePhp {
+          site_id: site.id,
+          php_version: Some("8.2".parse().unwrap()),
+        },
+      };
+      let response = tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        handle_request(request, &state),
+      )
+      .await;
+      match response {
+        Err(_) => stalled.push(action),
+        Ok(response) => {
+          assert!(matches!(response, AgentResponse::Error { message, .. }
+            if message.contains("invalid PHP version in database")));
+        }
+      }
+      database.execute_batch("DROP TRIGGER invalidate_site_read; UPDATE sites SET php_version = '-' WHERE domain = 'other.test';").unwrap();
+      let repository_access =
+        tokio::time::timeout(std::time::Duration::from_secs(1), state.sites.lock())
+          .await
+          .unwrap();
+      assert!(repository_access.list().is_ok());
+      drop(repository_access);
+      drop(state);
+      drop(database);
+      std::fs::remove_dir_all(root).unwrap();
+    }
+    assert!(
+      stalled.is_empty(),
+      "Site failure handlers stalled: {stalled:?}"
+    );
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn site_removal_failure_returns_and_allows_retry() {
+    let root = std::env::temp_dir().join(format!("fabdev-remove-site-error-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(&root);
+    paths.ensure().unwrap();
+    let project = root.join("project");
+    std::fs::create_dir_all(&project).unwrap();
+    let site = create_site(SiteInput {
+      name: Some("removal fixture".to_owned()),
+      domain: Some("removal-fixture.test".to_owned()),
+      project_path: project,
+      document_root: None,
+      php_version: None,
+    })
+    .unwrap();
+    let repository = SiteRepository::in_memory().unwrap();
+    repository.insert(&site).unwrap();
+    let state = AgentState {
+      paths: paths.clone(),
+      sites: Mutex::new(repository),
+      services: Mutex::new(ServiceSupervisor::new(
+        paths.clone(),
+        RuntimePaths::from_runtime_root(&paths.runtimes),
+        ServicePorts {
+          dns: 53535,
+          http: 8080,
+          https: 8443,
+          mariadb: 3306,
+        },
+      )),
+      lan_share: Mutex::new(LanShareState::new(8080)),
+      proxy_manager: Mutex::new(ProxyManager::new(Vec::new()).unwrap()),
+      runtime_updates: RuntimeUpdateManager::default(),
+      shutdown: Arc::new(Notify::new()),
+    };
+    let config = paths.sites.join("removal-fixture.test.conf");
+    std::fs::create_dir_all(&config).unwrap();
+    let response = tokio::time::timeout(
+      std::time::Duration::from_secs(2),
+      handle_request(AgentRequest::RemoveSite { site_id: site.id }, &state),
+    )
+    .await;
+    if response.is_err() {
+      drop(state);
+      std::fs::remove_dir_all(root).unwrap();
+      panic!("Site removal failure must return instead of reacquiring the held services lock");
+    }
+    assert!(matches!(response.unwrap(), AgentResponse::Error { .. }));
+    assert_eq!(state.sites.lock().await.list().unwrap(), vec![site.clone()]);
+    let status = tokio::time::timeout(
+      std::time::Duration::from_secs(2),
+      handle_request(AgentRequest::GetStatus, &state),
+    )
+    .await
+    .unwrap();
+    assert!(matches!(status, AgentResponse::Status(_)));
+    std::fs::remove_dir(&config).unwrap();
+    std::fs::write(&config, "fixture config\n").unwrap();
+    let retry = tokio::time::timeout(
+      std::time::Duration::from_secs(2),
+      handle_request(AgentRequest::RemoveSite { site_id: site.id }, &state),
+    )
+    .await
+    .unwrap();
+    assert!(matches!(retry, AgentResponse::SiteRemoved(_)));
+    assert!(state.sites.lock().await.list().unwrap().is_empty());
+    assert!(!config.exists());
+    drop(state);
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[tokio::test]
+  async fn continues_cleanup_when_share_stop_fails() {
+    let cleaned = AtomicBool::new(false);
+    let result = stop_with_cleanup(async { bail!("share task failed") }, async {
+      cleaned.store(true, Ordering::SeqCst);
+      Ok(())
+    })
+    .await;
+    assert!(cleaned.load(Ordering::SeqCst));
+    assert!(result
+      .unwrap_err()
+      .to_string()
+      .contains("share task failed"));
+  }
+
+  #[tokio::test]
+  async fn reports_both_stop_failures_after_attempting_cleanup() {
+    let error = stop_with_cleanup(async { bail!("share task failed") }, async {
+      bail!("PHP process failed to stop")
+    })
+    .await
+    .unwrap_err();
+    let message = error.to_string();
+    assert!(message.contains("share task failed"));
+    assert!(message.contains("PHP process failed to stop"));
+  }
+
+  #[tokio::test]
+  async fn stops_in_order_and_reports_service_only_failure() {
+    let shared_stopped = AtomicBool::new(false);
+    let error = stop_with_cleanup(
+      async {
+        shared_stopped.store(true, Ordering::SeqCst);
+        Ok(())
+      },
+      async {
+        assert!(shared_stopped.load(Ordering::SeqCst));
+        bail!("service stop failed")
+      },
+    )
+    .await
+    .unwrap_err();
+    assert!(error.to_string().contains("service stop failed"));
+    stop_with_cleanup(async { Ok(()) }, async { Ok(()) })
+      .await
+      .unwrap();
+  }
+
+  fn runtime_task_fixture(status: RuntimeUpdateOperationStatus) -> Arc<RuntimeDownloadTask> {
+    Arc::new(RuntimeDownloadTask::new(RuntimeUpdateOperation {
+      operation_id: Uuid::new_v4(),
+      status,
+      name: "php".to_owned(),
+      version: "8.4.24".to_owned(),
+      platform: "macos".to_owned(),
+      architecture: "arm64".to_owned(),
+      file_name: "fixture.tar.gz".to_owned(),
+      bytes_downloaded: 0,
+      total_bytes: 100,
+      sha256: "a".repeat(64),
+      error: None,
+    }))
+  }
+
+  fn runtime_artifact_fixture(task: &RuntimeDownloadTask) -> RuntimeUpdateArtifact {
+    let operation = task.snapshot();
+    RuntimeUpdateArtifact {
+      name: operation.name,
+      version: operation.version,
+      platform: operation.platform,
+      architecture: operation.architecture,
+      file_name: operation.file_name,
+      size: operation.total_bytes,
+      sha256: operation.sha256,
+      minimum_os_version: "13.0".to_owned(),
+      unsigned_community_build: true,
+      installed: false,
+      package_update_available: false,
+      active_version: None,
+    }
+  }
+
+  #[tokio::test]
+  async fn waits_for_cancelled_download_cleanup_before_retrying() {
+    let manager = RuntimeUpdateManager::default();
+    let task = runtime_task_fixture(RuntimeUpdateOperationStatus::Queued);
+    task.begin_download();
+    task.cancel().unwrap();
+    manager
+      .operations
+      .lock()
+      .await
+      .insert(task.snapshot().operation_id, Arc::clone(&task));
+    let cache = std::env::temp_dir().join(format!("fabdev-cancel-retry-{}", Uuid::new_v4()));
+    let retry = tokio::time::timeout(
+      std::time::Duration::from_millis(30),
+      manager.start(cache, runtime_artifact_fixture(&task)),
+    )
+    .await;
+    assert!(
+      retry.is_err(),
+      "retry must wait while the old download still owns the cache files"
+    );
+  }
+
+  #[tokio::test]
+  async fn admits_retry_after_cleanup_without_blocking_other_runtime_versions() {
+    let manager = RuntimeUpdateManager::default();
+    let task = runtime_task_fixture(RuntimeUpdateOperationStatus::Queued);
+    task.begin_download();
+    task.cancel().unwrap();
+    let completion = RuntimeDownloadCompletion(Arc::clone(&task));
+    manager
+      .operations
+      .lock()
+      .await
+      .insert(task.snapshot().operation_id, Arc::clone(&task));
+    let cache = std::env::temp_dir().join(format!("fabdev-retry-release-{}", Uuid::new_v4()));
+    let retry = manager.start(cache.clone(), runtime_artifact_fixture(&task));
+    tokio::pin!(retry);
+    assert!(
+      tokio::time::timeout(std::time::Duration::from_millis(30), &mut retry)
+        .await
+        .is_err()
+    );
+    let mut other = runtime_artifact_fixture(&task);
+    other.version = "8.4.25".to_owned();
+    tokio::time::timeout(
+      std::time::Duration::from_secs(1),
+      manager.start(cache.clone(), other),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    drop(completion);
+    let started = tokio::time::timeout(std::time::Duration::from_secs(1), retry)
+      .await
+      .unwrap()
+      .unwrap();
+    assert_ne!(started.operation_id, task.snapshot().operation_id);
+    let mut finished = manager
+      .operations
+      .lock()
+      .await
+      .get(&started.operation_id)
+      .unwrap()
+      .download_finished
+      .subscribe();
+    tokio::time::timeout(
+      std::time::Duration::from_secs(1),
+      finished.wait_for(|done| *done),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+      manager.get(started.operation_id).await.unwrap().status,
+      RuntimeUpdateOperationStatus::Failed
+    );
+    // A missing fixture Catalog fails normally and must not prevent another attempt.
+    assert!(manager
+      .start(cache, runtime_artifact_fixture(&task))
+      .await
+      .is_ok());
+  }
+
+  #[tokio::test]
+  async fn keeps_cancelled_workers_registered_until_cleanup_finishes() {
+    let manager = RuntimeUpdateManager::default();
+    let cancelled = runtime_task_fixture(RuntimeUpdateOperationStatus::Queued);
+    cancelled.cancel().unwrap();
+    {
+      let mut operations = manager.operations.lock().await;
+      operations.insert(cancelled.snapshot().operation_id, Arc::clone(&cancelled));
+      for _ in 0..63 {
+        let task = runtime_task_fixture(RuntimeUpdateOperationStatus::Completed);
+        operations.insert(task.snapshot().operation_id, task);
+      }
+    }
+    let mut other = runtime_artifact_fixture(&cancelled);
+    other.version = "8.4.25".to_owned();
+    let cache = std::env::temp_dir().join(format!("fabdev-prune-cleanup-{}", Uuid::new_v4()));
+    manager.start(cache, other).await.unwrap();
+    assert!(manager.get(cancelled.snapshot().operation_id).await.is_ok());
+  }
+
+  #[test]
+  fn resolves_completion_and_cancellation_under_one_state_lock() {
+    let cancelled = runtime_task_fixture(RuntimeUpdateOperationStatus::Queued);
+    cancelled.begin_download();
+    cancelled.cancel().unwrap();
+    assert!(cancelled.finish_download(None));
+    assert_eq!(
+      cancelled.snapshot().status,
+      RuntimeUpdateOperationStatus::Cancelled
+    );
+    let verified = runtime_task_fixture(RuntimeUpdateOperationStatus::Queued);
+    verified.begin_download();
+    assert!(!verified.finish_download(None));
+    assert_eq!(
+      verified.snapshot().status,
+      RuntimeUpdateOperationStatus::Verified
+    );
+    assert_eq!(
+      verified.snapshot().bytes_downloaded,
+      verified.snapshot().total_bytes
+    );
+    assert!(verified.cancel().is_err());
+    let failed = runtime_task_fixture(RuntimeUpdateOperationStatus::Queued);
+    assert!(!failed.finish_download(Some("network failed".to_owned())));
+    assert_eq!(
+      failed.snapshot().status,
+      RuntimeUpdateOperationStatus::Failed
+    );
+    assert_eq!(failed.snapshot().error.as_deref(), Some("network failed"));
+  }
+
+  #[tokio::test]
+  async fn releases_cleanup_waiters_when_a_worker_is_aborted() {
+    let task = runtime_task_fixture(RuntimeUpdateOperationStatus::Queued);
+    let completion = RuntimeDownloadCompletion(Arc::clone(&task));
+    let worker = tokio::spawn(async move {
+      let _completion = completion;
+      std::future::pending::<()>().await;
+    });
+    worker.abort();
+    assert!(worker.await.unwrap_err().is_cancelled());
+    assert!(*task.download_finished.borrow());
+  }
+
+  #[tokio::test]
+  async fn stopping_live_share_clears_state_and_releases_the_listener() {
+    let server = ShareServer::start_restricted(
+      "127.0.0.1:0".parse().unwrap(),
+      "127.0.0.1:1".parse().unwrap(),
+      vec!["demo.test".to_owned()],
+    )
+    .await
+    .unwrap();
+    let address = server.local_addr();
+    let mut state = LanShareState::new(8080);
+    state.server = Some(server);
+    state.info = Some(LanShareInfo {
+      host: "127.0.0.1".to_owned(),
+      port: address.port(),
+      sites: vec![LanShareSiteInfo {
+        site_id: Uuid::new_v4(),
+        domain: "demo.test".to_owned(),
+      }],
+    });
+    state.stop().await.unwrap();
+    assert!(state.server.is_none());
+    assert!(state.info().is_none());
+    tokio::net::TcpListener::bind(address)
+      .await
+      .expect("the Share listener must be released");
+  }
+
+  #[tokio::test]
+  async fn retains_verified_and_installing_operations_when_pruning_history() {
+    let manager = RuntimeUpdateManager::default();
+    let verified = runtime_task_fixture(RuntimeUpdateOperationStatus::Verified);
+    let installing = runtime_task_fixture(RuntimeUpdateOperationStatus::Installing);
+    {
+      let mut operations = manager.operations.lock().await;
+      for task in [Arc::clone(&verified), Arc::clone(&installing)] {
+        operations.insert(task.snapshot().operation_id, task);
+      }
+      for _ in 0..62 {
+        let task = runtime_task_fixture(RuntimeUpdateOperationStatus::Completed);
+        operations.insert(task.snapshot().operation_id, task);
+      }
+    }
+    let mut next = runtime_artifact_fixture(&verified);
+    next.version = "8.4.25".to_owned();
+    let cache = std::env::temp_dir().join(format!("fabdev-runtime-prune-{}", Uuid::new_v4()));
+    manager.start(cache, next).await.unwrap();
+    assert!(
+      manager.get(verified.snapshot().operation_id).await.is_ok(),
+      "verified packages must remain installable"
+    );
+    assert!(
+      manager
+        .get(installing.snapshot().operation_id)
+        .await
+        .is_ok(),
+      "install completion must retain its operation"
+    );
+  }
+
+  #[tokio::test]
+  async fn clears_share_info_even_when_stop_fails() {
+    let mut state = LanShareState::new(8080);
+    state.info = Some(LanShareInfo {
+      host: "127.0.0.1".to_owned(),
+      port: 18080,
+      sites: vec![LanShareSiteInfo {
+        site_id: Uuid::new_v4(),
+        domain: "demo.test".to_owned(),
+      }],
+    });
+    let error = state
+      .stop_with(async { bail!("share task failed") })
+      .await
+      .unwrap_err();
+    assert!(error.to_string().contains("share task failed"));
+    assert!(
+      state.info().is_none(),
+      "stopped sharing must not leave stale site state"
+    );
+    state.stop().await.unwrap();
+  }
+
+  #[tokio::test]
+  async fn stops_updated_mariadb_before_restoring_the_previous_runtime() {
+    let running = std::cell::Cell::new(true);
+    let restored = std::cell::Cell::new(false);
+    restore_mariadb_after_failed_restart(
+      async {
+        running.set(false);
+        Ok(())
+      },
+      || {
+        assert!(
+          !running.get(),
+          "rollback must not replace binaries belonging to a running server"
+        );
+        restored.set(true);
+        Ok(())
+      },
+      async {
+        assert!(restored.get());
+        running.set(true);
+        Ok(())
+      },
+    )
+    .await
+    .unwrap();
+    assert!(running.get(), "the previous Runtime must be restarted");
+  }
+
+  #[tokio::test]
+  async fn preserves_mariadb_runtime_files_when_stop_before_rollback_fails() {
+    let rolled_back = std::cell::Cell::new(false);
+    let restarted = std::cell::Cell::new(false);
+    let result = restore_mariadb_after_failed_restart(
+      async { bail!("fixture process is still running") },
+      || {
+        rolled_back.set(true);
+        Ok(())
+      },
+      async {
+        restarted.set(true);
+        Ok(())
+      },
+    )
+    .await;
+    assert!(
+      !rolled_back.get(),
+      "failed stop must preserve current files and the rollback backup"
+    );
+    assert!(!restarted.get());
+    assert!(format!("{:#}", result.unwrap_err()).contains("fixture process is still running"));
+  }
+
+  #[tokio::test]
+  async fn does_not_restart_mariadb_when_restoring_runtime_files_fails() {
+    let stopped = std::cell::Cell::new(false);
+    let restarted = std::cell::Cell::new(false);
+    let error = restore_mariadb_after_failed_restart(
+      async {
+        stopped.set(true);
+        Ok(())
+      },
+      || Err(anyhow::anyhow!("fixture backup could not be restored")),
+      async {
+        restarted.set(true);
+        Ok(())
+      },
+    )
+    .await
+    .unwrap_err();
+    assert!(stopped.get());
+    assert!(!restarted.get());
+    assert!(format!("{error:#}").contains("fixture backup could not be restored"));
+  }
+
+  fn runtime_identity_cache_fixture() -> (PathBuf, RuntimeUpdateOperation) {
+    use sha2::{Digest, Sha256};
+    let root = std::env::temp_dir().join(format!("fabdev-runtime-identity-{}", Uuid::new_v4()));
+    let payload = b"payload";
+    let checksum = hex::encode(Sha256::digest(payload));
+    let mut release = runtime_release_fixture("php", "8.4.24", "macos", "arm64");
+    release.size = payload.len() as u64;
+    release.sha256 = checksum.clone();
+    release.url = format!(
+      "https://github.com/JimmyWon1028/fabdev/releases/download/v0.1.4/{}",
+      release.file_name.as_ref().unwrap()
+    );
+    release.source_verification = Some(fabdev_runtime::RuntimeSourceVerification {
+      method: "pgp".to_owned(),
+      fingerprint: Some("9D7F99A0CB8F05C8A6958D6256A97AF7600A39A6".to_owned()),
+      upstream_sha256: "a".repeat(64),
+    });
+    release.archive_format = Some("tar.gz".to_owned());
+    release.install_mode = Some("side-by-side".to_owned());
+    release.health_check_profile = Some("php-runtime-v1".to_owned());
+    let mut catalog = runtime_catalog_fixture(vec![release.clone()]).catalog;
+    catalog.catalog_sequence = 2;
+    let contents = serde_json::to_vec(&catalog).unwrap();
+    let pending = root.join("runtime-updates/pending");
+    std::fs::create_dir_all(&pending).unwrap();
+    std::fs::write(
+      root.join("runtime-updates/fabdev-runtime-v1.json"),
+      &contents,
+    )
+    .unwrap();
+    std::fs::write(
+      root.join("runtime-updates/accepted-catalog.json"),
+      serde_json::to_vec(&serde_json::json!({
+        "schemaVersion": 1, "sequence": 2, "sha256": hex::encode(Sha256::digest(&contents)),
+      }))
+      .unwrap(),
+    )
+    .unwrap();
+    std::fs::write(pending.join(format!("{checksum}.tar.gz")), payload).unwrap();
+    let operation = RuntimeUpdateOperation {
+      operation_id: Uuid::new_v4(),
+      status: RuntimeUpdateOperationStatus::Verified,
+      name: release.name,
+      version: release.version,
+      platform: release.platform,
+      architecture: release.architecture,
+      file_name: release.file_name.unwrap(),
+      bytes_downloaded: release.size,
+      total_bytes: release.size,
+      sha256: checksum,
+      error: None,
+    };
+    (root, operation)
+  }
+
+  #[tokio::test]
+  async fn rejects_changed_catalog_package_before_runtime_installation() {
+    let (root, mut operation) = runtime_identity_cache_fixture();
+    operation.sha256 = "a".repeat(64);
+    let result = verified_runtime_for_operation(&root, &operation).await;
+    std::fs::remove_dir_all(root).unwrap();
+    let error = result.expect_err(
+      "a verified package from a changed Catalog must not replace the selected operation",
+    );
+    assert!(error.to_string().contains("no longer matches"));
+  }
+
+  #[tokio::test]
+  async fn rejects_changed_catalog_package_before_marking_download_verified() {
+    let (root, mut operation) = runtime_identity_cache_fixture();
+    operation.sha256 = "a".repeat(64);
+    let task = RuntimeDownloadTask::new(operation);
+    let manager = RuntimeUpdateManager::default();
+    let started = manager
+      .start(root.clone(), runtime_artifact_fixture(&task))
+      .await
+      .unwrap();
+    let mut finished = manager
+      .operations
+      .lock()
+      .await
+      .get(&started.operation_id)
+      .unwrap()
+      .download_finished
+      .subscribe();
+    tokio::time::timeout(
+      std::time::Duration::from_secs(2),
+      finished.wait_for(|done| *done),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let result = manager.get(started.operation_id).await.unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+    assert_eq!(result.status, RuntimeUpdateOperationStatus::Failed);
+    assert!(result.error.unwrap().contains("no longer matches"));
+  }
+
+  #[tokio::test]
+  async fn allows_matching_runtime_package_after_catalog_sequence_changes() {
+    let (root, operation) = runtime_identity_cache_fixture();
+    let result = verified_runtime_for_operation(&root, &operation)
+      .await
+      .unwrap();
+    assert_eq!(result.sha256, operation.sha256);
+    assert_eq!(result.catalog_sequence, 2);
+    let task = RuntimeDownloadTask::new(operation);
+    let manager = RuntimeUpdateManager::default();
+    let started = manager
+      .start(root.clone(), runtime_artifact_fixture(&task))
+      .await
+      .unwrap();
+    let mut finished = manager
+      .operations
+      .lock()
+      .await
+      .get(&started.operation_id)
+      .unwrap()
+      .download_finished
+      .subscribe();
+    tokio::time::timeout(
+      std::time::Duration::from_secs(2),
+      finished.wait_for(|done| *done),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let result = manager.get(started.operation_id).await.unwrap();
+    assert_eq!(result.status, RuntimeUpdateOperationStatus::Verified);
+    assert_eq!(result.bytes_downloaded, result.total_bytes);
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[tokio::test]
+  async fn rejects_overlapping_runtime_installations() {
+    for next_name in ["php", "mariadb", "node"] {
+      let manager = RuntimeUpdateManager::default();
+      let first = runtime_task_fixture(RuntimeUpdateOperationStatus::Verified);
+      let next = runtime_task_fixture(RuntimeUpdateOperationStatus::Verified);
+      next.snapshot.lock().unwrap().name = next_name.to_owned();
+      let first_id = first.snapshot().operation_id;
+      let next_id = next.snapshot().operation_id;
+      manager
+        .operations
+        .lock()
+        .await
+        .extend([(first_id, first), (next_id, next)]);
+      manager.begin_install(first_id).await.unwrap();
+      assert!(
+        manager.begin_install(next_id).await.is_err(),
+        "another install must not mutate shared Runtime and service state concurrently"
+      );
+      assert_eq!(
+        manager.get(next_id).await.unwrap().status,
+        RuntimeUpdateOperationStatus::Verified
+      );
+    }
+  }
+
+  #[tokio::test]
+  async fn allows_installation_after_the_previous_install_finishes_or_fails() {
+    for error in [None, Some("fixture installation failed".to_owned())] {
+      let manager = RuntimeUpdateManager::default();
+      let first = runtime_task_fixture(RuntimeUpdateOperationStatus::Verified);
+      let next = runtime_task_fixture(RuntimeUpdateOperationStatus::Verified);
+      let first_id = first.snapshot().operation_id;
+      let next_id = next.snapshot().operation_id;
+      manager
+        .operations
+        .lock()
+        .await
+        .extend([(first_id, first), (next_id, next)]);
+      manager.begin_install(first_id).await.unwrap();
+      manager.finish_install(first_id, error).await.unwrap();
+      assert_eq!(
+        manager.begin_install(next_id).await.unwrap().status,
+        RuntimeUpdateOperationStatus::Installing
+      );
+    }
+  }
+
+  #[tokio::test]
+  async fn admits_only_one_of_two_concurrent_runtime_install_requests() {
+    let manager = RuntimeUpdateManager::default();
+    let first = runtime_task_fixture(RuntimeUpdateOperationStatus::Verified);
+    let second = runtime_task_fixture(RuntimeUpdateOperationStatus::Verified);
+    let first_id = first.snapshot().operation_id;
+    let second_id = second.snapshot().operation_id;
+    manager
+      .operations
+      .lock()
+      .await
+      .extend([(first_id, first), (second_id, second)]);
+    let (first, second) = tokio::join!(
+      manager.begin_install(first_id),
+      manager.begin_install(second_id)
+    );
+    assert_ne!(
+      first.is_ok(),
+      second.is_ok(),
+      "exactly one installation may enter the shared mutation phase"
+    );
+  }
 
   #[test]
   fn tracks_runtime_download_progress_and_cancellation() {

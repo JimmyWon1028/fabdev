@@ -247,6 +247,7 @@ pub struct RuntimeInstallTransaction {
   pub layout: InstallLayout,
   backup_root: Option<PathBuf>,
   active_before: Option<String>,
+  removal_marker_before: Option<(PathBuf, Vec<u8>)>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1366,6 +1367,12 @@ where
   verify_sha256(artifact, expected_sha256)?;
   let layout = InstallLayout::new(base, name, version);
   let active_before = active_version(base, name)?;
+  let removal_marker = runtime_removal_marker(base, name, version)?;
+  let removal_marker_before = match std::fs::read(&removal_marker) {
+    Ok(contents) => Some((removal_marker, contents)),
+    Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+    Err(error) => return Err(error.into()),
+  };
   let runtime_parent = layout
     .runtime_root
     .parent()
@@ -1438,6 +1445,7 @@ where
     layout,
     backup_root: replacing.then_some(backup_root),
     active_before,
+    removal_marker_before,
   };
   let finish_result = (|| {
     remove_dir_if_exists(&transaction.layout.staging_root)?;
@@ -1478,7 +1486,14 @@ pub fn rollback_runtime_install_transaction(
   match transaction.active_before {
     Some(version) => switch_current(runtime_parent, &version, &transaction.layout.active_link),
     None => remove_active_link_if_exists(&transaction.layout.active_link),
+  }?;
+  if let Some((path, contents)) = transaction.removal_marker_before {
+    if let Some(parent) = path.parent() {
+      std::fs::create_dir_all(parent)?;
+    }
+    std::fs::write(path, contents)?;
   }
+  Ok(())
 }
 
 fn remove_active_link_if_exists(active_link: &Path) -> Result<(), RuntimeError> {
@@ -1714,7 +1729,12 @@ pub fn set_active_version(
   validate_identifier(name)?;
   validate_identifier(version)?;
   let parent = base.as_ref().join(name);
-  if !parent.join(version).is_dir() {
+  let installed = match std::fs::symlink_metadata(parent.join(version)) {
+    Ok(metadata) => metadata.is_dir() && !metadata.file_type().is_symlink(),
+    Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+    Err(error) => return Err(error.into()),
+  };
+  if !installed {
     return Err(RuntimeError::NotInstalled(
       name.to_owned(),
       version.to_owned(),
@@ -2659,6 +2679,134 @@ mod tests {
     std::fs::remove_dir_all(root).expect("remove fixture");
   }
 
+  fn removal_preference_fixture() -> (PathBuf, PathBuf, String) {
+    let root =
+      std::env::temp_dir().join(format!("fabdev-removal-rollback-{}", uuid::Uuid::new_v4()));
+    let source = root.join("source/8.2.33");
+    std::fs::create_dir_all(&source).unwrap();
+    std::fs::write(source.join("marker.txt"), b"fixture").unwrap();
+    let artifact = root.join("fixture.tar.gz");
+    let encoder = flate2::write::GzEncoder::new(
+      File::create(&artifact).unwrap(),
+      flate2::Compression::default(),
+    );
+    let mut archive = tar::Builder::new(encoder);
+    archive.append_dir_all("8.2.33", &source).unwrap();
+    archive.into_inner().unwrap().finish().unwrap();
+    let checksum = hex::encode(Sha256::digest(std::fs::read(&artifact).unwrap()));
+    (root, artifact, checksum)
+  }
+
+  #[test]
+  fn rollback_preserves_runtime_removal_preference_and_previous_state() {
+    for was_removed in [true, false] {
+      for activate in [false, true] {
+        let (root, artifact, checksum) = removal_preference_fixture();
+        let base = root.join("runtimes");
+        std::fs::create_dir_all(base.join("php/7.4.33")).unwrap();
+        std::fs::write(base.join("php/7.4.33/previous.txt"), b"previous").unwrap();
+        std::fs::write(root.join("user-settings.ini"), b"memory_limit=512M").unwrap();
+        set_active_version(&base, "php", "7.4.33").unwrap();
+        if was_removed {
+          mark_runtime_removed(&base, "php", "8.2.33").unwrap();
+        }
+        let transaction = install_or_replace_tar_gz_with_health_check(
+          RuntimePackageInstallInput {
+            artifact: &artifact,
+            expected_sha256: &checksum,
+            catalog_sequence: 1,
+            name: "php",
+            version: "8.2.33",
+            base: &base,
+            activate,
+          },
+          |_| Ok(()),
+        )
+        .unwrap();
+        rollback_runtime_install_transaction(transaction).unwrap();
+        let removed_after = is_runtime_marked_removed(&base, "php", "8.2.33").unwrap();
+        assert_eq!(
+          active_version(&base, "php").unwrap().as_deref(),
+          Some("7.4.33")
+        );
+        assert_eq!(
+          std::fs::read(base.join("php/7.4.33/previous.txt")).unwrap(),
+          b"previous"
+        );
+        assert_eq!(
+          std::fs::read(root.join("user-settings.ini")).unwrap(),
+          b"memory_limit=512M"
+        );
+        assert!(!base.join("php/8.2.33").exists());
+        assert!(!base.join(".staging/php-8.2.33").exists());
+        std::fs::remove_dir_all(root).unwrap();
+        assert_eq!(
+          removed_after, was_removed,
+          "rollback must preserve the user's explicit removal choice"
+        );
+      }
+    }
+  }
+
+  #[test]
+  fn successful_install_clears_runtime_removal_preference() {
+    let (root, artifact, checksum) = removal_preference_fixture();
+    let base = root.join("runtimes");
+    mark_runtime_removed(&base, "php", "8.2.33").unwrap();
+    let transaction = install_or_replace_tar_gz_with_health_check(
+      RuntimePackageInstallInput {
+        artifact: &artifact,
+        expected_sha256: &checksum,
+        catalog_sequence: 1,
+        name: "php",
+        version: "8.2.33",
+        base: &base,
+        activate: true,
+      },
+      |_| Ok(()),
+    )
+    .unwrap();
+    commit_runtime_install_transaction(transaction).unwrap();
+    assert!(!is_runtime_marked_removed(&base, "php", "8.2.33").unwrap());
+    assert_eq!(
+      active_version(&base, "php").unwrap().as_deref(),
+      Some("8.2.33")
+    );
+    assert_eq!(
+      std::fs::read(base.join("php/8.2.33/marker.txt")).unwrap(),
+      b"fixture"
+    );
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[test]
+  fn failed_health_check_preserves_runtime_removal_preference() {
+    let (root, artifact, checksum) = removal_preference_fixture();
+    let base = root.join("runtimes");
+    mark_runtime_removed(&base, "php", "8.2.33").unwrap();
+    let result = install_or_replace_tar_gz_with_health_check(
+      RuntimePackageInstallInput {
+        artifact: &artifact,
+        expected_sha256: &checksum,
+        catalog_sequence: 1,
+        name: "php",
+        version: "8.2.33",
+        base: &base,
+        activate: true,
+      },
+      |_| {
+        Err(RuntimeError::HealthCheckFailed(
+          "fixture failure".to_owned(),
+        ))
+      },
+    );
+    assert!(result.is_err());
+    assert!(is_runtime_marked_removed(&base, "php", "8.2.33").unwrap());
+    assert!(!base.join("php/8.2.33").exists());
+    assert!(!base.join(".staging/php-8.2.33").exists());
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
   #[test]
   fn replaces_same_version_by_package_sha_and_supports_rollback() {
     fn build_archive(root: &Path, label: &str, payload: &[u8]) -> (PathBuf, String) {
@@ -2824,6 +2972,64 @@ mod tests {
       remove_installed_version(&root, "php", "8.2.33").expect_err("reject active removal");
     assert!(matches!(error, RuntimeError::ActiveRuntime(_, _)));
     std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  #[cfg(unix)]
+  fn rejects_switching_to_runtime_links_without_changing_current() {
+    use std::os::unix::fs::symlink;
+
+    let root = std::env::temp_dir().join(format!("fabdev-runtime-link-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(root.join("php/8.2.33")).unwrap();
+    std::fs::create_dir_all(root.join("external")).unwrap();
+    symlink("8.2.33", root.join("php/alias")).unwrap();
+    symlink(root.join("external"), root.join("php/external")).unwrap();
+    symlink("missing", root.join("php/broken")).unwrap();
+    let mut accepted = Vec::new();
+    for version in ["current", "alias", "external", "broken"] {
+      set_active_version(&root, "php", "8.2.33").unwrap();
+      let result = set_active_version(&root, "php", version);
+      if result.is_ok() {
+        accepted.push(version);
+        continue;
+      }
+      assert!(matches!(result, Err(RuntimeError::NotInstalled(_, _))));
+      assert_eq!(
+        active_version(&root, "php").unwrap().as_deref(),
+        Some("8.2.33")
+      );
+      assert_eq!(
+        std::fs::read_link(root.join("php/current")).unwrap(),
+        PathBuf::from("8.2.33")
+      );
+    }
+    std::fs::remove_dir_all(root).unwrap();
+    assert!(
+      accepted.is_empty(),
+      "switch accepted Runtime links: {accepted:?}"
+    );
+  }
+
+  #[test]
+  fn failed_runtime_switch_preserves_the_selected_version() {
+    let root = std::env::temp_dir().join(format!("fabdev-runtime-switch-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(root.join("node/24.20.0")).unwrap();
+    std::fs::write(root.join("node/24.19.0"), "not a Runtime directory").unwrap();
+    set_active_version(&root, "node", "24.20.0").unwrap();
+    for version in ["24.19.0", "missing", "../external"] {
+      assert!(set_active_version(&root, "node", version).is_err());
+      assert_eq!(
+        active_version(&root, "node").unwrap().as_deref(),
+        Some("24.20.0")
+      );
+    }
+    std::fs::create_dir_all(root.join("node/20.20.0")).unwrap();
+    set_active_version(&root, "node", "20.20.0").unwrap();
+    assert_eq!(
+      active_version(&root, "node").unwrap().as_deref(),
+      Some("20.20.0")
+    );
+    std::fs::remove_dir_all(root).unwrap();
   }
 
   #[test]

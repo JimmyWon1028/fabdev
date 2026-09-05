@@ -6,7 +6,9 @@ use anyhow::{bail, Context, Result};
 use tokio::io::{copy_bidirectional, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{oneshot, RwLock};
-use tokio::task::JoinHandle;
+use tokio::task::{JoinHandle, JoinSet};
+
+mod restricted_http;
 
 const MAX_HTTP_HEADER_SIZE: usize = 64 * 1024;
 
@@ -101,18 +103,24 @@ async fn run(
   allowed_domains: Arc<RwLock<Option<HashSet<String>>>>,
   mut shutdown: oneshot::Receiver<()>,
 ) -> Result<()> {
+  let mut connections = JoinSet::new();
   loop {
     tokio::select! {
+      biased;
+      _ = &mut shutdown => {
+        connections.shutdown().await;
+        return Ok(());
+      }
+      _ = connections.join_next(), if !connections.is_empty() => {}
       accepted = listener.accept() => {
         let (client, _) = accepted.context("unable to accept LAN Site Share connection")?;
         let allowed_domains = Arc::clone(&allowed_domains);
-        tokio::spawn(async move {
+        connections.spawn(async move {
           if let Err(error) = proxy(client, upstream, allowed_domains).await {
             eprintln!("fabDev Share connection failed: {error:#}");
           }
         });
       }
-      _ = &mut shutdown => return Ok(()),
     }
   }
 }
@@ -122,8 +130,8 @@ async fn proxy(
   upstream: SocketAddr,
   allowed_domains: Arc<RwLock<Option<HashSet<String>>>>,
 ) -> Result<()> {
-  let allowed_domains = allowed_domains.read().await.clone();
-  let initial_request = match allowed_domains.as_ref() {
+  let initial_domains = allowed_domains.read().await.clone();
+  let initial_request = match initial_domains.as_ref() {
     Some(domains) => match read_allowed_request(&mut client, domains).await? {
       Some(request) => Some(request),
       None => {
@@ -139,7 +147,7 @@ async fn proxy(
     .await
     .with_context(|| format!("unable to connect to fabDev Nginx at {upstream}"))?;
   if let Some(request) = initial_request {
-    server.write_all(&request).await?;
+    return restricted_http::proxy(client, server, request, allowed_domains).await;
   }
   copy_bidirectional(&mut client, &mut server)
     .await
