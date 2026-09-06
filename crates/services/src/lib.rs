@@ -5550,10 +5550,19 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
   }
 
   #[test]
-  fn uses_erp_php_ini_defaults_for_php_84() {
+  fn uses_256m_memory_limit_for_every_erp_php_ini_template() {
     let version: PhpVersion = "8.4".parse().expect("parse PHP version");
     let contents = php_ini_template(&version);
 
+    for template in [
+      PHP_INI_TEMPLATE,
+      PHP_74_INI_TEMPLATE,
+      PHP_82_INI_TEMPLATE,
+      PHP_WINDOWS_INI_TEMPLATE,
+    ] {
+      assert!(template.contains("memory_limit = 256M"));
+    }
+    assert!(contents.contains("memory_limit = 256M"));
     assert!(contents.contains("date.timezone = \"Asia/Taipei\""));
     assert!(contents.contains("upload_max_filesize = 64M"));
     assert!(contents.contains("post_max_size = 64M"));
@@ -5731,7 +5740,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     let php_82_ini = managed_php_ini_path(&paths, &php_82);
     let customized = std::fs::read_to_string(&php_82_ini)
       .expect("read PHP 8.2 config")
-      .replace("memory_limit = 128M", "memory_limit = 256M");
+      .replace("memory_limit = 256M", "memory_limit = 384M");
     std::fs::write(&php_82_ini, customized).expect("customize PHP 8.2 config");
     let legacy_default = default_php_ini_path(&paths);
     std::fs::create_dir_all(legacy_default.parent().expect("legacy default parent"))
@@ -5748,15 +5757,15 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       std::fs::read_to_string(legacy_default).expect("read preserved legacy default"),
       "memory_limit = 512M\n"
     );
-    assert!(php_84_ini.contains("memory_limit = 128M"));
+    assert!(php_84_ini.contains("memory_limit = 256M"));
     assert!(!php_84_ini.contains("memory_limit = 512M"));
-    assert!(!php_84_ini.contains("memory_limit = 256M"));
+    assert!(!php_84_ini.contains("memory_limit = 384M"));
     let normalized_php_84_ini = php_84_ini.replace('\\', "/");
     assert!(normalized_php_84_ini.contains("runtimes/php/8.4.24"));
     assert!(normalized_php_84_ini.contains("services/php/8.4"));
     assert!(std::fs::read_to_string(php_82_ini)
       .expect("read preserved PHP 8.2 config")
-      .contains("memory_limit = 256M"));
+      .contains("memory_limit = 384M"));
     std::fs::remove_dir_all(root).expect("remove default PHP fixture");
   }
 }
