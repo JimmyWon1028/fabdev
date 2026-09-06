@@ -21,9 +21,9 @@ macOS Community 發行目前維持既有 Unsigned Community DMG。除非 Reposit
 
 fabDev App Release 與線上 Runtime Distribution 自 `v0.1.21` 起完全分離。`JimmyWon1028/fabdev` 的 App Release 只包含 Windows／macOS App Installer、fabDev Connect、App Manifest 及 checksum；不得加入、重建、複製或上傳線上 PHP、MariaDB、Node.js Runtime Package、Runtime Catalog 或 Runtime `.tar.gz`。選裝 Runtime Package 與 Catalog 只由獨立的 `JimmyWon1028/fabdev-runtimes` 管理，使用自己的 Catalog sequence、最低相容版本與發布生命週期，不跟隨 App SemVer 或 App Tag。一般 App／Agent／Desktop 功能修正及 App 進版不構成 Runtime 重新打包、Catalog 更新或 Runtime Release 授權；只有 Runtime 內容或 Catalog 本身確實變更且 Repository Owner 明確要求時才處理。此分離不改變 App Installer 內既有 bundled Runtime 的產品契約，但 bundled Runtime 內容未變時不得因 App 發布而另外重打選裝 Runtime Package。
 
-## 目前未發布穩定性基線（2026-09-05）
+## 目前穩定性發布基線（2026-09-06）
 
-穩定性修正與既有 UI 整理已由 Commit `75e09cc` 合入 `main`，完整問題、修正、回歸測試及驗證邊界以 `docs/STABILITY_CODE_AUDIT_2026-09-05.md` 為準。這批工作目前已進版為未發布 App `0.1.23`／Agent Protocol `38`，不得描述為已發布版本內容。Push 自動觸發的 Windows x64 Run `33955789378`、`34013444959`、`34013969200` 與 `34014590575` 已通過，Repository Owner 並已明確回報 `0.1.23` Windows 候選實機 Gate 通過。Annotated Tag `v0.1.23` 固定在 Commit `aaf2b35`；Windows-first Draft Release ID `383486262` 已由 Run `34015771651` 建立，7 個 App-only Assets 已重新下載並完成 checksum、Manifest、NSIS 與 x64 架構驗證。Draft 仍為未發布狀態，公開 Latest 仍是 `v0.1.22`；未取得明確 Publish 授權前不得發布，也不得因整理文件再次觸發打包或發布流程。
+穩定性修正與既有 UI 整理已由 Commit `75e09cc` 合入 `main`，完整問題、修正、回歸測試及驗證邊界以 `docs/STABILITY_CODE_AUDIT_2026-09-05.md` 為準。這批工作已發布為 Windows-first Stable App `0.1.23`／Agent Protocol `38`。Push 自動觸發的 Windows x64 Run `33955789378`、`34013444959`、`34013969200` 與 `34014590575` 已通過，Repository Owner 並已明確回報 `0.1.23` Windows 候選實機 Gate 通過。Annotated Tag `v0.1.23` 固定在 Commit `aaf2b35`；Release ID `383486262` 已由 Draft Run `34015771651` 建立並在明確授權後 Publish，7 個公開 App-only Assets 已重新下載並完成 checksum、Manifest、NSIS 與 x64 架構驗證。公開 Latest 已是 `v0.1.23`，目前只包含 Windows x64 App 與 fabDev Connect；macOS ARM64 尚未補入，不得描述為已完成跨平台發布。
 
 後續修改必須以可重現問題為依據，優先保留現有功能、Agent Protocol、資料格式、服務範圍與操作流程，不做無關重構。Sites 與 Proxy 的既有清單排版已由 Repository Owner 指定保留；Proxy 頂部維持資料操作與服務操作分組，Runtime 卡片維持緊湊一致、PHP 只顯示使用中的 Site 數量，Agent 狀態維持在設定下方。若需要改動這些已確認的 UI，必須先取得 Repository Owner 明確指示。
 
