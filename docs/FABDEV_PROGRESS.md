@@ -1,11 +1,11 @@
 # fabDev 穩定基線與 Roadmap
 
 > 更新日期：2026-09-06
-> 目前階段：[`v0.1.22`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.22) 已發布為 Latest Stable；後續穩定性修正、既有 UI 整理、ERP PHP 預設與 CI 維護已合入 `main`，目前進版為未發布 App `0.1.23`／Agent Protocol `38` 候選，尚未建立 Tag、Draft 或 Publish。完整穩定性紀錄見 [`STABILITY_CODE_AUDIT_2026-09-05.md`](STABILITY_CODE_AUDIT_2026-09-05.md)。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v3`
+> 目前階段：[`v0.1.22`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.22) 已發布為 Latest Stable；後續穩定性修正、既有 UI 整理、ERP PHP 預設與 CI 維護已合入 `main`，目前進版為未發布 App `0.1.23`／Agent Protocol `38` 候選，Windows 候選實機 Gate 已由 Repository Owner 回報通過，尚未建立 Tag、Draft 或 Publish。完整穩定性紀錄見 [`STABILITY_CODE_AUDIT_2026-09-05.md`](STABILITY_CODE_AUDIT_2026-09-05.md)。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v3`
 
 ## 階段結論
 
-fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。現有本機工作區已進版為 `0.1.23` 候選，以保持功能為前提納入穩定性修正、既有 UI 整理、ERP PHP 預設與 CI 維護；自動測試通過不等同 Windows／macOS 安裝、更新或實機驗收。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
+fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。現有本機工作區已進版為 `0.1.23` 候選，以保持功能為前提納入穩定性修正、既有 UI 整理、ERP PHP 預設與 CI 維護；Windows 候選實機 Gate 已由 Repository Owner 回報通過，macOS 尚未打包或驗收。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
 ## 已完成
 
@@ -38,6 +38,7 @@ fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。現�
 
 ## 最近驗證
 
+- 2026-09-06：Repository Owner 明確回報 Windows `0.1.23` 候選實機 Gate 通過。受測候選來自 Commit `bf35e96` 的 Windows x64 Run [`34014590575`](https://github.com/JimmyWon1028/fabdev/actions/runs/34014590575)，Artifact `fabDev-Community-Windows-x64` 內含 `fabDev_0.1.23_x64-setup.exe`；來源包含穩定性 Commit `75e09cc` 與 ERP PHP 預設 Commit `7987a0e`。此回報完成 Windows 候選 Gate，尚未建立 `v0.1.23` Tag、Windows-first Draft 或 Publish。
 - 2026-09-06：Repository Owner 明確授權進版後，Commit `bf35e96` 將根目錄／Desktop `package.json`、Tauri 設定與 Cargo workspace 四個正式版本來源，以及 `Cargo.lock` 內 13 個 fabDev workspace 套件同步為 `0.1.23`；Agent Protocol 維持 `38`，產品功能與資料契約未變。完整 `pnpm test` 通過 Desktop 88、Release 規則 19、Rust 281、macOS Helper 9 項測試，另有 7 項需外部 Runtime／網路環境的 Rust 測試維持 ignored；`pnpm lint`、Cargo workspace check 與 `git diff --check` 通過。Push 自動觸發的 Windows x64 Run [`34014590575`](https://github.com/JimmyWon1028/fabdev/actions/runs/34014590575) 在 6 分 14 秒內完成，格式、前端測試、Windows 發布契約、Rust workspace、fabDev Connect、Unsigned NSIS 與兩個 Artifact 上傳皆成功，Check Run annotations 為空；此結果不等同 Windows 實機驗收。本輪只進版，未建立 Tag、另行打包、建立 Draft 或 Publish。
 - 2026-09-06：Commit `1a2c420` 將 Windows x64 CI 的 `actions/checkout`、`actions/setup-node`、`actions/upload-artifact` 與 `pnpm/action-setup` 對齊 Draft workflow 已使用的 Node.js 24 相容版本，全部固定為明確 Commit SHA，並加入防止退回 `@v4` 的 Release 契約測試。本機 Release 規則 19 項、JavaScript 語法、YAML 解析與 `git diff --check` 通過；Windows x64 Run [`34013969200`](https://github.com/JimmyWon1028/fabdev/actions/runs/34013969200) 的 MSVC、前端測試、Windows 發布契約、Rust workspace、fabDev Connect、Unsigned NSIS 與兩個 Artifact 上傳皆成功，Check Run annotations 為空，原 Node.js 20 棄用警告已消失。本輪未進版、建立 Tag、Draft 或 Publish。
 - 2026-09-06：未發布基線 Commit `7987a0e` 將 macOS PHP 7.4、PHP 8.2／8.4、Windows 全版本及其他版本 fallback 的「ERP 參數」`memory_limit` 統一為 `256M`，並加入四份模板一致性回歸測試；只改內建預設，不覆蓋既有非空白自訂 `php.ini`。完整 `pnpm test` 在允許本機 loopback／Unix Socket 的環境通過 Desktop 88、Release 規則 18、Rust 281、macOS Helper 9 項測試，另有 7 項需外部 Runtime／網路環境的 Rust 測試維持 ignored；`pnpm lint` 與 `git diff --check` 通過。Push 自動觸發的 Windows x64 Run [`34013444959`](https://github.com/JimmyWon1028/fabdev/actions/runs/34013444959) 在 6 分 7 秒內完成，MSVC、前端測試、Windows 發布契約、Rust workspace、fabDev Connect、Unsigned NSIS 與 Artifact 上傳皆成功；當時仍有的 GitHub Actions Node.js 20 dependency 棄用警告已由後續 Commit `1a2c420` 消除。本輪未進版、建立 Tag、Draft 或 Publish。
