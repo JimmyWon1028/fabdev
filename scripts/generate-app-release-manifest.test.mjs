@@ -100,6 +100,36 @@ test('keeps the Windows installer language and Desktop single-instance contracts
   assert.match(windowsWorkflow, /Run Windows distribution contract tests[\s\S]*pnpm run test:release/)
 })
 
+test('pins Windows CI actions to Node.js 24 compatible releases', async () => {
+  const windowsWorkflow = await readFile(
+    join(repoRoot, '.github/workflows/windows-x64.yml'),
+    'utf8'
+  )
+
+  assert.match(
+    windowsWorkflow,
+    /actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\.0\.1/
+  )
+  assert.match(
+    windowsWorkflow,
+    /pnpm\/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6\.0\.10/
+  )
+  assert.match(
+    windowsWorkflow,
+    /actions\/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6\.4\.0/
+  )
+  assert.equal(
+    windowsWorkflow.match(
+      /actions\/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7\.0\.1/g
+    )?.length,
+    2
+  )
+  assert.doesNotMatch(
+    windowsWorkflow,
+    /(?:actions\/(?:checkout|setup-node|upload-artifact)|pnpm\/action-setup)@v4/
+  )
+})
+
 test('prepares canonical App-only release assets, checksums, and manifests', async (context) => {
   const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-test-'))
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
