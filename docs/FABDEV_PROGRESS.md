@@ -1,11 +1,11 @@
 # fabDev 穩定基線與 Roadmap
 
 > 更新日期：2026-09-06
-> 目前階段：[`v0.1.22`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.22) 已發布為 Latest Stable；後續穩定性修正、既有 UI 整理、ERP PHP 預設與 CI 維護已合入 `main`，目前進版為未發布 App `0.1.23`／Agent Protocol `38` 候選，Windows 候選實機 Gate 已由 Repository Owner 回報通過，尚未建立 Tag、Draft 或 Publish。完整穩定性紀錄見 [`STABILITY_CODE_AUDIT_2026-09-05.md`](STABILITY_CODE_AUDIT_2026-09-05.md)。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v3`
+> 目前階段：[`v0.1.22`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.22) 已發布為 Latest Stable；後續穩定性修正、既有 UI 整理、ERP PHP 預設與 CI 維護已進版為 App `0.1.23`／Agent Protocol `38`。Windows 候選實機 Gate 已通過，`v0.1.23` Annotated Tag 與 Windows-first Draft 已建立並完成 Asset 驗證，尚未 Publish。完整穩定性紀錄見 [`STABILITY_CODE_AUDIT_2026-09-05.md`](STABILITY_CODE_AUDIT_2026-09-05.md)。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v3`
 
 ## 階段結論
 
-fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。現有本機工作區已進版為 `0.1.23` 候選，以保持功能為前提納入穩定性修正、既有 UI 整理、ERP PHP 預設與 CI 維護；Windows 候選實機 Gate 已由 Repository Owner 回報通過，macOS 尚未打包或驗收。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
+fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。`v0.1.23` 以保持功能為前提納入穩定性修正、既有 UI 整理、ERP PHP 預設與 CI 維護；Windows 候選實機 Gate、Windows-first Draft 建置及靜態驗證已完成，Draft 尚未 Publish，macOS 尚未打包或驗收。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
 ## 已完成
 
@@ -38,6 +38,7 @@ fabDev Desktop Community `v0.1.22` 是目前已發布的跨平台 Stable。現�
 
 ## 最近驗證
 
+- 2026-09-06：Repository Owner 明確授權建立 Tag 與 Draft 後，Annotated Tag `v0.1.23` 固定在 Commit `aaf2b35fe9036a2f761aab2a47362b183152be2c`，Tag Object 為 `bd0ee9587336d128256b8385a23a6b2071c84721`。Windows-first Draft workflow [Run `34015771651`](https://github.com/JimmyWon1028/fabdev/actions/runs/34015771651) 的 Request、Windows x64 建置與 Draft Jobs 全數成功，macOS Job 依固定順序 skipped；建立 Release ID `383486262`，狀態維持 `draft=true`、`prerelease=false`、`published_at=null`。Draft 只有 7 個 App-only Assets，共 50,198,752 bytes，未含線上 Runtime Package、Catalog 或 macOS Asset。全部 Assets 已重新下載，GitHub digest、總表與個別 checksum、App／Stable Manifest 逐位元一致性、App `0.1.23`、Protocol `38`、單一 Windows x64 Installer、NSIS 內容及 Desktop／Agent／Helper／Connect x64 架構均通過。Windows Setup 為 49,446,816 bytes、SHA-256 `3a9489167de68e475a987b89e7905edc4453493526aa26c22b5249ed29dde6ba`；Connect 為 749,568 bytes、SHA-256 `e93db811f39a3f5f6cc1d23f5c64f3d8897112b6f2dd7673b78de961be930967`；App／Stable Manifest SHA-256 為 `1b32897a13f61f916563992c5046136c1f0956de6fbe28cbfe3f37c99e44f6df`，`publishedAt` 預留為 `2026-09-06T06:08:50Z`。Release Notes 已更新，更新後重新確認 Tag、Release ID 與 7 個 Asset ID／digest 均未改變；唯一尚未通過的 Draft checklist 是 Repository Owner 的明確 Publish 授權，公開 Latest 仍為 `v0.1.22`。
 - 2026-09-06：Repository Owner 明確回報 Windows `0.1.23` 候選實機 Gate 通過。受測候選來自 Commit `bf35e96` 的 Windows x64 Run [`34014590575`](https://github.com/JimmyWon1028/fabdev/actions/runs/34014590575)，Artifact `fabDev-Community-Windows-x64` 內含 `fabDev_0.1.23_x64-setup.exe`；來源包含穩定性 Commit `75e09cc` 與 ERP PHP 預設 Commit `7987a0e`。此回報完成 Windows 候選 Gate，尚未建立 `v0.1.23` Tag、Windows-first Draft 或 Publish。
 - 2026-09-06：Repository Owner 明確授權進版後，Commit `bf35e96` 將根目錄／Desktop `package.json`、Tauri 設定與 Cargo workspace 四個正式版本來源，以及 `Cargo.lock` 內 13 個 fabDev workspace 套件同步為 `0.1.23`；Agent Protocol 維持 `38`，產品功能與資料契約未變。完整 `pnpm test` 通過 Desktop 88、Release 規則 19、Rust 281、macOS Helper 9 項測試，另有 7 項需外部 Runtime／網路環境的 Rust 測試維持 ignored；`pnpm lint`、Cargo workspace check 與 `git diff --check` 通過。Push 自動觸發的 Windows x64 Run [`34014590575`](https://github.com/JimmyWon1028/fabdev/actions/runs/34014590575) 在 6 分 14 秒內完成，格式、前端測試、Windows 發布契約、Rust workspace、fabDev Connect、Unsigned NSIS 與兩個 Artifact 上傳皆成功，Check Run annotations 為空；此結果不等同 Windows 實機驗收。本輪只進版，未建立 Tag、另行打包、建立 Draft 或 Publish。
 - 2026-09-06：Commit `1a2c420` 將 Windows x64 CI 的 `actions/checkout`、`actions/setup-node`、`actions/upload-artifact` 與 `pnpm/action-setup` 對齊 Draft workflow 已使用的 Node.js 24 相容版本，全部固定為明確 Commit SHA，並加入防止退回 `@v4` 的 Release 契約測試。本機 Release 規則 19 項、JavaScript 語法、YAML 解析與 `git diff --check` 通過；Windows x64 Run [`34013969200`](https://github.com/JimmyWon1028/fabdev/actions/runs/34013969200) 的 MSVC、前端測試、Windows 發布契約、Rust workspace、fabDev Connect、Unsigned NSIS 與兩個 Artifact 上傳皆成功，Check Run annotations 為空，原 Node.js 20 棄用警告已消失。本輪未進版、建立 Tag、Draft 或 Publish。
