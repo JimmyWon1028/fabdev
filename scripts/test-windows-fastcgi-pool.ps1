@@ -8,7 +8,7 @@ $requestDelayMilliseconds = 1500
 $maximumParallelElapsedSeconds = 4.5
 $phpProcess = $null
 $nginxProcess = $null
-$phpChildProcessIds = @()
+$phpProcessIds = @()
 $previousChildren = $env:PHP_FCGI_CHILDREN
 $previousMaxRequests = $env:PHP_FCGI_MAX_REQUESTS
 $temporaryRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { $env:TEMP }
@@ -27,22 +27,20 @@ function Get-FreeTcpPort {
   }
 }
 
-function Get-DescendantProcessIds {
-  param([int]$ParentProcessId)
+function Get-ProcessIdsForExecutable {
+  param([string]$ExecutablePath)
 
-  $processes = @(Get-CimInstance Win32_Process)
-  $pending = [System.Collections.Generic.Queue[int]]::new()
-  $descendants = [System.Collections.Generic.List[int]]::new()
-  $pending.Enqueue($ParentProcessId)
-  while ($pending.Count -gt 0) {
-    $current = $pending.Dequeue()
-    foreach ($process in $processes | Where-Object { $_.ParentProcessId -eq $current }) {
-      $processId = [int]$process.ProcessId
-      $descendants.Add($processId)
-      $pending.Enqueue($processId)
-    }
-  }
-  return @($descendants)
+  $expectedPath = [System.IO.Path]::GetFullPath($ExecutablePath)
+  return @(Get-CimInstance Win32_Process -Filter "Name = 'php-cgi.exe'" |
+    Where-Object {
+      $_.ExecutablePath -and
+      [string]::Equals(
+        [System.IO.Path]::GetFullPath([string]$_.ExecutablePath),
+        $expectedPath,
+        [System.StringComparison]::OrdinalIgnoreCase
+      )
+    } |
+    ForEach-Object { [int]$_.ProcessId })
 }
 
 function Wait-Until {
@@ -75,6 +73,7 @@ foreach ($executable in @($phpCgi, $nginx)) {
     throw "Bundled Windows Runtime executable does not exist: $executable"
   }
 }
+$existingPhpProcessIds = @(Get-ProcessIdsForExecutable -ExecutablePath $phpCgi)
 
 New-Item -ItemType Directory -Force -Path $testRoot | Out-Null
 $documentRoot = Join-Path $testRoot "site"
@@ -158,9 +157,18 @@ try {
     $phpIni
   ) -PassThru -WindowStyle Hidden
 
-  Wait-Until -TimeoutSeconds 10 -FailureMessage "PHP FastCGI did not create $workerCount workers" -Condition {
-    $script:phpChildProcessIds = @(Get-DescendantProcessIds -ParentProcessId $phpProcess.Id)
-    $script:phpChildProcessIds.Count -eq $workerCount
+  try {
+    Wait-Until -TimeoutSeconds 10 -FailureMessage "PHP FastCGI did not create one master and $workerCount workers" -Condition {
+      $script:phpProcessIds = @(Get-ProcessIdsForExecutable -ExecutablePath $phpCgi |
+        Where-Object { $existingPhpProcessIds -notcontains $_ })
+      $script:phpProcessIds.Count -eq ($workerCount + 1) -and
+        $script:phpProcessIds -contains $phpProcess.Id
+    }
+  } catch {
+    Get-CimInstance Win32_Process -Filter "Name = 'php-cgi.exe'" |
+      Select-Object ProcessId, ParentProcessId, ExecutablePath, CommandLine |
+      Format-Table -AutoSize
+    throw
   }
 
   $nginxProcess = Start-Process -FilePath $nginx -ArgumentList @(
@@ -202,8 +210,7 @@ try {
 
   Stop-Process -Id $phpProcess.Id -Force
   Wait-Until -TimeoutSeconds 10 -FailureMessage "PHP FastCGI workers remained after the parent stopped" -Condition {
-    $remainingIds = @($phpProcess.Id) + @($phpChildProcessIds)
-    @($remainingIds | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue }).Count -eq 0
+    @($phpProcessIds | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue }).Count -eq 0
   }
   $phpProcess = $null
 
@@ -220,7 +227,7 @@ try {
   if ($phpProcess -and (Get-Process -Id $phpProcess.Id -ErrorAction SilentlyContinue)) {
     Stop-Process -Id $phpProcess.Id -Force -ErrorAction SilentlyContinue
   }
-  foreach ($processId in $phpChildProcessIds) {
+  foreach ($processId in $phpProcessIds) {
     Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
   }
   if ($null -eq $previousChildren) {
