@@ -99,6 +99,7 @@ Set-Content -Path $healthFile -Encoding ascii -Value "ready"
 
 $normalizedRoot = $documentRoot.Replace("\", "/")
 $normalizedTestRoot = $testRoot.Replace("\", "/")
+$normalizedNginxConfig = $nginxConfig.Replace("\", "/")
 $nginxTemplate = @'
 worker_processes 1;
 error_log "@TEST_ROOT@/nginx-error.log";
@@ -146,6 +147,12 @@ $renderedNginxConfig = $renderedNginxConfig.Replace("@DOCUMENT_ROOT@", $normaliz
 $renderedNginxConfig = $renderedNginxConfig.Replace("@HTTP_PORT@", [string]$httpPort)
 $renderedNginxConfig = $renderedNginxConfig.Replace("@FASTCGI_PORT@", [string]$fastCgiPort)
 Set-Content -Path $nginxConfig -Encoding utf8 -Value $renderedNginxConfig
+$nginxArguments = @(
+  "-p",
+  "$normalizedTestRoot/",
+  "-c",
+  $normalizedNginxConfig
+)
 
 try {
   $env:PHP_FCGI_CHILDREN = [string]$workerCount
@@ -171,23 +178,30 @@ try {
     throw
   }
 
-  $nginxProcess = Start-Process -FilePath $nginx -ArgumentList @(
-    "-p",
-    "$testRoot/",
-    "-c",
-    $nginxConfig
-  ) -PassThru -WindowStyle Hidden
+  $nginxValidationOutput = & $nginx @nginxArguments -t 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    throw "Nginx test configuration is invalid: $($nginxValidationOutput -join [Environment]::NewLine)"
+  }
+  $nginxProcess = Start-Process -FilePath $nginx -ArgumentList $nginxArguments -PassThru -WindowStyle Hidden
 
   $httpClient = [System.Net.Http.HttpClient]::new()
   $httpClient.Timeout = [TimeSpan]::FromSeconds(10)
   try {
-    Wait-Until -TimeoutSeconds 10 -FailureMessage "Nginx did not become ready" -Condition {
-      try {
-        $response = $httpClient.GetAsync("http://127.0.0.1:$httpPort/health.txt").GetAwaiter().GetResult()
-        return $response.IsSuccessStatusCode
-      } catch {
-        return $false
+    try {
+      Wait-Until -TimeoutSeconds 10 -FailureMessage "Nginx did not become ready" -Condition {
+        try {
+          $response = $httpClient.GetAsync("http://127.0.0.1:$httpPort/health.txt").GetAwaiter().GetResult()
+          return $response.IsSuccessStatusCode
+        } catch {
+          return $false
+        }
       }
+    } catch {
+      $nginxErrorLog = Join-Path $testRoot "nginx-error.log"
+      if (Test-Path -PathType Leaf $nginxErrorLog) {
+        Get-Content -Path $nginxErrorLog
+      }
+      throw
     }
 
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -217,7 +231,7 @@ try {
   Write-Host "Verified $workerCount Windows FastCGI workers, parallel requests, and worker cleanup"
 } finally {
   if ($nginxProcess) {
-    & $nginx -p "$testRoot/" -c $nginxConfig -s quit 2>$null
+    & $nginx @nginxArguments -s quit 2>$null
     try {
       Wait-Process -Id $nginxProcess.Id -Timeout 5 -ErrorAction Stop
     } catch {
