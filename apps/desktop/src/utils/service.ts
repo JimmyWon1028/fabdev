@@ -18,6 +18,14 @@ export interface ProxyConnectionSummary {
   state: ProxySummaryState
 }
 
+export function phpServiceName(windows: boolean): 'PHP FastCGI' | 'PHP-FPM' {
+  return windows ? 'PHP FastCGI' : 'PHP-FPM'
+}
+
+export function formatPhpServiceTerms(message: string, windows: boolean): string {
+  return windows ? message.replaceAll('PHP-FPM', phpServiceName(true)) : message
+}
+
 const serviceStates = (status: AgentStatus): ServiceState[] => [
   status.dns,
   status.nginx,

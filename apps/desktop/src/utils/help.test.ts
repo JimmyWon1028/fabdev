@@ -21,6 +21,16 @@ describe('operation manual', () => {
     }
   })
 
+  it('uses the PHP service terminology implemented by the current platform', () => {
+    const windowsManual = getOperationManual('zh-TW', true)
+    const macManual = getOperationManual('zh-TW', false)
+
+    expect(JSON.stringify(windowsManual)).toContain('PHP FastCGI')
+    expect(JSON.stringify(windowsManual)).not.toContain('PHP-FPM')
+    expect(JSON.stringify(macManual)).toContain('PHP-FPM')
+    expect(JSON.stringify(macManual)).not.toContain('PHP FastCGI')
+  })
+
   it('opens only for an unmodified F1 keypress', () => {
     const event = {
       key: 'F1',

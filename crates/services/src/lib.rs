@@ -32,6 +32,10 @@ const MARIADB_CONFIG_TEMPLATE: &str = include_str!("../../../resources/mariadb/m
 const MARIADB_CUSTOM_CONFIG_TEMPLATE: &str = "[mariadbd]\n\n";
 const MARIADB_CONFIG_MAX_BYTES: usize = 512 * 1024;
 const PHP_FPM_STATUS_PATH: &str = "/__fabdev/php-fpm-status";
+#[cfg(any(windows, test))]
+const WINDOWS_PHP_FASTCGI_CHILDREN: &str = "4";
+#[cfg(any(windows, test))]
+const WINDOWS_PHP_FASTCGI_MAX_REQUESTS: &str = "500";
 const MANAGED_LOG_MAX_BYTES: u64 = 20 * 1024 * 1024;
 const MANAGED_LOG_RETENTION: usize = 7;
 const LOG_ROTATION_CHECK_INTERVAL: Duration = Duration::from_secs(60);
@@ -2534,11 +2538,13 @@ fn spawn_php_fpm(config: &GeneratedPhpConfig, logs: &Path) -> Result<Child> {
         "-c".to_owned(),
         config.php_ini.to_string_lossy().into_owned(),
       ])
-      .env("PHP_FCGI_MAX_REQUESTS", "0")
       .stdin(Stdio::null())
       .stdout(Stdio::from(stdout))
       .stderr(Stdio::from(stderr))
       .kill_on_drop(false);
+    for (name, value) in windows_php_fastcgi_environment() {
+      command.env(name, value);
+    }
     return command
       .spawn()
       .with_context(|| format!("unable to start PHP {} CGI", config.version));
@@ -2557,6 +2563,14 @@ fn spawn_php_fpm(config: &GeneratedPhpConfig, logs: &Path) -> Result<Child> {
     ],
     logs.join(format!("php-fpm-{}-process.log", config.version)),
   )
+}
+
+#[cfg(any(windows, test))]
+fn windows_php_fastcgi_environment() -> [(&'static str, &'static str); 2] {
+  [
+    ("PHP_FCGI_CHILDREN", WINDOWS_PHP_FASTCGI_CHILDREN),
+    ("PHP_FCGI_MAX_REQUESTS", WINDOWS_PHP_FASTCGI_MAX_REQUESTS),
+  ]
 }
 
 fn background_command(executable: impl AsRef<OsStr>) -> Command {
@@ -3509,6 +3523,14 @@ mod tests {
     assert!(runtime.join("logs").is_dir());
     assert!(runtime.join("temp").is_dir());
     std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn configures_the_windows_php_fastcgi_worker_pool() {
+    assert_eq!(
+      windows_php_fastcgi_environment(),
+      [("PHP_FCGI_CHILDREN", "4"), ("PHP_FCGI_MAX_REQUESTS", "500"),]
+    );
   }
 
   #[test]

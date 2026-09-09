@@ -5,10 +5,12 @@ import { computed, onMounted, onUnmounted } from 'vue'
 import { useAppStore } from '../stores/fabdev'
 import { translateError, useI18n } from '../utils/i18n'
 import { dynamicModuleRegistry, resolveDynamicModules } from '../utils/navigation'
+import { isWindowsPlatform } from '../utils/path'
 import { compareRuntimeVersions, installedPhpSeries } from '../utils/runtime'
 import {
   areAllServicesRunning,
   canToggleAllServices,
+  phpServiceName,
   summarizeProxyConnections,
   type ProxySummaryState
 } from '../utils/service'
@@ -22,9 +24,12 @@ interface ServiceCard {
   name: string
   detail: string
   state: DashboardServiceState
+  showPhpFpmMetrics?: boolean
   visibleWhenNotInstalled?: boolean
 }
 
+const isWindows = isWindowsPlatform()
+const phpServiceLabel = phpServiceName(isWindows)
 const canStartServices = computed(() => store.sites.some((site) => site.enabled))
 const allServicesRunning = computed(() =>
   store.status ? areAllServicesRunning(store.status) : false
@@ -32,7 +37,7 @@ const allServicesRunning = computed(() =>
 const canToggleServices = computed(() =>
   canToggleAllServices(store.busy, allServicesRunning.value, canStartServices.value)
 )
-const phpFpmPools = computed(() => store.status?.phpFpmPools ?? [])
+const phpFpmPools = computed(() => isWindows ? [] : (store.status?.phpFpmPools ?? []))
 const saturatedPhpPools = computed(() =>
   phpFpmPools.value.filter((pool) => pool.listenQueue > 0 || pool.maxChildrenReached > 0)
 )
@@ -92,11 +97,12 @@ const services = computed<ServiceCard[]>(() => {
     { name: 'DNS', detail: '*.test → 127.0.0.1', state: store.status?.dns ?? 'notInstalled' },
     { name: 'Nginx', detail: 'HTTP 127.0.0.1:80', state: store.status?.nginx ?? 'notInstalled' },
     {
-      name: 'PHP-FPM',
+      name: phpServiceLabel,
       detail: store.phpRuntimes.installed.length
         ? `PHP ${installedPhpSeries(store.phpRuntimes.installed).join(' / ')}`
         : t('dashboard.phpNotInstalled'),
-      state: store.status?.phpFpm ?? 'notInstalled'
+      state: store.status?.phpFpm ?? 'notInstalled',
+      showPhpFpmMetrics: !isWindows
     }
   ]
 
@@ -213,7 +219,7 @@ onUnmounted(() => {
         <div>
           <h2>{{ service.name }}</h2>
           <p>{{ service.detail }}</p>
-          <div v-if="service.name === 'PHP-FPM' && phpFpmPools.length" class="php-pool-metrics">
+          <div v-if="service.showPhpFpmMetrics && phpFpmPools.length" class="php-pool-metrics">
             <div v-for="pool in phpFpmPools" :key="pool.version" class="php-pool-metric">
               <strong>PHP {{ pool.version }}</strong>
               <span>
@@ -227,7 +233,7 @@ onUnmounted(() => {
             </div>
           </div>
           <p
-            v-else-if="service.name === 'PHP-FPM' && service.state === 'running'"
+            v-else-if="service.showPhpFpmMetrics && service.state === 'running'"
             class="php-pool-unavailable"
           >
             {{ t('dashboard.phpFpmMetricsUnavailable') }}

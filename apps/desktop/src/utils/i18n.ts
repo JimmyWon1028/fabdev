@@ -1,7 +1,9 @@
 import { readonly, ref } from 'vue'
 
 import { translations, type TranslationKey } from './locales'
+import { isWindowsPlatform } from './path'
 import { loadLanguage, saveLanguage, type Language } from './preferences'
+import { formatPhpServiceTerms } from './service'
 
 const language = ref<Language>(loadLanguage())
 
@@ -24,10 +26,11 @@ export function translate(
   params: Record<string, string | number> = {},
   locale = language.value
 ): string {
-  return Object.entries(params).reduce(
+  const message = Object.entries(params).reduce(
     (message, [name, value]) => message.replaceAll(`{${name}}`, String(value)),
     translations[locale][key]
   )
+  return formatPhpServiceTerms(message, isWindowsPlatform())
 }
 
 export function translateError(message: string, locale = language.value): string {

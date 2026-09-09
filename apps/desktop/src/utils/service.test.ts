@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest'
 import {
   areAllServicesRunning,
   canToggleAllServices,
+  formatPhpServiceTerms,
   hasEnabledSites,
+  phpServiceName,
   shouldStopServicesBeforeStart,
   summarizeProxyConnections
 } from './service'
@@ -23,6 +25,14 @@ function status(states: Partial<AgentStatus> = {}): AgentStatus {
 }
 
 describe('service startup decisions', () => {
+  it('uses the PHP service name implemented by each platform', () => {
+    expect(phpServiceName(true)).toBe('PHP FastCGI')
+    expect(phpServiceName(false)).toBe('PHP-FPM')
+    expect(formatPhpServiceTerms('Start PHP-FPM and check PHP-FPM status', true))
+      .toBe('Start PHP FastCGI and check PHP FastCGI status')
+    expect(formatPhpServiceTerms('Start PHP-FPM', false)).toBe('Start PHP-FPM')
+  })
+
   it('keeps an already running environment intact', () => {
     const running = status({ dns: 'running', nginx: 'running', phpFpm: 'running' })
 

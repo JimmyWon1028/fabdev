@@ -1,8 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { translate, translateError } from './i18n'
 
 describe('translations', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('returns each supported language', () => {
     expect(translate('settings.title', {}, 'en')).toBe('Settings')
     expect(translate('settings.title', {}, 'zh-TW')).toBe('設定')
@@ -12,6 +16,15 @@ describe('translations', () => {
   it('interpolates dynamic values', () => {
     expect(translate('sites.switched', { domain: 'demo.test', version: '8.2' }, 'en'))
       .toBe('demo.test was switched to PHP 8.2')
+  })
+
+  it('uses Windows PHP FastCGI terminology in translated UI text', () => {
+    vi.stubGlobal('navigator', {
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+    })
+
+    expect(translate('dashboard.serviceScope', {}, 'zh-TW')).toContain('PHP FastCGI')
+    expect(translate('dashboard.serviceScope', {}, 'zh-TW')).not.toContain('PHP-FPM')
   })
 
   it('localizes the system ingress error and preserves its ports', () => {

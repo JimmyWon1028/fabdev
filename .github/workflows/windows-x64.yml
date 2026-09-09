@@ -14,6 +14,7 @@ on:
       - "scripts/build-desktop-bundle-assets.mjs"
       - "scripts/generate-app-release-manifest.test.mjs"
       - "scripts/prepare-windows-runtimes.ps1"
+      - "scripts/test-windows-fastcgi-pool.ps1"
       - "Cargo.lock"
       - "Cargo.toml"
       - "package.json"
@@ -73,6 +74,10 @@ jobs:
         run: >-
           ./scripts/prepare-windows-runtimes.ps1
           -ManifestPath resources/runtime-packages/windows-x64-bundled.json
+
+      - name: Test Windows PHP FastCGI worker pool
+        shell: pwsh
+        run: ./scripts/test-windows-fastcgi-pool.ps1
 
       - name: Check Rust workspace
         run: cargo check --workspace --all-targets --target x86_64-pc-windows-msvc

@@ -1,4 +1,6 @@
 import type { Language } from './preferences'
+import { isWindowsPlatform } from './path'
+import { formatPhpServiceTerms } from './service'
 
 export interface OperationManualSection {
   id: string
@@ -426,6 +428,21 @@ export function isHelpShortcut(event: Pick<KeyboardEvent, 'key' | 'altKey' | 'ct
     && !event.shiftKey
 }
 
-export function getOperationManual(language: Language): OperationManual {
-  return manuals[language]
+export function getOperationManual(
+  language: Language,
+  windows = isWindowsPlatform()
+): OperationManual {
+  const manual = manuals[language]
+  if (!windows) {
+    return manual
+  }
+  return {
+    ...manual,
+    sections: manual.sections.map((section) => ({
+      ...section,
+      summary: formatPhpServiceTerms(section.summary, true),
+      steps: section.steps?.map((step) => formatPhpServiceTerms(step, true)),
+      notes: section.notes?.map((note) => formatPhpServiceTerms(note, true))
+    }))
+  }
 }
