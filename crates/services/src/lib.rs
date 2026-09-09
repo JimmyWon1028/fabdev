@@ -3752,6 +3752,7 @@ mod tests {
       php_version: None,
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
 
     generate_configs(
