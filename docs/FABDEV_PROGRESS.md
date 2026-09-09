@@ -1,29 +1,29 @@
 # fabDev 穩定基線與 Roadmap
 
-> 更新日期：2026-09-06
-> 目前階段：[`v0.1.23`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.23) 已發布為 Windows-first Latest Stable，包含 Windows x64 App 與 fabDev Connect；macOS ARM64 尚未補入。此版本納入穩定性修正、既有 UI 整理、ERP PHP 預設與 CI 維護，維持 Agent Protocol `38`。完整穩定性紀錄見 [`STABILITY_CODE_AUDIT_2026-09-05.md`](STABILITY_CODE_AUDIT_2026-09-05.md)。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v3`
+> 更新日期：2026-09-09
+> 目前階段：[`v0.1.23`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.23) 是公開的 Windows-first Latest Stable；後續 Windows FastCGI 效能、每 Site timeout 與 Proxy 預設 timeout 修正已進版為未發布 App `0.1.24`／Agent Protocol `39` 候選。Windows x64 Run [`34326154074`](https://github.com/JimmyWon1028/fabdev/actions/runs/34326154074) 與 Repository Owner 實機 Gate 已通過，目前尚未建立 `v0.1.24` Tag、Draft 或 Publish，也未打包 macOS。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v3`
 
 ## 階段結論
 
-fabDev Desktop Community `v0.1.23` 是目前公開的 Windows-first Latest Stable，以保持功能為前提納入穩定性修正、既有 UI 整理、ERP PHP 預設與 CI 維護；Windows 候選實機 Gate、Windows-first 建置、Publish 與公開下載驗證已完成，macOS 尚未打包或驗收。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
+fabDev Desktop Community `v0.1.23` 是目前公開的 Windows-first Latest Stable。`0.1.24` 候選針對 Windows PHP FastCGI 併發容量、每 Site 上游回應逾時與 Proxy 預設逾時進行小範圍調整；Windows 候選 CI 與實機功能 Gate 已完成，版本化 CI、Tag、Draft 與 Publish 尚未完成。macOS 共用的 Site／Proxy timeout 契約已由程式與測試涵蓋，但本輪不打包 macOS。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
 ## 已完成
 
-- Tauri／Vue Desktop、Rust Agent／CLI、macOS Unix Socket／Windows Named Pipe Protocol 37 與 SQLite Site Registry。
+- Tauri／Vue Desktop、Rust Agent／CLI、macOS Unix Socket／Windows Named Pipe Protocol 39 與 SQLite Site Registry。
 - `v0.1.21` 起 App Release 固定為 App-only；`fabdev` 只放 Installer、fabDev Connect、App Manifest 與 checksum，線上 Runtime Catalog／Package 改由獨立公開儲存庫 `fabdev-runtimes` 管理。
 - Runtime Catalog schema v2 以單調遞增 sequence 管理安裝列表；`catalog-v1` 保存 11 個既有 Package，`catalog-v2` 驗證可只移除 Node.js 20.20.2，`catalog-v3` 再重用原 URL／大小／SHA-256 恢復，兩次列表調整都沒有重新打包 Runtime。
 - macOS App 與 `pnpm dev` 內建 dnsmasq 2.93、Nginx 1.30.4、PHP 7.4.33、PHP 8.2.33；首次啟動只補缺少版本，保留既有開發資料。
 - macOS 與 Windows 在 Site Registry 完全空白時建立唯一的 `demo.test`；Community 首次初始化會把 Site Home 固定在範例專案的父目錄，避免掃描其他本機專案，已有任何 Site 時不新增或覆蓋。
 - `.test` DNS、Nginx、53／80／443 固定 Helper，以及 Start All／Stop All 與 menu bar 狀態。
 - 每 Site HTTPS 啟用／停用、本機 CA 與 SAN 憑證、macOS Login Keychain／Windows Current User Root 信任，以及 HTTP 自動轉址 HTTPS。
-- 多 Site、新增／移除、document root 偵測、每 Site PHP 7.4／8.2／8.4 切換，以及不使用 PHP 的純靜態 Site。
+- 多 Site、新增／移除、document root 偵測、每 Site PHP 7.4／8.2／8.4 切換，以及不使用 PHP 的純靜態 Site；每個 Site 可設定 1～360 秒的上游回應逾時，預設 120 秒並寫入 Nginx `fastcgi_read_timeout`。
 - Site Home 預設為 `~/Sites`；第一層非隱藏資料夾自動成為同名 `.test` Site，並保留原有 linked site。
 - Sites 與 Proxy 主控台支援版本化 JSON 匯出／匯入；Sites 依網域略過重複，Proxy 依 ID、網域或 Listener Port 略過重複。
-- PHP 7.4.33、8.2.33、8.4.24 並行 FPM、全域 PHP、Runtime 安裝／移除與持久 `php.ini`；上傳限制為 64M。
+- PHP 7.4.33、8.2.33、8.4.24 並行服務、全域 PHP、Runtime 安裝／移除與持久 `php.ini`；上傳限制為 64M。Windows PHP-CGI 依 PHP 系列保存 2／4／8 個 FastCGI Worker，預設 4，套用時只重啟對應 pool；macOS 維持既有 PHP-FPM 管理方式。
 - 0.1.19 PHP 設定畫面移除共用的「預設 php.ini」項目；各版本的「ERP 參數」改為依 macOS／Windows 平台及 PHP 7.4／8.2／8.4 載入對應內建預設，新安裝 Runtime 的空白 `php.ini` 也會自動初始化為該版本預設。目前所有版本與 fallback 的 ERP 預設 `memory_limit` 統一為 `256M`。Windows 同時依版本啟用 GD：PHP 7.4 使用 `gd2`，PHP 8.x 使用 `gd`；既有非空白自訂 `php.ini` 不會被覆蓋。
 - PHP 7.4 與 8.2 內建 Runtime 可安全移除；仍保留全域版本與 Site 使用中保護，明確移除後不會在下次啟動自動補回。
 - 左側倒數第二項 Node.js 頁面提供 macOS ARM64／Windows x64 Node.js 20.20.2／24.20.0 並存選裝；預設均未安裝，支援每個版本安裝／更新／移除、明確設為全域及動態 terminal shim，不使用 nvm，也不接管外部 Node.js。
-- 左側 Proxy Manager、Agent／CLI 的新增／移除、全部與單獨啟動／停止；全新安裝的 Proxy 清單為空，使用者設定與啟動狀態保存在 SQLite，所有 Listener 只綁 loopback，Port 衝突與上游故障互相隔離。
+- 左側 Proxy Manager、Agent／CLI 的新增／移除、全部與單獨啟動／停止；全新安裝的 Proxy 清單為空，使用者設定與啟動狀態保存在 SQLite，所有 Listener 只綁 loopback，Port 衝突與上游故障互相隔離。新連線的上游回應逾時預設為 120 秒、上限 360 秒，既有明確保存值保持不變。
 - 設定頁可持久開關「App 開啟時自動啟動服務」；預設開啟，已運行不重啟，部分異常會先清理再啟動。
 - Community DMG 讓 App 內建 DNS、Nginx、PHP 7.4／8.2，並含 Helper、安裝／移除程序與唯一 `demo.test`；PHP 8.4、MariaDB 維持獨立選裝套件。
 - 總覽的 Web 服務控制使用單一狀態按鈕：全部運行時顯示「全部停止」，其他狀態顯示「全部啟動」。
@@ -38,6 +38,8 @@ fabDev Desktop Community `v0.1.23` 是目前公開的 Windows-first Latest Stabl
 
 ## 最近驗證
 
+- 2026-09-09：Repository Owner 明確回報 `0.1.24` Windows 功能候選實機 Gate 通過。受測候選來自 Commit `a292d1e2cdd4320eb723902f8dbd072d2077a2fd` 的 Windows x64 Run [`34326154074`](https://github.com/JimmyWon1028/fabdev/actions/runs/34326154074)，包含每 PHP 系列 2／4／8 個 FastCGI Worker、預設 4、每 Site 120 秒可修改 timeout，以及 Proxy 新連線預設 120 秒 timeout；此回報尚不包含 `v0.1.24` Tag、Draft 或 Publish 授權。
+- 2026-09-09：Repository Owner 明確授權進版與推送 CI；根目錄／Desktop `package.json`、Tauri 設定與 Cargo workspace 四個正式版本來源，以及 `Cargo.lock` 內 13 個 fabDev workspace 套件已同步為 `0.1.24`，Agent Protocol 維持 `39`。本機完整 `pnpm test` 通過 Desktop 91、Release 規則 19、Rust 286、macOS Helper 9 項測試，另有 7 項需外部 Runtime／網路環境的 Rust 測試維持 ignored；Cargo workspace check、`pnpm lint` 與 `git diff --check` 通過。本輪不建立 Tag、Draft 或 Publish，也不打包 macOS 或線上 Runtime Package。
 - 2026-09-06：Repository Owner 明確核准 `v0.1.23` Windows-first Stable Publish。Release ID `383486262` 於 2026-09-06 14:40:11（Asia/Taipei, UTC+8）發布，狀態為 `draft=false`、`prerelease=false`，並成為 Latest Stable；Annotated Tag 與 7 個 Windows App Asset ID／大小／digest 均未改變。未登入公開 Latest Release、Stable Manifest 與 Windows Setup URL 均回傳 HTTP 200；Latest Manifest 已切換為 App `0.1.23`／Agent Protocol `38`，只包含 Windows x64 Installer，讓既有 Windows `0.1.22` 依 SemVer 判斷為有更新。全部 7 個公開 Assets 已重新下載，GitHub digest、50,198,752 bytes 總大小、`SHA256SUMS`、兩份個別 checksum 及 App／Stable Manifest 逐位元一致性全數通過；Setup SHA-256 維持 `3a9489167de68e475a987b89e7905edc4453493526aa26c22b5249ed29dde6ba`，Connect 維持 `e93db811f39a3f5f6cc1d23f5c64f3d8897112b6f2dd7673b78de961be930967`。目前沒有待清理的 Draft Release，macOS ARM64 尚未包含於 `v0.1.23`。
 - 2026-09-06：Repository Owner 明確授權建立 Tag 與 Draft 後，Annotated Tag `v0.1.23` 固定在 Commit `aaf2b35fe9036a2f761aab2a47362b183152be2c`，Tag Object 為 `bd0ee9587336d128256b8385a23a6b2071c84721`。Windows-first Draft workflow [Run `34015771651`](https://github.com/JimmyWon1028/fabdev/actions/runs/34015771651) 的 Request、Windows x64 建置與 Draft Jobs 全數成功，macOS Job 依固定順序 skipped；建立 Release ID `383486262`，狀態維持 `draft=true`、`prerelease=false`、`published_at=null`。Draft 只有 7 個 App-only Assets，共 50,198,752 bytes，未含線上 Runtime Package、Catalog 或 macOS Asset。全部 Assets 已重新下載，GitHub digest、總表與個別 checksum、App／Stable Manifest 逐位元一致性、App `0.1.23`、Protocol `38`、單一 Windows x64 Installer、NSIS 內容及 Desktop／Agent／Helper／Connect x64 架構均通過。Windows Setup 為 49,446,816 bytes、SHA-256 `3a9489167de68e475a987b89e7905edc4453493526aa26c22b5249ed29dde6ba`；Connect 為 749,568 bytes、SHA-256 `e93db811f39a3f5f6cc1d23f5c64f3d8897112b6f2dd7673b78de961be930967`；App／Stable Manifest SHA-256 為 `1b32897a13f61f916563992c5046136c1f0956de6fbe28cbfe3f37c99e44f6df`，`publishedAt` 預留為 `2026-09-06T06:08:50Z`。Release Notes 已更新，更新後重新確認 Tag、Release ID 與 7 個 Asset ID／digest 均未改變；唯一尚未通過的 Draft checklist 是 Repository Owner 的明確 Publish 授權，公開 Latest 仍為 `v0.1.22`。
 - 2026-09-06：Repository Owner 明確回報 Windows `0.1.23` 候選實機 Gate 通過。受測候選來自 Commit `bf35e96` 的 Windows x64 Run [`34014590575`](https://github.com/JimmyWon1028/fabdev/actions/runs/34014590575)，Artifact `fabDev-Community-Windows-x64` 內含 `fabDev_0.1.23_x64-setup.exe`；來源包含穩定性 Commit `75e09cc` 與 ERP PHP 預設 Commit `7987a0e`。此回報完成 Windows 候選 Gate，尚未建立 `v0.1.23` Tag、Windows-first Draft 或 Publish。

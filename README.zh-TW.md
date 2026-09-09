@@ -46,11 +46,11 @@ open target/debug/bundle/macos/fabDev.app
 
 此流程產生供本機測試使用的 ad-hoc 簽署 App；未來的 Signed Distribution 仍須 Developer ID 與 notarization。
 
-### 目前未發布的穩定性工作
+### 目前發布狀態
 
-目前 `main` 工作目錄包含尚未發布的穩定性修正，涵蓋 LAN Share 請求邊界與連線清理、Site 驗證與錯誤回復、Runtime 下載取消與安裝交易、Proxy 生命週期與狀態保存、終端整合寫入，以及 Desktop 請求競態；另包含已確認的側欄狀態、總覽服務範圍、緊湊 Runtime 卡片、PHP Site 使用數量與 Proxy 頂部操作分組。Sites 與 Proxy 的既有清單排版保持不變。
+`v0.1.23` 是目前公開的 Windows-first Latest Stable。現在的 `main` 工作目錄是未發布 App `0.1.24`／Agent Protocol `39` 候選，改善 Windows PHP FastCGI 併發容量、加入可修改的每 Site 上游回應逾時，並將新 Proxy 連線的預設逾時改為 120 秒。既有明確保存的 Proxy timeout 不會被覆蓋，macOS PHP-FPM 的進程管理方式也沒有改變。
 
-完整問題紀錄、相容性說明及驗證邊界見 [`docs/STABILITY_CODE_AUDIT_2026-09-05.md`](docs/STABILITY_CODE_AUDIT_2026-09-05.md)。最近一次完整本機驗證通過 Desktop 88、Release 規則 18、Rust 281、macOS Helper 9 項測試，以及 `pnpm lint` 與 `git diff --check`。Commit `75e09cc` 已合入 `main`，其 push 自動觸發的 Windows x64 workflow 亦通過 MSVC、前端、Rust、NSIS 與 Artifact 步驟。目前程式仍維持 App `0.1.22`／Agent Protocol `38`，尚未在已發布的 `v0.1.22` 之後進版、建立 Tag、Draft 或發布。
+最近一次完整本機驗證通過 Desktop 91、Release 規則 19、Rust 286、macOS Helper 9 項測試、`pnpm lint`、Cargo workspace check 與 `git diff --check`，另有 7 項需外部 Runtime Package 或網路環境的 Rust 測試維持 ignored。進版前的 Windows x64 Run [`34326154074`](https://github.com/JimmyWon1028/fabdev/actions/runs/34326154074) 與 Repository Owner 實機 Gate 已通過。目前尚未建立 `v0.1.24` Tag、Draft 或 Stable Release，本次也不打包 macOS。
 
 ## Unsigned Community Build
 
@@ -64,7 +64,7 @@ pnpm run build:community:macos
 
 Community 安裝程式會驗證 DMG 內的 `SHA256SUMS`，再要求一次管理員權限安裝 `/Applications/fabDev.app` 與固定功能的 LaunchDaemon。更新會保留 Sites、Runtime 與 `php.ini`；移除程序預設保留資料，只有使用者再次確認才會把資料移到垃圾桶。完整操作說明在 [`distribution/macos/community/INSTALL.zh-TW.md`](distribution/macos/community/INSTALL.zh-TW.md)。
 
-App 公開下載使用 [fabdev GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；目前 `v0.1.22` 是 Latest Stable，已提供 Windows x64 App、macOS ARM64 App 與 fabDev Connect。本版先以 Windows-first 發布，再以相同 Tag 與 Commit 補齊 macOS 資產；這只代表發布順序，fabDev 仍是同一個跨平台產品，並非 Windows-only。`v0.1.21` 起 App Release 只提供 App Installer、fabDev Connect、App Manifest 與 SHA-256；Runtime Catalog 與 Package 改由 [fabdev-runtimes Releases](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish、同版平台補齊與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的 App 安裝包並產生 Manifest／Checksum，不會觸發打包或發布，也拒絕 Runtime Package 輸入。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
+App 公開下載使用 [fabdev GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；目前 `v0.1.23` 是 Windows-first Latest Stable，只先提供 Windows x64 App 與 fabDev Connect，尚未加入 macOS ARM64 Asset。這只代表發布順序，fabDev 仍是同一個跨平台產品，並非 Windows-only。`v0.1.21` 起 App Release 只提供 App Installer、fabDev Connect、App Manifest 與 SHA-256；Runtime Catalog 與 Package 改由 [fabdev-runtimes Releases](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish、同版平台補齊與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的 App 安裝包並產生 Manifest／Checksum，不會觸發打包或發布，也拒絕 Runtime Package 輸入。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
 
 公開發布分成兩個互不綁定版本的儲存庫：
 
