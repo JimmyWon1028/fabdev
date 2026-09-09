@@ -21,13 +21,13 @@ macOS Community 發行目前維持既有 Unsigned Community DMG。除非 Reposit
 
 fabDev App Release 與線上 Runtime Distribution 自 `v0.1.21` 起完全分離。`JimmyWon1028/fabdev` 的 App Release 只包含 Windows／macOS App Installer、fabDev Connect、App Manifest 及 checksum；不得加入、重建、複製或上傳線上 PHP、MariaDB、Node.js Runtime Package、Runtime Catalog 或 Runtime `.tar.gz`。選裝 Runtime Package 與 Catalog 只由獨立的 `JimmyWon1028/fabdev-runtimes` 管理，使用自己的 Catalog sequence、最低相容版本與發布生命週期，不跟隨 App SemVer 或 App Tag。一般 App／Agent／Desktop 功能修正及 App 進版不構成 Runtime 重新打包、Catalog 更新或 Runtime Release 授權；只有 Runtime 內容或 Catalog 本身確實變更且 Repository Owner 明確要求時才處理。此分離不改變 App Installer 內既有 bundled Runtime 的產品契約，但 bundled Runtime 內容未變時不得因 App 發布而另外重打選裝 Runtime Package。
 
-## 目前 Windows 0.1.24 候選基線（2026-09-09）
+## 目前 Windows 0.1.24 Draft 基線（2026-09-09）
 
-公開 Latest 維持 Windows-first Stable App `0.1.23`／Agent Protocol `38`，Annotated Tag `v0.1.23` 固定在 Commit `aaf2b35`，Release ID `383486262` 只包含 Windows x64 App 與 fabDev Connect；macOS ARM64 尚未補入。後續 Windows PHP FastCGI 效能修正已由 Commit `58230a9` 起納入 `main`，並在 Commit `a292d1e` 完成每 PHP 系列 2／4／8 Worker 設定、每 Site timeout 與 Proxy 預設 120 秒 timeout。Windows x64 Run `34326154074` 通過，Repository Owner 已明確回報實機 Gate 通過；目前進版為未發布 App `0.1.24`／Agent Protocol `39` 候選，尚未建立 `v0.1.24` Tag、Draft 或 Publish，也未打包 macOS。
+公開 Latest 維持 Windows-first Stable App `0.1.23`／Agent Protocol `38`，Annotated Tag `v0.1.23` 固定在 Commit `aaf2b35`，Release ID `383486262` 只包含 Windows x64 App 與 fabDev Connect；macOS ARM64 尚未補入。後續 Windows PHP FastCGI 效能修正已由 Commit `58230a9` 起納入 `main`，並在 Commit `a292d1e` 完成每 PHP 系列 2／4／8 Worker 設定、每 Site timeout 與 Proxy 預設 120 秒 timeout。Windows x64 Run `34326154074` 通過，Repository Owner 已明確回報實機 Gate 通過；App `0.1.24`／Agent Protocol `39` 已建立 Annotated Tag `v0.1.24` 與 Windows-first Draft Release ID `385364449`，尚未 Publish，也未打包 macOS。
 
 後續修改必須以可重現問題為依據，優先保留現有功能、Agent Protocol、資料格式、服務範圍與操作流程，不做無關重構。Sites 與 Proxy 的既有清單排版已由 Repository Owner 指定保留；Proxy 頂部維持資料操作與服務操作分組，Runtime 卡片維持緊湊一致、PHP 只顯示使用中的 Site 數量，Agent 狀態維持在設定下方。若需要改動這些已確認的 UI，必須先取得 Repository Owner 明確指示。
 
-此候選最近一次完整本機驗證為 Desktop 91、Release 規則 19、Rust 286、macOS Helper 9 項測試通過，另有 7 項需外部環境的 Rust 測試維持 ignored；`pnpm lint`、Cargo workspace check 與 `git diff --check` 通過。Windows 功能候選已完成實機 Gate；進版 Commit `c66423b` 的 Windows x64 Run `34329431684` 亦通過格式、前端、發行契約、FastCGI worker、MSVC workspace、Connect、NSIS 與 Artifact 上傳。目前只完成版本化 CI，不代表已取得 Tag、Draft、重新打包或 Publish 授權。
+此候選最近一次完整本機驗證為 Desktop 91、Release 規則 19、Rust 286、macOS Helper 9 項測試通過，另有 7 項需外部環境的 Rust 測試維持 ignored；`pnpm lint`、Cargo workspace check 與 `git diff --check` 通過。Windows 功能候選已完成實機 Gate；進版 Commit `c66423b` 的 Windows x64 Run `34329431684` 亦通過格式、前端、發行契約、FastCGI worker、MSVC workspace、Connect、NSIS 與 Artifact 上傳。Annotated Tag `v0.1.24` 固定在結果文件 Commit `21bd978`；Draft Run `34330967986` 已從該 Tag 重新建置 Windows x64 Setup 與 Connect，建立 7 個 App-only Assets，macOS Job skipped。Draft Asset 重新下載及 Publish 仍未完成。
 
 ## 架構與設定原則
 
