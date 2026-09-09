@@ -25,6 +25,7 @@ const action = ref<string | null>(null)
 const message = ref('')
 const phpIniSeries = ref<string | null>(null)
 const phpIniContents = ref('')
+const phpFastCgiWorkers = ref(4)
 let mounted = true
 
 const isWindows = isWindowsPlatform()
@@ -316,8 +317,38 @@ async function editPhpIni(runtime: PhpRuntimeInfo) {
   action.value = `ini:${runtime.series}`
   message.value = ''
   try {
-    phpIniContents.value = await store.getPhpIni(runtime.series)
+    const [contents, fastCgiSettings] = await Promise.all([
+      store.getPhpIni(runtime.series),
+      isWindows ? store.getPhpFastCgiSettings(runtime.series) : Promise.resolve(null)
+    ])
+    phpIniContents.value = contents
+    if (fastCgiSettings) {
+      phpFastCgiWorkers.value = fastCgiSettings.workers
+    }
     phpIniSeries.value = runtime.series
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    action.value = null
+  }
+}
+
+async function savePhpFastCgiSettings() {
+  if (!phpIniSeries.value) {
+    return
+  }
+  action.value = `save-fastcgi:${phpIniSeries.value}`
+  message.value = ''
+  try {
+    const settings = await store.savePhpFastCgiSettings(
+      phpIniSeries.value,
+      phpFastCgiWorkers.value
+    )
+    phpFastCgiWorkers.value = settings.workers
+    message.value = t('runtimes.fastCgiSaved', {
+      version: phpIniSeries.value,
+      workers: settings.workers
+    })
   } catch (error) {
     message.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -498,7 +529,7 @@ async function revealPhpIni() {
             :disabled="action !== null"
             @click="editPhpIni(row.runtime)"
           >
-            php.ini
+            {{ isWindows ? t('runtimes.phpSettings') : 'php.ini' }}
           </button>
           <button
             v-if="row.runtime && !row.runtime.active"
@@ -570,7 +601,7 @@ async function revealPhpIni() {
           <p class="eyebrow">
             PHP {{ phpIniSeries }}
           </p>
-          <h2>php.ini</h2>
+          <h2>{{ isWindows ? t('runtimes.phpSettings') : 'php.ini' }}</h2>
         </div>
         <div class="header-actions">
           <button class="secondary-button" :disabled="action !== null" @click="revealPhpIni">
@@ -581,6 +612,32 @@ async function revealPhpIni() {
           </button>
           <button class="secondary-button" :disabled="action !== null" @click="phpIniSeries = null">
             {{ t('runtimes.close') }}
+          </button>
+        </div>
+      </div>
+      <div v-if="isWindows" class="php-fastcgi-settings">
+        <div>
+          <strong>{{ t('runtimes.fastCgiWorkers') }}</strong>
+          <small>{{ t('runtimes.fastCgiWorkersHelp') }}</small>
+        </div>
+        <div class="php-fastcgi-controls">
+          <select
+            v-model.number="phpFastCgiWorkers"
+            :aria-label="t('runtimes.fastCgiWorkers')"
+            :disabled="action !== null"
+          >
+            <option :value="2">2</option>
+            <option :value="4">4</option>
+            <option :value="8">8</option>
+          </select>
+          <button
+            class="primary-button"
+            :disabled="action !== null"
+            @click="savePhpFastCgiSettings"
+          >
+            {{ action?.startsWith('save-fastcgi:')
+              ? t('runtimes.fastCgiApplying')
+              : t('runtimes.fastCgiApply') }}
           </button>
         </div>
       </div>

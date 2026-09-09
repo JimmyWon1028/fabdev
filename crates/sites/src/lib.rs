@@ -79,9 +79,11 @@ pub fn render_nginx_site(config: &NginxSiteConfig) -> Result<String, SiteDriverE
     try_files $uri =404;
     include {fastcgi_params};
     fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+    fastcgi_read_timeout {upstream_response_timeout_seconds}s;
     fastcgi_pass {fastcgi_pass};
   }}
 "#,
+          upstream_response_timeout_seconds = config.site.upstream_response_timeout_seconds,
         ),
         format!(
           r#"
@@ -192,6 +194,7 @@ mod tests {
       php_version: Some(PhpVersion { major: 8, minor: 2 }),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     }
   }
 
@@ -210,6 +213,7 @@ mod tests {
     assert!(output.contains("listen 127.0.0.1:8080;"));
     assert!(output.contains("root \"/tmp/ERP Demo/public\";"));
     assert!(output.contains("fastcgi_pass \"unix:/tmp/fabdev/php82.sock\";"));
+    assert!(output.contains("fastcgi_read_timeout 120s;"));
     assert!(output.contains("include \"/tmp/fabdev/nginx/conf/fastcgi_params\";"));
     assert!(output.contains("location = /__fabdev/php-fpm-status"));
     assert!(output.contains("allow 127.0.0.1;"));

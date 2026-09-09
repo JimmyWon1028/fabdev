@@ -18,7 +18,7 @@ function status(nginx: AgentStatus['nginx']): AgentResponse {
   return {
     type: 'status',
     payload: {
-      protocolVersion: 38, agentVersion: '0.1.22', dns: nginx, nginx,
+      protocolVersion: 39, agentVersion: '0.1.22', dns: nginx, nginx,
       phpFpm: nginx, phpFpmPools: [], mariadb: 'notInstalled'
     }
   }

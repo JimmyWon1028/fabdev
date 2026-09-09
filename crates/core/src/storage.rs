@@ -59,6 +59,7 @@ impl SiteRepository {
         node_version TEXT,
         enabled INTEGER NOT NULL DEFAULT 1,
         secured INTEGER NOT NULL DEFAULT 0,
+        upstream_response_timeout_seconds INTEGER NOT NULL DEFAULT 120,
         source TEXT NOT NULL DEFAULT 'linked'
       );
       CREATE TABLE IF NOT EXISTS app_settings (
@@ -95,6 +96,20 @@ impl SiteRepository {
         [],
       )?;
     }
+    let has_upstream_response_timeout_seconds = {
+      let mut statement = self.connection.prepare("PRAGMA table_info(sites)")?;
+      let columns = statement.query_map([], |row| row.get::<_, String>(1))?;
+      columns
+        .collect::<Result<Vec<_>, _>>()?
+        .iter()
+        .any(|column| column == "upstream_response_timeout_seconds")
+    };
+    if !has_upstream_response_timeout_seconds {
+      self.connection.execute(
+        "ALTER TABLE sites ADD COLUMN upstream_response_timeout_seconds INTEGER NOT NULL DEFAULT 120",
+        [],
+      )?;
+    }
     let has_node_version = {
       let mut statement = self.connection.prepare("PRAGMA table_info(sites)")?;
       let columns = statement.query_map([], |row| row.get::<_, String>(1))?;
@@ -118,8 +133,9 @@ impl SiteRepository {
   fn insert_with_source(&self, site: &Site, source: &str) -> Result<(), StorageError> {
     self.connection.execute(
       "INSERT INTO sites
-         (id, name, domain, project_path, document_root, php_version, enabled, secured, source)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+         (id, name, domain, project_path, document_root, php_version, enabled, secured,
+          upstream_response_timeout_seconds, source)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
       params![
         site.id.to_string(),
         site.name,
@@ -129,6 +145,7 @@ impl SiteRepository {
         serialize_php_version(site.php_version.as_ref()),
         site.enabled,
         site.secured,
+        site.upstream_response_timeout_seconds,
         source,
       ],
     )?;
@@ -137,7 +154,8 @@ impl SiteRepository {
 
   pub fn list(&self) -> Result<Vec<Site>, StorageError> {
     let mut statement = self.connection.prepare(
-      "SELECT id, name, domain, project_path, document_root, php_version, enabled, secured
+      "SELECT id, name, domain, project_path, document_root, php_version, enabled, secured,
+              upstream_response_timeout_seconds
        FROM sites ORDER BY name COLLATE NOCASE",
     )?;
     let rows = statement.query_map([], |row| {
@@ -150,11 +168,22 @@ impl SiteRepository {
         row.get::<_, String>(5)?,
         row.get::<_, bool>(6)?,
         row.get::<_, bool>(7)?,
+        row.get::<_, u16>(8)?,
       ))
     })?;
     rows
       .map(|row| {
-        let (id, name, domain, project_path, document_root, php_version, enabled, secured) = row?;
+        let (
+          id,
+          name,
+          domain,
+          project_path,
+          document_root,
+          php_version,
+          enabled,
+          secured,
+          upstream_response_timeout_seconds,
+        ) = row?;
         let php_version = parse_php_version(&php_version)?;
         Ok(Site {
           id: Uuid::parse_str(&id)?,
@@ -165,6 +194,7 @@ impl SiteRepository {
           php_version,
           enabled,
           secured,
+          upstream_response_timeout_seconds,
         })
       })
       .collect()
@@ -172,7 +202,8 @@ impl SiteRepository {
 
   pub fn list_home_sites(&self) -> Result<Vec<Site>, StorageError> {
     let mut statement = self.connection.prepare(
-      "SELECT id, name, domain, project_path, document_root, php_version, enabled, secured
+      "SELECT id, name, domain, project_path, document_root, php_version, enabled, secured,
+              upstream_response_timeout_seconds
        FROM sites WHERE source = ?1 ORDER BY name COLLATE NOCASE",
     )?;
     let rows = statement.query_map([HOME_SITE_SOURCE], |row| {
@@ -185,11 +216,22 @@ impl SiteRepository {
         row.get::<_, String>(5)?,
         row.get::<_, bool>(6)?,
         row.get::<_, bool>(7)?,
+        row.get::<_, u16>(8)?,
       ))
     })?;
     rows
       .map(|row| {
-        let (id, name, domain, project_path, document_root, php_version, enabled, secured) = row?;
+        let (
+          id,
+          name,
+          domain,
+          project_path,
+          document_root,
+          php_version,
+          enabled,
+          secured,
+          upstream_response_timeout_seconds,
+        ) = row?;
         let php_version = parse_php_version(&php_version)?;
         Ok(Site {
           id: Uuid::parse_str(&id)?,
@@ -200,6 +242,7 @@ impl SiteRepository {
           php_version,
           enabled,
           secured,
+          upstream_response_timeout_seconds,
         })
       })
       .collect()
@@ -211,8 +254,9 @@ impl SiteRepository {
     for site in sites {
       transaction.execute(
         "INSERT INTO sites
-           (id, name, domain, project_path, document_root, php_version, enabled, secured, source)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+           (id, name, domain, project_path, document_root, php_version, enabled, secured,
+            upstream_response_timeout_seconds, source)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![
           site.id.to_string(),
           site.name,
@@ -222,6 +266,7 @@ impl SiteRepository {
           serialize_php_version(site.php_version.as_ref()),
           site.enabled,
           site.secured,
+          site.upstream_response_timeout_seconds,
           HOME_SITE_SOURCE,
         ],
       )?;
@@ -370,13 +415,15 @@ impl SiteRepository {
     };
     self.connection.execute(
       "UPDATE sites
-       SET name = ?1, domain = ?2, project_path = ?3, document_root = ?4
-       WHERE id = ?5",
+       SET name = ?1, domain = ?2, project_path = ?3, document_root = ?4,
+           upstream_response_timeout_seconds = ?5
+       WHERE id = ?6",
       params![
         site.name,
         site.domain,
         site.project_path.to_string_lossy(),
         site.document_root.to_string_lossy(),
+        site.upstream_response_timeout_seconds,
         site.id.to_string(),
       ],
     )?;
@@ -449,9 +496,48 @@ mod tests {
       php_version: Some("8.2".parse().expect("parse version")),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     repository.insert(&site).expect("insert site");
     assert_eq!(repository.list().expect("list sites"), vec![site]);
+  }
+
+  #[test]
+  fn migrates_existing_sites_to_the_default_timeout() {
+    let connection = Connection::open_in_memory().expect("open legacy database");
+    connection
+      .execute_batch(
+        "
+        CREATE TABLE sites (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          domain TEXT NOT NULL UNIQUE,
+          project_path TEXT NOT NULL,
+          document_root TEXT NOT NULL,
+          php_version TEXT NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          secured INTEGER NOT NULL DEFAULT 0,
+          source TEXT NOT NULL DEFAULT 'linked'
+        );
+        CREATE TABLE app_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+        INSERT INTO sites
+          (id, name, domain, project_path, document_root, php_version, enabled, secured, source)
+        VALUES
+          ('11111111-1111-4111-8111-111111111111', 'Legacy', 'legacy.test',
+           '/tmp/legacy', '/tmp/legacy/public', '-', 1, 0, 'linked');
+        ",
+      )
+      .expect("seed legacy Site database");
+    let repository = SiteRepository { connection };
+    repository.migrate().expect("migrate Site database");
+
+    assert_eq!(
+      repository.list().expect("list migrated Sites")[0].upstream_response_timeout_seconds,
+      crate::DEFAULT_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS
+    );
   }
 
   #[test]
@@ -466,6 +552,7 @@ mod tests {
       php_version: Some("8.2".parse().expect("parse version")),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     let retained = Site {
       id: Uuid::new_v4(),
@@ -476,6 +563,7 @@ mod tests {
       php_version: Some("8.2".parse().expect("parse version")),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     repository.insert(&removed).expect("insert removed site");
     repository.insert(&retained).expect("insert retained site");
@@ -494,7 +582,7 @@ mod tests {
   }
 
   #[test]
-  fn updates_site_name_domain_and_paths_without_changing_runtime_state() {
+  fn updates_site_identity_and_timeout_without_changing_runtime_state() {
     let repository = SiteRepository::in_memory().expect("create repository");
     let site = Site {
       id: Uuid::new_v4(),
@@ -505,6 +593,7 @@ mod tests {
       php_version: Some("8.2".parse().expect("parse version")),
       enabled: true,
       secured: true,
+      upstream_response_timeout_seconds: 180,
     };
     repository.insert(&site).expect("insert Site");
     let mut updated = site.clone();
@@ -512,6 +601,7 @@ mod tests {
     updated.domain = "new-erp.test".to_owned();
     updated.project_path = "/tmp/new-erp".into();
     updated.document_root = "/tmp/new-erp/web".into();
+    updated.upstream_response_timeout_seconds = 240;
 
     let (previous, persisted) = repository
       .update_site(&updated)
@@ -535,6 +625,7 @@ mod tests {
       php_version: None,
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     let first = site("first", "first.test");
     let second = site("second", "second.test");
@@ -559,6 +650,7 @@ mod tests {
       php_version: Some("8.2".parse().expect("parse PHP 8.2")),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     repository.insert(&site).expect("insert Site");
 
@@ -593,6 +685,7 @@ mod tests {
       php_version: Some("8.2".parse().expect("parse PHP 8.2")),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     repository.insert(&site).expect("insert Site");
 
@@ -618,6 +711,7 @@ mod tests {
       php_version: None,
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     repository.insert(&site).expect("insert Site");
     assert_eq!(repository.list().expect("list Sites"), vec![site]);
@@ -635,6 +729,7 @@ mod tests {
       php_version: None,
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     repository.insert(&site).expect("insert Site");
     repository
@@ -660,6 +755,7 @@ mod tests {
       php_version: Some("8.2".parse().expect("parse PHP")),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     let home = Site {
       id: Uuid::new_v4(),
@@ -670,6 +766,7 @@ mod tests {
       php_version: Some("8.2".parse().expect("parse PHP")),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     repository.insert(&linked).expect("insert linked Site");
     repository

@@ -256,6 +256,7 @@ async fn main() -> Result<()> {
       project_path: path,
       document_root,
       php_version: Some(php),
+      upstream_response_timeout_seconds: None,
     }),
     Command::RemoveSite { id } => AgentRequest::RemoveSite { site_id: id },
     Command::SetSitePhp { id, php } => AgentRequest::SetSitePhp {
@@ -436,6 +437,7 @@ fn seed_demo(paths: &AppPaths, project_path: &std::path::Path) -> Result<bool> {
     project_path: project_path.to_path_buf(),
     document_root: Some(PathBuf::from("public")),
     php_version: Some("8.2".parse()?),
+    upstream_response_timeout_seconds: None,
   })?;
   repository.insert(&site)?;
   repository.save_site_home(site_home)?;

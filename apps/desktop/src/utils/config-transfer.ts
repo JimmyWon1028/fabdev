@@ -5,10 +5,13 @@ import type {
   SiteInput
 } from '@fabdev/contracts'
 
-const SITE_TRANSFER_VERSION = 1
+const SITE_TRANSFER_VERSION = 2
+const LEGACY_SITE_TRANSFER_VERSION = 1
 const PROXY_TRANSFER_VERSION = 2
 const LEGACY_PROXY_TRANSFER_VERSION = 1
-const DEFAULT_PROXY_TIMEOUT_SECONDS = 60
+const DEFAULT_PROXY_TIMEOUT_SECONDS = 120
+const DEFAULT_SITE_TIMEOUT_SECONDS = 120
+const MAX_SITE_TIMEOUT_SECONDS = 360
 const MAX_PROXY_TIMEOUT_SECONDS = 360
 
 interface SiteTransferEntry extends SiteInput {
@@ -45,6 +48,7 @@ export function serializeSites(sites: Site[]): string {
       projectPath: site.projectPath,
       documentRoot: site.documentRoot,
       phpVersion: site.phpVersion,
+      upstreamResponseTimeoutSeconds: site.upstreamResponseTimeoutSeconds,
       secured: site.secured
     }))
   }
@@ -53,7 +57,11 @@ export function serializeSites(sites: Site[]): string {
 
 export function parseSitesImport(contents: string): SiteTransferEntry[] {
   const document = parseDocument(contents)
-  if (document.format !== 'fabdev-sites' || document.version !== SITE_TRANSFER_VERSION) {
+  if (
+    document.format !== 'fabdev-sites'
+    || (document.version !== LEGACY_SITE_TRANSFER_VERSION
+      && document.version !== SITE_TRANSFER_VERSION)
+  ) {
     throw new Error('Unsupported fabDev Sites import format')
   }
   if (!Array.isArray(document.sites)) {
@@ -165,8 +173,24 @@ function parseSiteEntry(value: unknown, index: number): SiteTransferEntry {
       `Site import entry ${index + 1} documentRoot`
     ),
     phpVersion: nullableString(value.phpVersion, `Site import entry ${index + 1} phpVersion`),
+    upstreamResponseTimeoutSeconds: siteTimeoutSeconds(
+      value.upstreamResponseTimeoutSeconds,
+      index
+    ),
     secured: optionalBoolean(value.secured, false, `Site import entry ${index + 1} secured`)
   }
+}
+
+function siteTimeoutSeconds(value: unknown, index: number): number {
+  if (value === undefined || value === null) {
+    return DEFAULT_SITE_TIMEOUT_SECONDS
+  }
+  if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > MAX_SITE_TIMEOUT_SECONDS) {
+    throw new Error(
+      `Site import entry ${index + 1} upstreamResponseTimeoutSeconds must be an integer between 1 and ${MAX_SITE_TIMEOUT_SECONDS}`
+    )
+  }
+  return value as number
 }
 
 function parseProxyEntry(value: unknown, index: number): ProxyConnectionInput {

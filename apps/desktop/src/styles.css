@@ -2196,6 +2196,37 @@ button:disabled {
   outline: none;
 }
 
+.php-fastcgi-settings {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 14px;
+  background: #f5f8f6;
+  border: 1px solid #dfe5e0;
+  border-radius: 10px;
+}
+
+.php-fastcgi-settings > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.php-fastcgi-settings small {
+  color: #78817c;
+}
+
+.php-fastcgi-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.php-fastcgi-controls select {
+  width: 88px;
+}
+
 .php-ini-editor textarea:focus {
   border-color: #62b888;
   box-shadow: 0 0 0 3px rgb(42 133 92 / 12%);
@@ -2252,6 +2283,12 @@ button:disabled {
   }
 
   .php-ini-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .php-fastcgi-settings,
+  .php-fastcgi-controls {
     align-items: stretch;
     flex-direction: column;
   }

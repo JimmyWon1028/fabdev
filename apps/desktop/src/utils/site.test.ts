@@ -13,7 +13,8 @@ const sites: Site[] = [
     documentRoot: '/Users/dev/Sites/site-one/public',
     phpVersion: '8.2',
     enabled: true,
-    secured: false
+    secured: false,
+    upstreamResponseTimeoutSeconds: 120
   },
   {
     id: 'demo',
@@ -23,7 +24,8 @@ const sites: Site[] = [
     documentRoot: '/Users/dev/Sites/demo/public',
     phpVersion: '7.4',
     enabled: true,
-    secured: false
+    secured: false,
+    upstreamResponseTimeoutSeconds: 120
   },
   {
     id: 'adminer',
@@ -33,7 +35,8 @@ const sites: Site[] = [
     documentRoot: '/Users/dev/tools/adminer',
     phpVersion: null,
     enabled: true,
-    secured: false
+    secured: false,
+    upstreamResponseTimeoutSeconds: 120
   }
 ]
 

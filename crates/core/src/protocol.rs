@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Site, SiteEditInput, SiteInput};
 
-pub const PROTOCOL_VERSION: u16 = 38;
-pub const DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 60;
+pub const PROTOCOL_VERSION: u16 = 39;
+pub const DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 120;
 pub const MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 360;
 
 const fn default_proxy_upstream_response_timeout_seconds() -> u16 {
@@ -85,6 +85,13 @@ pub enum AgentRequest {
   SavePhpIni {
     php_version: crate::PhpVersion,
     contents: String,
+  },
+  GetPhpFastCgiSettings {
+    php_version: crate::PhpVersion,
+  },
+  SavePhpFastCgiSettings {
+    php_version: crate::PhpVersion,
+    workers: u8,
   },
   GetDefaultPhpIni,
   SaveDefaultPhpIni {
@@ -180,6 +187,14 @@ pub enum AgentResponse {
   },
   PhpIniSaved {
     php_version: crate::PhpVersion,
+  },
+  PhpFastCgiSettings {
+    php_version: crate::PhpVersion,
+    workers: u8,
+  },
+  PhpFastCgiSettingsSaved {
+    php_version: crate::PhpVersion,
+    workers: u8,
   },
   DefaultPhpIni {
     contents: String,
@@ -559,6 +574,7 @@ mod tests {
         domain: "erp-demo.test".to_owned(),
         project_path: "/Users/dev/erp-demo".into(),
         document_root: Some("/Users/dev/erp-demo/public".into()),
+        upstream_response_timeout_seconds: Some(120),
       },
     })
     .expect("serialize request");
@@ -573,7 +589,8 @@ mod tests {
             "name": "ERP Demo",
             "domain": "erp-demo.test",
             "projectPath": "/Users/dev/erp-demo",
-            "documentRoot": "/Users/dev/erp-demo/public"
+            "documentRoot": "/Users/dev/erp-demo/public",
+            "upstreamResponseTimeoutSeconds": 120
           }
         }
       })
@@ -605,6 +622,43 @@ mod tests {
       json!({
         "type": "getErpPhpIni",
         "payload": { "phpVersion": "7.4" }
+      })
+    );
+  }
+
+  #[test]
+  fn serializes_windows_php_fastcgi_settings() {
+    let php_version: crate::PhpVersion = "8.4".parse().expect("parse PHP version");
+    assert_eq!(
+      serde_json::to_value(AgentRequest::GetPhpFastCgiSettings {
+        php_version: php_version.clone(),
+      })
+      .expect("serialize FastCGI settings request"),
+      json!({
+        "type": "getPhpFastCgiSettings",
+        "payload": { "phpVersion": "8.4" }
+      })
+    );
+    assert_eq!(
+      serde_json::to_value(AgentRequest::SavePhpFastCgiSettings {
+        php_version: php_version.clone(),
+        workers: 8,
+      })
+      .expect("serialize FastCGI settings save request"),
+      json!({
+        "type": "savePhpFastCgiSettings",
+        "payload": { "phpVersion": "8.4", "workers": 8 }
+      })
+    );
+    assert_eq!(
+      serde_json::to_value(AgentResponse::PhpFastCgiSettingsSaved {
+        php_version,
+        workers: 8,
+      })
+      .expect("serialize FastCGI settings response"),
+      json!({
+        "type": "phpFastCgiSettingsSaved",
+        "payload": { "phpVersion": "8.4", "workers": 8 }
       })
     );
   }
@@ -675,7 +729,7 @@ mod tests {
   }
 
   #[test]
-  fn defaults_legacy_proxy_settings_to_sixty_seconds() {
+  fn defaults_legacy_proxy_settings_to_one_hundred_twenty_seconds() {
     let settings: ProxyConnectionSettings = serde_json::from_value(json!({
       "id": "legacy",
       "name": "LEGACY",

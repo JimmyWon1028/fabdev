@@ -51,7 +51,8 @@ const form = reactive({
   projectPath: '',
   domain: '',
   documentRoot: '',
-  phpVersion: ''
+  phpVersion: '',
+  upstreamResponseTimeoutSeconds: 120
 })
 
 const installedPhpSeries = computed(() => listInstalledPhpSeries(store.phpRuntimes.installed))
@@ -186,6 +187,7 @@ function resetSiteForm() {
   form.domain = ''
   form.documentRoot = ''
   form.phpVersion = globalPhpSeries() ?? installedPhpSeries.value[0] ?? ''
+  form.upstreamResponseTimeoutSeconds = 120
 }
 
 function closeSiteForm() {
@@ -210,6 +212,7 @@ function editSite(site: Site) {
   form.domain = site.domain
   form.documentRoot = formatPathForDisplay(site.documentRoot, isWindows)
   form.phpVersion = site.phpVersion ?? ''
+  form.upstreamResponseTimeoutSeconds = site.upstreamResponseTimeoutSeconds
   showAddForm.value = true
 }
 
@@ -317,7 +320,8 @@ async function importSites() {
         domain: site.domain,
         projectPath: site.projectPath,
         documentRoot: site.documentRoot,
-        phpVersion: site.phpVersion
+        phpVersion: site.phpVersion,
+        upstreamResponseTimeoutSeconds: site.upstreamResponseTimeoutSeconds
       })
       if (site.secured) {
         await store.setSiteHttps(created.id, true)
@@ -342,7 +346,8 @@ async function submit() {
         name: form.name,
         projectPath: form.projectPath,
         domain: form.domain,
-        documentRoot: form.documentRoot || undefined
+        documentRoot: form.documentRoot || undefined,
+        upstreamResponseTimeoutSeconds: form.upstreamResponseTimeoutSeconds
       })
       message.value = t('sites.updated', { name: updated.name, domain: updated.domain })
     } else {
@@ -351,7 +356,8 @@ async function submit() {
         projectPath: form.projectPath,
         domain: form.domain || undefined,
         documentRoot: form.documentRoot || undefined,
-        phpVersion: form.phpVersion || null
+        phpVersion: form.phpVersion || null,
+        upstreamResponseTimeoutSeconds: form.upstreamResponseTimeoutSeconds
       })
       message.value = t('sites.added', { domain: added.domain })
     }
@@ -859,6 +865,17 @@ async function toggleLanShare(site: Site) {
             PHP {{ series }}{{ series === globalPhpSeries() ? t('sites.globalSuffix') : '' }}
           </option>
         </select>
+      </label>
+      <label>
+        {{ t('sites.timeout') }}
+        <input
+          v-model.number="form.upstreamResponseTimeoutSeconds"
+          type="number"
+          min="1"
+          max="360"
+          required
+        />
+        <small>{{ t('sites.timeoutHelp') }}</small>
       </label>
       <p v-if="siteFormMessage" class="modal-message" role="alert">
         {{ siteFormMessage }}

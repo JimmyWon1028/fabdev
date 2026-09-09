@@ -135,7 +135,7 @@ const en = {
   'proxy.target': 'Remote HTTP target',
   'proxy.targetHelp': 'Only absolute http:// targets are supported.',
   'proxy.timeout': 'Upstream response timeout (seconds)',
-  'proxy.timeoutHelp': 'Leave blank or enter 0 to use 60 seconds. Maximum 360 seconds (6 minutes).',
+  'proxy.timeoutHelp': 'Leave blank or enter 0 to use 120 seconds. Maximum 360 seconds (6 minutes).',
   'proxy.timeoutSummary': 'Response timeout: {seconds}s',
   'proxy.allowedOrigins': 'Credential origins',
   'proxy.allowedOriginsPlaceholder': 'One origin per line, for example http://app.test:8100',
@@ -223,6 +223,8 @@ const en = {
   'sites.webRoot': 'Web Root (leave blank to detect automatically)',
   'sites.webRootColumn': 'Web Root',
   'sites.phpRuntime': 'PHP Runtime',
+  'sites.timeout': 'PHP response timeout (seconds)',
+  'sites.timeoutHelp': 'The default is 120 seconds. Maximum 360 seconds (6 minutes).',
   'sites.noRuntime': 'No PHP Runtime installed',
   'sites.globalSuffix': ' (global)',
   'sites.add': 'Add Site',
@@ -361,6 +363,12 @@ const en = {
   'runtimes.cancel': 'Cancel',
   'runtimes.removed': 'PHP {version} was removed',
   'runtimes.iniSaved': 'PHP {version} php.ini was validated and applied',
+  'runtimes.phpSettings': 'PHP settings',
+  'runtimes.fastCgiWorkers': 'FastCGI workers',
+  'runtimes.fastCgiWorkersHelp': 'Windows only. Choose 2, 4, or 8 workers; the matching PHP FastCGI pool restarts when applied.',
+  'runtimes.fastCgiApply': 'Apply workers',
+  'runtimes.fastCgiApplying': 'Applying…',
+  'runtimes.fastCgiSaved': 'PHP {version} FastCGI restarted with {workers} workers',
   'runtimes.revealed': 'Shown in Finder: {path}',
   'runtimes.revealedInExplorer': 'Shown in File Explorer: {path}',
   'node.eyebrow': 'Optional runtime',
@@ -617,14 +625,42 @@ const zhCNProxySearchCopy = {
 
 const zhTWProxyTimeoutCopy = {
   'proxy.timeout': '上游回應逾時（秒）',
-  'proxy.timeoutHelp': '留空或輸入 0 會使用預設 60 秒；最多 360 秒（6 分鐘）。',
+  'proxy.timeoutHelp': '留空或輸入 0 會使用預設 120 秒；最多 360 秒（6 分鐘）。',
   'proxy.timeoutSummary': '回應逾時：{seconds} 秒'
 } satisfies Partial<TranslationTable>
 
 const zhCNProxyTimeoutCopy = {
   'proxy.timeout': '上游响应超时（秒）',
-  'proxy.timeoutHelp': '留空或输入 0 会使用默认 60 秒；最多 360 秒（6 分钟）。',
+  'proxy.timeoutHelp': '留空或输入 0 会使用默认 120 秒；最多 360 秒（6 分钟）。',
   'proxy.timeoutSummary': '响应超时：{seconds} 秒'
+} satisfies Partial<TranslationTable>
+
+const zhTWSiteTimeoutCopy = {
+  'sites.timeout': 'PHP 回應逾時（秒）',
+  'sites.timeoutHelp': '預設 120 秒；最多 360 秒（6 分鐘）。'
+} satisfies Partial<TranslationTable>
+
+const zhTWFastCgiSettingsCopy = {
+  'runtimes.phpSettings': 'PHP 設定',
+  'runtimes.fastCgiWorkers': 'FastCGI Worker 數量',
+  'runtimes.fastCgiWorkersHelp': '僅 Windows 使用；可選 2、4 或 8，套用時會重啟對應 PHP FastCGI pool。',
+  'runtimes.fastCgiApply': '套用 Worker',
+  'runtimes.fastCgiApplying': '套用中…',
+  'runtimes.fastCgiSaved': 'PHP {version} FastCGI 已用 {workers} 個 Worker 重新啟動'
+} satisfies Partial<TranslationTable>
+
+const zhCNSiteTimeoutCopy = {
+  'sites.timeout': 'PHP 响应超时（秒）',
+  'sites.timeoutHelp': '默认 120 秒；最多 360 秒（6 分钟）。'
+} satisfies Partial<TranslationTable>
+
+const zhCNFastCgiSettingsCopy = {
+  'runtimes.phpSettings': 'PHP 设置',
+  'runtimes.fastCgiWorkers': 'FastCGI Worker 数量',
+  'runtimes.fastCgiWorkersHelp': '仅 Windows 使用；可选 2、4 或 8，应用时会重启对应 PHP FastCGI pool。',
+  'runtimes.fastCgiApply': '应用 Worker',
+  'runtimes.fastCgiApplying': '应用中…',
+  'runtimes.fastCgiSaved': 'PHP {version} FastCGI 已使用 {workers} 个 Worker 重新启动'
 } satisfies Partial<TranslationTable>
 
 const zhCNHomeCopy = {
@@ -839,6 +875,8 @@ export const translations: Record<Language, TranslationTable> = {
     ...zhTWBuiltInRuntimeCopy,
     ...zhTWLanShareCopy,
     ...zhTWProxyTimeoutCopy,
+    ...zhTWSiteTimeoutCopy,
+    ...zhTWFastCgiSettingsCopy,
     ...zhTWTerminalPhpCopy,
     ...zhTWWindowsRuntimeCatalogCopy,
     ...zhTWOnlineServiceRuntimeCopy
@@ -852,6 +890,8 @@ export const translations: Record<Language, TranslationTable> = {
     ...zhCNSiteSelectionCopy,
     ...zhCNProxySearchCopy,
     ...zhCNProxyTimeoutCopy,
+    ...zhCNSiteTimeoutCopy,
+    ...zhCNFastCgiSettingsCopy,
     ...zhCNUpdateCopy,
     ...zhCNTerminalPhpCopy,
     ...zhCNWindowsRuntimeCatalogCopy,

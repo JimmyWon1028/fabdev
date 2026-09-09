@@ -1485,6 +1485,7 @@ fn install_bundled_demo(source: &Path, paths: &AppPaths) -> anyhow::Result<()> {
     project_path: project,
     document_root: Some(PathBuf::from("public")),
     php_version: Some(PhpVersion { major: 8, minor: 2 }),
+    upstream_response_timeout_seconds: None,
   })?;
   repository.insert(&site)?;
   Ok(())
@@ -2187,6 +2188,7 @@ mod tests {
       project_path: project,
       document_root: None,
       php_version: None,
+      upstream_response_timeout_seconds: None,
     })
     .expect("create existing Site fixture");
     existing_repository

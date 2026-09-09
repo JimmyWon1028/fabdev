@@ -6,6 +6,13 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+pub const DEFAULT_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 120;
+pub const MAX_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 360;
+
+const fn default_site_upstream_response_timeout_seconds() -> u16 {
+  DEFAULT_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS
+}
+
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PhpVersion {
   pub major: u8,
@@ -65,6 +72,8 @@ pub struct SiteInput {
   pub project_path: PathBuf,
   pub document_root: Option<PathBuf>,
   pub php_version: Option<PhpVersion>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub upstream_response_timeout_seconds: Option<u16>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -74,6 +83,8 @@ pub struct SiteEditInput {
   pub domain: String,
   pub project_path: PathBuf,
   pub document_root: Option<PathBuf>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub upstream_response_timeout_seconds: Option<u16>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -88,6 +99,8 @@ pub struct Site {
   pub enabled: bool,
   #[serde(default)]
   pub secured: bool,
+  #[serde(default = "default_site_upstream_response_timeout_seconds")]
+  pub upstream_response_timeout_seconds: u16,
 }
 
 #[derive(Debug, Error)]
@@ -108,6 +121,8 @@ pub enum SiteError {
   MissingProjectName,
   #[error("Site name cannot be empty")]
   EmptyName,
+  #[error("Site upstream response timeout must be between 1 and {MAX_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS} seconds")]
+  InvalidUpstreamResponseTimeout,
   #[error("unable to resolve project path: {0}")]
   ResolvePath(#[from] std::io::Error),
 }
@@ -153,6 +168,13 @@ pub fn create_site(input: SiteInput) -> Result<Site, SiteError> {
     }
     None => detect_document_root(&project_path),
   };
+  let upstream_response_timeout_seconds = input
+    .upstream_response_timeout_seconds
+    .unwrap_or(DEFAULT_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS);
+  if !(1..=MAX_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS).contains(&upstream_response_timeout_seconds)
+  {
+    return Err(SiteError::InvalidUpstreamResponseTimeout);
+  }
 
   Ok(Site {
     id: Uuid::new_v4(),
@@ -163,6 +185,7 @@ pub fn create_site(input: SiteInput) -> Result<Site, SiteError> {
     php_version: input.php_version,
     enabled: true,
     secured: false,
+    upstream_response_timeout_seconds,
   })
 }
 
@@ -177,6 +200,9 @@ pub fn edit_site(previous: &Site, input: SiteEditInput) -> Result<Site, SiteErro
     project_path: input.project_path,
     document_root: input.document_root,
     php_version: previous.php_version.clone(),
+    upstream_response_timeout_seconds: input
+      .upstream_response_timeout_seconds
+      .or(Some(previous.upstream_response_timeout_seconds)),
   })?;
   updated.id = previous.id;
   updated.enabled = previous.enabled;
@@ -287,6 +313,7 @@ mod tests {
       project_path: root.clone(),
       document_root: None,
       php_version: Some("8.2".parse().expect("parse version")),
+      upstream_response_timeout_seconds: None,
     })
     .expect("create site");
     assert!(site.domain.starts_with("fabdev-site-"));
@@ -314,6 +341,7 @@ mod tests {
       project_path: root.clone(),
       document_root: None,
       php_version: Some("8.2".parse().expect("parse version")),
+      upstream_response_timeout_seconds: Some(180),
     })
     .expect("create Site");
 
@@ -324,6 +352,7 @@ mod tests {
         domain: "NEW.test.".to_owned(),
         project_path: root.clone(),
         document_root: Some(root.join("public")),
+        upstream_response_timeout_seconds: Some(240),
       },
     )
     .expect("edit Site");
@@ -334,6 +363,7 @@ mod tests {
     assert_eq!(updated.php_version, previous.php_version);
     assert_eq!(updated.enabled, previous.enabled);
     assert_eq!(updated.secured, previous.secured);
+    assert_eq!(updated.upstream_response_timeout_seconds, 240);
     assert!(matches!(
       edit_site(
         &previous,
@@ -342,10 +372,31 @@ mod tests {
           domain: "new.test".to_owned(),
           project_path: root.clone(),
           document_root: Some(root.join("public")),
+          upstream_response_timeout_seconds: None,
         }
       ),
       Err(SiteError::EmptyName)
     ));
+    std::fs::remove_dir_all(root).expect("remove test project");
+  }
+
+  #[test]
+  fn validates_site_upstream_response_timeout() {
+    let root = temp_project();
+    for timeout in [0, MAX_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS + 1] {
+      let result = create_site(SiteInput {
+        name: None,
+        domain: None,
+        project_path: root.clone(),
+        document_root: None,
+        php_version: None,
+        upstream_response_timeout_seconds: Some(timeout),
+      });
+      assert!(matches!(
+        result,
+        Err(SiteError::InvalidUpstreamResponseTimeout)
+      ));
+    }
     std::fs::remove_dir_all(root).expect("remove test project");
   }
 
@@ -367,6 +418,7 @@ mod tests {
         project_path: root.clone(),
         document_root: Some(document_root),
         php_version: None,
+        upstream_response_timeout_seconds: None,
       });
       assert!(result.is_err(), "a document root must be a directory");
     }

@@ -6,6 +6,7 @@ import {
   type MariaDbConfig,
   type MariaDbSettings,
   type NodeRuntimeState,
+  type PhpFastCgiSettings,
   type PhpRuntimeState,
   type ProxyConnectionInput,
   type ProxyManagerState,
@@ -542,6 +543,35 @@ export const useAppStore = defineStore('fabdev', {
         payload: { phpVersion, contents }
       })
       if (response.type === 'phpIniSaved') {
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async getPhpFastCgiSettings(phpVersion: string): Promise<PhpFastCgiSettings> {
+      const response = await sendRequest({
+        type: 'getPhpFastCgiSettings',
+        payload: { phpVersion }
+      })
+      if (response.type === 'phpFastCgiSettings') {
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async savePhpFastCgiSettings(
+      phpVersion: string,
+      workers: number
+    ): Promise<PhpFastCgiSettings> {
+      const response = await sendRequest({
+        type: 'savePhpFastCgiSettings',
+        payload: { phpVersion, workers }
+      })
+      if (response.type === 'phpFastCgiSettingsSaved') {
         return response.payload
       }
       if (response.type === 'error') {

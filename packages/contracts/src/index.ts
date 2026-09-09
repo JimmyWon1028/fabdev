@@ -1,4 +1,4 @@
-export const protocolVersion = 38
+export const protocolVersion = 39
 
 export type ServiceState =
   | 'notInstalled'
@@ -40,6 +40,7 @@ export interface Site {
   phpVersion: string | null
   enabled: boolean
   secured: boolean
+  upstreamResponseTimeoutSeconds: number
 }
 
 export interface SiteInput {
@@ -48,6 +49,7 @@ export interface SiteInput {
   projectPath: string
   documentRoot?: string
   phpVersion: string | null
+  upstreamResponseTimeoutSeconds?: number
 }
 
 export interface SiteEditInput {
@@ -55,6 +57,7 @@ export interface SiteEditInput {
   domain: string
   projectPath: string
   documentRoot?: string
+  upstreamResponseTimeoutSeconds?: number
 }
 
 export interface SiteHomeSettings {
@@ -84,6 +87,11 @@ export interface PhpRuntimeInfo {
 export interface PhpRuntimeState {
   globalVersion: string | null
   installed: PhpRuntimeInfo[]
+}
+
+export interface PhpFastCgiSettings {
+  phpVersion: string
+  workers: number
 }
 
 export interface TerminalPhpState {
@@ -241,6 +249,8 @@ export type AgentRequest =
   | { type: 'removePhpRuntime'; payload: { version: string } }
   | { type: 'getPhpIni'; payload: { phpVersion: string } }
   | { type: 'savePhpIni'; payload: { phpVersion: string; contents: string } }
+  | { type: 'getPhpFastCgiSettings'; payload: { phpVersion: string } }
+  | { type: 'savePhpFastCgiSettings'; payload: { phpVersion: string; workers: number } }
   | { type: 'getDefaultPhpIni' }
   | { type: 'saveDefaultPhpIni'; payload: { contents: string } }
   | { type: 'getErpPhpIni'; payload: { phpVersion: string | null } }
@@ -305,6 +315,8 @@ export type AgentResponse =
   | { type: 'phpRuntimeRemoved'; payload: PhpRuntimeState }
   | { type: 'phpIni'; payload: { phpVersion: string; contents: string } }
   | { type: 'phpIniSaved'; payload: { phpVersion: string } }
+  | { type: 'phpFastCgiSettings'; payload: PhpFastCgiSettings }
+  | { type: 'phpFastCgiSettingsSaved'; payload: PhpFastCgiSettings }
   | { type: 'defaultPhpIni'; payload: { contents: string } }
   | { type: 'defaultPhpIniSaved' }
   | { type: 'erpPhpIni'; payload: { phpVersion: string | null; contents: string } }

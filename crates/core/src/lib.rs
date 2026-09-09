@@ -16,6 +16,7 @@ pub use protocol::{
 };
 pub use site::{
   create_site, default_site_domain, detect_document_root, edit_site, normalize_domain, PhpVersion,
-  Site, SiteEditInput, SiteInput,
+  Site, SiteEditInput, SiteInput, DEFAULT_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
+  MAX_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
 };
 pub use storage::SiteRepository;

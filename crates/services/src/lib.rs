@@ -33,7 +33,9 @@ const MARIADB_CUSTOM_CONFIG_TEMPLATE: &str = "[mariadbd]\n\n";
 const MARIADB_CONFIG_MAX_BYTES: usize = 512 * 1024;
 const PHP_FPM_STATUS_PATH: &str = "/__fabdev/php-fpm-status";
 #[cfg(any(windows, test))]
-const WINDOWS_PHP_FASTCGI_CHILDREN: &str = "4";
+const DEFAULT_WINDOWS_PHP_FASTCGI_WORKERS: u8 = 4;
+#[cfg(any(windows, test))]
+const WINDOWS_PHP_FASTCGI_WORKER_OPTIONS: &[u8] = &[2, 4, 8];
 #[cfg(any(windows, test))]
 const WINDOWS_PHP_FASTCGI_MAX_REQUESTS: &str = "500";
 const MANAGED_LOG_MAX_BYTES: u64 = 20 * 1024 * 1024;
@@ -150,6 +152,15 @@ pub struct GeneratedPhpConfig {
   pub php_ini: PathBuf,
   pub php_socket: PathBuf,
   pub fastcgi_endpoint: FastCgiEndpoint,
+  #[cfg(any(windows, test))]
+  pub windows_fastcgi_workers: u8,
+}
+
+#[cfg(any(windows, test))]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WindowsPhpFastCgiSettings {
+  workers: u8,
 }
 
 #[derive(Clone, Debug)]
@@ -1152,6 +1163,17 @@ impl ServiceSupervisor {
       .with_context(|| format!("unable to read PHP {} configuration", config.version))
   }
 
+  #[cfg(any(windows, test))]
+  pub fn read_php_fastcgi_settings(&self, version: &PhpVersion) -> Result<u8> {
+    self.runtimes.resolve_php(version)?;
+    load_windows_php_fastcgi_workers(&self.paths, version)
+  }
+
+  #[cfg(not(any(windows, test)))]
+  pub fn read_php_fastcgi_settings(&self, _version: &PhpVersion) -> Result<u8> {
+    bail!("PHP FastCGI settings are only available on Windows")
+  }
+
   pub fn read_default_php_ini(&self) -> Result<String> {
     let path = ensure_default_php_ini_template(&self.paths, &self.runtimes)?;
     std::fs::read_to_string(&path).with_context(|| {
@@ -1263,6 +1285,49 @@ impl ServiceSupervisor {
       }
     }
     Ok(())
+  }
+
+  #[cfg(any(windows, test))]
+  pub async fn save_php_fastcgi_settings(
+    &mut self,
+    version: &PhpVersion,
+    workers: u8,
+  ) -> Result<()> {
+    validate_windows_php_fastcgi_workers(workers)?;
+    generate_php_config(&self.paths, &self.runtimes, version)?;
+    let settings_path = windows_php_fastcgi_settings_path(&self.paths, version);
+    let previous = std::fs::read(&settings_path).ok();
+    save_windows_php_fastcgi_settings(&self.paths, version, workers)?;
+    let config = match generate_php_config(&self.paths, &self.runtimes, version) {
+      Ok(config) => config,
+      Err(error) => {
+        restore_optional_file(&settings_path, previous.as_deref())?;
+        return Err(error.context("unable to apply PHP FastCGI worker count"));
+      }
+    };
+
+    if self.expected_php_versions.contains(version) {
+      if let Err(error) = self.stop_php_version(version).await {
+        restore_optional_file(&settings_path, previous.as_deref())?;
+        return Err(error.context("unable to stop PHP FastCGI before applying worker count"));
+      }
+      if let Err(error) = self.ensure_php_version_running(&config).await {
+        restore_optional_file(&settings_path, previous.as_deref())?;
+        let restored_config = generate_php_config(&self.paths, &self.runtimes, version)?;
+        let _ = self.ensure_php_version_running(&restored_config).await;
+        return Err(error.context("unable to restart PHP FastCGI with updated worker count"));
+      }
+    }
+    Ok(())
+  }
+
+  #[cfg(not(any(windows, test)))]
+  pub async fn save_php_fastcgi_settings(
+    &mut self,
+    _version: &PhpVersion,
+    _workers: u8,
+  ) -> Result<()> {
+    bail!("PHP FastCGI settings are only available on Windows")
   }
 
   fn nginx_running(&mut self) -> bool {
@@ -2134,6 +2199,8 @@ fn generate_php_config(
     php_ini,
     php_socket: php_service.join("php-fpm.sock"),
     fastcgi_endpoint: php_fastcgi_endpoint(paths, version),
+    #[cfg(any(windows, test))]
+    windows_fastcgi_workers: load_windows_php_fastcgi_workers(paths, version)?,
   })
 }
 
@@ -2256,6 +2323,78 @@ fn managed_php_ini_path(paths: &AppPaths, version: &PhpVersion) -> PathBuf {
     .join("php")
     .join(version.to_string())
     .join("php.ini")
+}
+
+#[cfg(any(windows, test))]
+fn windows_php_fastcgi_settings_path(paths: &AppPaths, version: &PhpVersion) -> PathBuf {
+  paths
+    .config
+    .join("php")
+    .join(version.to_string())
+    .join("fastcgi.json")
+}
+
+#[cfg(any(windows, test))]
+fn validate_windows_php_fastcgi_workers(workers: u8) -> Result<()> {
+  if !WINDOWS_PHP_FASTCGI_WORKER_OPTIONS.contains(&workers) {
+    bail!("PHP FastCGI workers must be 2, 4, or 8");
+  }
+  Ok(())
+}
+
+#[cfg(any(windows, test))]
+fn load_windows_php_fastcgi_workers(paths: &AppPaths, version: &PhpVersion) -> Result<u8> {
+  let path = windows_php_fastcgi_settings_path(paths, version);
+  if !path.exists() {
+    return Ok(DEFAULT_WINDOWS_PHP_FASTCGI_WORKERS);
+  }
+  let settings: WindowsPhpFastCgiSettings = serde_json::from_slice(&std::fs::read(&path)?)
+    .with_context(|| format!("unable to read PHP FastCGI settings: {}", path.display()))?;
+  validate_windows_php_fastcgi_workers(settings.workers)?;
+  Ok(settings.workers)
+}
+
+#[cfg(any(windows, test))]
+fn save_windows_php_fastcgi_settings(
+  paths: &AppPaths,
+  version: &PhpVersion,
+  workers: u8,
+) -> Result<()> {
+  validate_windows_php_fastcgi_workers(workers)?;
+  let path = windows_php_fastcgi_settings_path(paths, version);
+  let parent = path
+    .parent()
+    .context("PHP FastCGI settings path does not have a parent")?;
+  std::fs::create_dir_all(parent)?;
+  let pending = parent.join(".fastcgi.json.pending");
+  let mut contents = serde_json::to_vec_pretty(&WindowsPhpFastCgiSettings { workers })?;
+  contents.push(b'\n');
+  std::fs::write(&pending, contents).with_context(|| {
+    format!(
+      "unable to write PHP FastCGI settings: {}",
+      pending.display()
+    )
+  })?;
+  #[cfg(windows)]
+  if path.is_file() {
+    std::fs::remove_file(&path)
+      .with_context(|| format!("unable to replace PHP FastCGI settings: {}", path.display()))?;
+  }
+  std::fs::rename(&pending, &path).with_context(|| {
+    format!(
+      "unable to activate PHP FastCGI settings: {}",
+      path.display()
+    )
+  })
+}
+
+#[cfg(any(windows, test))]
+fn restore_optional_file(path: &Path, contents: Option<&[u8]>) -> Result<()> {
+  match contents {
+    Some(contents) => std::fs::write(path, contents)?,
+    None => remove_file_if_exists(path)?,
+  }
+  Ok(())
 }
 
 fn default_php_ini_path(paths: &AppPaths) -> PathBuf {
@@ -2542,7 +2681,7 @@ fn spawn_php_fpm(config: &GeneratedPhpConfig, logs: &Path) -> Result<Child> {
       .stdout(Stdio::from(stdout))
       .stderr(Stdio::from(stderr))
       .kill_on_drop(false);
-    for (name, value) in windows_php_fastcgi_environment() {
+    for (name, value) in windows_php_fastcgi_environment(config.windows_fastcgi_workers) {
       command.env(name, value);
     }
     return command
@@ -2566,10 +2705,13 @@ fn spawn_php_fpm(config: &GeneratedPhpConfig, logs: &Path) -> Result<Child> {
 }
 
 #[cfg(any(windows, test))]
-fn windows_php_fastcgi_environment() -> [(&'static str, &'static str); 2] {
+fn windows_php_fastcgi_environment(workers: u8) -> [(&'static str, String); 2] {
   [
-    ("PHP_FCGI_CHILDREN", WINDOWS_PHP_FASTCGI_CHILDREN),
-    ("PHP_FCGI_MAX_REQUESTS", WINDOWS_PHP_FASTCGI_MAX_REQUESTS),
+    ("PHP_FCGI_CHILDREN", workers.to_string()),
+    (
+      "PHP_FCGI_MAX_REQUESTS",
+      WINDOWS_PHP_FASTCGI_MAX_REQUESTS.to_owned(),
+    ),
   ]
 }
 
@@ -3528,9 +3670,37 @@ mod tests {
   #[test]
   fn configures_the_windows_php_fastcgi_worker_pool() {
     assert_eq!(
-      windows_php_fastcgi_environment(),
-      [("PHP_FCGI_CHILDREN", "4"), ("PHP_FCGI_MAX_REQUESTS", "500"),]
+      windows_php_fastcgi_environment(8),
+      [
+        ("PHP_FCGI_CHILDREN", "8".to_owned()),
+        ("PHP_FCGI_MAX_REQUESTS", "500".to_owned()),
+      ]
     );
+  }
+
+  #[test]
+  fn persists_windows_php_fastcgi_workers_per_php_series() {
+    let root = std::env::temp_dir().join(format!("fabdev-fastcgi-settings-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(&root);
+    let php82: PhpVersion = "8.2".parse().expect("parse PHP version");
+    let php84: PhpVersion = "8.4".parse().expect("parse PHP version");
+
+    assert_eq!(
+      load_windows_php_fastcgi_workers(&paths, &php82).expect("load default workers"),
+      4
+    );
+    save_windows_php_fastcgi_settings(&paths, &php82, 8).expect("save workers");
+    assert_eq!(
+      load_windows_php_fastcgi_workers(&paths, &php82).expect("load saved workers"),
+      8
+    );
+    assert_eq!(
+      load_windows_php_fastcgi_workers(&paths, &php84).expect("load other PHP workers"),
+      4
+    );
+    assert!(save_windows_php_fastcgi_settings(&paths, &php82, 16).is_err());
+
+    std::fs::remove_dir_all(root).expect("remove fixture");
   }
 
   #[test]
@@ -4642,6 +4812,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       php_version: Some(PhpVersion { major: 7, minor: 4 }),
       enabled: true,
       secured: true,
+      upstream_response_timeout_seconds: 180,
     };
     let second_site = Site {
       id: Uuid::new_v4(),
@@ -4652,6 +4823,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       php_version: Some(PhpVersion { major: 8, minor: 2 }),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
 
     let generated = generate_configs(
@@ -5032,6 +5204,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       php_version: None,
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
 
     let generated = generate_configs(
@@ -5151,6 +5324,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       php_version: None,
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     let new_site = Site {
       id: old_site.id,
@@ -5161,6 +5335,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       php_version: None,
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     std::fs::write(paths.sites.join("old-site.test.conf"), "old config")
       .expect("write old Site config");
@@ -5212,6 +5387,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       php_version: Some(PhpVersion { major: 8, minor: 2 }),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 180,
     };
     let runtimes = RuntimePaths {
       dnsmasq: root.join("runtimes/dnsmasq"),
@@ -5240,6 +5416,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       std::fs::read_to_string(paths.sites.join("site-one.test.conf")).expect("read Site config");
     assert!(config.contains("server_name site-one.test;"));
     assert!(config.contains("listen 127.0.0.1:8080;"));
+    assert!(config.contains("fastcgi_read_timeout 180s;"));
     let managed_php_ini = paths.config.join("php/8.2/php.ini");
     assert!(managed_php_ini.is_file());
     std::fs::write(&managed_php_ini, "[PHP]\nmemory_limit = 256M\n")
@@ -5273,6 +5450,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       php_version: None,
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     let updated = Site {
       name: "New ERP".to_owned(),
@@ -5329,6 +5507,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       php_version: Some(PhpVersion { major: 8, minor: 2 }),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     let mut updated = previous.clone();
     updated.php_version = Some(PhpVersion { major: 7, minor: 4 });
@@ -5390,6 +5569,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       php_version: Some(PhpVersion { major: 8, minor: 2 }),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     let mut updated = previous.clone();
     updated.php_version = None;
@@ -5442,6 +5622,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       php_version: None,
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     let mut supervisor = ServiceSupervisor::new(
       paths.clone(),
@@ -5504,6 +5685,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       php_version: Some(PhpVersion { major: 8, minor: 2 }),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
     let site_config = paths.sites.join("erp-demo.test.conf");
     std::fs::write(&site_config, "server {}").expect("write site config");

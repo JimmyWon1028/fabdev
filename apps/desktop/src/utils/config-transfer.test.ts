@@ -19,7 +19,8 @@ const site: Site = {
   documentRoot: '/Users/dev/Sites/erp/public',
   phpVersion: '8.2',
   enabled: true,
-  secured: true
+  secured: true,
+  upstreamResponseTimeoutSeconds: 180
 }
 
 const connection: ProxyConnectionInfo = {
@@ -46,6 +47,7 @@ describe('Sites configuration transfer', () => {
       projectPath: '/Users/dev/Sites/erp',
       documentRoot: '/Users/dev/Sites/erp/public',
       phpVersion: '8.2',
+      upstreamResponseTimeoutSeconds: 180,
       secured: true
     }])
   })
@@ -65,6 +67,9 @@ describe('Sites configuration transfer', () => {
       }]
     })
 
+    expect(parseSitesImport(legacy)[0]).toMatchObject({
+      upstreamResponseTimeoutSeconds: 120
+    })
     expect(parseSitesImport(legacy)[0]).not.toHaveProperty('nodeVersion')
   })
 
@@ -95,7 +100,7 @@ describe('Proxy configuration transfer', () => {
     }])
   })
 
-  it('uses 60 seconds for legacy, missing, or zero Proxy timeouts', () => {
+  it('uses 120 seconds for legacy, missing, or zero Proxy timeouts', () => {
     const legacy = JSON.stringify({
       format: 'fabdev-proxy',
       version: 1,
@@ -120,8 +125,8 @@ describe('Proxy configuration transfer', () => {
       }]
     })
 
-    expect(parseProxyImport(legacy)[0].upstreamResponseTimeoutSeconds).toBe(60)
-    expect(parseProxyImport(zero)[0].upstreamResponseTimeoutSeconds).toBe(60)
+    expect(parseProxyImport(legacy)[0].upstreamResponseTimeoutSeconds).toBe(120)
+    expect(parseProxyImport(zero)[0].upstreamResponseTimeoutSeconds).toBe(120)
   })
 
   it('rejects Proxy timeouts above 360 seconds', () => {

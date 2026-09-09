@@ -1441,6 +1441,44 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
         },
       }
     }
+    AgentRequest::GetPhpFastCgiSettings { php_version } => {
+      match state
+        .services
+        .lock()
+        .await
+        .read_php_fastcgi_settings(&php_version)
+      {
+        Ok(workers) => AgentResponse::PhpFastCgiSettings {
+          php_version,
+          workers,
+        },
+        Err(error) => AgentResponse::Error {
+          code: "php_fastcgi_settings_read_failed".to_owned(),
+          message: error.to_string(),
+        },
+      }
+    }
+    AgentRequest::SavePhpFastCgiSettings {
+      php_version,
+      workers,
+    } => {
+      match state
+        .services
+        .lock()
+        .await
+        .save_php_fastcgi_settings(&php_version, workers)
+        .await
+      {
+        Ok(()) => AgentResponse::PhpFastCgiSettingsSaved {
+          php_version,
+          workers,
+        },
+        Err(error) => AgentResponse::Error {
+          code: "php_fastcgi_settings_save_failed".to_owned(),
+          message: error.to_string(),
+        },
+      }
+    }
     AgentRequest::GetDefaultPhpIni => match state.services.lock().await.read_default_php_ini() {
       Ok(contents) => AgentResponse::DefaultPhpIni { contents },
       Err(error) => AgentResponse::Error {
@@ -3123,6 +3161,7 @@ fn discover_home_sites(
       project_path,
       document_root: None,
       php_version: default_php.clone(),
+      upstream_response_timeout_seconds: None,
     })
     .with_context(|| format!("unable to create Home Site from {}", entry_path.display()))?;
     if reserved_domains.contains(&site.domain) {
@@ -3136,6 +3175,7 @@ fn discover_home_sites(
       site.php_version = existing.php_version.clone();
       site.enabled = existing.enabled;
       site.secured = existing.secured;
+      site.upstream_response_timeout_seconds = existing.upstream_response_timeout_seconds;
     }
     reserved_domains.insert(site.domain.clone());
     sites.push(site);
@@ -3470,6 +3510,7 @@ mod tests {
         project_path: project.clone(),
         document_root: None,
         php_version: None,
+        upstream_response_timeout_seconds: None,
       }),
     )
     .await;
@@ -3490,6 +3531,7 @@ mod tests {
           domain: "edited-fixture.test".to_owned(),
           project_path: project,
           document_root: None,
+          upstream_response_timeout_seconds: Some(180),
         },
       },
     )
@@ -3498,6 +3540,7 @@ mod tests {
       panic!("Site edit failed: {edited:?}");
     };
     assert_eq!(updated.id, site.id);
+    assert_eq!(updated.upstream_response_timeout_seconds, 180);
     assert!(!original_config.exists());
     let config = paths.sites.join("edited-fixture.test.conf");
     let before = std::fs::read(&config).unwrap();
@@ -3551,6 +3594,7 @@ mod tests {
         project_path: project.clone(),
         document_root: None,
         php_version: None,
+        upstream_response_timeout_seconds: None,
       })
       .unwrap();
       let mut other = site.clone();
@@ -3600,6 +3644,7 @@ mod tests {
           project_path: project.clone(),
           document_root: None,
           php_version: None,
+          upstream_response_timeout_seconds: None,
         }),
         "edit" => AgentRequest::UpdateSite {
           site_id: site.id,
@@ -3608,6 +3653,7 @@ mod tests {
             domain: site.domain.clone(),
             project_path: project,
             document_root: None,
+            upstream_response_timeout_seconds: None,
           },
         },
         "remove" => AgentRequest::RemoveSite { site_id: site.id },
@@ -3659,6 +3705,7 @@ mod tests {
       project_path: project,
       document_root: None,
       php_version: None,
+      upstream_response_timeout_seconds: None,
     })
     .unwrap();
     let repository = SiteRepository::in_memory().unwrap();
@@ -4657,6 +4704,7 @@ mod tests {
       php_version: None,
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
 
     state.update_site(&site).await.expect("update shared Site");
@@ -4685,6 +4733,7 @@ mod tests {
       php_version: Some(PhpVersion { major: 8, minor: 2 }),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     }];
 
     let state = build_php_runtime_state(&root, &sites).expect("build Runtime state");
@@ -5341,6 +5390,7 @@ mod tests {
       project_path: home.join("site1"),
       document_root: None,
       php_version: Some("7.4".parse().expect("parse PHP")),
+      upstream_response_timeout_seconds: None,
     })
     .expect("create existing Home Site");
     let linked = Site {
@@ -5352,6 +5402,7 @@ mod tests {
       php_version: Some("8.2".parse().expect("parse PHP")),
       enabled: true,
       secured: false,
+      upstream_response_timeout_seconds: 120,
     };
 
     let sites = discover_home_sites(

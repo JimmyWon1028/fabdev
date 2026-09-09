@@ -729,7 +729,7 @@ async function openConnection(connection: ProxyConnectionInfo) {
             min="0"
             max="360"
             step="1"
-            placeholder="60"
+            placeholder="120"
           >
           <small>{{ t('proxy.timeoutHelp') }}</small>
         </label>
