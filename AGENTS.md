@@ -27,7 +27,7 @@ fabDev App Release 與線上 Runtime Distribution 自 `v0.1.21` 起完全分離�
 
 後續修改必須以可重現問題為依據，優先保留現有功能、Agent Protocol、資料格式、服務範圍與操作流程，不做無關重構。Sites 與 Proxy 的既有清單排版已由 Repository Owner 指定保留；Proxy 頂部維持資料操作與服務操作分組，Runtime 卡片維持緊湊一致、PHP 只顯示使用中的 Site 數量，Agent 狀態維持在設定下方。若需要改動這些已確認的 UI，必須先取得 Repository Owner 明確指示。
 
-此候選最近一次完整本機驗證為 Desktop 91、Release 規則 19、Rust 286、macOS Helper 9 項測試通過，另有 7 項需外部環境的 Rust 測試維持 ignored；`pnpm lint`、Cargo workspace check 與 `git diff --check` 通過。Windows 功能候選已完成實機 Gate，但版本化 Windows CI 尚待本次進版 Push 驗證；自動測試不得描述為安裝、更新或發布驗收。
+此候選最近一次完整本機驗證為 Desktop 91、Release 規則 19、Rust 286、macOS Helper 9 項測試通過，另有 7 項需外部環境的 Rust 測試維持 ignored；`pnpm lint`、Cargo workspace check 與 `git diff --check` 通過。Windows 功能候選已完成實機 Gate；進版 Commit `c66423b` 的 Windows x64 Run `34329431684` 亦通過格式、前端、發行契約、FastCGI worker、MSVC workspace、Connect、NSIS 與 Artifact 上傳。目前只完成版本化 CI，不代表已取得 Tag、Draft、重新打包或 Publish 授權。
 
 ## 架構與設定原則
 

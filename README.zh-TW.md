@@ -50,7 +50,7 @@ open target/debug/bundle/macos/fabDev.app
 
 `v0.1.23` 是目前公開的 Windows-first Latest Stable。現在的 `main` 工作目錄是未發布 App `0.1.24`／Agent Protocol `39` 候選，改善 Windows PHP FastCGI 併發容量、加入可修改的每 Site 上游回應逾時，並將新 Proxy 連線的預設逾時改為 120 秒。既有明確保存的 Proxy timeout 不會被覆蓋，macOS PHP-FPM 的進程管理方式也沒有改變。
 
-最近一次完整本機驗證通過 Desktop 91、Release 規則 19、Rust 286、macOS Helper 9 項測試、`pnpm lint`、Cargo workspace check 與 `git diff --check`，另有 7 項需外部 Runtime Package 或網路環境的 Rust 測試維持 ignored。進版前的 Windows x64 Run [`34326154074`](https://github.com/JimmyWon1028/fabdev/actions/runs/34326154074) 與 Repository Owner 實機 Gate 已通過。目前尚未建立 `v0.1.24` Tag、Draft 或 Stable Release，本次也不打包 macOS。
+最近一次完整本機驗證通過 Desktop 91、Release 規則 19、Rust 286、macOS Helper 9 項測試、`pnpm lint`、Cargo workspace check 與 `git diff --check`，另有 7 項需外部 Runtime Package 或網路環境的 Rust 測試維持 ignored。進版前的 Windows x64 Run [`34326154074`](https://github.com/JimmyWon1028/fabdev/actions/runs/34326154074) 與 Repository Owner 實機 Gate 已通過，進版 Commit `c66423b` 的 Run [`34329431684`](https://github.com/JimmyWon1028/fabdev/actions/runs/34329431684) 亦成功。目前尚未建立 `v0.1.24` Tag、Draft 或 Stable Release，本次也不打包 macOS。
 
 ## Unsigned Community Build
 
