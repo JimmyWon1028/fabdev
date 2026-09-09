@@ -77,7 +77,9 @@ $existingPhpProcessIds = @(Get-ProcessIdsForExecutable -ExecutablePath $phpCgi)
 
 New-Item -ItemType Directory -Force -Path $testRoot | Out-Null
 $documentRoot = Join-Path $testRoot "site"
-New-Item -ItemType Directory -Force -Path $documentRoot | Out-Null
+foreach ($directory in @($documentRoot, (Join-Path $testRoot "logs"), (Join-Path $testRoot "temp"))) {
+  New-Item -ItemType Directory -Force -Path $directory | Out-Null
+}
 $phpIni = Join-Path $testRoot "php.ini"
 $phpScript = Join-Path $documentRoot "index.php"
 $healthFile = Join-Path $documentRoot "health.txt"
