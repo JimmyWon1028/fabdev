@@ -6,6 +6,23 @@
   "packages": [
     {
       "name": "php",
+      "version": "8.5.10",
+      "minimumOsVersion": "13.0",
+      "buildProfile": "php-modern-external-imap",
+      "source": {
+        "archiveUrl": "https://www.php.net/distributions/php-8.5.10.tar.xz",
+        "archiveSha256": "6a8bebaa4d5a979a38db29a9373e9851f60c6b11f72172c585947e78f3081957",
+        "signatureUrl": "https://www.php.net/distributions/php-8.5.10.tar.xz.asc",
+        "keyUrl": "https://www.php.net/distributions/php-keyring.gpg",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "D95C03BC702BE9515344AE3374E44BC9067701A5"
+        }
+      },
+      "healthCheckProfile": "php-runtime-v1"
+    },
+    {
+      "name": "php",
       "version": "8.4.24",
       "minimumOsVersion": "13.0",
       "buildProfile": "php-modern-external-imap",

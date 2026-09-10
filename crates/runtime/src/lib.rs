@@ -2163,31 +2163,51 @@ mod tests {
       .runtimes
       .iter()
       .all(|runtime| runtime.platform == "macos" && runtime.architecture == "arm64"));
-    assert_eq!(catalog.runtimes[0].name, "php");
-    assert_eq!(catalog.runtimes[1].name, "mariadb");
-    assert_eq!(catalog.runtimes[2].version, "20.20.2");
-    assert_eq!(catalog.runtimes[3].version, "24.20.0");
+    let php_85 = catalog
+      .runtimes
+      .iter()
+      .find(|runtime| runtime.name == "php" && runtime.version == "8.5.10")
+      .expect("find PHP 8.5 Runtime");
+    let mariadb = catalog
+      .runtimes
+      .iter()
+      .find(|runtime| runtime.name == "mariadb")
+      .expect("find MariaDB Runtime");
+    let node_20 = catalog
+      .runtimes
+      .iter()
+      .find(|runtime| runtime.name == "node" && runtime.version == "20.20.2")
+      .expect("find Node.js 20 Runtime");
+    let node_24 = catalog
+      .runtimes
+      .iter()
+      .find(|runtime| runtime.name == "node" && runtime.version == "24.20.0")
+      .expect("find Node.js 24 Runtime");
+    assert_eq!(node_24.minimum_os_version.as_deref(), Some("13.5"));
     assert_eq!(
-      catalog.runtimes[3].minimum_os_version.as_deref(),
-      Some("13.5")
-    );
-    assert_eq!(
-      catalog.runtimes[1].file_name.as_deref(),
+      mariadb.file_name.as_deref(),
       Some("mariadb-12.3.2-macos-arm64-community.tar.gz")
     );
     assert_eq!(
-      catalog.runtimes[2]
+      node_20
         .source_verification
         .as_ref()
         .map(|source| source.upstream_sha256.as_str()),
       Some("466e05f3477c20dfb723054dfebffe55bc74660ee77f612166fca121dacb65b6")
     );
     assert_eq!(
-      catalog.runtimes[3]
+      node_24
         .source_verification
         .as_ref()
         .map(|source| source.upstream_sha256.as_str()),
       Some("40e5607e5ecb3db9192723776da2d75d966260fc74a7a9e731c1bd67dda96bc8")
+    );
+    assert_eq!(
+      php_85
+        .source_verification
+        .as_ref()
+        .and_then(|source| source.fingerprint.as_deref()),
+      Some("D95C03BC702BE9515344AE3374E44BC9067701A5")
     );
     std::fs::remove_dir_all(root).expect("remove Catalog fixture");
   }

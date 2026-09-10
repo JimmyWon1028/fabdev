@@ -25,6 +25,7 @@ const NGINX_CONFIG_TEMPLATE: &str = include_str!("../../../resources/nginx/nginx
 const PHP_INI_TEMPLATE: &str = include_str!("../../../resources/php/php.ini");
 const PHP_74_INI_TEMPLATE: &str = include_str!("../../../resources/php/php-7.4.ini");
 const PHP_82_INI_TEMPLATE: &str = include_str!("../../../resources/php/php-8.2.ini");
+const PHP_85_INI_TEMPLATE: &str = include_str!("../../../resources/php/php-8.5.ini");
 const PHP_WINDOWS_INI_TEMPLATE: &str = include_str!("../../../resources/php/php-windows.ini");
 const PHP_FPM_TEMPLATE: &str = include_str!("../../../resources/php/php-fpm.conf");
 const PHP_POOL_TEMPLATE: &str = include_str!("../../../resources/php/www.conf");
@@ -2212,6 +2213,7 @@ fn php_ini_template(version: &PhpVersion) -> &'static str {
     "7.4" => PHP_74_INI_TEMPLATE,
     "8.2" => PHP_82_INI_TEMPLATE,
     "8.4" => PHP_82_INI_TEMPLATE,
+    "8.5" => PHP_85_INI_TEMPLATE,
     _ => PHP_INI_TEMPLATE,
   }
 }
@@ -2301,13 +2303,13 @@ fn resolve_php_extension_api(runtime: &Path) -> Result<String> {
       )
     })?
     .filter_map(|entry| entry.ok())
-    .filter(|entry| entry.path().join("opcache.so").is_file())
+    .filter(|entry| entry.path().join("imagick.so").is_file())
     .map(|entry| entry.file_name().to_string_lossy().into_owned())
     .collect::<Vec<_>>();
   candidates.sort();
   candidates.pop().with_context(|| {
     format!(
-      "PHP Runtime does not contain opcache.so: {}",
+      "PHP Runtime does not contain shared PHP extensions: {}",
       runtime.display()
     )
   })
@@ -3650,6 +3652,11 @@ mod tests {
         "fixture",
       )
       .expect("write OPcache fixture");
+      std::fs::write(
+        runtime.join("lib/php/extensions/no-debug-non-zts-fixture/imagick.so"),
+        "fixture",
+      )
+      .expect("write Imagick fixture");
     }
     runtime
   }
@@ -5756,21 +5763,33 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
 
   #[test]
   fn uses_256m_memory_limit_for_every_erp_php_ini_template() {
-    let version: PhpVersion = "8.4".parse().expect("parse PHP version");
-    let contents = php_ini_template(&version);
-
     for template in [
       PHP_INI_TEMPLATE,
       PHP_74_INI_TEMPLATE,
       PHP_82_INI_TEMPLATE,
+      PHP_85_INI_TEMPLATE,
       PHP_WINDOWS_INI_TEMPLATE,
     ] {
       assert!(template.contains("memory_limit = 256M"));
     }
-    assert!(contents.contains("memory_limit = 256M"));
-    assert!(contents.contains("date.timezone = \"Asia/Taipei\""));
-    assert!(contents.contains("upload_max_filesize = 64M"));
-    assert!(contents.contains("post_max_size = 64M"));
+    for version in ["8.4", "8.5"] {
+      let version: PhpVersion = version.parse().expect("parse PHP version");
+      let contents = php_ini_template(&version);
+      assert!(contents.contains("memory_limit = 256M"));
+      assert!(contents.contains("date.timezone = \"Asia/Taipei\""));
+      assert!(contents.contains("upload_max_filesize = 64M"));
+      assert!(contents.contains("post_max_size = 64M"));
+    }
+  }
+
+  #[test]
+  fn uses_php_85_static_opcache_template() {
+    let version: PhpVersion = "8.5".parse().expect("parse PHP 8.5");
+    let contents = php_ini_template(&version);
+
+    assert!(!contents.contains("zend_extension"));
+    assert!(contents.contains("opcache.enable = 1"));
+    assert!(contents.contains("@PHP_EXTENSION_API@/imagick.so"));
   }
 
   #[test]

@@ -650,6 +650,7 @@ test('pins and prepares every macOS ARM64 online Runtime package', async () => {
   assert.deepEqual(
     manifest.packages.map((runtimePackage) => [runtimePackage.name, runtimePackage.version]),
     [
+      ['php', '8.5.10'],
       ['php', '8.4.24'],
       ['mariadb', '12.3.2'],
       ['node', '20.20.2'],
@@ -675,7 +676,7 @@ test('pins and prepares every macOS ARM64 online Runtime package', async () => {
   assert.match(packageBuild, /PHP_VERSION="\$version"/)
   assert.doesNotMatch(
     packageBuild,
-    /7\.4\.33|8\.2\.33|8\.4\.24|12\.3\.2|20\.20\.2|24\.20\.0/
+    /7\.4\.33|8\.2\.33|8\.4\.24|8\.5\.10|12\.3\.2|20\.20\.2|24\.20\.0/
   )
 
   assert.match(nodeBuild, /20\.20\.2\)/)
@@ -706,7 +707,7 @@ test('pins and prepares every macOS ARM64 online Runtime package', async () => {
   assert.match(releaseBuild, /"\$PACKAGE_MANIFEST"/)
   assert.doesNotMatch(
     releaseBuild,
-    /7\.4\.33|8\.2\.33|8\.4\.24|12\.3\.2|20\.20\.2|24\.20\.0/
+    /7\.4\.33|8\.2\.33|8\.4\.24|8\.5\.10|12\.3\.2|20\.20\.2|24\.20\.0/
   )
   assert.match(releaseBuild, /generate-macos/)
   assert.match(releaseBuild, /fabdev-runtime-v1\.json/)

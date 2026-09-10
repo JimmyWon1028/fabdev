@@ -3369,7 +3369,7 @@ fn online_runtime_supported(name: &str, platform: &str, version: &str) -> bool {
       .ok()
       .and_then(|series| series.parse::<PhpVersion>().ok())
       .is_some(),
-    ("php", "macos") => version == "8.4.24",
+    ("php", "macos") => matches!(version, "8.4.24" | "8.5.10"),
     ("mariadb" | "node", "windows" | "macos") => {
       let parts = version.split('.').collect::<Vec<_>>();
       parts.len() == 3 && parts.iter().all(|part| part.parse::<u16>().is_ok())
@@ -3386,7 +3386,7 @@ fn validate_php_release(release: &RuntimeRelease, artifact: &std::path::Path) ->
   let supported = if release.platform == "windows" {
     series.parse::<PhpVersion>().is_ok()
   } else {
-    matches!(series.as_str(), "7.4" | "8.2" | "8.3" | "8.4")
+    matches!(series.as_str(), "7.4" | "8.2" | "8.3" | "8.4" | "8.5")
   };
   if !supported {
     bail!("unsupported PHP Runtime series: {series}");
@@ -4801,32 +4801,34 @@ mod tests {
   }
 
   #[test]
-  fn validates_supported_php_84_runtime_release() {
-    let root = std::env::temp_dir().join(format!("fabdev-php84-release-{}", Uuid::new_v4()));
+  fn validates_supported_php_runtime_releases() {
+    let root = std::env::temp_dir().join(format!("fabdev-php-release-{}", Uuid::new_v4()));
     std::fs::create_dir_all(&root).expect("create fixture");
     let artifact = root.join("runtime.tar.gz");
     std::fs::write(&artifact, "fixture").expect("write artifact");
-    let release = RuntimeRelease {
-      name: "php".to_owned(),
-      version: "8.4.24".to_owned(),
-      platform: if cfg!(target_os = "macos") {
-        "macos".to_owned()
-      } else {
-        "windows".to_owned()
-      },
-      architecture: if cfg!(target_arch = "aarch64") {
-        "arm64".to_owned()
-      } else {
-        "x64".to_owned()
-      },
-      url: "runtime.tar.gz".to_owned(),
-      size: 7,
-      sha256: "fixture".to_owned(),
-      signature: Some("development-ad-hoc".to_owned()),
-      ..RuntimeRelease::default()
-    };
+    for version in ["8.4.24", "8.5.10"] {
+      let release = RuntimeRelease {
+        name: "php".to_owned(),
+        version: version.to_owned(),
+        platform: if cfg!(target_os = "macos") {
+          "macos".to_owned()
+        } else {
+          "windows".to_owned()
+        },
+        architecture: if cfg!(target_arch = "aarch64") {
+          "arm64".to_owned()
+        } else {
+          "x64".to_owned()
+        },
+        url: "runtime.tar.gz".to_owned(),
+        size: 7,
+        sha256: "fixture".to_owned(),
+        signature: Some("development-ad-hoc".to_owned()),
+        ..RuntimeRelease::default()
+      };
 
-    validate_php_release(&release, &artifact).expect("accept PHP 8.4 package");
+      validate_php_release(&release, &artifact).expect("accept supported PHP package");
+    }
     std::fs::remove_dir_all(root).expect("remove fixture");
   }
 
@@ -4837,7 +4839,9 @@ mod tests {
     assert!(online_runtime_supported("php", "windows", "9.1.2"));
     assert!(!online_runtime_supported("php", "windows", "6.4.1"));
     assert!(online_runtime_supported("php", "macos", "8.4.24"));
+    assert!(online_runtime_supported("php", "macos", "8.5.10"));
     assert!(!online_runtime_supported("php", "macos", "9.1.2"));
+    assert!(!online_runtime_supported("php", "macos", "6.4.1"));
     assert!(online_runtime_supported("mariadb", "windows", "12.3.2"));
     assert!(online_runtime_supported("node", "windows", "20.20.2"));
     assert!(online_runtime_supported("node", "windows", "24.20.0"));
@@ -5138,7 +5142,10 @@ mod tests {
       format!("{{\n  \"sequence\": 902,\n  \"sha256\": \"{catalog_sha256}\"\n}}\n"),
     )
     .expect("cache accepted Runtime Catalog state");
-    let pending_package = pending_root.join(file_name);
+    let package_sha256 = hex::encode(Sha256::digest(
+      std::fs::read(&artifact).expect("read macOS PHP Runtime package"),
+    ));
+    let pending_package = pending_root.join(format!("{package_sha256}.tar.gz"));
     std::fs::copy(&artifact, &pending_package).expect("stage verified PHP Runtime package");
 
     std::fs::create_dir_all(paths.runtimes.join("php/8.2.33"))

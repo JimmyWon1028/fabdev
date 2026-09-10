@@ -10,6 +10,7 @@ PHP_RELEASE_FINGERPRINT="${PHP_RELEASE_FINGERPRINT:-}"
 PHP_CFLAGS="${PHP_CFLAGS:-}"
 PHP_CXXFLAGS="${PHP_CXXFLAGS:-}"
 PHP_BUILD_PROFILE="${FABDEV_PHP_BUILD_PROFILE:-}"
+PHP_OPCACHE_MODE="shared"
 PHP_PATCHES=()
 PHP_MAKE_ARGS=()
 PHP_REGENERATE_CONFIGURE=0
@@ -40,6 +41,12 @@ case "$PHP_VERSION" in
     PHP_BUILD_PROFILE="${PHP_BUILD_PROFILE:-php-modern-external-imap}"
     PHP_SHA256="${PHP_SHA256:-e127be09a8506f4327c5cfa78a614b00d210714484ec215ce0011b4a03c00731}"
     PHP_RELEASE_FINGERPRINT="${PHP_RELEASE_FINGERPRINT:-9D7F99A0CB8F05C8A6958D6256A97AF7600A39A6}"
+    ;;
+  8.5.10)
+    PHP_BUILD_PROFILE="${PHP_BUILD_PROFILE:-php-modern-external-imap}"
+    PHP_OPCACHE_MODE="static"
+    PHP_SHA256="${PHP_SHA256:-6a8bebaa4d5a979a38db29a9373e9851f60c6b11f72172c585947e78f3081957}"
+    PHP_RELEASE_FINGERPRINT="${PHP_RELEASE_FINGERPRINT:-D95C03BC702BE9515344AE3374E44BC9067701A5}"
     ;;
   *)
     if [[ -z "$PHP_SHA256" || -z "$PHP_RELEASE_FINGERPRINT" ]]; then
@@ -270,7 +277,7 @@ if [[ -n "$PHP_CXXFLAGS" ]]; then
 fi
 
 cd "$SOURCE_DIR"
-./configure \
+PHP_CONFIGURE_ARGS=(
   --prefix="$RUNTIME_ROOT" \
   --with-config-file-path="$RUNTIME_ROOT/etc" \
   --with-config-file-scan-dir="$RUNTIME_ROOT/etc/conf.d" \
@@ -284,7 +291,6 @@ cd "$SOURCE_DIR"
   --enable-intl \
   --enable-mbstring \
   --enable-mysqlnd \
-  --enable-opcache \
   --enable-pcntl \
   --enable-soap \
   --enable-sockets \
@@ -298,8 +304,13 @@ cd "$SOURCE_DIR"
   --with-sodium \
   --with-xsl \
   --with-zip \
-  --with-zlib \
-  "${PHP_PLATFORM_CONFIGURE_ARGS[@]}"
+  --with-zlib
+)
+if [[ "$PHP_OPCACHE_MODE" == "shared" ]]; then
+  PHP_CONFIGURE_ARGS+=(--enable-opcache)
+fi
+PHP_CONFIGURE_ARGS+=("${PHP_PLATFORM_CONFIGURE_ARGS[@]}")
+./configure "${PHP_CONFIGURE_ARGS[@]}"
 
 if [[ -n "${PHP_MAKE_ARGS[*]:-}" ]]; then
   make -j "$BUILD_JOBS" "${PHP_MAKE_ARGS[@]}"
@@ -392,18 +403,32 @@ if [[ "$PACKAGE_VARIANT" == "dev" ]]; then
   done
 fi
 
-opcache_path="$(find "$RUNTIME_ROOT/lib/php/extensions" -type f -name opcache.so -print -quit)"
-if [[ -z "$opcache_path" ]]; then
-  echo "Installed PHP Runtime does not contain opcache.so" >&2
+imagick_path="$(find "$RUNTIME_ROOT/lib/php/extensions" -type f -name imagick.so -print -quit)"
+if [[ -z "$imagick_path" ]]; then
+  echo "Installed PHP Runtime does not contain imagick.so" >&2
   exit 1
 fi
-php_extension_api="$(basename "$(dirname "$opcache_path")")"
+php_extension_api="$(basename "$(dirname "$imagick_path")")"
+if [[ "$PHP_OPCACHE_MODE" == "shared" ]]; then
+  opcache_path="$(find "$RUNTIME_ROOT/lib/php/extensions" -type f -name opcache.so -print -quit)"
+  if [[ -z "$opcache_path" ]]; then
+    echo "Installed PHP Runtime does not contain opcache.so" >&2
+    exit 1
+  fi
+elif ! "$RUNTIME_ROOT/bin/php" -n -r 'exit(extension_loaded("Zend OPcache") ? 0 : 1);'; then
+  echo "Installed PHP Runtime does not contain static Zend OPcache" >&2
+  exit 1
+fi
 
 mkdir -p "$RUNTIME_ROOT/etc/conf.d" "$RUNTIME_ROOT/var/logs" "$RUNTIME_ROOT/var/php-fpm.d" "$RUNTIME_ROOT/var/run" "$RUNTIME_ROOT/var/session"
-sed -e "s|@RUNTIME_ROOT@|$RUNTIME_ROOT|g" -e "s|@SERVICE_ROOT@|$RUNTIME_ROOT/var|g" -e "s|@PHP_EXTENSION_API@|$php_extension_api|g" "$PROJECT_DIR/resources/php/php.ini" > "$RUNTIME_ROOT/etc/php.ini"
+php_ini_template="$PROJECT_DIR/resources/php/php.ini"
+if [[ "$PHP_OPCACHE_MODE" == "static" ]]; then
+  php_ini_template="$PROJECT_DIR/resources/php/php-8.5.ini"
+fi
+sed -e "s|@RUNTIME_ROOT@|$RUNTIME_ROOT|g" -e "s|@SERVICE_ROOT@|$RUNTIME_ROOT/var|g" -e "s|@PHP_EXTENSION_API@|$php_extension_api|g" "$php_ini_template" > "$RUNTIME_ROOT/etc/php.ini"
 sed -e "s|@RUNTIME_ROOT@|$RUNTIME_ROOT|g" -e "s|@SERVICE_ROOT@|$RUNTIME_ROOT/var|g" "$PROJECT_DIR/resources/php/php-fpm.conf" > "$RUNTIME_ROOT/etc/php-fpm.conf"
 sed -e "s|@RUNTIME_ROOT@|$RUNTIME_ROOT|g" -e "s|@SERVICE_ROOT@|$RUNTIME_ROOT/var|g" "$PROJECT_DIR/resources/php/www.conf" > "$RUNTIME_ROOT/var/php-fpm.d/www.conf"
-cp "$PROJECT_DIR/resources/php/php.ini" "$RUNTIME_ROOT/etc/php.ini.template"
+cp "$php_ini_template" "$RUNTIME_ROOT/etc/php.ini.template"
 cp "$PROJECT_DIR/resources/php/php-fpm.conf" "$RUNTIME_ROOT/etc/php-fpm.conf.template"
 cp "$PROJECT_DIR/resources/php/www.conf" "$RUNTIME_ROOT/etc/www.conf.template"
 
