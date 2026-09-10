@@ -21,13 +21,13 @@ macOS Community 發行目前維持既有 Unsigned Community DMG。除非 Reposit
 
 fabDev App Release 與線上 Runtime Distribution 自 `v0.1.21` 起完全分離。`JimmyWon1028/fabdev` 的 App Release 只包含 Windows／macOS App Installer、fabDev Connect、App Manifest 及 checksum；不得加入、重建、複製或上傳線上 PHP、MariaDB、Node.js Runtime Package、Runtime Catalog 或 Runtime `.tar.gz`。選裝 Runtime Package 與 Catalog 只由獨立的 `JimmyWon1028/fabdev-runtimes` 管理，使用自己的 Catalog sequence、最低相容版本與發布生命週期，不跟隨 App SemVer 或 App Tag。一般 App／Agent／Desktop 功能修正及 App 進版不構成 Runtime 重新打包、Catalog 更新或 Runtime Release 授權；只有 Runtime 內容或 Catalog 本身確實變更且 Repository Owner 明確要求時才處理。此分離不改變 App Installer 內既有 bundled Runtime 的產品契約，但 bundled Runtime 內容未變時不得因 App 發布而另外重打選裝 Runtime Package。
 
-## 目前 Windows 0.1.24 Stable 基線（2026-09-09）
+## 目前 0.1.24 Stable 基線（2026-09-10）
 
-公開 Latest 為 Windows-first Stable App `0.1.24`／Agent Protocol `39`。Annotated Tag `v0.1.24` 固定在 Commit `21bd978`，Release ID `385364449` 只包含 Windows x64 App 與 fabDev Connect；macOS ARM64 尚未補入。此版本完成每 PHP 系列 2／4／8 Worker 設定、每 Site timeout 與 Proxy 預設 120 秒 timeout；Windows x64 Run `34326154074` 與 `34329431684` 通過，Repository Owner 已明確回報實機 Gate 通過並核准 Publish。
+公開 Latest 為 Windows-first 後已補齊 macOS ARM64 的 Stable App `0.1.24`／Agent Protocol `39`。Annotated Tag `v0.1.24` 固定在 Commit `21bd978`，Release ID `385364449` 同時包含 Windows x64 App、fabDev Connect 與 macOS ARM64 Community DMG。Repository Owner 後續明確要求同版替換 macOS Asset，目前 DMG 由 Commit `e3fa037` 建置，加入 macOS PHP 8.5.10 線上安裝支援；Tag 未移動，Windows Binary 未重建或替換。此版本完成每 PHP 系列 2／4／8 Worker 設定、每 Site timeout 與 Proxy 預設 120 秒 timeout；Windows x64 Run `34326154074`、`34329431684` 與 `34432390677` 通過，Repository Owner 已明確回報實機 Gate 通過並核准 Publish。
 
 後續修改必須以可重現問題為依據，優先保留現有功能、Agent Protocol、資料格式、服務範圍與操作流程，不做無關重構。Sites 與 Proxy 的既有清單排版已由 Repository Owner 指定保留；Proxy 頂部維持資料操作與服務操作分組，Runtime 卡片維持緊湊一致、PHP 只顯示使用中的 Site 數量，Agent 狀態維持在設定下方。若需要改動這些已確認的 UI，必須先取得 Repository Owner 明確指示。
 
-此版本最近一次完整本機驗證為 Desktop 91、Release 規則 19、Rust 286、macOS Helper 9 項測試通過，另有 7 項需外部環境的 Rust 測試維持 ignored；`pnpm lint`、Cargo workspace check 與 `git diff --check` 通過。Draft Run `34330967986` 已從固定 Tag 重新建置 Windows x64 Setup 與 Connect，建立 7 個 App-only Assets，macOS Job skipped。全部 Assets 已在 Publish 前後重新下載，GitHub digest、大小、總表、個別 checksum、App／Stable Manifest、NSIS 內容及 x64 PE 架構驗證通過；公開 Release 頁與 Latest Stable Manifest 可匿名存取，目前沒有殘留 Draft Release。
+此版本最近一次完整本機驗證為 Desktop 91、Release 規則 19、Rust 287、macOS Helper 9 項測試通過，另有 7 項需外部環境的 Rust 測試維持 ignored；`pnpm lint`、Cargo workspace check 與 `git diff --check` 通過。新 DMG 為 100,061,256 bytes，SHA-256 `877d9b94e62622118f45f52cf1dffa63120b3521dcaed293f2ab443164ce6150`；DMG 內 Release Agent 已從公開 Catalog sequence 4 實際下載、驗證並安裝 PHP 8.5.10。Release 現有 9 個 App-only Assets，全部已從未登入公開 URL 重新下載，GitHub digest、大小、總表、個別 checksum 與 App／Stable Manifest 驗證通過；DMG、內部 checksum、ad-hoc codesign、App／Agent／CLI／Helper 及內建 Runtime ARM64 架構亦通過。既有 Windows Asset ID、大小及 digest 未變，公開 Release 頁、Latest Stable Manifest 與 macOS DMG 可匿名存取，目前沒有殘留 Draft Release。
 
 ## 架構與設定原則
 
