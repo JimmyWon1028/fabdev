@@ -814,6 +814,20 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       Ok(sites) => AgentResponse::Sites(sites),
       Err(error) => internal_error(error),
     },
+    AgentRequest::DiagnoseSite { site_id } => {
+      let site = match state.sites.lock().await.list() {
+        Ok(sites) => sites.into_iter().find(|site| site.id == site_id),
+        Err(error) => return internal_error(error),
+      };
+      let Some(site) = site else {
+        return AgentResponse::Error {
+          code: "site_not_found".to_owned(),
+          message: "Site not found".to_owned(),
+        };
+      };
+      let report = state.services.lock().await.diagnose_site(&site).await;
+      AgentResponse::SiteDiagnostic(report)
+    }
     AgentRequest::GetSiteHome => match load_site_home_settings(state).await {
       Ok(settings) => AgentResponse::SiteHomeSettings(settings),
       Err(error) => AgentResponse::Error {

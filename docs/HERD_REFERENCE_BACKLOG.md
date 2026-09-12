@@ -87,11 +87,11 @@ Herd Log Viewer 能依專案選擇、持續讀取及搜尋 Log；Dumps 則可聚
 
 fabDev 建議先做框架無關能力：
 
-- [ ] `diagnose_site` 依序檢查 DNS、53／80／443、Nginx、憑證、PHP-FPM、document root 與 MariaDB。
+- [x] `diagnose_site` 依序檢查 Site、專案資料夾、document root、DNS／53、Nginx、HTTP／80、HTTPS 憑證檔／443 listener、PHP-FPM 與 MariaDB，並透過既有 Agent Protocol 回傳唯讀報告。
 - [ ] 聚合 Agent、Nginx access/error、PHP-FPM、PHP error 與 MariaDB Log。
 - [ ] 依 Site、時間、層級及關鍵字篩選；支援複製已遮罩的診斷報告。
 - [ ] 清楚區分「未啟動」、「Port 衝突」、「設定錯誤」、「Runtime 遺失」與「應用程式 5xx」。
-- [ ] 自動遮罩密碼、Token、Cookie、Authorization header、DSN 與使用者路徑中的敏感片段。
+- [x] 複製診斷報告時自動遮罩密碼、Token、Cookie、Authorization header、URL credentials、專案／fabDev 資料／使用者 Home 路徑；整行敏感內容不會回傳原值。
 
 驗收重點：遇到 `demo.test` 無法開啟時，使用者不必手動執行多條命令，就能看到故障層級與安全的修復建議。
 

@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import type { Site } from '@fabdev/contracts'
+import type {
+  Site,
+  SiteDiagnosticCheckKind,
+  SiteDiagnosticReport,
+  SiteDiagnosticStatus
+} from '@fabdev/contracts'
 import { confirm, open, save } from '@tauri-apps/plugin-dialog'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 
@@ -18,8 +23,13 @@ import {
 } from '../utils/site'
 import { useAppStore } from '../stores/fabdev'
 import { useI18n } from '../utils/i18n'
+import type { TranslationKey } from '../utils/locales'
 import { formatPathForDisplay, isWindowsPlatform } from '../utils/path'
 import { installedPhpSeries as listInstalledPhpSeries, phpSeriesFromVersion } from '../utils/runtime'
+import {
+  countSiteDiagnosticStatuses,
+  formatSiteDiagnosticReport
+} from '../utils/site-diagnostic'
 
 const store = useAppStore()
 const { t } = useI18n()
@@ -39,6 +49,11 @@ const sharingSiteId = ref<string | null>(null)
 const showAddForm = ref(false)
 const editingSiteId = ref<string | null>(null)
 const siteFormMessage = ref('')
+const diagnosticSite = ref<Site | null>(null)
+const diagnosticReport = ref<SiteDiagnosticReport | null>(null)
+const diagnosingSiteId = ref<string | null>(null)
+const diagnosticMessage = ref('')
+const diagnosticCopyMessage = ref('')
 const selectedSiteIds = ref(new Set<string>())
 const searchQuery = ref('')
 const siteFilter = ref<SiteListFilter>('all')
@@ -54,6 +69,19 @@ const form = reactive({
   phpVersion: '',
   upstreamResponseTimeoutSeconds: 120
 })
+let initialSiteFormState = ''
+
+const diagnosticCheckKeys: Record<SiteDiagnosticCheckKind, TranslationKey> = {
+  site: 'diagnostics.check.site',
+  projectFolder: 'diagnostics.check.projectFolder',
+  documentRoot: 'diagnostics.check.documentRoot',
+  dns: 'diagnostics.check.dns',
+  nginx: 'diagnostics.check.nginx',
+  http: 'diagnostics.check.http',
+  https: 'diagnostics.check.https',
+  php: 'diagnostics.check.php',
+  mariaDb: 'diagnostics.check.mariaDb'
+}
 
 const installedPhpSeries = computed(() => listInstalledPhpSeries(store.phpRuntimes.installed))
 const homeSiteIds = computed(() => new Set(store.siteHome?.siteIds ?? []))
@@ -95,6 +123,9 @@ const allSelectableVisibleSitesSelected = computed(() =>
   selectableVisibleSites.value.length > 0
     && selectableVisibleSites.value.every((site) => selectedSiteIds.value.has(site.id))
 )
+const diagnosticCounts = computed(() => diagnosticReport.value
+  ? countSiteDiagnosticStatuses(diagnosticReport.value)
+  : { passed: 0, warning: 0, failed: 0 })
 
 watch([() => store.sites, homeSiteIds], ([sites, currentHomeSiteIds]) => {
   const selectableIds = new Set(
@@ -190,6 +221,17 @@ function resetSiteForm() {
   form.upstreamResponseTimeoutSeconds = 120
 }
 
+function siteFormState() {
+  return JSON.stringify({
+    name: form.name,
+    projectPath: form.projectPath,
+    domain: form.domain,
+    documentRoot: form.documentRoot,
+    phpVersion: form.phpVersion,
+    upstreamResponseTimeoutSeconds: form.upstreamResponseTimeoutSeconds
+  })
+}
+
 function closeSiteForm() {
   showAddForm.value = false
   editingSiteId.value = null
@@ -197,10 +239,29 @@ function closeSiteForm() {
   resetSiteForm()
 }
 
+async function requestCloseSiteForm() {
+  if (submitting.value) {
+    return
+  }
+  if (siteFormState() !== initialSiteFormState) {
+    const approved = await confirm(t('sites.discardChangesConfirm'), {
+      title: t('sites.discardChangesTitle'),
+      kind: 'warning',
+      okLabel: t('common.discardChanges'),
+      cancelLabel: t('common.keepEditing')
+    })
+    if (!approved) {
+      return
+    }
+  }
+  closeSiteForm()
+}
+
 function openAddSiteForm() {
   editingSiteId.value = null
   siteFormMessage.value = ''
   resetSiteForm()
+  initialSiteFormState = siteFormState()
   showAddForm.value = true
 }
 
@@ -213,7 +274,77 @@ function editSite(site: Site) {
   form.documentRoot = formatPathForDisplay(site.documentRoot, isWindows)
   form.phpVersion = site.phpVersion ?? ''
   form.upstreamResponseTimeoutSeconds = site.upstreamResponseTimeoutSeconds
+  initialSiteFormState = siteFormState()
   showAddForm.value = true
+}
+
+function diagnosticCheckLabel(kind: SiteDiagnosticCheckKind) {
+  return t(diagnosticCheckKeys[kind])
+}
+
+function diagnosticStatusLabel(status: SiteDiagnosticStatus) {
+  return t(`diagnostics.status.${status}` as TranslationKey)
+}
+
+async function runSiteDiagnostic(site: Site) {
+  diagnosingSiteId.value = site.id
+  diagnosticMessage.value = ''
+  diagnosticCopyMessage.value = ''
+  try {
+    const report = await store.diagnoseSite(site.id)
+    if (diagnosticSite.value?.id === site.id) {
+      diagnosticReport.value = report
+    }
+  } catch (error) {
+    if (diagnosticSite.value?.id === site.id) {
+      diagnosticMessage.value = error instanceof Error ? error.message : String(error)
+    }
+  } finally {
+    if (diagnosingSiteId.value === site.id) {
+      diagnosingSiteId.value = null
+    }
+  }
+}
+
+function openSiteDiagnostic(site: Site) {
+  diagnosticSite.value = site
+  diagnosticReport.value = null
+  void runSiteDiagnostic(site)
+}
+
+function closeSiteDiagnostic() {
+  diagnosticSite.value = null
+  diagnosticReport.value = null
+  diagnosticMessage.value = ''
+  diagnosticCopyMessage.value = ''
+}
+
+async function copySiteDiagnostic() {
+  const report = diagnosticReport.value
+  if (!report) {
+    return
+  }
+  const contents = formatSiteDiagnosticReport(report, {
+    title: t('diagnostics.reportTitle'),
+    site: t('diagnostics.site'),
+    domain: t('diagnostics.domain'),
+    summary: (counts) => t('diagnostics.summary', {
+      passed: counts.passed,
+      warning: counts.warning,
+      failed: counts.failed
+    }),
+    checks: t('diagnostics.checks'),
+    recentLogs: t('diagnostics.recentLogs'),
+    noRecentLogs: t('diagnostics.noRecentLogs'),
+    check: diagnosticCheckLabel,
+    status: diagnosticStatusLabel
+  })
+  try {
+    await navigator.clipboard.writeText(contents)
+    diagnosticCopyMessage.value = t('diagnostics.copied')
+  } catch {
+    diagnosticCopyMessage.value = t('diagnostics.copyFailed')
+  }
 }
 
 async function chooseSiteHome() {
@@ -677,7 +808,7 @@ async function toggleLanShare(site: Site) {
         <div class="site-identity">
           <span class="status-dot" :data-state="site.enabled ? 'running' : 'stopped'" />
           <div>
-            <strong class="site-name">{{ site.name }}</strong>
+            <strong class="site-name" :title="site.name">{{ site.name }}</strong>
             <small class="site-domain">{{ site.domain }}</small>
           </div>
           <button
@@ -762,6 +893,14 @@ async function toggleLanShare(site: Site) {
 
         <div class="site-actions">
           <button
+            type="button"
+            class="secondary-button"
+            :disabled="diagnosingSiteId !== null"
+            @click="openSiteDiagnostic(site)"
+          >
+            {{ t('sites.diagnose') }}
+          </button>
+          <button
             v-if="!isHomeSite(site)"
             type="button"
             class="secondary-button"
@@ -828,7 +967,7 @@ async function toggleLanShare(site: Site) {
     :title="editingSiteId ? t('sites.editTitle') : t('sites.addTitle')"
     :close-label="t('sites.cancel')"
     :busy="submitting"
-    @close="closeSiteForm"
+    @close="requestCloseSiteForm"
   >
     <form class="modal-form site-modal-form" @submit.prevent="submit">
       <label>
@@ -885,7 +1024,7 @@ async function toggleLanShare(site: Site) {
           type="button"
           class="secondary-button"
           :disabled="submitting"
-          @click="closeSiteForm"
+          @click="requestCloseSiteForm"
         >
           {{ t('sites.cancel') }}
         </button>
@@ -894,5 +1033,91 @@ async function toggleLanShare(site: Site) {
         </button>
       </div>
     </form>
+  </AppModal>
+
+  <AppModal
+    v-if="diagnosticSite"
+    :title="t('diagnostics.title', { domain: diagnosticSite.domain })"
+    :description="t('diagnostics.description')"
+    :close-label="t('diagnostics.close')"
+    :busy="diagnosingSiteId !== null"
+    size="wide"
+    @close="closeSiteDiagnostic"
+  >
+    <div class="site-diagnostic">
+      <p v-if="diagnosingSiteId !== null" class="diagnostic-loading" role="status">
+        {{ t('diagnostics.running') }}
+      </p>
+      <p v-if="diagnosticMessage" class="modal-message" role="alert">
+        {{ diagnosticMessage }}
+      </p>
+      <template v-if="diagnosticReport">
+        <div class="diagnostic-summary" aria-live="polite">
+          <span data-status="passed">
+            {{ t('diagnostics.status.passed') }} {{ diagnosticCounts.passed }}
+          </span>
+          <span data-status="warning">
+            {{ t('diagnostics.status.warning') }} {{ diagnosticCounts.warning }}
+          </span>
+          <span data-status="failed">
+            {{ t('diagnostics.status.failed') }} {{ diagnosticCounts.failed }}
+          </span>
+        </div>
+        <section class="diagnostic-section">
+          <h3>{{ t('diagnostics.checks') }}</h3>
+          <ul class="diagnostic-checks">
+            <li v-for="check in diagnosticReport.checks" :key="check.kind">
+              <span class="diagnostic-state" :data-status="check.status">
+                {{ diagnosticStatusLabel(check.status) }}
+              </span>
+              <strong>{{ diagnosticCheckLabel(check.kind) }}</strong>
+              <code v-if="check.detail">{{ check.detail }}</code>
+            </li>
+          </ul>
+        </section>
+        <section class="diagnostic-section">
+          <h3>{{ t('diagnostics.recentLogs') }}</h3>
+          <p class="diagnostic-help">{{ t('diagnostics.logsHelp') }}</p>
+          <p v-if="diagnosticReport.recentLogs.length === 0" class="diagnostic-empty">
+            {{ t('diagnostics.noRecentLogs') }}
+          </p>
+          <div v-else class="diagnostic-logs">
+            <p v-for="(entry, index) in diagnosticReport.recentLogs" :key="`${entry.source}-${index}`">
+              <strong>{{ entry.source }}</strong>
+              <code>{{ entry.line }}</code>
+            </p>
+          </div>
+        </section>
+      </template>
+      <p v-if="diagnosticCopyMessage" class="diagnostic-copy-message" role="status">
+        {{ diagnosticCopyMessage }}
+      </p>
+      <div class="modal-actions">
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="diagnosingSiteId !== null"
+          @click="closeSiteDiagnostic"
+        >
+          {{ t('diagnostics.close') }}
+        </button>
+        <button
+          type="button"
+          class="secondary-button"
+          :disabled="diagnosingSiteId !== null"
+          @click="runSiteDiagnostic(diagnosticSite)"
+        >
+          {{ t('diagnostics.rerun') }}
+        </button>
+        <button
+          type="button"
+          class="primary-button"
+          :disabled="diagnosingSiteId !== null || diagnosticReport === null"
+          @click="copySiteDiagnostic"
+        >
+          {{ t('diagnostics.copy') }}
+        </button>
+      </div>
+    </div>
   </AppModal>
 </template>

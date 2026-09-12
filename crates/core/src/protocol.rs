@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Site, SiteEditInput, SiteInput};
 
-pub const PROTOCOL_VERSION: u16 = 39;
+pub const PROTOCOL_VERSION: u16 = 40;
 pub const DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 120;
 pub const MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 360;
 
@@ -23,6 +23,9 @@ pub enum AgentRequest {
   Ping,
   GetStatus,
   ListSites,
+  DiagnoseSite {
+    site_id: uuid::Uuid,
+  },
   GetSiteHome,
   SaveSiteHome(SiteHomeInput),
   AddSite(SiteInput),
@@ -166,6 +169,7 @@ pub enum AgentResponse {
   },
   Status(AgentStatus),
   Sites(Vec<Site>),
+  SiteDiagnostic(SiteDiagnosticReport),
   SiteHomeSettings(SiteHomeSettings),
   SiteAdded(Site),
   SiteUpdated(Site),
@@ -286,6 +290,53 @@ pub struct SiteHomeSettings {
   pub path: PathBuf,
   pub site_ids: Vec<uuid::Uuid>,
   pub symbolic_link_site_ids: Vec<uuid::Uuid>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SiteDiagnosticReport {
+  pub site_id: uuid::Uuid,
+  pub site_name: String,
+  pub domain: String,
+  pub checks: Vec<SiteDiagnosticCheck>,
+  pub recent_logs: Vec<SiteDiagnosticLogEntry>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SiteDiagnosticCheck {
+  pub kind: SiteDiagnosticCheckKind,
+  pub status: SiteDiagnosticStatus,
+  pub detail: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SiteDiagnosticCheckKind {
+  Site,
+  ProjectFolder,
+  DocumentRoot,
+  Dns,
+  Nginx,
+  Http,
+  Https,
+  Php,
+  MariaDb,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum SiteDiagnosticStatus {
+  Passed,
+  Warning,
+  Failed,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SiteDiagnosticLogEntry {
+  pub source: String,
+  pub line: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -559,6 +610,55 @@ mod tests {
       json!({
         "type": "removeSite",
         "payload": { "siteId": "fabde000-0000-4000-8000-000000000001" }
+      })
+    );
+  }
+
+  #[test]
+  fn serializes_site_diagnostic_contract() {
+    let site_id =
+      Uuid::parse_str("fabde000-0000-4000-8000-000000000001").expect("parse fixture id");
+    assert_eq!(
+      serde_json::to_value(AgentRequest::DiagnoseSite { site_id })
+        .expect("serialize diagnostic request"),
+      json!({
+        "type": "diagnoseSite",
+        "payload": { "siteId": "fabde000-0000-4000-8000-000000000001" }
+      })
+    );
+
+    let response = AgentResponse::SiteDiagnostic(SiteDiagnosticReport {
+      site_id,
+      site_name: "ERP Demo".to_owned(),
+      domain: "erp-demo.test".to_owned(),
+      checks: vec![SiteDiagnosticCheck {
+        kind: SiteDiagnosticCheckKind::Http,
+        status: SiteDiagnosticStatus::Passed,
+        detail: Some("HTTP 200".to_owned()),
+      }],
+      recent_logs: vec![SiteDiagnosticLogEntry {
+        source: "nginx-error.log".to_owned(),
+        line: "erp-demo.test is ready".to_owned(),
+      }],
+    });
+    assert_eq!(
+      serde_json::to_value(response).expect("serialize diagnostic response"),
+      json!({
+        "type": "siteDiagnostic",
+        "payload": {
+          "siteId": "fabde000-0000-4000-8000-000000000001",
+          "siteName": "ERP Demo",
+          "domain": "erp-demo.test",
+          "checks": [{
+            "kind": "http",
+            "status": "passed",
+            "detail": "HTTP 200"
+          }],
+          "recentLogs": [{
+            "source": "nginx-error.log",
+            "line": "erp-demo.test is ready"
+          }]
+        }
       })
     );
   }

@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ffi::OsStr;
 use std::fs::{File, OpenOptions};
+use std::io::{Read, Seek, SeekFrom};
 use std::net::{Ipv4Addr, SocketAddrV4, TcpListener, TcpStream, UdpSocket};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -10,7 +11,8 @@ use anyhow::{bail, Context, Result};
 use fabdev_core::{
   default_mariadb_system_socket, site::normalize_domain, AgentStatus, AppPaths,
   MariaDbConnectionMode, MariaDbSettings, PhpFpmPoolStatus, PhpVersion, ServiceState, Site,
-  PROTOCOL_VERSION,
+  SiteDiagnosticCheck, SiteDiagnosticCheckKind, SiteDiagnosticLogEntry, SiteDiagnosticReport,
+  SiteDiagnosticStatus, PROTOCOL_VERSION,
 };
 use fabdev_sites::{render_nginx_site, FastCgiEndpoint, NginxSiteConfig, NginxTlsConfig};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -42,6 +44,14 @@ const WINDOWS_PHP_FASTCGI_MAX_REQUESTS: &str = "500";
 const MANAGED_LOG_MAX_BYTES: u64 = 20 * 1024 * 1024;
 const MANAGED_LOG_RETENTION: usize = 7;
 const LOG_ROTATION_CHECK_INTERVAL: Duration = Duration::from_secs(60);
+const NGINX_RELOAD_DRAIN_TIMEOUT: Duration = Duration::from_secs(3);
+
+#[derive(Debug)]
+enum NginxReloadDrain {
+  NotNeeded,
+  Workers(Vec<u32>),
+  Unavailable(String),
+}
 
 #[derive(Clone, Debug)]
 pub struct RuntimePaths {
@@ -258,6 +268,250 @@ impl ServiceSupervisor {
         &mut self.recovered_mariadb_pid,
         mariadb_server_binary(&self.runtimes.mariadb),
       ),
+    }
+  }
+
+  pub async fn diagnose_site(&mut self, site: &Site) -> SiteDiagnosticReport {
+    let status = self.status();
+    let diagnostic_ports = self.ingress_ports.unwrap_or(self.ports);
+    let mut checks = Vec::new();
+
+    checks.push(site_diagnostic_check(
+      SiteDiagnosticCheckKind::Site,
+      if site.enabled {
+        SiteDiagnosticStatus::Passed
+      } else {
+        SiteDiagnosticStatus::Warning
+      },
+      Some(if site.enabled { "Enabled" } else { "Disabled" }.to_owned()),
+    ));
+    checks.push(path_diagnostic_check(
+      SiteDiagnosticCheckKind::ProjectFolder,
+      &site.project_path,
+    ));
+    checks.push(path_diagnostic_check(
+      SiteDiagnosticCheckKind::DocumentRoot,
+      &site.document_root,
+    ));
+
+    checks.push(match resolve_site_domain(&site.domain).await {
+      Ok(addresses) if addresses.iter().any(std::net::IpAddr::is_loopback) => {
+        site_diagnostic_check(
+          SiteDiagnosticCheckKind::Dns,
+          if status.dns == ServiceState::Running {
+            SiteDiagnosticStatus::Passed
+          } else {
+            SiteDiagnosticStatus::Warning
+          },
+          Some(format!(
+            "Loopback resolution available · DNS ingress 127.0.0.1:{} {}",
+            diagnostic_ports.dns,
+            if status.dns == ServiceState::Running {
+              "available"
+            } else {
+              "not confirmed"
+            }
+          )),
+        )
+      }
+      Ok(addresses) => site_diagnostic_check(
+        SiteDiagnosticCheckKind::Dns,
+        SiteDiagnosticStatus::Failed,
+        (!addresses.is_empty()).then(|| {
+          addresses
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(", ")
+        }),
+      ),
+      Err(_) => site_diagnostic_check(
+        SiteDiagnosticCheckKind::Dns,
+        SiteDiagnosticStatus::Failed,
+        Some(format!(
+          "Resolution failed · DNS ingress 127.0.0.1:{} {}",
+          diagnostic_ports.dns,
+          if status.dns == ServiceState::Running {
+            "available"
+          } else {
+            "unavailable"
+          }
+        )),
+      ),
+    });
+
+    let site_config = self.paths.sites.join(format!("{}.conf", site.domain));
+    let nginx_running = status.nginx == ServiceState::Running;
+    let nginx_status = if !site_config.is_file() {
+      SiteDiagnosticStatus::Failed
+    } else if nginx_running {
+      SiteDiagnosticStatus::Passed
+    } else if status.nginx == ServiceState::Failed {
+      SiteDiagnosticStatus::Failed
+    } else {
+      SiteDiagnosticStatus::Warning
+    };
+    let nginx_detail = if !site_config.is_file() {
+      "Site config missing".to_owned()
+    } else if nginx_running {
+      format!("127.0.0.1:{} · config available", diagnostic_ports.http)
+    } else if status.nginx == ServiceState::Failed {
+      "Service or system ingress unavailable · config available".to_owned()
+    } else {
+      "Service stopped · config available".to_owned()
+    };
+    checks.push(site_diagnostic_check(
+      SiteDiagnosticCheckKind::Nginx,
+      nginx_status,
+      Some(nginx_detail),
+    ));
+
+    checks.push(if nginx_running {
+      match probe_site_http(diagnostic_ports.http, &site.domain).await {
+        Ok(probe) if probe.default_server => site_diagnostic_check(
+          SiteDiagnosticCheckKind::Http,
+          SiteDiagnosticStatus::Failed,
+          Some(format!("HTTP {} · default server", probe.status_code)),
+        ),
+        Ok(probe) if site.secured && !probe.redirects_to_https => site_diagnostic_check(
+          SiteDiagnosticCheckKind::Http,
+          SiteDiagnosticStatus::Failed,
+          Some(format!(
+            "HTTP {} · HTTPS redirect missing",
+            probe.status_code
+          )),
+        ),
+        Ok(probe) => site_diagnostic_check(
+          SiteDiagnosticCheckKind::Http,
+          if probe.status_code >= 500 {
+            SiteDiagnosticStatus::Failed
+          } else if probe.status_code >= 400 {
+            SiteDiagnosticStatus::Warning
+          } else {
+            SiteDiagnosticStatus::Passed
+          },
+          Some(format!("HTTP {}", probe.status_code)),
+        ),
+        Err(_) => site_diagnostic_check(
+          SiteDiagnosticCheckKind::Http,
+          SiteDiagnosticStatus::Failed,
+          None,
+        ),
+      }
+    } else {
+      site_diagnostic_check(
+        SiteDiagnosticCheckKind::Http,
+        SiteDiagnosticStatus::Warning,
+        Some("Nginx stopped".to_owned()),
+      )
+    });
+
+    checks.push(if site.secured {
+      let certificate = self
+        .paths
+        .config
+        .join("tls/sites")
+        .join(format!("{}.crt", site.domain));
+      let private_key = certificate.with_extension("key");
+      let listener_ready = tcp_listener_ready(diagnostic_ports.https).await;
+      if certificate.is_file() && private_key.is_file() && listener_ready {
+        site_diagnostic_check(
+          SiteDiagnosticCheckKind::Https,
+          SiteDiagnosticStatus::Passed,
+          Some(format!(
+            "Certificate available · 127.0.0.1:{}",
+            diagnostic_ports.https
+          )),
+        )
+      } else {
+        let mut missing = Vec::new();
+        if !certificate.is_file() || !private_key.is_file() {
+          missing.push("certificate");
+        }
+        if !listener_ready {
+          missing.push("listener");
+        }
+        site_diagnostic_check(
+          SiteDiagnosticCheckKind::Https,
+          if nginx_running {
+            SiteDiagnosticStatus::Failed
+          } else {
+            SiteDiagnosticStatus::Warning
+          },
+          Some(format!("Missing {}", missing.join(" and "))),
+        )
+      }
+    } else {
+      site_diagnostic_check(
+        SiteDiagnosticCheckKind::Https,
+        SiteDiagnosticStatus::Passed,
+        Some("Disabled".to_owned()),
+      )
+    });
+
+    checks.push(match &site.php_version {
+      None => site_diagnostic_check(
+        SiteDiagnosticCheckKind::Php,
+        SiteDiagnosticStatus::Passed,
+        Some("Static Site".to_owned()),
+      ),
+      Some(version) => match self.runtimes.resolve_php(version) {
+        Err(_) => site_diagnostic_check(
+          SiteDiagnosticCheckKind::Php,
+          SiteDiagnosticStatus::Failed,
+          Some(format!("PHP {version} · Runtime missing")),
+        ),
+        Ok(_) if status.php_fpm != ServiceState::Running => site_diagnostic_check(
+          SiteDiagnosticCheckKind::Php,
+          SiteDiagnosticStatus::Warning,
+          Some(format!("PHP {version} · service stopped")),
+        ),
+        Ok(_) => {
+          let endpoint = php_fastcgi_endpoint(&self.paths, version);
+          site_diagnostic_check(
+            SiteDiagnosticCheckKind::Php,
+            if fastcgi_endpoint_ready(&endpoint).await {
+              SiteDiagnosticStatus::Passed
+            } else {
+              SiteDiagnosticStatus::Failed
+            },
+            Some(format!("PHP {version} · FastCGI")),
+          )
+        }
+      },
+    });
+
+    checks.push(match self.mariadb_settings() {
+      Ok(settings) if status.mariadb == ServiceState::Running => site_diagnostic_check(
+        SiteDiagnosticCheckKind::MariaDb,
+        SiteDiagnosticStatus::Passed,
+        Some(format!("Managed · 127.0.0.1:{}", settings.port)),
+      ),
+      Ok(settings) if external_mariadb_connection_ready(&self.paths, &settings) => {
+        site_diagnostic_check(
+          SiteDiagnosticCheckKind::MariaDb,
+          SiteDiagnosticStatus::Passed,
+          Some("System · local connection available".to_owned()),
+        )
+      }
+      Ok(_) => site_diagnostic_check(
+        SiteDiagnosticCheckKind::MariaDb,
+        SiteDiagnosticStatus::Warning,
+        Some("No local connection detected".to_owned()),
+      ),
+      Err(_) => site_diagnostic_check(
+        SiteDiagnosticCheckKind::MariaDb,
+        SiteDiagnosticStatus::Warning,
+        Some("Settings unavailable".to_owned()),
+      ),
+    });
+
+    SiteDiagnosticReport {
+      site_id: site.id,
+      site_name: site.name.clone(),
+      domain: site.domain.clone(),
+      checks,
+      recent_logs: collect_site_diagnostic_logs(&self.paths, site),
     }
   }
 
@@ -739,7 +993,9 @@ impl ServiceSupervisor {
         .with_context(|| format!("unable to remove Site config at {}", config_path.display()))?;
     }
 
-    if existing_config.is_some() && self.nginx_running() {
+    let nginx_running = existing_config.is_some() && self.nginx_running();
+    let nginx_reload_drain = self.nginx_reload_drain(nginx_running);
+    if nginx_running {
       let nginx_config = self.paths.services.join("nginx/nginx.conf");
       let reload_result = validate_nginx_config(&self.runtimes, &nginx_config)
         .and_then(|()| reload_nginx(&self.runtimes, &nginx_config));
@@ -762,7 +1018,9 @@ impl ServiceSupervisor {
         .iter()
         .any(|remaining| remaining.enabled && remaining.php_version.as_ref() == Some(version));
       if !version_still_used {
-        let _ = self.stop_php_version(version).await;
+        let _ = self
+          .stop_php_version_after_nginx_reload(version, &nginx_reload_drain)
+          .await;
       }
     }
     if site.secured {
@@ -873,6 +1131,7 @@ impl ServiceSupervisor {
     };
 
     let nginx_running = self.nginx_running();
+    let nginx_reload_drain = self.nginx_reload_drain(nginx_running);
     let mut started_php_versions = BTreeSet::new();
     if nginx_running {
       for config in &php_configs {
@@ -936,7 +1195,9 @@ impl ServiceSupervisor {
         .iter()
         .any(|site| site.enabled && site.php_version.as_ref() == Some(&version));
       if !version_still_used {
-        let _ = self.stop_php_version(&version).await;
+        let _ = self
+          .stop_php_version_after_nginx_reload(&version, &nginx_reload_drain)
+          .await;
       }
     }
     Ok(())
@@ -1009,7 +1270,8 @@ impl ServiceSupervisor {
       }
     }
 
-    if self.nginx_running() {
+    let nginx_running = self.nginx_running();
+    if nginx_running {
       let nginx_config = self.paths.services.join("nginx/nginx.conf");
       let reload_result = validate_nginx_config(&self.runtimes, &nginx_config)
         .and_then(|()| reload_nginx(&self.runtimes, &nginx_config));
@@ -1071,7 +1333,9 @@ impl ServiceSupervisor {
     std::fs::write(&config_path, rendered_config)
       .with_context(|| format!("unable to write Site config at {}", config_path.display()))?;
 
-    if self.nginx_running() {
+    let nginx_running = self.nginx_running();
+    let nginx_reload_drain = self.nginx_reload_drain(nginx_running);
+    if nginx_running {
       let php_started = match &php_config {
         Some(config) => {
           if let Err(error) = validate_php_config(config) {
@@ -1108,7 +1372,9 @@ impl ServiceSupervisor {
         .iter()
         .any(|site| site.enabled && site.php_version.as_ref() == Some(previous_version));
       if !previous_still_used {
-        self.stop_php_version(previous_version).await?;
+        self
+          .stop_php_version_after_nginx_reload(previous_version, &nginx_reload_drain)
+          .await?;
       }
     }
     Ok(())
@@ -1368,6 +1634,50 @@ impl ServiceSupervisor {
     remove_file_if_exists(&php_service.join("php-fpm.pid"))?;
     remove_file_if_exists(&php_service.join("php-fpm.sock"))?;
     Ok(())
+  }
+
+  fn nginx_reload_drain(&self, nginx_running: bool) -> NginxReloadDrain {
+    if !nginx_running {
+      return NginxReloadDrain::NotNeeded;
+    }
+    let result = self
+      .nginx
+      .as_ref()
+      .and_then(Child::id)
+      .context("unable to identify the managed Nginx master process")
+      .and_then(nginx_worker_process_ids);
+    match result {
+      Ok(workers) if !workers.is_empty() => NginxReloadDrain::Workers(workers),
+      Ok(_) => NginxReloadDrain::Unavailable(
+        "no Nginx worker process was available before reload".to_owned(),
+      ),
+      Err(error) => NginxReloadDrain::Unavailable(error.to_string()),
+    }
+  }
+
+  async fn stop_php_version_after_nginx_reload(
+    &mut self,
+    version: &PhpVersion,
+    drain: &NginxReloadDrain,
+  ) -> Result<()> {
+    match drain {
+      NginxReloadDrain::NotNeeded => self.stop_php_version(version).await,
+      NginxReloadDrain::Workers(workers) => {
+        if let Err(error) = wait_for_processes_to_exit(workers, NGINX_RELOAD_DRAIN_TIMEOUT).await {
+          eprintln!(
+            "retaining unused PHP {version} until Web services stop because Nginx reload did not drain safely: {error:#}"
+          );
+          return Ok(());
+        }
+        self.stop_php_version(version).await
+      }
+      NginxReloadDrain::Unavailable(error) => {
+        eprintln!(
+          "retaining unused PHP {version} until Web services stop because Nginx reload could not be tracked: {error}"
+        );
+        Ok(())
+      }
+    }
   }
 
   async fn restart_php_versions(&mut self, versions: &BTreeSet<PhpVersion>) -> Result<()> {
@@ -2182,7 +2492,18 @@ fn generate_php_config(
   if initialize_managed_php_ini {
     std::fs::write(&managed_php_ini, render_php(php_ini_template(version)))?;
   }
-  let managed_php_ini_contents = std::fs::read_to_string(&managed_php_ini)?;
+  let original_managed_php_ini_contents = std::fs::read_to_string(&managed_php_ini)?;
+  let managed_php_ini_contents = migrate_managed_php_ini_paths(
+    &original_managed_php_ini_contents,
+    paths,
+    runtimes,
+    &runtime,
+    &php_service,
+    &php_extension_api,
+  );
+  if managed_php_ini_contents != original_managed_php_ini_contents {
+    std::fs::write(&managed_php_ini, &managed_php_ini_contents)?;
+  }
   let service_php_ini_contents =
     effective_php_ini_contents(&managed_php_ini_contents, cfg!(windows), &render_php);
   std::fs::write(&php_ini, service_php_ini_contents)?;
@@ -2236,6 +2557,142 @@ fn effective_php_ini_contents(
   } else {
     managed_contents.to_owned()
   }
+}
+
+fn migrate_managed_php_ini_paths(
+  contents: &str,
+  paths: &AppPaths,
+  runtimes: &RuntimePaths,
+  runtime: &Path,
+  php_service: &Path,
+  php_extension_api: &str,
+) -> String {
+  contents
+    .split_inclusive('\n')
+    .map(|line| {
+      migrate_managed_php_ini_line(
+        line,
+        paths,
+        runtimes,
+        runtime,
+        php_service,
+        php_extension_api,
+      )
+    })
+    .collect()
+}
+
+fn migrate_managed_php_ini_line(
+  line: &str,
+  paths: &AppPaths,
+  runtimes: &RuntimePaths,
+  runtime: &Path,
+  php_service: &Path,
+  php_extension_api: &str,
+) -> String {
+  let Some((directive_text, raw_value)) = line.split_once('=') else {
+    return line.to_owned();
+  };
+  let directive = directive_text.trim().to_ascii_lowercase();
+  let source_root = match directive.as_str() {
+    "error_log" | "session.save_path" => ManagedPhpPathRoot::Service,
+    "extension" | "extension_dir" | "zend_extension" => ManagedPhpPathRoot::Runtime,
+    _ => return line.to_owned(),
+  };
+  let value_offset = raw_value.len() - raw_value.trim_start().len();
+  let value = &raw_value[value_offset..];
+  let (quote, path_length) = match value.as_bytes().first().copied() {
+    Some(b'\'' | b'"') => {
+      let quote = value.as_bytes()[0];
+      let Some(end) = value.as_bytes()[1..].iter().position(|byte| *byte == quote) else {
+        return line.to_owned();
+      };
+      (Some(quote), end)
+    }
+    Some(_) => (
+      None,
+      value
+        .find(|character: char| character.is_whitespace() || character == ';')
+        .unwrap_or(value.len()),
+    ),
+    None => return line.to_owned(),
+  };
+  let path_start = usize::from(quote.is_some());
+  let path_end = path_start + path_length;
+  let Some(path) = value.get(path_start..path_end) else {
+    return line.to_owned();
+  };
+  let Some(migrated) = relocate_managed_php_ini_path(
+    path,
+    source_root,
+    paths,
+    runtimes,
+    runtime,
+    php_service,
+    php_extension_api,
+  ) else {
+    return line.to_owned();
+  };
+  let absolute_path_start = directive_text.len() + 1 + value_offset + path_start;
+  let absolute_path_end = absolute_path_start + path.len();
+  format!(
+    "{}{}{}",
+    &line[..absolute_path_start],
+    migrated,
+    &line[absolute_path_end..]
+  )
+}
+
+#[derive(Clone, Copy)]
+enum ManagedPhpPathRoot {
+  Runtime,
+  Service,
+}
+
+fn relocate_managed_php_ini_path(
+  value: &str,
+  source_root: ManagedPhpPathRoot,
+  paths: &AppPaths,
+  runtimes: &RuntimePaths,
+  runtime: &Path,
+  php_service: &Path,
+  php_extension_api: &str,
+) -> Option<String> {
+  let value = value.replace('\\', "/");
+  let root = match source_root {
+    ManagedPhpPathRoot::Runtime => runtimes.php.to_string_lossy().replace('\\', "/"),
+    ManagedPhpPathRoot::Service => paths
+      .services
+      .join("php")
+      .to_string_lossy()
+      .replace('\\', "/"),
+  };
+  let remainder = strip_ascii_case_path_prefix(&value, &root)?;
+  let (_, suffix) = remainder.split_once('/')?;
+  let destination = match source_root {
+    ManagedPhpPathRoot::Runtime => {
+      let extension_prefix = "lib/php/extensions/";
+      if let Some(extension_path) = suffix.strip_prefix(extension_prefix) {
+        let (_, extension_file) = extension_path.split_once('/')?;
+        runtime
+          .join(extension_prefix)
+          .join(php_extension_api)
+          .join(extension_file)
+      } else {
+        runtime.join(suffix)
+      }
+    }
+    ManagedPhpPathRoot::Service => php_service.join(suffix),
+  };
+  Some(destination.to_string_lossy().into_owned())
+}
+
+fn strip_ascii_case_path_prefix<'a>(value: &'a str, root: &str) -> Option<&'a str> {
+  let prefix = value.get(..root.len())?;
+  if !prefix.eq_ignore_ascii_case(root) {
+    return None;
+  }
+  value.get(root.len()..)?.strip_prefix('/')
 }
 
 fn validate_php_ini_contents(contents: &str) -> Result<()> {
@@ -2741,6 +3198,262 @@ fn background_std_command(executable: impl AsRef<OsStr>) -> std::process::Comman
   command
 }
 
+fn site_diagnostic_check(
+  kind: SiteDiagnosticCheckKind,
+  status: SiteDiagnosticStatus,
+  detail: Option<String>,
+) -> SiteDiagnosticCheck {
+  SiteDiagnosticCheck {
+    kind,
+    status,
+    detail,
+  }
+}
+
+fn path_diagnostic_check(kind: SiteDiagnosticCheckKind, path: &Path) -> SiteDiagnosticCheck {
+  let available = path.is_dir();
+  site_diagnostic_check(
+    kind,
+    if available {
+      SiteDiagnosticStatus::Passed
+    } else {
+      SiteDiagnosticStatus::Failed
+    },
+    Some(if available { "Available" } else { "Missing" }.to_owned()),
+  )
+}
+
+async fn resolve_site_domain(domain: &str) -> Result<Vec<std::net::IpAddr>> {
+  let addresses =
+    tokio::time::timeout(Duration::from_secs(2), tokio::net::lookup_host((domain, 0)))
+      .await
+      .context("Site DNS lookup timed out")??;
+  let mut unique = Vec::new();
+  for address in addresses.map(|address| address.ip()) {
+    if !unique.contains(&address) {
+      unique.push(address);
+    }
+  }
+  Ok(unique)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct SiteHttpProbe {
+  status_code: u16,
+  default_server: bool,
+  redirects_to_https: bool,
+}
+
+async fn probe_site_http(port: u16, domain: &str) -> Result<SiteHttpProbe> {
+  let mut stream = tokio::time::timeout(
+    Duration::from_secs(1),
+    tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, port)),
+  )
+  .await
+  .context("Site HTTP connection timed out")??;
+  let request = format!("GET / HTTP/1.1\r\nHost: {domain}\r\nConnection: close\r\n\r\n");
+  stream.write_all(request.as_bytes()).await?;
+  let mut response = vec![0_u8; 8 * 1024];
+  let length = tokio::time::timeout(Duration::from_secs(2), stream.read(&mut response))
+    .await
+    .context("Site HTTP response timed out")??;
+  let headers = String::from_utf8_lossy(&response[..length]);
+  let status_code = headers
+    .lines()
+    .next()
+    .and_then(|line| line.split_whitespace().nth(1))
+    .and_then(|value| value.parse::<u16>().ok())
+    .context("Site HTTP response has no valid status code")?;
+  let headers_lower = headers.to_ascii_lowercase();
+  Ok(SiteHttpProbe {
+    status_code,
+    default_server: headers_lower.contains("\r\nx-fabdev-default: 1\r\n"),
+    redirects_to_https: headers_lower
+      .contains(&format!("\r\nlocation: https://{domain}/\r\n").to_ascii_lowercase()),
+  })
+}
+
+async fn tcp_listener_ready(port: u16) -> bool {
+  tokio::time::timeout(
+    Duration::from_millis(500),
+    tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, port)),
+  )
+  .await
+  .is_ok_and(|result| result.is_ok())
+}
+
+async fn fastcgi_endpoint_ready(endpoint: &FastCgiEndpoint) -> bool {
+  match endpoint {
+    FastCgiEndpoint::UnixSocket(path) => unix_socket_ready(path),
+    FastCgiEndpoint::Tcp(address) => tokio::time::timeout(
+      Duration::from_millis(500),
+      tokio::net::TcpStream::connect(address),
+    )
+    .await
+    .is_ok_and(|result| result.is_ok()),
+  }
+}
+
+#[cfg(unix)]
+fn unix_socket_ready(path: &Path) -> bool {
+  use std::os::unix::fs::FileTypeExt;
+
+  std::fs::metadata(path).is_ok_and(|metadata| metadata.file_type().is_socket())
+}
+
+#[cfg(not(unix))]
+fn unix_socket_ready(_path: &Path) -> bool {
+  false
+}
+
+#[cfg(unix)]
+fn external_mariadb_connection_ready(paths: &AppPaths, settings: &MariaDbSettings) -> bool {
+  unix_socket_ready(&effective_mariadb_php_socket(paths, settings))
+}
+
+#[cfg(windows)]
+fn external_mariadb_connection_ready(_paths: &AppPaths, settings: &MariaDbSettings) -> bool {
+  TcpStream::connect_timeout(
+    &std::net::SocketAddr::from((Ipv4Addr::LOCALHOST, settings.port)),
+    Duration::from_millis(100),
+  )
+  .is_ok()
+}
+
+fn collect_site_diagnostic_logs(paths: &AppPaths, site: &Site) -> Vec<SiteDiagnosticLogEntry> {
+  let mut log_paths = vec![
+    paths.logs.join("nginx-error.log"),
+    paths.logs.join("nginx-access.log"),
+    paths.logs.join("nginx-process.log"),
+    paths.logs.join("mariadb-error.log"),
+    paths.logs.join("mariadb-process.log"),
+  ];
+  if let Some(version) = &site.php_version {
+    let php_logs = php_service_path(paths, version).join("logs");
+    if let Ok(entries) = std::fs::read_dir(php_logs) {
+      log_paths.extend(entries.filter_map(|entry| {
+        let entry = entry.ok()?;
+        let path = entry.path();
+        (path.extension() == Some(OsStr::new("log"))).then_some(path)
+      }));
+    }
+  }
+
+  let mut entries = Vec::new();
+  for path in log_paths {
+    let source = path
+      .file_name()
+      .and_then(OsStr::to_str)
+      .unwrap_or("managed.log")
+      .to_owned();
+    let Ok(lines) = read_bounded_log_tail(&path) else {
+      continue;
+    };
+    for line in lines.into_iter().rev() {
+      if !diagnostic_log_line_relevant(&line, &site.domain) {
+        continue;
+      }
+      entries.push(SiteDiagnosticLogEntry {
+        source: source.clone(),
+        line: redact_diagnostic_log_line(&line, paths, site),
+      });
+      if entries.len() == 20 {
+        return entries;
+      }
+    }
+  }
+  entries
+}
+
+fn read_bounded_log_tail(path: &Path) -> Result<Vec<String>> {
+  let metadata = std::fs::symlink_metadata(path)?;
+  if !metadata.file_type().is_file() {
+    bail!("diagnostic log is not a regular file");
+  }
+  let mut file = File::open(path)?;
+  let start = metadata.len().saturating_sub(64 * 1024);
+  file.seek(SeekFrom::Start(start))?;
+  let mut contents = Vec::new();
+  file.read_to_end(&mut contents)?;
+  let contents = String::from_utf8_lossy(&contents);
+  let mut lines = contents.lines();
+  if start > 0 {
+    lines.next();
+  }
+  Ok(lines.map(str::to_owned).collect())
+}
+
+fn diagnostic_log_line_relevant(line: &str, domain: &str) -> bool {
+  let line = line.to_ascii_lowercase();
+  line.contains(&domain.to_ascii_lowercase())
+    || ["error", "warn", "fail", "fatal", "critical"]
+      .iter()
+      .any(|keyword| line.contains(keyword))
+}
+
+fn redact_diagnostic_log_line(line: &str, paths: &AppPaths, site: &Site) -> String {
+  let lower = line.to_ascii_lowercase();
+  if [
+    "authorization",
+    "cookie",
+    "password",
+    "passwd",
+    "token",
+    "secret",
+    "api_key",
+    "apikey",
+    "private key",
+  ]
+  .iter()
+  .any(|keyword| lower.contains(keyword))
+  {
+    return "[sensitive content redacted]".to_owned();
+  }
+
+  let mut redacted = redact_known_path(line, &site.document_root, "<documentRoot>");
+  redacted = redact_known_path(&redacted, &site.project_path, "<projectPath>");
+  redacted = redact_known_path(&redacted, &paths.root, "<fabdevData>");
+  for home_variable in ["HOME", "USERPROFILE"] {
+    if let Some(home) = std::env::var_os(home_variable) {
+      let home = PathBuf::from(home);
+      redacted = redact_known_path(&redacted, &home, "<home>");
+    }
+  }
+  redacted = redact_url_credentials(&redacted);
+  redacted.retain(|character| !character.is_control() || character == '\t');
+  redacted.chars().take(500).collect()
+}
+
+fn redact_known_path(value: &str, path: &Path, replacement: &str) -> String {
+  let path = path.to_string_lossy();
+  if path.is_empty() {
+    value.to_owned()
+  } else {
+    value.replace(path.as_ref(), replacement)
+  }
+}
+
+fn redact_url_credentials(value: &str) -> String {
+  let mut redacted = value.to_owned();
+  let mut search_from = 0;
+  while let Some(scheme_offset) = redacted[search_from..].find("://") {
+    let credentials_start = search_from + scheme_offset + 3;
+    let remaining = &redacted[credentials_start..];
+    let Some(at_offset) = remaining.find('@') else {
+      break;
+    };
+    let credentials = &remaining[..at_offset];
+    if credentials.is_empty() || credentials.chars().any(char::is_whitespace) {
+      search_from = credentials_start;
+      continue;
+    }
+    let credentials_end = credentials_start + at_offset;
+    redacted.replace_range(credentials_start..credentials_end, "<credentials>");
+    search_from = credentials_start + "<credentials>@".len();
+  }
+  redacted
+}
+
 async fn wait_for_path(path: &Path, timeout: Duration) -> Result<()> {
   let started = tokio::time::Instant::now();
   while started.elapsed() < timeout {
@@ -3035,6 +3748,113 @@ fn managed_process_ids(
     std::process::id(),
     |command| matcher(command, paths, runtimes),
   ))
+}
+
+#[cfg(unix)]
+fn nginx_worker_process_ids(master_pid: u32) -> Result<Vec<u32>> {
+  let output = std::process::Command::new("/bin/ps")
+    .args(["-axo", "pid=,ppid="])
+    .output()
+    .context("unable to inspect Nginx worker processes")?;
+  if !output.status.success() {
+    bail!(
+      "unable to inspect Nginx worker processes: {}",
+      String::from_utf8_lossy(&output.stderr).trim()
+    );
+  }
+  Ok(child_process_ids_from_ps_output(
+    &String::from_utf8_lossy(&output.stdout),
+    master_pid,
+  ))
+}
+
+#[cfg(unix)]
+fn child_process_ids_from_ps_output(output: &str, parent_pid: u32) -> Vec<u32> {
+  output
+    .lines()
+    .filter_map(|line| {
+      let mut fields = line.split_whitespace();
+      let pid = fields.next()?.parse::<u32>().ok()?;
+      let process_parent_pid = fields.next()?.parse::<u32>().ok()?;
+      (process_parent_pid == parent_pid).then_some(pid)
+    })
+    .collect()
+}
+
+#[cfg(windows)]
+fn nginx_worker_process_ids(master_pid: u32) -> Result<Vec<u32>> {
+  use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+  use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+  };
+
+  let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+  if snapshot == INVALID_HANDLE_VALUE {
+    return Err(std::io::Error::last_os_error()).context("unable to inspect Nginx workers");
+  }
+  let mut entry = PROCESSENTRY32W {
+    dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+    ..Default::default()
+  };
+  let mut workers = Vec::new();
+  let mut has_entry = unsafe { Process32FirstW(snapshot, &mut entry) } != 0;
+  while has_entry {
+    if entry.th32ParentProcessID == master_pid {
+      workers.push(entry.th32ProcessID);
+    }
+    has_entry = unsafe { Process32NextW(snapshot, &mut entry) } != 0;
+  }
+  unsafe {
+    CloseHandle(snapshot);
+  }
+  Ok(workers)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn nginx_worker_process_ids(_master_pid: u32) -> Result<Vec<u32>> {
+  bail!("Nginx worker tracking is not supported on this platform")
+}
+
+async fn wait_for_processes_to_exit(process_ids: &[u32], timeout: Duration) -> Result<()> {
+  if process_ids.is_empty() {
+    bail!("no process IDs were provided");
+  }
+  let started = tokio::time::Instant::now();
+  while started.elapsed() < timeout {
+    if process_ids.iter().all(|pid| !process_running(*pid)) {
+      return Ok(());
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+  }
+  bail!("previous Nginx workers did not exit within {timeout:?}")
+}
+
+#[cfg(unix)]
+fn process_running(pid: u32) -> bool {
+  unix_process_running(pid)
+}
+
+#[cfg(windows)]
+fn process_running(pid: u32) -> bool {
+  use windows_sys::Win32::Foundation::{CloseHandle, WAIT_TIMEOUT};
+  use windows_sys::Win32::System::Threading::{
+    OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE,
+  };
+
+  let process = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) };
+  if process.is_null() {
+    return true;
+  }
+  let running = unsafe { WaitForSingleObject(process, 0) } == WAIT_TIMEOUT;
+  unsafe {
+    CloseHandle(process);
+  }
+  running
+}
+
+#[cfg(not(any(unix, windows)))]
+fn process_running(_pid: u32) -> bool {
+  true
 }
 
 #[cfg(unix)]
@@ -3637,6 +4457,98 @@ mod tests {
 
   use super::*;
 
+  #[tokio::test]
+  async fn diagnoses_a_site_without_exposing_project_paths() {
+    let root = std::env::temp_dir().join(format!("fabdev-diagnostic-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(&root);
+    paths.ensure().expect("create diagnostic directories");
+    let project = root.join("projects/erp-demo");
+    let document_root = project.join("public");
+    std::fs::create_dir_all(&document_root).expect("create document root");
+    std::fs::write(
+      paths.logs.join("nginx-error.log"),
+      format!(
+        "localhost error while reading {}\n",
+        document_root.display()
+      ),
+    )
+    .expect("write diagnostic log");
+    let site = Site {
+      id: Uuid::new_v4(),
+      name: "ERP Demo".to_owned(),
+      domain: "localhost".to_owned(),
+      project_path: project,
+      document_root,
+      php_version: None,
+      enabled: true,
+      secured: false,
+      upstream_response_timeout_seconds: 120,
+    };
+    let mut supervisor = ServiceSupervisor::new(
+      paths,
+      RuntimePaths::from_runtime_root(root.join("runtimes")),
+      ServicePorts {
+        dns: 53_535,
+        http: 59_080,
+        https: 59_443,
+        mariadb: 53_306,
+      },
+    );
+
+    let report = supervisor.diagnose_site(&site).await;
+
+    assert_eq!(report.checks.len(), 9);
+    assert!(report.checks.iter().any(|check| {
+      check.kind == SiteDiagnosticCheckKind::Dns
+        && check.status == SiteDiagnosticStatus::Warning
+        && check
+          .detail
+          .as_deref()
+          .is_some_and(|detail| detail.contains("Loopback resolution available"))
+    }));
+    assert_eq!(report.recent_logs.len(), 1);
+    assert!(report.recent_logs[0].line.contains("<documentRoot>"));
+    assert!(!report.recent_logs[0]
+      .line
+      .contains(root.to_string_lossy().as_ref()));
+
+    std::fs::remove_dir_all(root).expect("remove diagnostic fixture");
+  }
+
+  #[test]
+  fn redacts_sensitive_diagnostic_log_lines_and_url_credentials() {
+    let root = PathBuf::from("/Users/example/Library/Application Support/FabDev");
+    let paths = AppPaths::from_root(&root);
+    let site = Site {
+      id: Uuid::new_v4(),
+      name: "ERP Demo".to_owned(),
+      domain: "erp-demo.test".to_owned(),
+      project_path: PathBuf::from("/Users/example/Sites/erp-demo"),
+      document_root: PathBuf::from("/Users/example/Sites/erp-demo/public"),
+      php_version: None,
+      enabled: true,
+      secured: false,
+      upstream_response_timeout_seconds: 120,
+    };
+
+    assert_eq!(
+      redact_diagnostic_log_line("Authorization: Bearer private", &paths, &site),
+      "[sensitive content redacted]"
+    );
+    assert_eq!(
+      redact_diagnostic_log_line(
+        "erp-demo.test upstream http://admin:private@example.test failed; retry https://user:hidden@example.test",
+        &paths,
+        &site,
+      ),
+      "erp-demo.test upstream http://<credentials>@example.test failed; retry https://<credentials>@example.test"
+    );
+    assert_eq!(
+      redact_known_path("unchanged", Path::new(""), "<path>"),
+      "unchanged"
+    );
+  }
+
   fn add_php_runtime(root: &Path, version: &str) -> PathBuf {
     let runtime = root.join(version);
     if cfg!(windows) {
@@ -3806,6 +4718,27 @@ mod tests {
     });
 
     assert_eq!(pids, vec![100, 101, 102, 103]);
+  }
+
+  #[cfg(unix)]
+  #[test]
+  fn identifies_only_direct_nginx_workers() {
+    let processes = "  100 1\n  101 100\n  102 100\n  103 101\n  104 999\n";
+
+    assert_eq!(
+      child_process_ids_from_ps_output(processes, 100),
+      vec![101, 102]
+    );
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn waits_for_previous_nginx_workers_before_retiring_php() {
+    let running = wait_for_processes_to_exit(&[std::process::id()], Duration::from_millis(1)).await;
+    let stopped = wait_for_processes_to_exit(&[u32::MAX], Duration::from_millis(100)).await;
+
+    assert!(running.is_err());
+    assert!(stopped.is_ok());
   }
 
   #[cfg(unix)]
@@ -4876,6 +5809,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     assert!(nginx_global.contains("listen 127.0.0.1:8443 ssl default_server;"));
     assert!(nginx_global.contains("server_names_hash_bucket_size 512;"));
     assert!(nginx_global.contains("log_format fabdev_timing"));
+    assert!(nginx_global.contains("host=$host"));
     assert!(nginx_global.contains("request_time=$request_time"));
     assert!(nginx_global.contains("upstream_response_time=$upstream_response_time"));
     assert!(nginx_global.contains("logs/nginx-access.log\" fabdev_timing;"));
@@ -5851,6 +6785,130 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     assert!(!contents.contains("@RUNTIME_ROOT@"));
     assert!(!contents.contains("@SERVICE_ROOT@"));
     std::fs::remove_dir_all(root).expect("remove empty php.ini fixture");
+  }
+
+  #[cfg(unix)]
+  #[test]
+  fn migrates_legacy_php_paths_without_overwriting_custom_settings() {
+    let root = std::env::temp_dir().join(format!("fabdev-legacy-php-ini-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(root.join("FabDev"));
+    let runtimes = RuntimePaths::from_runtime_root(&paths.runtimes);
+    let runtime = add_php_runtime(&runtimes.php, "7.4.33");
+    let version: PhpVersion = "7.4".parse().expect("parse PHP 7.4");
+    let managed = managed_php_ini_path(&paths, &version);
+    std::fs::create_dir_all(managed.parent().expect("managed php.ini parent"))
+      .expect("create managed php.ini directory");
+    let legacy_root = root.join("fabDev");
+    std::fs::write(
+      &managed,
+      format!(
+        "memory_limit = 384M\nerror_log = \"{}/services/php/8.2/logs/php-error.log\"\nsession.save_path = \"{}/services/php/8.2/session\"\nzend_extension = \"{}/runtimes/php/8.2.33/lib/php/extensions/no-debug-non-zts-20220829/opcache.so\"\nextension = \"{}/runtimes/php/8.2.33/lib/php/extensions/no-debug-non-zts-20220829/imagick.so\"\nextension = \"/opt/custom/php/custom.so\"\n",
+        legacy_root.display(),
+        legacy_root.display(),
+        legacy_root.display(),
+        legacy_root.display(),
+      ),
+    )
+    .expect("write legacy PHP configuration");
+
+    let generated =
+      generate_php_config(&paths, &runtimes, &version).expect("migrate legacy PHP configuration");
+    let contents = std::fs::read_to_string(&managed).expect("read migrated PHP configuration");
+    let normalized = contents.replace('\\', "/");
+    let expected_runtime = runtime.to_string_lossy().replace('\\', "/");
+    let expected_service = php_service_path(&paths, &version)
+      .to_string_lossy()
+      .replace('\\', "/");
+
+    assert!(normalized.contains("memory_limit = 384M"));
+    assert!(normalized.contains("extension = \"/opt/custom/php/custom.so\""));
+    assert!(normalized.contains(&format!(
+      "error_log = \"{expected_service}/logs/php-error.log\""
+    )));
+    assert!(normalized.contains(&format!(
+      "{expected_runtime}/lib/php/extensions/no-debug-non-zts-fixture/imagick.so"
+    )));
+    assert!(!normalized.contains("runtimes/php/8.2.33"));
+    assert_eq!(
+      std::fs::read_to_string(generated.php_ini).expect("read service PHP configuration"),
+      contents
+    );
+    std::fs::remove_dir_all(root).expect("remove legacy PHP fixture");
+  }
+
+  #[cfg(unix)]
+  fn assert_migrates_managed_extension_paths_after_php_patch_update(
+    series: &str,
+    previous_version: &str,
+    installed_version: &str,
+    previous_extension_api: &str,
+  ) {
+    let root = std::env::temp_dir().join(format!(
+      "fabdev-updated-php-ini-{}-{}",
+      series.replace('.', "-"),
+      Uuid::new_v4()
+    ));
+    let paths = AppPaths::from_root(root.join("data"));
+    let runtimes = RuntimePaths::from_runtime_root(&paths.runtimes);
+    let runtime = add_php_runtime(&runtimes.php, installed_version);
+    let version: PhpVersion = series.parse().expect("parse PHP series");
+    let managed = managed_php_ini_path(&paths, &version);
+    std::fs::create_dir_all(managed.parent().expect("managed php.ini parent"))
+      .expect("create managed php.ini directory");
+    std::fs::write(
+      &managed,
+      format!(
+        "zend_extension = \"{}/runtimes/php/{previous_version}/lib/php/extensions/{previous_extension_api}/opcache.so\"\n",
+        paths.root.display(),
+      ),
+    )
+    .expect("write previous patch PHP configuration");
+
+    generate_php_config(&paths, &runtimes, &version)
+      .expect("migrate PHP configuration after patch update");
+    let contents = std::fs::read_to_string(&managed)
+      .expect("read migrated patch PHP configuration")
+      .replace('\\', "/");
+    let expected_runtime = runtime.to_string_lossy().replace('\\', "/");
+
+    assert!(contents.contains(&format!(
+      "{expected_runtime}/lib/php/extensions/no-debug-non-zts-fixture/opcache.so"
+    )));
+    assert!(!contents.contains(&format!("runtimes/php/{previous_version}")));
+    std::fs::remove_dir_all(root).expect("remove updated PHP fixture");
+  }
+
+  #[cfg(unix)]
+  #[test]
+  fn migrates_managed_php_82_extension_paths_after_a_patch_update() {
+    assert_migrates_managed_extension_paths_after_php_patch_update(
+      "8.2",
+      "8.2.33",
+      "8.2.34",
+      "no-debug-non-zts-20220829",
+    );
+  }
+
+  #[cfg(unix)]
+  #[test]
+  fn migrates_managed_php_84_extension_paths_after_a_patch_update() {
+    assert_migrates_managed_extension_paths_after_php_patch_update(
+      "8.4",
+      "8.4.24",
+      "8.4.25",
+      "no-debug-non-zts-20240924",
+    );
+  }
+
+  #[cfg(unix)]
+  #[test]
+  fn migrates_managed_php_85_extension_paths_after_a_patch_update() {
+    assert_migrates_managed_extension_paths_after_php_patch_update(
+      "8.5",
+      "8.5.10",
+      "8.5.11",
+      "no-debug-non-zts-20250925",
+    );
   }
 
   #[test]

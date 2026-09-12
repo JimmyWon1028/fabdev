@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 
+import { createOverlayDismissController } from '../utils/modal'
+
 const props = withDefaults(defineProps<{
   title: string
   description?: string
@@ -36,6 +38,8 @@ function requestClose() {
     emit('close')
   }
 }
+
+const overlayDismiss = createOverlayDismissController(requestClose)
 
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
@@ -87,7 +91,12 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <div class="modal-overlay" @click.self="requestClose">
+    <div
+      class="modal-overlay"
+      @pointerdown="overlayDismiss.handlePointerDown"
+      @pointerup="overlayDismiss.handlePointerUp"
+      @pointercancel="overlayDismiss.handlePointerCancel"
+    >
       <section
         ref="dialog"
         class="modal-dialog"

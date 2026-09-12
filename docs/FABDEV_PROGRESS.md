@@ -1,11 +1,24 @@
 # fabDev 穩定基線與 Roadmap
 
-> 更新日期：2026-09-10
+> 更新日期：2026-09-13
 > 目前階段：[`v0.1.24`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.24) 是公開的 Windows x64／macOS ARM64 Latest Stable，包含 Windows FastCGI 效能、每 Site timeout、Proxy 預設 timeout 與 macOS PHP 8.5.10 線上安裝支援，App 版本為 `0.1.24`、Agent Protocol 為 `39`。Windows x64 Run [`34326154074`](https://github.com/JimmyWon1028/fabdev/actions/runs/34326154074)、Repository Owner 實機 Gate、版本化 Run [`34329431684`](https://github.com/JimmyWon1028/fabdev/actions/runs/34329431684)、Draft Run [`34330967986`](https://github.com/JimmyWon1028/fabdev/actions/runs/34330967986) 及支援修正 Run [`34432390677`](https://github.com/JimmyWon1028/fabdev/actions/runs/34432390677) 均已通過；Release ID `385364449` 維持 Publish，現有 9 個 App-only Assets。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v4`
 
 ## 階段結論
 
 fabDev Desktop Community `v0.1.24` 是目前公開的 Windows x64／macOS ARM64 Latest Stable。Windows 候選 CI、實機功能 Gate、版本化 CI、Annotated Tag、Windows 重新打包、Draft、資產驗證與 Publish 均已完成；目前 macOS ARM64 DMG 經 Repository Owner 明確授權，以 Commit `e3fa037` 的同版建置替換並通過 PHP 8.5.10 線上安裝驗證。Tag 仍固定在 `21bd978`，既有 Windows Binary 未重新建置或替換。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
+
+## 0.1.25 Windows-first 候選
+
+- Sites 與 Proxy 的新增／編輯彈窗修正 macOS 拖曳選取文字時誤觸背景關閉的問題。共用 `AppModal` 只在 Pointer 按下與放開都位於背景遮罩時關閉，並加入正常背景關閉、從彈窗內開始拖曳及手勢取消的回歸測試。
+- Sites 名稱與 Proxy ID 在清單中固定維持單行，欄寬不足時顯示省略號，並保留滑鼠停留查看完整值，不改動既有清單欄位配置。
+- 已檢查目前全部編輯彈窗（Sites、Proxy）；表單有未儲存修改時，背景、關閉按鈕、取消按鈕與 Escape 關閉前都會先確認，保存進行中維持不可關閉。
+- Sites 清單加入唯讀的一鍵診斷，檢查 Site 狀態、專案資料夾、Document Root、DNS／53、Nginx、HTTP／80、HTTPS 憑證檔與 443 listener、PHP／FastCGI 及 MariaDB，並顯示最多 20 筆近期相關受管 Log。複製報告會遮罩專案路徑、fabDev 資料路徑、使用者 Home、URL credentials 與含 Token／密碼等敏感欄位；新增的 Agent request／response 使開發來源 Protocol 升為 `40`。
+- 2026-09-12 macOS dev smoke：實際 Agent `ping` 回報 Protocol `40`；`adminer.test` 的 HTTP 200 與 `fabtech.test` 的 HTTP 301／HTTPS 443 分支各自 9 項檢查全數通過，近期 access／error Log 正常回傳且 Home 路徑已遮罩。Vite 實際互動已驗證 Sites 與 Proxy 從輸入框拖曳選取文字並放開於遮罩外時彈窗維持開啟，無修改時點擊背景仍正常關閉；原生 Tauri 放棄修改確認仍保留為 App 視窗人工驗收項目。
+- PHP 服務設定加入既有 `php.ini` 的受管路徑遷移：只重定位 fabDev Runtime、extension API、Service Log 與 Session 的絕對路徑，保留記憶體、時區及外部 Extension 等使用者自訂值。這會修復舊版共用預設曾把 PHP 7.4 指向 PHP 8.2 Runtime／Log 的資料，也涵蓋 PHP 8.2、8.4、8.5 同系列 Runtime patch 更新；共新增四項回歸測試。macOS dev 已實際把既有 PHP 7.4 設定安全遷回 7.4.33，OPcache、Imagick、IMAP 均成功載入，PHP 7.4 的 `tei.test`／`api.tei.test` 與 PHP 8.2 的 `adminer.test` 回應 HTTP 200，`fabtech.test` 的 HTTPS 入口回應 HTTP 301。完整 `pnpm test` 通過 Desktop 97、Release 規則 19、Rust 296 與 macOS Helper 9 項測試，另有 7 項外部環境測試維持 ignored；`pnpm lint` 與 `git diff --check` 通過。
+- 2026-09-12 macOS 選裝 Runtime 實測：dev Agent 從正式 `fabdev-runtimes` Catalog sequence 4 下載並驗證 PHP 8.4.24（51,508,954 bytes，SHA-256 `d2061309da8f76e0b70ca11897cd0fd39249096c5ddba352789a4b2bde747949`），並重新驗證既有快取後安裝 PHP 8.5.10（52,772,681 bytes，SHA-256 `becf06f1d74d63464c31bb05c5b2f3fadc2ce27fd4363dc4cbf92a4068d327e9`）；兩版安裝健康檢查、CLI 的 OPcache／Imagick／IMAP、各自 4 個 PHP-FPM process 與暫時 Site HTTP 200 均通過，回應版本分別為 8.4.24、8.5.10。暫時 Site 已移除，原有 PHP 7.4／8.2 Site 仍為 HTTP 200，全域 PHP 保持 8.2.33；PHP 8.4／8.5 Runtime 保留為已安裝。
+- PHP 版本切換、Site 移除與批次套用 Site 設定在 Nginx graceful reload 後，會等待 reload 前的 worker 退出才停止已無 Site 使用的舊 PHP-FPM；若無法確認安全退場，舊 pool 會保留到 Web services 停止，避免舊 worker 連線到已移除的 Socket 而短暫回 502。新增 Nginx worker 辨識與排空 Gate 回歸測試；macOS dev 實際由 PHP 8.4.24 切到 8.5.10 時，切換窗口連續 240 次請求全數 HTTP 200，8.5 接管後舊 8.4 pool 正常停止，臨時 Site 移除後 8.4／8.5 測試 pool 亦已清理，原有 PHP 7.4／8.2 Site 仍為 HTTP 200。
+- `fabdev-mcp` 第一階段保留為後續項目，不納入目前 `0.1.25`。未來從既有 Agent Protocol 建立唯讀薄型轉接層，先提供 Sites 清單、Site 資訊、服務狀態、單一 Site 診斷及已遮罩的近期 Log；目前不開始實作，也不開放任意 Shell、檔案讀取或任何變更操作。
+- 2026-09-13 Repository Owner 明確要求開始 `0.1.25` 進版打包程序並依協議先做 Windows x64。根目錄／Desktop `package.json`、Tauri 設定、Cargo workspace 與 `Cargo.lock` 內 13 個 fabDev 套件已同步為 `0.1.25`，Agent Protocol 為 `40`。本機完整 `pnpm test` 通過 Desktop 97、Release 規則 19、Rust 296 與 macOS Helper 9 項測試，另有 7 項外部環境測試維持 ignored；Cargo workspace check、`pnpm lint` 與 `git diff --check` 通過。macOS 主機直接執行完整 Windows MSVC workspace check 因缺少 Windows SDK C headers 而無法完成，正式 MSVC、Windows Runtime、NSIS 與 Artifact Gate 由 `windows-latest` CI 執行。目前尚未建立 Tag／Draft、未發布 Stable，也未打包 macOS 或線上 Runtime Package。
 
 ## 已完成
 
@@ -277,7 +290,8 @@ fabDev Desktop Community `v0.1.24` 是目前公開的 Windows x64／macOS ARM64 
 - [x] Windows App 更新下載加入停止／取消操作，並保留既有分段下載能力；0.1.14 回歸測試通過，下一個 Stable 補做 VM UI 中途取消驗收。
 - [ ] 加入更新失敗回復入口：重新執行安裝、開啟錯誤紀錄、下載上一個 Stable 版本及還原更新前設定快照。
 - [ ] 規劃統一更新中心，集中顯示 App、PHP、Node.js 與 MariaDB 的已安裝版本、可用版本及更新狀態。
-- [ ] 提供一鍵診斷報告，涵蓋 DNS、Port、Nginx、PHP、MariaDB、Runtime 與 App 更新紀錄，並遮罩敏感資料。
+- [x] Sites 提供一鍵診斷報告，涵蓋專案路徑、DNS、53／80／443、Nginx、HTTPS 憑證檔、PHP／FastCGI、MariaDB 與近期相關受管 Log，並遮罩敏感資料。
+- [ ] 後續擴充全 App 診斷包，加入 Runtime 與 App 更新紀錄；目前 Site 診斷不宣稱包含這兩類歷程。
 - [ ] 在實體 Windows x64 與 IIS／Herd 共存環境補做安裝、更新、衝突與長時間運行驗收。
 - [ ] 正式散布需求成熟後加入 Windows Code Signing；目前 Unsigned Community Build 維持 SHA-256 驗證與 SmartScreen 說明。
 

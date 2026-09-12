@@ -4,7 +4,7 @@ import type {
   ProxyConnectionInput,
   ProxyConnectionState
 } from '@fabdev/contracts'
-import { open, save } from '@tauri-apps/plugin-dialog'
+import { confirm, open, save } from '@tauri-apps/plugin-dialog'
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 
 import AppModal from '../components/AppModal.vue'
@@ -36,6 +36,7 @@ const newConnection = reactive<ProxyConnectionInput>({
   upstreamResponseTimeoutSeconds: null
 })
 let pollTimer: ReturnType<typeof setInterval> | null = null
+let initialProxyFormState = ''
 
 const connections = computed(() => store.proxyManager.connections)
 const runningCount = computed(
@@ -146,6 +147,7 @@ function openAddForm() {
   newConnection.allowedOrigins = []
   newConnection.upstreamResponseTimeoutSeconds = null
   allowedOriginsText.value = ''
+  initialProxyFormState = proxyFormState()
   showAddForm.value = true
   formMessage.value = ''
 }
@@ -159,6 +161,7 @@ function openEditForm(connection: ProxyConnectionInfo) {
   newConnection.allowedOrigins = [...connection.allowedOrigins]
   newConnection.upstreamResponseTimeoutSeconds = connection.upstreamResponseTimeoutSeconds
   allowedOriginsText.value = connection.allowedOrigins.join('\n')
+  initialProxyFormState = proxyFormState()
   showAddForm.value = true
   formMessage.value = ''
 }
@@ -167,6 +170,35 @@ function closeAddForm() {
   showAddForm.value = false
   editingConnectionId.value = null
   formMessage.value = ''
+}
+
+function proxyFormState() {
+  return JSON.stringify({
+    id: newConnection.id,
+    domain: newConnection.domain,
+    listenPort: newConnection.listenPort,
+    target: newConnection.target,
+    allowedOriginsText: allowedOriginsText.value,
+    upstreamResponseTimeoutSeconds: newConnection.upstreamResponseTimeoutSeconds
+  })
+}
+
+async function requestCloseAddForm() {
+  if (action.value !== null) {
+    return
+  }
+  if (proxyFormState() !== initialProxyFormState) {
+    const approved = await confirm(t('proxy.discardChangesConfirm'), {
+      title: t('proxy.discardChangesTitle'),
+      kind: 'warning',
+      okLabel: t('common.discardChanges'),
+      cancelLabel: t('common.keepEditing')
+    })
+    if (!approved) {
+      return
+    }
+  }
+  closeAddForm()
 }
 
 function allowedOrigins() {
@@ -573,7 +605,7 @@ async function openConnection(connection: ProxyConnectionInfo) {
         <div class="proxy-identity">
           <span class="status-dot" :data-state="connection.state" />
           <div>
-            <strong>{{ connection.id }}</strong>
+            <strong class="proxy-id" :title="connection.id">{{ connection.id }}</strong>
             <small>{{ connection.domain }}</small>
           </div>
           <button
@@ -669,7 +701,7 @@ async function openConnection(connection: ProxyConnectionInfo) {
     :close-label="t('proxy.cancel')"
     :busy="action !== null"
     size="wide"
-    @close="closeAddForm"
+    @close="requestCloseAddForm"
   >
     <form class="modal-form proxy-modal-form" @submit.prevent="saveConnection">
       <div class="proxy-add-fields">
@@ -752,7 +784,7 @@ async function openConnection(connection: ProxyConnectionInfo) {
           type="button"
           class="secondary-button"
           :disabled="action !== null"
-          @click="closeAddForm"
+          @click="requestCloseAddForm"
         >
           {{ t('proxy.cancel') }}
         </button>

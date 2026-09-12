@@ -13,6 +13,7 @@ import {
   type RuntimeUpdateCheck,
   type RuntimeUpdateOperation,
   type Site,
+  type SiteDiagnosticReport,
   type SiteEditInput,
   type SiteHomeSettings,
   type SiteInput,
@@ -341,6 +342,16 @@ export const useAppStore = defineStore('fabdev', {
       } else if (response.type === 'error') {
         throw new Error(response.payload.message)
       }
+    },
+    async diagnoseSite(siteId: string): Promise<SiteDiagnosticReport> {
+      const response = await sendRequest({ type: 'diagnoseSite', payload: { siteId } })
+      if (response.type === 'siteDiagnostic') {
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
     },
     async loadSiteHome() {
       const response = await sendRequest({ type: 'getSiteHome' })

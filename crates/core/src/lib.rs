@@ -10,9 +10,10 @@ pub use protocol::{
   NodeRuntimeState, PhpFpmPoolStatus, PhpRuntimeInfo, PhpRuntimeState, ProxyConnectionInfo,
   ProxyConnectionInput, ProxyConnectionSettings, ProxyConnectionState, ProxyManagerState,
   RuntimeUpdateArtifact, RuntimeUpdateCheck, RuntimeUpdateOperation, RuntimeUpdateOperationStatus,
-  ServiceState, SiteHomeInput, SiteHomeSettings, TerminalNodeState, TerminalPhpState,
-  DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS, MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
-  PROTOCOL_VERSION,
+  ServiceState, SiteDiagnosticCheck, SiteDiagnosticCheckKind, SiteDiagnosticLogEntry,
+  SiteDiagnosticReport, SiteDiagnosticStatus, SiteHomeInput, SiteHomeSettings, TerminalNodeState,
+  TerminalPhpState, DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
+  MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS, PROTOCOL_VERSION,
 };
 pub use site::{
   create_site, default_site_domain, detect_document_root, edit_site, normalize_domain, PhpVersion,

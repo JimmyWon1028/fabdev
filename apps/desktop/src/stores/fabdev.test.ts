@@ -18,7 +18,7 @@ function status(nginx: AgentStatus['nginx']): AgentResponse {
   return {
     type: 'status',
     payload: {
-      protocolVersion: 39, agentVersion: '0.1.22', dns: nginx, nginx,
+      protocolVersion: 40, agentVersion: '0.1.22', dns: nginx, nginx,
       phpFpm: nginx, phpFpmPools: [], mariadb: 'notInstalled'
     }
   }
@@ -41,6 +41,27 @@ beforeEach(() => {
 })
 
 describe('status and Proxy request ordering', () => {
+  it('requests a Site diagnostic report by Site ID', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({
+      type: 'siteDiagnostic',
+      payload: {
+        siteId: 'site-one',
+        siteName: 'Site One',
+        domain: 'site-one.test',
+        checks: [],
+        recentLogs: []
+      }
+    })
+    const store = useAppStore()
+
+    const report = await store.diagnoseSite('site-one')
+
+    expect(report.domain).toBe('site-one.test')
+    expect(invoke).toHaveBeenCalledWith('agent_request', {
+      request: { type: 'diagnoseSite', payload: { siteId: 'site-one' } }
+    })
+  })
+
   it('coalesces repeated background status polls', async () => {
     const pending = deferred<AgentResponse>()
     vi.mocked(invoke).mockReturnValue(pending.promise)

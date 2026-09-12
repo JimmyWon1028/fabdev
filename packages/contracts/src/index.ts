@@ -1,4 +1,4 @@
-export const protocolVersion = 39
+export const protocolVersion = 40
 
 export type ServiceState =
   | 'notInstalled'
@@ -64,6 +64,38 @@ export interface SiteHomeSettings {
   path: string
   siteIds: string[]
   symbolicLinkSiteIds: string[]
+}
+
+export type SiteDiagnosticCheckKind =
+  | 'site'
+  | 'projectFolder'
+  | 'documentRoot'
+  | 'dns'
+  | 'nginx'
+  | 'http'
+  | 'https'
+  | 'php'
+  | 'mariaDb'
+
+export type SiteDiagnosticStatus = 'passed' | 'warning' | 'failed'
+
+export interface SiteDiagnosticCheck {
+  kind: SiteDiagnosticCheckKind
+  status: SiteDiagnosticStatus
+  detail: string | null
+}
+
+export interface SiteDiagnosticLogEntry {
+  source: string
+  line: string
+}
+
+export interface SiteDiagnosticReport {
+  siteId: string
+  siteName: string
+  domain: string
+  checks: SiteDiagnosticCheck[]
+  recentLogs: SiteDiagnosticLogEntry[]
 }
 
 export interface LanShareInfo {
@@ -220,6 +252,7 @@ export type AgentRequest =
   | { type: 'ping' }
   | { type: 'getStatus' }
   | { type: 'listSites' }
+  | { type: 'diagnoseSite'; payload: { siteId: string } }
   | { type: 'getSiteHome' }
   | { type: 'saveSiteHome'; payload: { path: string } }
   | { type: 'addSite'; payload: SiteInput }
@@ -298,6 +331,7 @@ export type AgentResponse =
   | { type: 'pong'; payload: { protocolVersion: number } }
   | { type: 'status'; payload: AgentStatus }
   | { type: 'sites'; payload: Site[] }
+  | { type: 'siteDiagnostic'; payload: SiteDiagnosticReport }
   | { type: 'siteHomeSettings'; payload: SiteHomeSettings }
   | { type: 'siteAdded'; payload: Site }
   | { type: 'siteUpdated'; payload: Site }

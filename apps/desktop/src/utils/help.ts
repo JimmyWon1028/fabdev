@@ -59,11 +59,13 @@ const manuals: Record<Language, OperationManual> = {
           'Site Home turns each first-level folder or directory symlink into a matching .test Site. Hidden and nested folders are ignored.',
           'Use Add Site for a project outside Site Home. A linked Site takes precedence if its domain conflicts with a scanned Site.',
           'Use Edit to change the name, project path, domain, or Web Root. Select the PHP Runtime directly on the Site row.',
+          'Use Diagnose to check the Site, project paths, DNS, Nginx, HTTP, HTTPS, PHP, and MariaDB, then copy a masked report when needed.',
           'Secure enables HTTPS for that Site. Trust the fabDev CA when prompted before expecting browsers to accept the certificate.',
           'Share to LAN exposes selected Sites through fabDev Connect for short, trusted-network testing.',
           'Import and Export transfer Site configuration. Duplicate entries are skipped.'
         ],
         notes: [
+          'Closing an Add or Edit form with unsaved changes asks for confirmation.',
           'Removing a Site only removes its fabDev registration. It never deletes the project folder.',
           'LAN sharing has no TLS or user authentication. Do not use it on an untrusted network or as a production server.'
         ]
@@ -122,6 +124,7 @@ const manuals: Record<Language, OperationManual> = {
           'Editing a running connection restarts it automatically. Import and Export transfer connection definitions, not running state.'
         ],
         notes: [
+          'Closing an Add or Edit form with unsaved changes asks for confirmation.',
           'Listeners bind only to 127.0.0.1. One failed connection does not stop other proxies.',
           'Removing a running connection stops it and releases its port first.'
         ]
@@ -193,11 +196,13 @@ const manuals: Record<Language, OperationManual> = {
           'Site Home 會把第一層資料夾或指向資料夾的 symbolic link 建立為同名 `.test` Site；隱藏及更深層資料夾不會加入。',
           '不在 Site Home 內的專案可用「新增 Site」加入；網域衝突時，手動加入的 linked Site 優先。',
           '按「編輯」可修改名稱、專案路徑、網域與 Web Root；PHP Runtime 可直接在 Site 列上切換。',
+          '按「診斷」可檢查 Site、專案路徑、DNS、Nginx、HTTP、HTTPS、PHP 與 MariaDB，並可複製已遮罩的報告。',
           '按「啟用 HTTPS」為該 Site 建立憑證；瀏覽器要正確認可，還需依提示信任 fabDev CA。',
           '按「局網分享」可透過 fabDev Connect 讓受信任區網內的裝置短時間測試。',
           '匯入／匯出可轉移 Site 設定；重複項目會略過。'
         ],
         notes: [
+          '新增／編輯表單有未儲存內容時，關閉前會先詢問是否放棄修改。',
           '移除 Site 只會刪除 fabDev 的登錄資料，不會刪除專案資料夾。',
           '局網分享沒有 TLS 與使用者登入保護，請勿用於不受信任網路或正式環境。'
         ]
@@ -256,6 +261,7 @@ const manuals: Record<Language, OperationManual> = {
           '修改運行中的連線會自動重新啟動；匯入／匯出只轉移定義，不匯入運行狀態。'
         ],
         notes: [
+          '新增／編輯表單有未儲存內容時，關閉前會先詢問是否放棄修改。',
           'Listener 只綁 `127.0.0.1`；單一遠端故障不會停止其他 Proxy。',
           '移除運行中的連線時，fabDev 會先停止並釋放 Port。'
         ]
@@ -327,11 +333,13 @@ const manuals: Record<Language, OperationManual> = {
           'Site Home 会把第一层文件夹或指向文件夹的 symbolic link 建立为同名 `.test` Site；隐藏及更深层文件夹不会加入。',
           '不在 Site Home 内的项目可用“新增 Site”加入；域名冲突时，手动加入的 linked Site 优先。',
           '按“编辑”可修改名称、项目路径、域名与 Web Root；PHP Runtime 可直接在 Site 行上切换。',
+          '按“诊断”可检查 Site、项目路径、DNS、Nginx、HTTP、HTTPS、PHP 与 MariaDB，并可复制已遮罩的报告。',
           '按“启用 HTTPS”为该 Site 建立证书；浏览器要正确认可，还需依提示信任 fabDev CA。',
           '按“局域网共享”可通过 fabDev Connect 让受信任局域网内的设备短时间测试。',
           '导入／导出可转移 Site 设置；重复项目会跳过。'
         ],
         notes: [
+          '新增／编辑表单有未保存内容时，关闭前会先询问是否放弃修改。',
           '移除 Site 只会删除 fabDev 的登记资料，不会删除项目文件夹。',
           '局域网共享没有 TLS 与用户登录保护，请勿用于不受信任网络或正式环境。'
         ]
@@ -388,6 +396,7 @@ const manuals: Record<Language, OperationManual> = {
           '修改运行中的连接会自动重新启动；导入／导出只转移定义，不导入运行状态。'
         ],
         notes: [
+          '新增／编辑表单有未保存内容时，关闭前会先询问是否放弃修改。',
           'Listener 只绑定 `127.0.0.1`；单一远端故障不会停止其他 Proxy。',
           '移除运行中的连接时，fabDev 会先停止并释放 Port。'
         ]
