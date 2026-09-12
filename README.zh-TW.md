@@ -48,9 +48,9 @@ open target/debug/bundle/macos/fabDev.app
 
 ### 目前發布狀態
 
-`v0.1.24` 是目前公開的 Windows x64／macOS ARM64 Latest Stable，改善 Windows PHP FastCGI 併發容量、加入可修改的每 Site 上游回應逾時，並將新 Proxy 連線的預設逾時改為 120 秒。既有明確保存的 Proxy timeout 不會被覆蓋，macOS PHP-FPM 的進程管理方式也沒有改變。
+`v0.1.25` 是目前公開的 Windows-first Latest Stable，現階段只提供 Windows x64 Asset。此版修正 Sites／Proxy 編輯彈窗拖曳選字時誤關閉的問題、保護未儲存修改、讓 Site 名稱與 Proxy ID 維持單行，並加入遮罩敏感資料的 Site 診斷、既有 PHP 設定受管路徑遷移，以及 PHP pool 切換時的短暫 502 防護。此版目前尚未包含 macOS ARM64。
 
-最近一次完整本機驗證通過 Desktop 91、Release 規則 19、Rust 287、macOS Helper 9 項測試、`pnpm lint`、Cargo workspace check 與 `git diff --check`，另有 7 項需外部 Runtime Package 或網路環境的 Rust 測試維持 ignored。Windows x64 Run [`34326154074`](https://github.com/JimmyWon1028/fabdev/actions/runs/34326154074)、[`34329431684`](https://github.com/JimmyWon1028/fabdev/actions/runs/34329431684)、[`34432390677`](https://github.com/JimmyWon1028/fabdev/actions/runs/34432390677) 及 Repository Owner 實機 Gate 均成功。Annotated Tag `v0.1.24` 固定在 Commit `21bd978`；Repository Owner 明確授權同版替換後，目前 macOS ARM64 DMG 由 Commit `e3fa037` 建置並支援 PHP 8.5.10 線上安裝。Release ID `385364449` 維持不變，共有 9 個已驗證的 App-only Assets；既有 Windows Asset ID、大小與 digest 均未改變。
+最近一次完整本機驗證通過 Desktop 97、Release 規則 19、Rust 296、macOS Helper 9 項測試、`pnpm lint`、Cargo workspace check 與 `git diff --check`，另有 7 項需外部環境的 Rust 測試維持 ignored。Windows 候選 Run [`34704072483`](https://github.com/JimmyWon1028/fabdev/actions/runs/34704072483)、Repository Owner 實機 Gate 及 Draft Run [`34704822912`](https://github.com/JimmyWon1028/fabdev/actions/runs/34704822912) 均成功。Annotated Tag `v0.1.25` 固定在 Commit `3191e67`；Release ID `387633199` 已發布，共有 7 個已驗證的 App-only Assets，Agent Protocol 為 `40`。
 
 ## Unsigned Community Build
 
@@ -64,7 +64,7 @@ pnpm run build:community:macos
 
 Community 安裝程式會驗證 DMG 內的 `SHA256SUMS`，再要求一次管理員權限安裝 `/Applications/fabDev.app` 與固定功能的 LaunchDaemon。更新會保留 Sites、Runtime 與 `php.ini`；移除程序預設保留資料，只有使用者再次確認才會把資料移到垃圾桶。完整操作說明在 [`distribution/macos/community/INSTALL.zh-TW.md`](distribution/macos/community/INSTALL.zh-TW.md)。
 
-App 公開下載使用 [fabdev GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；`v0.1.24` 先發布 Windows x64 App 與 fabDev Connect，現在也提供 macOS ARM64 Community DMG。Tag 維持在 Commit `21bd978`；目前 macOS DMG 經明確授權，以 Commit `e3fa037` 的建置替換，加入 macOS PHP 8.5.10 線上安裝支援。`v0.1.21` 起 App Release 只提供 App Installer、fabDev Connect、App Manifest 與 SHA-256；Runtime Catalog 與 Package 改由 [fabdev-runtimes Releases](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish、同版平台補齊與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的 App 安裝包並產生 Manifest／Checksum，不會觸發打包或發布，也拒絕 Runtime Package 輸入。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
+App 公開下載使用 [fabdev GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；`v0.1.25` 目前提供 Windows x64 App 與 fabDev Connect，macOS ARM64 在未來明確授權補齊最新 Windows-first 版本前，只能使用較早版本。`v0.1.21` 起 App Release 只提供 App Installer、fabDev Connect、App Manifest 與 SHA-256；Runtime Catalog 與 Package 改由 [fabdev-runtimes Releases](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish、同版平台補齊與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的 App 安裝包並產生 Manifest／Checksum，不會觸發打包或發布，也拒絕 Runtime Package 輸入。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
 
 公開發布分成兩個互不綁定版本的儲存庫：
 
