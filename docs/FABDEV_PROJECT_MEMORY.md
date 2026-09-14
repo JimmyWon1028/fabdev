@@ -26,6 +26,19 @@
 - 所有 Proxy listener 預設只綁 loopback；不得為了方便測試擴大暴露範圍或讓 Helper 接受可變 listener 參數。
 - Runtime、設定、狀態、Cache 與 Log 屬於 fabDev 自己的 Application Support 範圍；不得覆蓋 Herd、接管 Homebrew MariaDB，或依賴 Herd 的 NVM／binary。
 
+## 未來獨立產品：fabDev Server
+
+- `fabDev Server` 是未來供區域網路多人使用、承載正式 ERP 工作負載的獨立產品，不是 fabDev Desktop 的 Server Mode，也不納入或阻擋目前 Desktop Stable。
+- Server 可以重用既有 Domain Model、Runtime、Site 設定產生器、Release Catalog 與 Typed Contracts，但使用獨立的執行程序、網路安全模型、安裝包、更新流程及驗收標準。
+- Rust／Tokio `fabdev-serverd` 作為 Control Plane，透過 Axum REST API 與 WebSocket／SSE 服務 Vue 3 Server Console；Nginx、PHP Process Pool、ERP Application 與 MariaDB 組成 Data Plane。
+- Control Plane 或管理介面暫時不可用時，既有 ERP Data Plane 必須繼續服務。設定變更先驗證，再以原子寫入與 Graceful Reload 套用。
+- Server 專用 API、Authentication、Backup、Observability 與 Console 放在獨立模組，不把多人驗證、LAN listener 或 Server 權限散入 Desktop Domain Logic。
+- ERP 對 Client 只開放 HTTPS。管理介面必須具備 Authentication、Session Timeout、CSRF 防護、登入失敗限制、RBAC、管理網段限制與完整 Audit Log；Agent、Runtime 管理、Helper 與 MariaDB 不直接暴露給 Client。
+- MariaDB 預設只綁 Server loopback；每個 ERP 使用獨立 Database User，不使用 `root` 作為應用程式帳號。秘密資料不得出現在一般 Log 或命令列參數。
+- 第一版採單一 Server，平台順序為 Linux x64、Windows x64；macOS 保留給 Desktop。第一版不包含 Kubernetes、多節點 Cluster、自動水平擴充、MariaDB HA、跨機房或公開網際網路 Hosting。
+- 第一版目標為最多 20 個 ERP Site、10 個 LAN 同時使用者、至少 50 個並行 HTTP 請求與 72 小時連續運行，並驗證排程備份、異機保存、實際還原、斷電／程序崩潰／磁碟不足／網路中斷及更新失敗復原。
+- 完整規劃與後續變更以 `docs/FABDEV_ARCHITECTURE.md` 第 15 節及 `docs/FABDEV_PROGRESS.md` 的對應項目為準。
+
 ## 已確認的 UI 契約
 
 - Sites 與 Proxy 的既有清單排版維持不變；需要更動時先取得 Repository Owner 明確指示。
