@@ -4,6 +4,8 @@
 
 fabDev 是 macOS 優先、最終支援 Windows 的 ERP Web 本機開發工具。Tauri／Vue Desktop 位於 `apps/desktop/`；Rust Core、Agent、CLI、Runtime 與服務管理位於 `crates/`；共用 TypeScript 契約及 UI 位於 `packages/`。Nginx、dnsmasq、PHP 設定模板放在 `resources/`，可重現的 Runtime 建置腳本放在 `scripts/`，端到端 PHP fixture 放在 `tests/fixtures/`。架構決策以 `docs/FABDEV_ARCHITECTURE.md` 為準；目前進度與優先 TODO 以 `docs/FABDEV_PROGRESS.md` 為準。不要提交 `target/`、`.build/`、`artifacts/`、`dist/` 或 Runtime binary。
 
+跨電腦共用、只屬於 fabDev 的長期工作記憶集中在 `docs/FABDEV_PROJECT_MEMORY.md`。開始任何 fabDev 診斷、修改、打包或發布工作前，先讀取該文件。它提供決策與診斷經驗導覽，不取代本檔、架構文件、進度文件或 Release 規格；若內容衝突，以較具體且目前仍有效的正式文件與實際程式碼為準。
+
 ## 建置、測試與本機開發
 
 - `pnpm dev`：啟動 Tauri Desktop 開發模式。
