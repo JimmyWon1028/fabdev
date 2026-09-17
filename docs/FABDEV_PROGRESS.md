@@ -264,6 +264,14 @@ fabDev Desktop Community `v0.1.25` 是目前公開 Latest Stable。Windows 候�
   - 分段重試不得重複累計 bytes；重試、取消、續傳及分段完成順序不同時，總進度必須正確、不得超過 100%，並避免無說明的大幅倒退。
   - UI 明確區分「檢查下載來源／Range 支援」、「下載中」、「合併分段」、「驗證 SHA-256」與「準備安裝」，非下載階段不得只顯示靜止的 0% 或 100%。
   - Windows 驗收標準：已有網路資料傳輸時，第一次可見進度應在 1 秒內出現；持續下載期間畫面更新間隔不超過 500 ms。若尚未收到資料，必須顯示目前處理階段；並驗證正常下載、慢速下載、四路完成順序不同、單段重試、取消及完整下載後驗章。
+- [ ] 後續版本（版本號未指定）：加入 App Installer 官方 CDN 下載加速，固定以官方 CDN 為優先來源，Public GitHub Releases 保留為備援來源。
+  - 先選定物件儲存／CDN 供應商與 fabDev 官方下載網域，確認支援 HTTPS、HTTP Range、長時間大檔傳輸及不可變版本路徑；同一版本檔案不得覆蓋，內容修正必須建立新的 App 版本。
+  - 發布流程將完全相同的 Windows Setup／macOS DMG 同時上傳 GitHub Releases 與官方 CDN，並從未登入公開 URL 重新下載，確認兩邊檔案的名稱、大小、SHA-256 與發布候選逐位元一致；任一來源驗證未通過時不得宣稱下載加速已可用。
+  - 第一版維持既有 App Manifest schema 與 GitHub Artifact URL；新版 Client 依 Manifest 的版本與檔名組合固定 CDN URL，不接受 Manifest、UI 或外部輸入指定任意鏡像網域。CDN 連線、Redirect、HTTP Range 或下載失敗時，自動清理該次不完整資料並回退至 Manifest 內已驗證的 GitHub Release URL。
+  - 無論實際來源為 CDN 或 GitHub，都必須沿用系統 TLS、系統 Proxy、系統信任庫、取消、重試、續傳、大小限制與最終 SHA-256 驗證；CDN 網域及允許的 Redirect 必須使用程式碼白名單，禁止為了加速降低完整性或來源驗證。
+  - Windows 保留現有分段並行下載，macOS 後續共用相同的安全下載流程；是否調整 8 MiB 分段或 4 路並行，必須先以目標 Windows／macOS 網路的首位元時間、平均速度、總耗時與重試率實測決定，不直接提高連線數。
+  - 回歸測試至少涵蓋 CDN 成功、CDN 無法連線、Redirect 離開白名單、Range 不支援、錯誤大小、SHA-256 不符、分段重試、取消、續傳與 GitHub 備援成功；同時更新 [`PUBLIC_RELEASE_SPEC.md`](PUBLIC_RELEASE_SPEC.md) 的 GitHub-only 安全契約及發布驗證清單。
+  - 既有已發布 Client 不認識 CDN；第一個支援 CDN 的版本仍由 GitHub 下載，安裝該版本後，後續 App 更新才會優先使用官方 CDN。
 - [x] `v0.1.22` Windows PHP-CGI 已略過只適用 Unix PHP-FPM 的狀態端點，避免狀態輪詢持續收到 404 並重複寫入日誌；Site HTTP／PHP 流程未改。
 - [x] Commit `1a2c420` 更新 Windows x64 GitHub Actions dependencies，將 `actions/checkout`、`actions/setup-node`、`actions/upload-artifact` 與 `pnpm/action-setup` 對齊 Draft workflow 已使用的 Node.js 24 相容版本並固定 Commit SHA；Run `34013969200` 全部成功且 Check Run annotations 為空，原 Node.js 20 棄用警告已消失。
 - [ ] 提供可由一般本機瀏覽器操作的 Web UI；新增只綁定 loopback、具身分驗證與權限限制的 HTTP／WebSocket API，並讓前端在非 Tauri 環境改走該 API。
