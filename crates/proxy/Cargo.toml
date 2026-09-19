@@ -11,5 +11,6 @@ bytes.workspace = true
 fabdev-core = { path = "../core" }
 http-body-util.workspace = true
 hyper.workspace = true
+hyper-tls.workspace = true
 hyper-util.workspace = true
 tokio.workspace = true

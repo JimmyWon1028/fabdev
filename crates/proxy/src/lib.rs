@@ -16,11 +16,12 @@ use hyper::body::Incoming;
 use hyper::header::{
   ACCESS_CONTROL_ALLOW_CREDENTIALS, ACCESS_CONTROL_ALLOW_HEADERS, ACCESS_CONTROL_ALLOW_METHODS,
   ACCESS_CONTROL_ALLOW_ORIGIN, ACCESS_CONTROL_MAX_AGE, ACCESS_CONTROL_REQUEST_HEADERS,
-  ACCESS_CONTROL_REQUEST_METHOD, HOST, ORIGIN, VARY,
+  ACCESS_CONTROL_REQUEST_METHOD, CONTENT_LENGTH, EXPECT, HOST, ORIGIN, TRANSFER_ENCODING, VARY,
 };
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, StatusCode, Uri};
+use hyper_tls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
 use hyper_util::rt::{TokioExecutor, TokioIo};
@@ -37,7 +38,7 @@ const UPSTREAM_HEALTH_RECOVERY_THRESHOLD: u8 = 2;
 const UPSTREAM_REQUEST_RECOVERY_THRESHOLD: u8 = 2;
 
 type ProxyBody = BoxBody<Bytes, hyper::Error>;
-type ProxyClient = Client<HttpConnector, Incoming>;
+type ProxyClient = Client<HttpsConnector<HttpConnector>, Incoming>;
 
 struct ConnectionHealth {
   connection_id: String,
@@ -592,9 +593,9 @@ fn validate_connection(settings: &ProxyConnectionSettings) -> Result<()> {
     .target
     .parse()
     .with_context(|| format!("invalid Proxy target: {}", settings.target))?;
-  if target.scheme_str() != Some("http") || target.authority().is_none() {
+  if !matches!(target.scheme_str(), Some("http" | "https")) || target.authority().is_none() {
     bail!(
-      "Proxy target must be an absolute HTTP URL: {}",
+      "Proxy target must be an absolute HTTP or HTTPS URL: {}",
       settings.target
     );
   }
@@ -661,8 +662,9 @@ async fn run_proxy(
   mut stop: oneshot::Receiver<()>,
 ) {
   let mut connector = HttpConnector::new();
-  connector.enforce_http(true);
+  connector.enforce_http(false);
   connector.set_connect_timeout(Some(UPSTREAM_CONNECT_TIMEOUT));
+  let connector = HttpsConnector::new_with_connector(connector);
   let client: ProxyClient = Client::builder(TokioExecutor::new()).build(connector);
   let mut connections = JoinSet::new();
   let mut health_interval = tokio::time::interval_at(
@@ -730,7 +732,12 @@ async fn check_upstream(
     os_error_code: None,
   })?;
   let host = authority.host();
-  let port = authority.port_u16().unwrap_or(80);
+  let port = authority
+    .port_u16()
+    .unwrap_or_else(|| match target.scheme_str() {
+      Some("https") => 443,
+      _ => 80,
+    });
   match tokio::time::timeout(UPSTREAM_HEALTH_TIMEOUT, TcpStream::connect((host, port))).await {
     Ok(Ok(_)) => Ok(()),
     Ok(Err(error)) => Err(UpstreamHealthFailure {
@@ -775,6 +782,27 @@ async fn proxy_request(
   settings: ProxyConnectionSettings,
   health: Arc<ConnectionHealth>,
 ) -> Result<Response<ProxyBody>, Infallible> {
+  let request_method = request.method().clone();
+  let request_path = request.uri().path().to_owned();
+  let request_version = format!("{:?}", request.version());
+  let request_content_length = request
+    .headers()
+    .get(CONTENT_LENGTH)
+    .and_then(|value| value.to_str().ok())
+    .unwrap_or("none")
+    .to_owned();
+  let request_transfer_encoding = request
+    .headers()
+    .get(TRANSFER_ENCODING)
+    .and_then(|value| value.to_str().ok())
+    .unwrap_or("none")
+    .to_owned();
+  let request_expect = request
+    .headers()
+    .get(EXPECT)
+    .and_then(|value| value.to_str().ok())
+    .unwrap_or("none")
+    .to_owned();
   let allowed_origin = request
     .headers()
     .get(ORIGIN)
@@ -848,8 +876,12 @@ async fn proxy_request(
     }
     Ok(Err(error)) => {
       let message = format!("Proxy upstream request failed: {error}");
+      let diagnostic = format!(
+        "Proxy upstream request failed for {request_method} {request_path} version={request_version} content_length={request_content_length} transfer_encoding={request_transfer_encoding} expect={request_expect}: {}",
+        error_chain(&error)
+      );
       health
-        .record_request_failure(message.clone(), "request", request_started.elapsed())
+        .record_request_failure(diagnostic, "request", request_started.elapsed())
         .await;
       error_response(StatusCode::BAD_GATEWAY, &message)
     }
@@ -870,6 +902,19 @@ async fn proxy_request(
   };
   apply_cors_headers(&mut response, allowed_origin.as_deref(), None, None, false);
   Ok(response)
+}
+
+fn error_chain(error: &(dyn std::error::Error + 'static)) -> String {
+  let mut messages = vec![error.to_string()];
+  let mut source = error.source();
+  while let Some(cause) = source {
+    let message = cause.to_string();
+    if messages.last() != Some(&message) {
+      messages.push(message);
+    }
+    source = cause.source();
+  }
+  messages.join(": ")
 }
 
 fn apply_cors_headers(
@@ -1251,14 +1296,14 @@ mod tests {
       ),
       (
         ProxyConnectionInput {
-          id: "secure".to_owned(),
-          domain: "secure.test".to_owned(),
+          id: "invalid-scheme".to_owned(),
+          domain: "invalid-scheme.test".to_owned(),
           listen_port: reserve_port(),
-          target: "https://api.example.test".to_owned(),
+          target: "ftp://api.example.test".to_owned(),
           allowed_origins: Vec::new(),
           upstream_response_timeout_seconds: None,
         },
-        "absolute HTTP URL",
+        "absolute HTTP or HTTPS URL",
       ),
       (
         ProxyConnectionInput {
@@ -1322,6 +1367,13 @@ mod tests {
       .record_periodic_success(Duration::from_millis(5))
       .await;
     assert_eq!(health.last_error().await, None);
+  }
+
+  #[test]
+  fn accepts_an_https_upstream_target() {
+    let settings = test_connection("secure", 3010, "https://api.example.test".to_owned());
+
+    validate_connection(&settings).expect("accept HTTPS target");
   }
 
   #[test]

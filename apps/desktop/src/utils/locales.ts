@@ -132,8 +132,8 @@ const en = {
   'proxy.idHelp': 'Lowercase letters, numbers, and hyphens only.',
   'proxy.domain': 'Local .test domain',
   'proxy.port': 'Local port',
-  'proxy.target': 'Remote HTTP target',
-  'proxy.targetHelp': 'Only absolute http:// targets are supported.',
+  'proxy.target': 'Remote HTTP/HTTPS target',
+  'proxy.targetHelp': 'Absolute http:// and https:// targets are supported.',
   'proxy.timeout': 'Upstream response timeout (seconds)',
   'proxy.timeoutHelp': 'Leave blank or enter 0 to use 120 seconds. Maximum 360 seconds (6 minutes).',
   'proxy.timeoutSummary': 'Response timeout: {seconds}s',
@@ -734,6 +734,16 @@ const zhCNProxySearchCopy = {
   'proxy.noResults': '找不到符合条件的 Proxy 连接'
 } satisfies Partial<TranslationTable>
 
+const zhTWProxyTargetCopy = {
+  'proxy.target': '遠端 HTTP/HTTPS Target',
+  'proxy.targetHelp': '支援完整的 http:// 與 https:// Target。'
+} satisfies Partial<TranslationTable>
+
+const zhCNProxyTargetCopy = {
+  'proxy.target': '远程 HTTP/HTTPS Target',
+  'proxy.targetHelp': '支持完整的 http:// 和 https:// Target。'
+} satisfies Partial<TranslationTable>
+
 const zhTWProxyTimeoutCopy = {
   'proxy.timeout': '上游回應逾時（秒）',
   'proxy.timeoutHelp': '留空或輸入 0 會使用預設 120 秒；最多 360 秒（6 分鐘）。',
@@ -985,6 +995,7 @@ export const translations: Record<Language, TranslationTable> = {
     ...zhTW,
     ...zhTWBuiltInRuntimeCopy,
     ...zhTWLanShareCopy,
+    ...zhTWProxyTargetCopy,
     ...zhTWProxyTimeoutCopy,
     ...zhTWSiteTimeoutCopy,
     ...zhTWFastCgiSettingsCopy,
@@ -1001,6 +1012,7 @@ export const translations: Record<Language, TranslationTable> = {
     ...zhCNNodeCopy,
     ...zhCNSiteSelectionCopy,
     ...zhCNProxySearchCopy,
+    ...zhCNProxyTargetCopy,
     ...zhCNProxyTimeoutCopy,
     ...zhCNSiteTimeoutCopy,
     ...zhCNFastCgiSettingsCopy,

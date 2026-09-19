@@ -253,6 +253,7 @@ fabDev Desktop Community `v0.1.25` 是目前公開 Latest Stable。Windows 候�
 
 ### 維護與下一階段功能
 
+- [ ] 下一次 App 進版（目前基線後預期為 `0.1.26`）納入 Proxy HTTPS 上游修正：Proxy Core 同時支援完整的 `http://` 與 `https://` Target，TLS 使用系統信任庫，健康檢查依 scheme 使用 80／443，Desktop 說明同步更新。WSI 持久 Target 已由 `http://api.waysia.com` 調整為 `https://api.waysia.com`，保留 Port 3010、原 Origins 與 120 秒回應逾時。macOS dev 以同一筆問題資料、同一 72,559-byte POST 驗證：HTTP 上游回傳 `Connection reset by peer`，HTTPS 上游及正式 fabDev Proxy 均存檔成功；Proxy 13 項、Desktop 97 項測試、Clippy、TypeScript、rustfmt 與 `git diff --check` 通過。目前已完成本機開發修正、實測及問題紀錄；尚未進版、打包或發布。
 - [x] App 啟動後每日自動檢查與設定頁手動檢查 Stable Manifest；離線或更新失敗不阻止 App 啟動。
 - [x] 顯示版本、發布資訊、Release Notes、安裝包資料與下載進度；完整安裝包使用 `.part`、大小／SHA-256 驗證、原子改名及開啟前再次驗證。
 - [x] 使用者確認後先走既有安全 Quit，停止 Web、MariaDB、受管程序與 Agent，再開啟 DMG／Setup.exe；不做背景自動覆蓋安裝。

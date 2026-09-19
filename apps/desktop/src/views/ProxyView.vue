@@ -747,7 +747,7 @@ async function openConnection(connection: ProxyConnectionInfo) {
             v-model.trim="newConnection.target"
             required
             type="url"
-            placeholder="http://api.example.com"
+            placeholder="https://api.example.com"
             autocomplete="off"
             spellcheck="false"
           >

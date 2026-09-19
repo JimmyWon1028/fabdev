@@ -1,6 +1,6 @@
 # fabDev 長期專案記憶
 
-> 最後整理：2026-09-14
+> 最後整理：2026-09-19
 
 本文件保存只屬於 fabDev、值得跨電腦延續的決策與實作經驗。它不保存聊天逐字稿、個人資料、憑證、Token、私鑰、真實客戶資料、本機絕對路徑、一次性 Artifact，或已被新版取代的暫時狀態。
 
@@ -67,6 +67,7 @@
 
 - macOS 的 scoped `/etc/resolver/test` 可能不會反映在一般 `dig` 結果；`dig` 出現 router NXDOMAIN 不能單獨證明 fabDev DNS 失效。
 - 依序確認 DNS、HTTP listener、Nginx route、PHP-FPM 與 MariaDB。可使用 `curl http://demo.test` 或直接查詢 fabDev resolver 交叉驗證。
+- Proxy 發生 `502 Bad Gateway` 且 log 顯示上游 `Connection reset by peer` 時，要以同一頁面、Session、方法、資料與路徑做 HTTP／HTTPS 單變因對照，不要只依請求大小或回應逾時推斷。WSI 實測中，72,559-byte `POST /form/table-update` 透過 `http://api.waysia.com` 會被上游重設，只將上游改為 `https://api.waysia.com` 即回應 200；因此 Proxy Core 需同時支援 HTTP 與 HTTPS Target，健康檢查依 scheme 使用 80／443，且不得擅自改動每條 Connection 的回應逾時。
 - HTTPS 必須逐層確認 HTTP 301、443 listener、Nginx SNI、leaf certificate SAN、CA chain 與 Login Keychain trust；瀏覽器錯誤頁不能取代 `curl`、TLS 與憑證檢查。
 - fabDev CA 由目前互動使用者信任到 Login Keychain。root Helper 不產生、不信任也不搬移憑證；Site 私鑰只留在 fabDev Application Support。
 - 修改已安裝 Helper 的固定 Proxy、plist、簽章或 bundle identifier 後，只重啟 App／Agent 不會更新 LaunchDaemon。必須重新建置並透過專案安裝流程替換，再驗證實際載入版本與 listener。

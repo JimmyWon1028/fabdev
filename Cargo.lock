@@ -1185,6 +1185,7 @@ dependencies = [
  "fabdev-core",
  "http-body-util",
  "hyper",
+ "hyper-tls",
  "hyper-util",
  "tokio",
 ]

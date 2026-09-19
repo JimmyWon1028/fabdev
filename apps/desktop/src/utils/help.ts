@@ -149,7 +149,7 @@ const manuals: Record<Language, OperationManual> = {
           'A .test Site does not open: confirm the Site is registered and enabled, PHP is installed, then Stop Web Services and Start Web Services.',
           'HTTPS warning: confirm HTTPS is enabled for the Site and the fabDev CA is trusted in the current user Login Keychain.',
           'MariaDB cannot start: check whether another service already uses port 3306 and verify the selected data directory.',
-          'Proxy failed: verify that the local port is free, the target uses http://, and the remote server is reachable.'
+          'Proxy failed: verify that the local port is free, the HTTP/HTTPS target is valid, and the remote server is reachable.'
         ],
         notes: [
           'Copy the visible error message before restarting. It is usually the fastest clue to the failing layer.'
