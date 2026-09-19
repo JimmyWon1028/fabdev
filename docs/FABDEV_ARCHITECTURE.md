@@ -1,7 +1,7 @@
 # fabDev 產品與服務架構
 
-> 狀態：fabDev Desktop Community `v0.1.22` 是目前已發布的 macOS ARM64／Windows x64 App-only Stable；後續項目屬維護、功能擴充與產品化驗收
-> 更新日期：2026-09-05
+> 狀態：fabDev Desktop Community `v0.1.25` 是目前已發布的 macOS ARM64／Windows x64 App-only Stable；後續項目屬維護、功能擴充與產品化驗收
+> 更新日期：2026-09-20
 > 本文件記錄架構決策；即時進度與優先工作見 `docs/FABDEV_PROGRESS.md`。
 
 ## 1. 產品定位

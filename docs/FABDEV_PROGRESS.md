@@ -253,6 +253,7 @@ fabDev Desktop Community `v0.1.25` 是目前公開 Latest Stable。Windows 候�
 
 ### 維護與下一階段功能
 
+- [ ] 2026-09-20 Repository Owner 明確要求開始下一版進版打包，依固定 Windows-first Gate 先建立 Windows x64 候選。四個正式版本來源與 13 個 Cargo workspace lock entries 已進版為 `0.1.26`，Agent Protocol 維持 `40`；本機完整 `pnpm test` 通過 Desktop 100、Release 規則 20、Rust 298、macOS Helper 9 項測試，另有 7 項外部環境測試依設計 ignored，`pnpm lint`、`pnpm build` 與 `git diff --check` 通過。此階段只授權 Windows 候選建置，不包含 macOS 打包、線上 Runtime Package、Tag、Draft 或 Stable Publish。
 - [ ] 下一次 App 進版納入背景啟動與 Quit 行為：設定新增「啟動時顯示主控面板」，預設關閉；Desktop 啟動時先維持隱藏及 macOS Accessory activation policy，但仍照常自動啟動服務。從背景 Quit 時不再先顯示主視窗或 Dock 圖示，只有停止服務或開啟更新安裝程式失敗時才恢復主視窗與錯誤。此修改未改動 Agent Protocol 或服務啟動順序。
 - [ ] 下一次 App 進版納入 Desktop 與服務狀態修正：一般頁面左右留白縮減為原本一半；Sites／Proxy 名稱欄依可用寬度增加；新增／編輯 Site 關閉 WebView 首字母自動大寫。Dashboard 會把已安裝但未運行的必要服務顯示為停止，若其他 Web 服務正在運行但 Nginx 未運行則顯示失敗；macOS 受管程序辨識新增 `nginx: master process` 前綴，避免 Stop／Quit 漏掉 Nginx master。
 - [ ] 下一次 App 進版納入封裝與開發環境契約：macOS Desktop 與 dev Agent 宣告 Local Network 使用原因，dev Agent 以 ad-hoc signed App bundle 啟動；Windows 內建 PHP Manifest 保存 Catalog Package SHA-256 與 sequence，只替缺少 receipt 的既有 bundled Runtime 補寫且不覆蓋線上安裝 receipt。Windows 動態 PHP FastCGI Worker 的後續方向另記於 `docs/WINDOWS_DYNAMIC_PHP_FASTCGI_WORKERS.md`，目前仍是設計提案、尚未實作。

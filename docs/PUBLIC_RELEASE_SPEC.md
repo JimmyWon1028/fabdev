@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 完成 App-only 與 Runtime Distribution 分離；`v0.1.24` 是目前 Windows-first Latest Stable，只包含 Windows x64 App 與 fabDev Connect，macOS ARM64 尚未補入
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 完成 App-only 與 Runtime Distribution 分離；`v0.1.25` 是目前 Latest Stable，已依 Windows-first 順序提供 Windows x64 App、fabDev Connect 與同版 macOS ARM64 Community DMG
 
 ## 1. 目標
 
@@ -115,7 +115,7 @@ PHP、MariaDB 與 Node.js 的線上安裝包使用獨立 Runtime Catalog，固�
 
 `catalog-vN` 同時是可保存 Package 的 GitHub Release，但每次 Catalog 換版不必重新上傳所有 Package。Catalog Manifest 可以引用較早 Release 中已驗證且未變更的 Package URL；例如 `catalog-v2` 只移除 Node.js 20.20.2，`catalog-v3` 恢復時仍引用 `catalog-v1` 的相同檔名、大小與 SHA-256。若同一 Runtime 版本需要重新打包，Package 可在新的 Release Tag 下沿用相同檔名，但 URL、大小與 SHA-256 必須由新的 Catalog sequence 明確宣告；已發布的舊 Package Asset 不得覆蓋。
 
-目前 Latest `catalog-v3` 使用 Runtime Catalog schema v2：`catalogSequence=3`、最低 App `0.1.21`、最低 Agent Protocol `37`，列出 Windows x64 7 項與 macOS ARM64 4 項。Client 依 Latest 固定 URL 取得清單，首次開啟 Runtime 頁面或使用者重新整理時重新下載；已接受的 sequence 不得回退或以不同內容重用。
+目前 Latest `catalog-v4` 使用 Runtime Catalog schema v2：`catalogSequence=4`、最低 App `0.1.21`、最低 Agent Protocol `37`，列出 Windows x64 7 項與 macOS ARM64 5 項。Client 依 Latest 固定 URL 取得清單，首次開啟 Runtime 頁面或使用者重新整理時重新下載；已接受的 sequence 不得回退或以不同內容重用。
 
 App 安裝器內部為了首次啟動而內建的 Runtime 不屬於公開線上 Runtime Asset，仍隨 App Installer 一起驗證。`scripts/generate-app-release-manifest.mjs` 必須拒絕 `--runtime-package-dir`，避免日後把獨立 Runtime 重新混入 App Release。
 
