@@ -1,8 +1,8 @@
 # Runtime Catalog v2 規格
 
-> 更新日期：2026-09-03
+> 更新日期：2026-09-15
 >
-> 目前狀態：獨立公開儲存庫 `JimmyWon1028/fabdev-runtimes` 已建立；`catalog-v1` 完成 11 個既有 Runtime Package 移轉，`catalog-v2` 驗證只變更安裝列表，`catalog-v3` 已恢復 Node.js 20.20.2 並成為 Latest。App `v0.1.21`／Agent Protocol 37 已固定使用 Catalog schema v2。
+> 目前狀態：獨立公開儲存庫 `JimmyWon1028/fabdev-runtimes` 已建立；`catalog-v1` 完成 11 個既有 Runtime Package 移轉，`catalog-v2` 驗證只變更安裝列表，`catalog-v3` 恢復 Node.js 20.20.2，`catalog-v4` 新增 macOS ARM64 PHP 8.5.10 並成為 Latest。App `v0.1.21`／Agent Protocol 37 起固定使用 Catalog schema v2。
 
 ## 目的
 
@@ -92,20 +92,20 @@ https://github.com/JimmyWon1028/fabdev-runtimes/releases/latest/download/fabdev-
 
 ## 目前發布狀態
 
-[`catalog-v3`](https://github.com/JimmyWon1028/fabdev-runtimes/releases/tag/catalog-v3) 於 2026-09-03 14:11:54（Asia/Taipei, UTC+8）發布為 Latest，Release 只包含 `fabdev-runtime-v2.json` 與 `SHA256SUMS`。Catalog Manifest 為 9,235 bytes、SHA-256 `abfdd876bee9b59d828d74452c26f32e5a0720e63d698b35e497081c0bb92676`，主要欄位如下：
+[`catalog-v4`](https://github.com/JimmyWon1028/fabdev-runtimes/releases/tag/catalog-v4) 於 2026-09-10 11:16:03（Asia/Taipei, UTC+8）發布為 Latest，Release 包含 `fabdev-runtime-v2.json`、`SHA256SUMS` 與新增的 macOS ARM64 PHP 8.5.10 Package。Catalog Manifest 為 10,054 bytes、SHA-256 `537524b0d22a9facfb94b41f4a35d6ea29b50d54597d8746824b4386a899a226`，主要欄位如下：
 
 ```text
 schemaVersion=2
-catalogSequence=3
-generatedAt=2026-09-03T06:09:54Z
-expiresAt=2027-03-02T23:59:59Z
+catalogSequence=4
+generatedAt=2026-09-10T01:49:40Z
+expiresAt=2027-03-09T23:59:59Z
 minimumAppVersion=0.1.21
 minimumAgentProtocolVersion=37
 Windows x64=7 items
-macOS ARM64=4 items
+macOS ARM64=5 items
 ```
 
-`catalog-v1` 保存所有 11 個 Package bytes；`catalog-v2` 只以新 Manifest 從清單移除 Windows／macOS Node.js 20.20.2，Repository Owner 重新整理後確認項目消失；`catalog-v3` 以更高 sequence 恢復相同兩個 `catalog-v1` URL、大小及 SHA-256，Repository Owner 已確認重新整理、下載與安裝成功。這兩次清單變更都沒有重打或複製任何 Package。
+`catalog-v1` 保存初始 11 個 Package bytes；`catalog-v2` 只以新 Manifest 從清單移除 Windows／macOS Node.js 20.20.2，Repository Owner 重新整理後確認項目消失；`catalog-v3` 以更高 sequence 恢復相同兩個 `catalog-v1` URL、大小及 SHA-256，Repository Owner 已確認重新整理、下載與安裝成功。`catalog-v4` 保留原 11 個項目的 URL、大小與 SHA-256，只新增 macOS ARM64 PHP 8.5.10。
 
 ## 用戶端行為
 
@@ -116,6 +116,7 @@ macOS ARM64=4 items
 5. 使用者按下載時才下載 Package，並驗證大小與 SHA-256。
 6. 安裝後在 Runtime 版本目錄記錄 Package SHA-256 與 Catalog sequence。
 7. 上游版本相同但 Catalog SHA-256 不同時，UI 顯示可更新；安裝採 staging、舊目錄備份、健康檢查及失敗回復。
+8. Windows App 內建 PHP 必須隨封裝 Manifest 保存其對應的 Catalog Package SHA-256 與 sequence；Desktop 只在既有 Runtime 缺少 receipt 時補寫，不覆蓋線上安裝留下的 receipt。這可避免未重包的內建 PHP 被誤判，同時保留真正同版本重包的更新提示。
 
 ## 初始移轉 Gate
 

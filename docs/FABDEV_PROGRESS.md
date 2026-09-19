@@ -1,6 +1,6 @@
 # fabDev 穩定基線與 Roadmap
 
-> 更新日期：2026-09-13
+> 更新日期：2026-09-20
 > 目前階段：[`v0.1.25`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.25) 是公開 Latest Stable，已依 Windows-first 順序完成 Windows x64 App、fabDev Connect 與同版 macOS ARM64 Community DMG；App 版本為 `0.1.25`、Agent Protocol 為 `40`。Windows 候選 Run [`34704072483`](https://github.com/JimmyWon1028/fabdev/actions/runs/34704072483)、Repository Owner 實機 Gate 及 Draft Run [`34704822912`](https://github.com/JimmyWon1028/fabdev/actions/runs/34704822912) 均已通過；Release ID `387633199` 已 Publish，現有 9 個 App-only Assets。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v4`
 
 ## 階段結論
@@ -253,6 +253,10 @@ fabDev Desktop Community `v0.1.25` 是目前公開 Latest Stable。Windows 候�
 
 ### 維護與下一階段功能
 
+- [ ] 下一次 App 進版納入背景啟動與 Quit 行為：設定新增「啟動時顯示主控面板」，預設關閉；Desktop 啟動時先維持隱藏及 macOS Accessory activation policy，但仍照常自動啟動服務。從背景 Quit 時不再先顯示主視窗或 Dock 圖示，只有停止服務或開啟更新安裝程式失敗時才恢復主視窗與錯誤。此修改未改動 Agent Protocol 或服務啟動順序。
+- [ ] 下一次 App 進版納入 Desktop 與服務狀態修正：一般頁面左右留白縮減為原本一半；Sites／Proxy 名稱欄依可用寬度增加；新增／編輯 Site 關閉 WebView 首字母自動大寫。Dashboard 會把已安裝但未運行的必要服務顯示為停止，若其他 Web 服務正在運行但 Nginx 未運行則顯示失敗；macOS 受管程序辨識新增 `nginx: master process` 前綴，避免 Stop／Quit 漏掉 Nginx master。
+- [ ] 下一次 App 進版納入封裝與開發環境契約：macOS Desktop 與 dev Agent 宣告 Local Network 使用原因，dev Agent 以 ad-hoc signed App bundle 啟動；Windows 內建 PHP Manifest 保存 Catalog Package SHA-256 與 sequence，只替缺少 receipt 的既有 bundled Runtime 補寫且不覆蓋線上安裝 receipt。Windows 動態 PHP FastCGI Worker 的後續方向另記於 `docs/WINDOWS_DYNAMIC_PHP_FASTCGI_WORKERS.md`，目前仍是設計提案、尚未實作。
+- [ ] 2026-09-20 本機驗證上述未發布原始碼：`wsi.test:3010` DNS／HTTP 連續 30 次全數成功且 Agent PID 未變，正式 80 與 3010 入口最終均回傳 HTTP 200，驗證期間 Desktop／Agent／dnsmasq／Nginx error log 無新增內容。完整 `pnpm test` 通過 Desktop 100、Release 規則 20、Rust 298、macOS Helper 9，共 427 項；另有 7 項需外部 Runtime／PHP／GitHub 網路的 Rust 測試依設計 ignored。`pnpm lint`、Rust fmt、Clippy、Helper lint 與 `git diff --check` 通過；目前尚未進版、打包或發布。
 - [ ] 下一次 App 進版（目前基線後預期為 `0.1.26`）納入 Proxy HTTPS 上游修正：Proxy Core 同時支援完整的 `http://` 與 `https://` Target，TLS 使用系統信任庫，健康檢查依 scheme 使用 80／443，Desktop 說明同步更新。WSI 持久 Target 已由 `http://api.waysia.com` 調整為 `https://api.waysia.com`，保留 Port 3010、原 Origins 與 120 秒回應逾時。macOS dev 以同一筆問題資料、同一 72,559-byte POST 驗證：HTTP 上游回傳 `Connection reset by peer`，HTTPS 上游及正式 fabDev Proxy 均存檔成功；Proxy 13 項、Desktop 97 項測試、Clippy、TypeScript、rustfmt 與 `git diff --check` 通過。目前已完成本機開發修正、實測及問題紀錄；尚未進版、打包或發布。
 - [x] App 啟動後每日自動檢查與設定頁手動檢查 Stable Manifest；離線或更新失敗不阻止 App 啟動。
 - [x] 顯示版本、發布資訊、Release Notes、安裝包資料與下載進度；完整安裝包使用 `.part`、大小／SHA-256 驗證、原子改名及開啟前再次驗證。

@@ -1,6 +1,6 @@
 # fabDev 長期專案記憶
 
-> 最後整理：2026-09-19
+> 最後整理：2026-09-20
 
 本文件保存只屬於 fabDev、值得跨電腦延續的決策與實作經驗。它不保存聊天逐字稿、個人資料、憑證、Token、私鑰、真實客戶資料、本機絕對路徑、一次性 Artifact，或已被新版取代的暫時狀態。
 
@@ -45,6 +45,7 @@
 - Proxy 頂部維持資料操作與服務操作分組，不把兩類動作混在同一組。
 - Runtime 卡片維持緊湊且一致；PHP 只顯示使用中的 Site 數量，Agent 狀態維持在設定下方。
 - Sites／Proxy 編輯流程必須保護未儲存修改，且文字選取、拖曳、單行名稱與識別碼顯示不可因後續樣式調整而退步。
+- 「啟動時顯示主控面板」預設關閉；背景啟動仍必須照常恢復服務與狀態。從背景 Quit 時不得為了顯示關閉進度而短暫顯示主視窗或 Dock 圖示；若關閉失敗，才重新顯示主視窗與錯誤。
 
 ## 工作與授權邊界
 
@@ -60,6 +61,7 @@
 
 - `Start All`／`Stop All` 採單一、依狀態切換的控制。全部已啟動時再次 Start 必須成功且不重啟；部分失敗或部分運行時應先清理，再一致地恢復。
 - `Stop All → Quit fabDev` 的驗收標準是沒有殘留受管 Runtime 程序、Port、PID 或 Socket。Helper 本身是否常駐要依產品契約判斷，不能把受管 Runtime 殘留誤認為正常 Helper 行為。
+- macOS `ps` 可能把 Nginx master 顯示為 `nginx: master process <binary> ...`；受管程序辨識與清理必須同時接受此前綴與直接 binary command，並繼續核對 fabDev 的 binary 與設定路徑，避免漏掉受管 Nginx 或誤殺其他程序。
 - 發現 `Address already in use`、DNS 異常或孤兒程序時，先檢查 Agent、listener、PID／parent process、Socket、resolver 與 log。不要先要求重裝或把問題歸因於操作順序。
 - 服務修改除單元測試外，至少驗證 Start → HTTP／PHP → Stop，並確認清理後 Port 可重新綁定。
 

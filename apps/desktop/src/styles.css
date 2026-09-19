@@ -619,7 +619,7 @@ button {
   min-width: 0;
   height: 100%;
   margin-left: 238px;
-  padding: 24px 54px 0;
+  padding: 24px 27px 0;
   overflow: hidden;
 }
 
@@ -669,8 +669,8 @@ button {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  margin: 0 -54px;
-  padding: 0 54px 24px;
+  margin: 0 -27px;
+  padding: 0 27px 24px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -1187,7 +1187,7 @@ button:disabled {
 }
 
 .site-identity > div {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
 }
 
 .site-identity .status-dot {
@@ -1334,7 +1334,7 @@ button:disabled {
 @container (max-width: 980px) {
   .site-row {
     grid-template-areas: "select identity runtime state actions";
-    grid-template-columns: 18px 155px 104px minmax(96px, 1fr) minmax(0, max-content);
+    grid-template-columns: 18px clamp(155px, 26cqw, 240px) 104px minmax(96px, 1fr) minmax(0, max-content);
   }
 
   .site-actions {
@@ -1904,7 +1904,7 @@ button:disabled {
 .proxy-row {
   display: grid;
   grid-template-areas: "select identity endpoint target state actions";
-  grid-template-columns: 18px 140px 130px minmax(0, 1fr) 90px max-content;
+  grid-template-columns: 18px clamp(180px, 20cqw, 240px) 130px minmax(0, 1fr) 90px max-content;
   gap: 14px;
   align-items: center;
   width: 100%;
@@ -2006,7 +2006,7 @@ button:disabled {
 }
 
 .proxy-identity > div {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   overflow-wrap: anywhere;
 }
 
@@ -2075,7 +2075,7 @@ button:disabled {
 @container (max-width: 920px) {
   .proxy-row {
     grid-template-areas: "select identity endpoint state actions";
-    grid-template-columns: 18px 120px minmax(150px, 1fr) 75px minmax(0, max-content);
+    grid-template-columns: 18px clamp(160px, 24cqw, 220px) minmax(140px, 1fr) 75px minmax(0, max-content);
     gap: 10px;
   }
 
@@ -2403,7 +2403,7 @@ button:disabled {
 
 @media (max-width: 980px) {
   .content {
-    padding: 36px 32px;
+    padding: 36px 16px;
   }
 
   .app-update-notice {

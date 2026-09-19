@@ -54,6 +54,19 @@ export function canToggleAllServices(
   return !busy && (allServicesRunning || enabledSites)
 }
 
+export function requiredServiceDisplayState(
+  state: ServiceState,
+  environmentRunning = false
+): ServiceState {
+  if (state === 'installed') {
+    return environmentRunning ? 'failed' : 'stopped'
+  }
+  if (state === 'notInstalled') {
+    return 'failed'
+  }
+  return state
+}
+
 export function summarizeProxyConnections(
   connections: Array<Pick<ProxyConnectionInfo, 'state'>>
 ): ProxyConnectionSummary {

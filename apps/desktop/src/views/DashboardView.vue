@@ -11,6 +11,7 @@ import {
   areAllServicesRunning,
   canToggleAllServices,
   phpServiceName,
+  requiredServiceDisplayState,
   summarizeProxyConnections,
   type ProxySummaryState
 } from '../utils/service'
@@ -95,7 +96,16 @@ function refreshDashboard() {
 const services = computed<ServiceCard[]>(() => {
   const cards: ServiceCard[] = [
     { name: 'DNS', detail: '*.test → 127.0.0.1', state: store.status?.dns ?? 'notInstalled' },
-    { name: 'Nginx', detail: 'HTTP 127.0.0.1:80', state: store.status?.nginx ?? 'notInstalled' },
+    {
+      name: 'Nginx',
+      detail: 'HTTP 127.0.0.1:80',
+      state: store.status
+        ? requiredServiceDisplayState(
+            store.status.nginx,
+            store.status.dns === 'running' || store.status.phpFpm === 'running'
+          )
+        : 'notInstalled'
+    },
     {
       name: phpServiceLabel,
       detail: store.phpRuntimes.installed.length

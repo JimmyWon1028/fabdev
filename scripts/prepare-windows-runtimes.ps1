@@ -38,6 +38,14 @@ foreach ($runtime in $runtimes) {
   if ($runtime.archiveSha256 -notmatch '^[0-9a-f]{64}$') {
     throw "Invalid bundled Windows Runtime SHA-256: $name $version"
   }
+  if ($name -eq "php") {
+    if ($runtime.packageSha256 -notmatch '^[0-9a-f]{64}$') {
+      throw "Invalid bundled Windows Runtime Package SHA-256: $name $version"
+    }
+    if ([uint64]$runtime.catalogSequence -lt 1) {
+      throw "Invalid bundled Windows Runtime Catalog sequence: $name $version"
+    }
+  }
   $expectedDestination = if ($name -eq "php") { "php/$version" } else { "nginx/current" }
   if ($destination -ne $expectedDestination) {
     throw "Invalid bundled Windows Runtime destination: $destination"
@@ -98,10 +106,15 @@ $outputManifest = @{
   architecture = "x64"
   defaultPhpVersion = [string]$defaultPhpRuntimes[0].version
   packages = @($runtimes | ForEach-Object {
-    @{
+    $package = @{
       name = [string]$_.name
       version = [string]$_.version
     }
+    if ($_.name -eq "php") {
+      $package.packageSha256 = [string]$_.packageSha256
+      $package.catalogSequence = [uint64]$_.catalogSequence
+    }
+    $package
   })
 } | ConvertTo-Json -Depth 4
 Set-Content -Path (Join-Path $outputRoot "manifest.json") -Value $outputManifest -Encoding utf8

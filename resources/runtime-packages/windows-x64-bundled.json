@@ -8,6 +8,8 @@
       "version": "7.4.33",
       "archiveUrl": "https://downloads.php.net/~windows/releases/archives/php-7.4.33-nts-Win32-vc15-x64.zip",
       "archiveSha256": "14ae3250d4447c8ccfc4c45a70d90adfbcd61e728d85f0be56a7ddf8f9c8aace",
+      "packageSha256": "628096ad4805246199d2b352abde25981d0e2471332bace8cff085800cef8a6a",
+      "catalogSequence": 1,
       "destination": "php/7.4.33",
       "stripRoot": false,
       "default": false
@@ -17,6 +19,8 @@
       "version": "8.2.33",
       "archiveUrl": "https://downloads.php.net/~windows/releases/archives/php-8.2.33-nts-Win32-vs16-x64.zip",
       "archiveSha256": "d0bd189522fa50255ee94ed4b340ed4330f5ae33a90a74205275b0f0b221d388",
+      "packageSha256": "dc277feea7286980b412b6be43b7fbb74843192b21a5e124c10c233e4d01905c",
+      "catalogSequence": 1,
       "destination": "php/8.2.33",
       "stripRoot": false,
       "default": true

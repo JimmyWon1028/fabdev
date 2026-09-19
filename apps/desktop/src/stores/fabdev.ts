@@ -35,9 +35,11 @@ import {
   loadAutoCheckUpdates,
   loadAutoStartServices,
   loadLastUpdateCheck,
+  loadShowDashboardOnLaunch,
   saveAutoCheckUpdates,
   saveAutoStartServices,
-  saveLastUpdateCheck
+  saveLastUpdateCheck,
+  saveShowDashboardOnLaunch
 } from '../utils/preferences'
 import {
   areAllServicesRunning,
@@ -50,6 +52,7 @@ interface StoreState {
   busy: boolean
   error: string | null
   autoStartServices: boolean
+  showDashboardOnLaunch: boolean
   autoCheckUpdates: boolean
   lastUpdateCheck: string | null
   appUpdateBusy: boolean
@@ -150,6 +153,7 @@ export const useAppStore = defineStore('fabdev', {
     busy: false,
     error: null,
     autoStartServices: loadAutoStartServices(),
+    showDashboardOnLaunch: loadShowDashboardOnLaunch(),
     autoCheckUpdates: loadAutoCheckUpdates(),
     lastUpdateCheck: loadLastUpdateCheck(),
     appUpdateBusy: false,
@@ -205,6 +209,10 @@ export const useAppStore = defineStore('fabdev', {
     setAutoStartServices(enabled: boolean) {
       saveAutoStartServices(enabled)
       this.autoStartServices = enabled
+    },
+    setShowDashboardOnLaunch(enabled: boolean) {
+      saveShowDashboardOnLaunch(enabled)
+      this.showDashboardOnLaunch = enabled
     },
     setAutoCheckUpdates(enabled: boolean) {
       saveAutoCheckUpdates(enabled)

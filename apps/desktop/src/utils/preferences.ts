@@ -1,4 +1,5 @@
 const AUTO_START_SERVICES_KEY = 'fabdev.preferences.autoStartServices'
+const SHOW_DASHBOARD_ON_LAUNCH_KEY = 'fabdev.preferences.showDashboardOnLaunch'
 const AUTO_CHECK_UPDATES_KEY = 'fabdev.preferences.autoCheckUpdates'
 const LAST_UPDATE_CHECK_KEY = 'fabdev.preferences.lastUpdateCheck'
 const LANGUAGE_KEY = 'fabdev.preferences.language'
@@ -31,6 +32,27 @@ export function saveAutoStartServices(
     return
   }
   storage.setItem(AUTO_START_SERVICES_KEY, String(enabled))
+}
+
+export function loadShowDashboardOnLaunch(storage = browserStorage()): boolean {
+  if (!storage) {
+    return false
+  }
+  try {
+    return storage.getItem(SHOW_DASHBOARD_ON_LAUNCH_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function saveShowDashboardOnLaunch(
+  enabled: boolean,
+  storage = browserStorage()
+): void {
+  if (!storage) {
+    return
+  }
+  storage.setItem(SHOW_DASHBOARD_ON_LAUNCH_KEY, String(enabled))
 }
 
 export function loadAutoCheckUpdates(storage = browserStorage()): boolean {

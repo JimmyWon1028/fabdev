@@ -5,10 +5,12 @@ import {
   loadAutoStartServices,
   loadLastUpdateCheck,
   loadLanguage,
+  loadShowDashboardOnLaunch,
   saveAutoCheckUpdates,
   saveAutoStartServices,
   saveLastUpdateCheck,
-  saveLanguage
+  saveLanguage,
+  saveShowDashboardOnLaunch
 } from './preferences'
 
 function memoryStorage(initialValue: string | null = null) {
@@ -38,6 +40,22 @@ describe('auto-start service preference', () => {
 
     saveAutoStartServices(true, storage)
     expect(loadAutoStartServices(storage)).toBe(true)
+  })
+})
+
+describe('show-dashboard-on-launch preference', () => {
+  it('defaults to disabled when no preference exists', () => {
+    expect(loadShowDashboardOnLaunch(memoryStorage())).toBe(false)
+  })
+
+  it('persists both preference values', () => {
+    const storage = memoryStorage()
+
+    saveShowDashboardOnLaunch(true, storage)
+    expect(loadShowDashboardOnLaunch(storage)).toBe(true)
+
+    saveShowDashboardOnLaunch(false, storage)
+    expect(loadShowDashboardOnLaunch(storage)).toBe(false)
   })
 })
 

@@ -20,6 +20,8 @@ use fabdev_runtime::{
 };
 #[cfg(target_os = "macos")]
 use fabdev_runtime::{install_tar_gz_with_activation, RuntimeRelease};
+#[cfg(any(test, windows))]
+use fabdev_runtime::{installed_runtime_package_sha256, record_runtime_package_receipt};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -227,6 +229,18 @@ struct BundledMacosRuntimeManifest {
   packages: Vec<BundledRuntimeSpec>,
 }
 
+#[cfg(any(test, windows))]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BundledWindowsRuntimeSpec {
+  name: String,
+  version: String,
+  #[serde(default)]
+  package_sha256: Option<String>,
+  #[serde(default)]
+  catalog_sequence: Option<u64>,
+}
+
 #[cfg(windows)]
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -235,6 +249,7 @@ struct BundledWindowsRuntimeManifest {
   platform: String,
   architecture: String,
   default_php_version: String,
+  packages: Vec<BundledWindowsRuntimeSpec>,
 }
 
 struct TrayMenuItems {
@@ -1035,7 +1050,13 @@ fn request_app_quit_after_shutdown(
     return Err("fabDev is already shutting down".to_owned());
   }
   set_tray_all_busy(&app);
-  show_main_window(&app);
+  if app
+    .get_webview_window("main")
+    .and_then(|window| window.is_visible().ok())
+    .unwrap_or(false)
+  {
+    show_main_window(&app);
+  }
   let _ = app.emit(APP_QUIT_STARTED_EVENT, ());
   tauri::async_runtime::spawn(async move {
     match shutdown_agent_before_exit().await {
@@ -1043,6 +1064,7 @@ fn request_app_quit_after_shutdown(
         if let Some(installer_path) = installer_path {
           if let Err(error) = open_update_installer(&installer_path) {
             QUIT_IN_PROGRESS.store(false, Ordering::SeqCst);
+            show_main_window(&app);
             let _ = app.emit(APP_QUIT_FAILED_EVENT, ());
             let _ = app.emit(AGENT_ERROR_EVENT, error.to_string());
             refresh_tray_service_state(&app).await;
@@ -1054,6 +1076,7 @@ fn request_app_quit_after_shutdown(
       }
       Err(error) => {
         QUIT_IN_PROGRESS.store(false, Ordering::SeqCst);
+        show_main_window(&app);
         let _ = app.emit(APP_QUIT_FAILED_EVENT, ());
         let _ = app.emit(AGENT_ERROR_EVENT, error.to_string());
         refresh_tray_service_state(&app).await;
@@ -1416,12 +1439,16 @@ fn install_bundled_windows_runtimes(app: &tauri::App) -> anyhow::Result<()> {
   {
     bail!("bundled Windows Runtime manifest has an unsupported schema or target");
   }
-  let default_php_version = manifest.default_php_version;
+  let default_php_version = manifest.default_php_version.clone();
   if default_php_version.split('.').count() != 3
     || !default_php_version
       .split('.')
       .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
     || !source_root.join("php").join(&default_php_version).is_dir()
+    || !manifest
+      .packages
+      .iter()
+      .any(|spec| spec.name == "php" && spec.version == default_php_version)
   {
     bail!("bundled Windows Runtime manifest has an invalid default PHP version");
   }
@@ -1430,19 +1457,27 @@ fn install_bundled_windows_runtimes(app: &tauri::App) -> anyhow::Result<()> {
     &source_root.join("nginx/current"),
     &paths.runtimes.join("nginx/current"),
   )?;
-  let bundled_php = source_root.join("php");
-  for entry in std::fs::read_dir(&bundled_php).with_context(|| {
-    format!(
-      "unable to list bundled PHP Runtimes: {}",
-      bundled_php.display()
-    )
-  })? {
-    let entry = entry?;
-    let version = entry.file_name().to_string_lossy().into_owned();
-    if entry.file_type()?.is_dir() && should_install_bundled_runtime(&paths, "php", &version)? {
-      install_bundled_directory(&entry.path(), &paths.runtimes.join("php").join(&version))?;
-      initialize_empty_php_ini_for_runtime(&paths, &version)?;
+  let bundled_php_specs = manifest
+    .packages
+    .iter()
+    .filter(|spec| spec.name == "php")
+    .collect::<Vec<_>>();
+  if bundled_php_specs.is_empty() {
+    bail!("bundled Windows Runtime manifest does not contain PHP");
+  }
+  for spec in bundled_php_specs {
+    let source = source_root.join("php").join(&spec.version);
+    if !source.is_dir() {
+      bail!(
+        "bundled Windows PHP Runtime is missing: {}",
+        source.display()
+      );
     }
+    if should_install_bundled_runtime(&paths, "php", &spec.version)? {
+      install_bundled_directory(&source, &paths.runtimes.join("php").join(&spec.version))?;
+      initialize_empty_php_ini_for_runtime(&paths, &spec.version)?;
+    }
+    ensure_bundled_windows_runtime_receipt(&paths.runtimes, spec)?;
   }
 
   if active_version(&paths.runtimes, "php")?.is_none() {
@@ -1456,6 +1491,34 @@ fn install_bundled_windows_runtimes(app: &tauri::App) -> anyhow::Result<()> {
     set_active_version(&paths.runtimes, "php", &default_version)?;
   }
   install_bundled_demo(&source_root.join("demo"), &paths)?;
+  Ok(())
+}
+
+#[cfg(any(test, windows))]
+fn ensure_bundled_windows_runtime_receipt(
+  runtime_root: &Path,
+  spec: &BundledWindowsRuntimeSpec,
+) -> anyhow::Result<()> {
+  if !runtime_root.join(&spec.name).join(&spec.version).is_dir() {
+    return Ok(());
+  }
+  if installed_runtime_package_sha256(runtime_root, &spec.name, &spec.version)?.is_some() {
+    return Ok(());
+  }
+  let package_sha256 = spec
+    .package_sha256
+    .as_deref()
+    .context("bundled Windows Runtime is missing its Package SHA-256")?;
+  let catalog_sequence = spec
+    .catalog_sequence
+    .context("bundled Windows Runtime is missing its Catalog sequence")?;
+  record_runtime_package_receipt(
+    runtime_root,
+    &spec.name,
+    &spec.version,
+    package_sha256,
+    catalog_sequence,
+  )?;
   Ok(())
 }
 
@@ -1640,6 +1703,18 @@ fn show_main_window(app: &AppHandle) {
     let _ = window.unminimize();
     let _ = window.set_focus();
   }
+}
+
+#[tauri::command]
+fn set_startup_dashboard_visibility(app: AppHandle, visible: bool) {
+  if visible {
+    show_main_window(&app);
+    return;
+  }
+  if let Some(window) = app.get_webview_window("main") {
+    let _ = window.hide();
+  }
+  set_console_activation_policy(&app, false);
 }
 
 fn tray_service_state(status: &AgentStatus) -> TrayServiceState {
@@ -1929,6 +2004,7 @@ pub fn run() {
 
   let app = builder
     .setup(|app| {
+      set_console_activation_policy(app.handle(), false);
       #[cfg(target_os = "macos")]
       install_bundled_macos_runtimes(app)?;
       #[cfg(windows)]
@@ -1975,6 +2051,7 @@ pub fn run() {
     .invoke_handler(tauri::generate_handler![
       agent_request,
       record_desktop_error,
+      set_startup_dashboard_visibility,
       read_config_transfer_file,
       write_config_transfer_file,
       open_site,
@@ -2016,10 +2093,11 @@ mod tests {
     BundledRuntimeSpec,
   };
   use super::{
-    is_system_ingress_error, mariadb_toggle_request, php_ini_path, proxy_url,
-    read_config_transfer_file, resolve_agent_executable_from, services_to_restart, site_url,
-    status_has_running_services, tray_app_update_label, tray_mariadb_state,
-    tray_mariadb_toggle_label, tray_service_state, tray_toggle_label, write_config_transfer_file,
+    ensure_bundled_windows_runtime_receipt, is_system_ingress_error, mariadb_toggle_request,
+    php_ini_path, proxy_url, read_config_transfer_file, resolve_agent_executable_from,
+    services_to_restart, site_url, status_has_running_services, tray_app_update_label,
+    tray_mariadb_state, tray_mariadb_toggle_label, tray_service_state, tray_toggle_label,
+    write_config_transfer_file, BundledWindowsRuntimeSpec,
   };
   #[cfg(unix)]
   use super::{remove_stale_agent_socket, send_request_with_timeout, shutdown_agent_at};
@@ -2057,6 +2135,54 @@ mod tests {
       tray_app_update_label(Some("0.1.7")),
       "Update Available — v0.1.7"
     );
+  }
+
+  #[test]
+  fn records_missing_bundled_windows_runtime_receipts_without_overwriting_existing_receipts() {
+    let root = std::env::temp_dir().join(format!(
+      "fabdev-bundled-windows-receipt-{}",
+      uuid::Uuid::new_v4()
+    ));
+    let runtime_root = root.join("runtimes");
+    std::fs::create_dir_all(runtime_root.join("php/8.2.33"))
+      .expect("create bundled Windows PHP fixture");
+    let bundled_sha256 = "a".repeat(64);
+    let spec = BundledWindowsRuntimeSpec {
+      name: "php".to_owned(),
+      version: "8.2.33".to_owned(),
+      package_sha256: Some(bundled_sha256.clone()),
+      catalog_sequence: Some(1),
+    };
+
+    ensure_bundled_windows_runtime_receipt(&runtime_root, &spec)
+      .expect("record bundled Windows Runtime receipt");
+    assert_eq!(
+      fabdev_runtime::installed_runtime_package_sha256(&runtime_root, "php", "8.2.33")
+        .expect("read bundled Windows Runtime receipt"),
+      Some(bundled_sha256)
+    );
+
+    let replacement_sha256 = "b".repeat(64);
+    fabdev_runtime::record_runtime_package_receipt(
+      &runtime_root,
+      "php",
+      "8.2.33",
+      &replacement_sha256,
+      2,
+    )
+    .expect("record replacement Runtime receipt");
+    ensure_bundled_windows_runtime_receipt(&runtime_root, &spec)
+      .expect("preserve replacement Runtime receipt");
+    assert_eq!(
+      fabdev_runtime::installed_runtime_package_sha256(&runtime_root, "php", "8.2.33")
+        .expect("read replacement Runtime receipt"),
+      Some(replacement_sha256)
+    );
+    std::fs::remove_dir_all(runtime_root.join("php/8.2.33"))
+      .expect("remove bundled Windows PHP fixture");
+    ensure_bundled_windows_runtime_receipt(&runtime_root, &spec)
+      .expect("ignore an explicitly removed bundled Windows Runtime");
+    std::fs::remove_dir_all(root).expect("remove bundled Windows Runtime receipt fixture");
   }
 
   #[cfg(target_os = "macos")]

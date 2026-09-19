@@ -976,6 +976,7 @@ async function toggleLanShare(site: Site) {
           v-model="form.name"
           :required="editingSiteId !== null"
           placeholder="ERP Demo"
+          autocapitalize="none"
           autofocus
         />
       </label>

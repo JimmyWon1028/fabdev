@@ -3694,8 +3694,11 @@ fn command_contains_managed_php_config(command: &str, paths: &AppPaths) -> bool 
 fn is_managed_web_process(command: &str, paths: &AppPaths, runtimes: &RuntimePaths) -> bool {
   let dnsmasq = command_starts_with_path(command, &dnsmasq_binary(&runtimes.dnsmasq))
     && command_contains_path(command, &paths.services.join("dnsmasq.conf"));
-  let nginx = command_starts_with_path(command, &nginx_binary(&runtimes.nginx))
-    && command_contains_path(command, &paths.services.join("nginx/nginx.conf"));
+  let nginx_command = command
+    .strip_prefix("nginx: master process ")
+    .unwrap_or(command);
+  let nginx = command_starts_with_path(nginx_command, &nginx_binary(&runtimes.nginx))
+    && command_contains_path(nginx_command, &paths.services.join("nginx/nginx.conf"));
   let php_config = command_contains_managed_php_config(command, paths);
   let php = php_config
     && (command.starts_with("php-fpm: master process (")
@@ -4700,7 +4703,7 @@ mod tests {
     let php_74_config = paths.services.join("php/7.4/php-fpm.conf");
     let php_82_config = paths.services.join("php/8.2/php-fpm.conf");
     let processes = format!(
-      "  100 {} --keep-in-foreground --conf-file={}\n  101 {} -p {}/ -c {} -g daemon off;\n  102 {}/8.2.33/sbin/php-fpm -y {} -F\n  103 php-fpm: master process ({})\n  104 /usr/local/sbin/dnsmasq --conf-file={}\n  105 {} --conf-file=/tmp/unmanaged-dnsmasq.conf\n  106 /Applications/fabDev.app/Contents/MacOS/fabdev-agent\n",
+      "  100 {} --keep-in-foreground --conf-file={}\n  101 {} -p {}/ -c {} -g daemon off;\n  102 {}/8.2.33/sbin/php-fpm -y {} -F\n  103 php-fpm: master process ({})\n  104 /usr/local/sbin/dnsmasq --conf-file={}\n  105 {} --conf-file=/tmp/unmanaged-dnsmasq.conf\n  106 /Applications/fabDev.app/Contents/MacOS/fabdev-agent\n  107 nginx: master process {} -p {}/ -c {} -g daemon off;\n  108 nginx: master process /usr/local/sbin/nginx -c {}\n",
       dnsmasq_binary(&runtimes.dnsmasq).display(),
       paths.services.join("dnsmasq.conf").display(),
       nginx_binary(&runtimes.nginx).display(),
@@ -4711,13 +4714,17 @@ mod tests {
       php_74_config.display(),
       paths.services.join("dnsmasq.conf").display(),
       dnsmasq_binary(&runtimes.dnsmasq).display(),
+      nginx_binary(&runtimes.nginx).display(),
+      runtimes.nginx.display(),
+      paths.services.join("nginx/nginx.conf").display(),
+      paths.services.join("nginx/nginx.conf").display(),
     );
 
     let pids = managed_process_ids_from_output(&processes, 999, |command| {
       is_managed_web_process(command, &paths, &runtimes)
     });
 
-    assert_eq!(pids, vec![100, 101, 102, 103]);
+    assert_eq!(pids, vec![100, 101, 102, 103, 107]);
   }
 
   #[cfg(unix)]

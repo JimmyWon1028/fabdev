@@ -7,6 +7,7 @@ import {
   formatPhpServiceTerms,
   hasEnabledSites,
   phpServiceName,
+  requiredServiceDisplayState,
   shouldStopServicesBeforeStart,
   summarizeProxyConnections
 } from './service'
@@ -65,6 +66,13 @@ describe('service startup decisions', () => {
     expect(canToggleAllServices(false, true, false)).toBe(true)
     expect(canToggleAllServices(false, false, false)).toBe(false)
     expect(canToggleAllServices(true, true, true)).toBe(false)
+  })
+
+  it('presents required installed services as stopped and missing services as failed', () => {
+    expect(requiredServiceDisplayState('installed')).toBe('stopped')
+    expect(requiredServiceDisplayState('installed', true)).toBe('failed')
+    expect(requiredServiceDisplayState('notInstalled')).toBe('failed')
+    expect(requiredServiceDisplayState('running')).toBe('running')
   })
 })
 

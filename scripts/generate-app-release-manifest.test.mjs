@@ -513,11 +513,25 @@ test('loads bundled Windows Runtime versions and the default PHP from a manifest
   )
 
   assert.equal(defaultPhp.length, 1)
+  assert.equal(
+    manifest.packages
+      .filter((runtimePackage) => runtimePackage.name === 'php')
+      .every(
+        (runtimePackage) =>
+          /^[0-9a-f]{64}$/.test(runtimePackage.packageSha256) &&
+          Number.isSafeInteger(runtimePackage.catalogSequence) &&
+          runtimePackage.catalogSequence > 0
+      ),
+    true
+  )
   assert.match(script, /ConvertFrom-Json/)
   assert.match(script, /defaultPhpVersion/)
+  assert.match(script, /packageSha256/)
+  assert.match(script, /catalogSequence/)
   assert.doesNotMatch(script, /7\.4\.33|8\.2\.33|1\.30\.4/)
   assert.match(desktopSource, /struct BundledWindowsRuntimeManifest/)
   assert.match(desktopSource, /default_php_version/)
+  assert.match(desktopSource, /ensure_bundled_windows_runtime_receipt/)
   const windowsInstallerStart = desktopSource.indexOf('fn install_bundled_windows_runtimes')
   const windowsInstallerEnd = desktopSource.indexOf(
     '#[cfg(any(target_os = "macos", windows))]',

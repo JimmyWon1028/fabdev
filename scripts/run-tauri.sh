@@ -21,5 +21,13 @@ if [[ "${1:-}" == "dev" ]]; then
   install -m 755 \
     "$AGENT_TARGET_DIR/debug/fabdev-agent" \
     "$REPO_ROOT/apps/desktop/src-tauri/binaries/fabdev-agent-$HOST_TRIPLE"
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    DEV_DATA_DIR="${FABDEV_DATA_DIR:-$HOME/Library/Application Support/FabDev}"
+    "$REPO_ROOT/scripts/prepare-macos-dev-agent-app.sh" \
+      "$AGENT_TARGET_DIR/debug/fabdev-agent" \
+      "$REPO_ROOT/crates/agent/Info.plist" \
+      "$AGENT_TARGET_DIR/fabDev Agent Dev.app" \
+      "$DEV_DATA_DIR"
+  fi
 fi
 exec pnpm --filter @fabdev/desktop tauri "$@"

@@ -61,6 +61,11 @@ function handleUnhandledRejection(event: PromiseRejectionEvent) {
 }
 
 onMounted(async () => {
+  void invoke('set_startup_dashboard_visibility', {
+    visible: store.showDashboardOnLaunch
+  }).catch((error) => {
+    recordFrontendError('startup-dashboard-visibility', error instanceof Error ? error.message : String(error))
+  })
   void getVersion().then((version) => {
     appVersion.value = version
   }).catch((error) => {

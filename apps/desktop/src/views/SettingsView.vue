@@ -70,6 +70,20 @@ function toggleAutoStartServices() {
   }
 }
 
+function toggleShowDashboardOnLaunch() {
+  const enabled = !store.showDashboardOnLaunch
+  try {
+    store.setShowDashboardOnLaunch(enabled)
+    message.value = enabled
+      ? t('settings.showDashboardOnLaunchEnabled')
+      : t('settings.showDashboardOnLaunchDisabled')
+  } catch (error) {
+    message.value = t('settings.saveError', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+}
+
 function toggleAutoCheckUpdates() {
   const enabled = !store.autoCheckUpdates
   try {
@@ -187,6 +201,24 @@ async function installUpdate() {
           :aria-checked="store.autoStartServices"
           :aria-label="t('settings.autoStartTitle')"
           @click="toggleAutoStartServices"
+        >
+          <span />
+        </button>
+      </article>
+      <article class="setting-row">
+        <div>
+          <h2>{{ t('settings.showDashboardOnLaunchTitle') }}</h2>
+          <p>{{ t('settings.showDashboardOnLaunchDescription') }}</p>
+          <small>{{ t('settings.showDashboardOnLaunchHelp') }}</small>
+        </div>
+        <button
+          class="toggle-button"
+          :class="{ active: store.showDashboardOnLaunch }"
+          type="button"
+          role="switch"
+          :aria-checked="store.showDashboardOnLaunch"
+          :aria-label="t('settings.showDashboardOnLaunchTitle')"
+          @click="toggleShowDashboardOnLaunch"
         >
           <span />
         </button>
