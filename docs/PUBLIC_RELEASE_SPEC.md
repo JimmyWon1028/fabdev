@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 完成 App-only 與 Runtime Distribution 分離；`v0.1.26` 是目前 Windows-first Latest Stable，已提供 Windows x64 App 與 fabDev Connect，macOS ARM64 尚未補入此版本
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 完成 App-only 與 Runtime Distribution 分離；`v0.1.26` 是目前 Latest Stable，已依 Windows-first 順序提供 Windows x64 App、fabDev Connect，並補齊同版 macOS ARM64 Community DMG
 
 ## 1. 目標
 
@@ -466,6 +466,24 @@ https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.21
 - `fabdev-app-v1.json` 與 `fabdev-stable-v1.json` 皆為 1,420 bytes、逐位元一致，SHA-256 `59337b58be3b9241e494435b0e32ad5c73d45be027ccf8cf520cc12154566d6c`；內容為 App `0.1.21`、Agent Protocol 37、`requiresFullInstaller=true`，並只列出 macOS ARM64 與 Windows x64 兩個 Installer。`publishedAt` 保持初次 Windows Draft 的 `2026-09-03T06:29:14Z`。
 - 公開 DMG 通過 Disk Image checksum；28 個內層檔案 checksum、App／Build `0.1.21`、ARM64 Desktop／Agent／CLI 與 `Signature=adhoc` 均通過。沒有加入 Apple Developer ID、notarization、stapling、Hardened Runtime、簽章憑證或 CI Secret。
 - 完整 `pnpm test` 與 `pnpm lint` 通過。安裝與更新程序沒有改變，依既有驗收沿用規則未重跑 macOS／Windows 安裝、啟動與移除人工流程。
+
+### 9.7 `v0.1.26` Windows-first Stable Publish 與同版 macOS 補齊
+
+Repository Owner 核准後，GitHub Release `392254189` 已於 `2026-09-20T01:02:07Z`，即 2026-09-20 09:02:07（Asia/Taipei，UTC+8）先發布 Windows-first Stable；其後依明確重新打包與補齊授權加入同版 macOS ARM64 Community DMG：
+
+```text
+https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.26
+```
+
+- Annotated Tag `v0.1.26` 的 Tag Object `f9684c288b3a36afa53543a7e30b4ec06c6fe71a` 固定指向 Commit `76d6c2d50561d29fcc95e00e27c17187731b757a`；macOS 建置使用該 Commit 的隔離 detached worktree，沒有修改程式碼、共用設定、版本或 Tag。
+- macOS bundled Runtime manifest、descriptor 與封裝腳本相較上一個已驗證 macOS Stable `v0.1.25` 未變；dnsmasq 2.93、Nginx 1.30.4、PHP 7.4.33 與 PHP 8.2.33 Archive 已與公開 `v0.1.25` DMG 包內內容逐位元比對，確認可重用。
+- 完整 `pnpm test` 通過 Desktop 100、Release 規則 20、Rust 298 與 macOS Helper 9 項測試，另有 7 項外部環境測試維持 ignored；`pnpm lint`、rustfmt、Clippy、Swift lint 與 `git diff --check` 通過。
+- macOS DMG 為 100,053,655 bytes、SHA-256 `16218fb8309b35767714222332314f57e8d3934b9933438e287ef8a8b9572ef2`；`hdiutil verify`、外部與內部 checksum、App／CLI `0.1.26`、ad-hoc codesign、Desktop／Agent／CLI／Helper ARM64、Runtime descriptor、Archive 一致性與無 Homebrew 執行期依賴均通過。
+- 上傳只新增 macOS DMG 與其個別 checksum，並替換跨平台 `SHA256SUMS`、`fabdev-app-v1.json`、`fabdev-stable-v1.json` 與 Release Notes。Windows Setup、fabDev Connect 與其個別 checksum 的 Asset ID、大小及 digest 均未改變；Release ID、Tag、Commit、`published_at=2026-09-20T01:02:07Z` 與 Manifest `publishedAt=2026-09-19T23:30:18Z` 亦保持不變。
+- 補齊後共有 9 個 App-only Assets、150,349,524 bytes；Windows Setup 為 49,542,815 bytes、SHA-256 `3d15ddbd9475cdd30758f01de33b54e02d212aa0888110a834dbf2acb59f5303`，fabDev Connect 為 749,568 bytes、SHA-256 `fed39c5930c32ed6ca48b4e9a6308553952ad43eb86648b4d119d578d1fff8dd`。`SHA256SUMS` SHA-256 為 `f81350d77103882862efb508577e04e61942315df03e20214dbaebd204455bfb`。
+- `fabdev-app-v1.json` 與 `fabdev-stable-v1.json` 皆為 1,421 bytes、逐位元一致，SHA-256 `a044ee976c0ea43256da0615eebca3668c653ee823844f1657d56bf63f3f9922`；內容為 App `0.1.26`、Agent Protocol 40、`requiresFullInstaller=true`，並同時且只列出 Windows x64 與 macOS ARM64 Installer。
+- 9 個 Assets 已從未登入公開 URL 全部重新下載並與上傳集合逐位元一致；GitHub size／digest、總表、三份個別 checksum、Latest Manifest、Release 頁 HTTP 200 與兩平台 Installer Range HTTP 206 均通過。Release 未包含線上 Runtime Catalog、Package 或 Archive，目前沒有殘留 Draft Release。
+- 安裝與更新程序沒有改變，依既有驗收沿用規則不重跑 macOS／Windows 安裝、啟動、更新與移除人工流程。
 
 ## 10. 撤回與回復
 
