@@ -11,7 +11,7 @@ import {
   updateDownloadPercent
 } from '../utils/app-update'
 import { useI18n } from '../utils/i18n'
-import type { Language } from '../utils/preferences'
+import type { Language, Theme } from '../utils/preferences'
 
 const store = useAppStore()
 const { language, setLanguage, t } = useI18n()
@@ -56,6 +56,17 @@ onMounted(async () => {
 function changeLanguage(event: Event) {
   setLanguage((event.target as HTMLSelectElement).value as Language)
   message.value = ''
+}
+
+function changeTheme(event: Event) {
+  try {
+    store.setTheme((event.target as HTMLSelectElement).value as Theme)
+    message.value = ''
+  } catch (error) {
+    message.value = t('settings.saveError', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
 }
 
 function toggleAutoStartServices() {
@@ -185,6 +196,24 @@ async function installUpdate() {
           <option value="en">{{ t('settings.english') }}</option>
           <option value="zh-TW">{{ t('settings.traditionalChinese') }}</option>
           <option value="zh-CN">{{ t('settings.simplifiedChinese') }}</option>
+        </select>
+      </article>
+      <article class="setting-row">
+        <div>
+          <h2>{{ t('settings.themeTitle') }}</h2>
+          <p>{{ t('settings.themeDescription') }}</p>
+          <small>{{ t('settings.themeHelp') }}</small>
+        </div>
+        <select
+          class="theme-select"
+          :value="store.theme"
+          :aria-label="t('settings.themeTitle')"
+          @change="changeTheme"
+        >
+          <option value="default">{{ t('settings.themeDefault') }}</option>
+          <option value="neo-brutalism">{{ t('settings.themeNeoBrutalism') }}</option>
+          <option value="glassmorphism">{{ t('settings.themeGlassmorphism') }}</option>
+          <option value="notion">{{ t('settings.themeNotion') }}</option>
         </select>
       </article>
       <article class="setting-row">

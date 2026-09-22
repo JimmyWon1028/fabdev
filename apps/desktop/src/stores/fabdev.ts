@@ -36,11 +36,15 @@ import {
   loadAutoStartServices,
   loadLastUpdateCheck,
   loadShowDashboardOnLaunch,
+  loadTheme,
   saveAutoCheckUpdates,
   saveAutoStartServices,
   saveLastUpdateCheck,
-  saveShowDashboardOnLaunch
+  saveShowDashboardOnLaunch,
+  saveTheme,
+  type Theme
 } from '../utils/preferences'
+import { applyTheme } from '../utils/theme'
 import {
   areAllServicesRunning,
   hasEnabledSites,
@@ -53,6 +57,7 @@ interface StoreState {
   error: string | null
   autoStartServices: boolean
   showDashboardOnLaunch: boolean
+  theme: Theme
   autoCheckUpdates: boolean
   lastUpdateCheck: string | null
   appUpdateBusy: boolean
@@ -154,6 +159,7 @@ export const useAppStore = defineStore('fabdev', {
     error: null,
     autoStartServices: loadAutoStartServices(),
     showDashboardOnLaunch: loadShowDashboardOnLaunch(),
+    theme: loadTheme(),
     autoCheckUpdates: loadAutoCheckUpdates(),
     lastUpdateCheck: loadLastUpdateCheck(),
     appUpdateBusy: false,
@@ -213,6 +219,11 @@ export const useAppStore = defineStore('fabdev', {
     setShowDashboardOnLaunch(enabled: boolean) {
       saveShowDashboardOnLaunch(enabled)
       this.showDashboardOnLaunch = enabled
+    },
+    setTheme(theme: Theme) {
+      saveTheme(theme)
+      this.theme = theme
+      applyTheme(theme)
     },
     setAutoCheckUpdates(enabled: boolean) {
       saveAutoCheckUpdates(enabled)

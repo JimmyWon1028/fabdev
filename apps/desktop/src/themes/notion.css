@@ -1,0 +1,268 @@
+html[data-theme="notion"] {
+  color: #37352f;
+  background: #fff;
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html[data-theme="notion"] body,
+html[data-theme="notion"] .content,
+html[data-theme="notion"] .page-header {
+  background: #fff;
+}
+
+html[data-theme="notion"] .sidebar {
+  color: #37352f;
+  background: #f7f7f5;
+  border-right: 1px solid rgb(55 53 47 / 9%);
+}
+
+html[data-theme="notion"] .brand small,
+html[data-theme="notion"] .agent-state,
+html[data-theme="notion"] .navigation a,
+html[data-theme="notion"] .settings-link {
+  color: #5f5e5b;
+}
+
+html[data-theme="notion"] .navigation-divider {
+  background: rgb(55 53 47 / 9%);
+}
+
+html[data-theme="notion"] .navigation a,
+html[data-theme="notion"] .settings-link {
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+html[data-theme="notion"] .navigation a:hover,
+html[data-theme="notion"] .navigation a.router-link-active,
+html[data-theme="notion"] .settings-link:hover,
+html[data-theme="notion"] .settings-link.router-link-active {
+  color: #37352f;
+  background: rgb(55 53 47 / 8%);
+}
+
+html[data-theme="notion"] .page-header h1,
+html[data-theme="notion"] .setting-row h2,
+html[data-theme="notion"] .service-card h2,
+html[data-theme="notion"] .form-card h2,
+html[data-theme="notion"] .runtime-card h2 {
+  color: #37352f;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+html[data-theme="notion"] .eyebrow {
+  color: #787774 !important;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+html[data-theme="notion"] .service-card,
+html[data-theme="notion"] .runtime-help-card,
+html[data-theme="notion"] .form-card,
+html[data-theme="notion"] .runtime-card,
+html[data-theme="notion"] .terminal-card,
+html[data-theme="notion"] .runtime-online-card,
+html[data-theme="notion"] .site-list-toolbar,
+html[data-theme="notion"] .site-list,
+html[data-theme="notion"] .site-empty-state,
+html[data-theme="notion"] .proxy-summary,
+html[data-theme="notion"] .proxy-list,
+html[data-theme="notion"] .setting-row,
+html[data-theme="notion"] .php-ini-editor,
+html[data-theme="notion"] .modal-dialog,
+html[data-theme="notion"] .quit-dialog,
+html[data-theme="notion"] .help-contents,
+html[data-theme="notion"] .diagnostic-logs {
+  background: #fff;
+  border: 1px solid rgb(55 53 47 / 16%);
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+html[data-theme="notion"] .runtime-help-card {
+  background: #f7f7f5;
+}
+
+html[data-theme="notion"] .app-update-notice,
+html[data-theme="notion"] .runtime-summary,
+html[data-theme="notion"] .notice,
+html[data-theme="notion"] .runtime-online-warning,
+html[data-theme="notion"] .modal-message,
+html[data-theme="notion"] .help-notes {
+  color: #37352f !important;
+  background: #f1f1ef;
+  border: 0;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+html[data-theme="notion"] .notice.warning,
+html[data-theme="notion"] .runtime-online-warning,
+html[data-theme="notion"] .help-notes {
+  background: #fbf3db;
+}
+
+html[data-theme="notion"] .modal-message {
+  background: #ffe2dd;
+}
+
+html[data-theme="notion"] input,
+html[data-theme="notion"] select,
+html[data-theme="notion"] .modal-dialog textarea {
+  color: #37352f;
+  background: #fff;
+  border: 1px solid rgb(55 53 47 / 24%);
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgb(15 15 15 / 8%);
+}
+
+html[data-theme="notion"] input:focus,
+html[data-theme="notion"] select:focus,
+html[data-theme="notion"] .modal-dialog textarea:focus {
+  border-color: #2383e2;
+  box-shadow: 0 0 0 2px rgb(35 131 226 / 18%);
+}
+
+html[data-theme="notion"] .primary-button,
+html[data-theme="notion"] .secondary-button,
+html[data-theme="notion"] .share-stop-button,
+html[data-theme="notion"] .danger-button,
+html[data-theme="notion"] .site-filter-button,
+html[data-theme="notion"] .open-link-icon,
+html[data-theme="notion"] .modal-close-button {
+  color: #37352f;
+  background: #fff;
+  border: 1px solid rgb(55 53 47 / 18%);
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgb(15 15 15 / 8%);
+}
+
+html[data-theme="notion"] .primary-button,
+html[data-theme="notion"] .site-filter-button.active {
+  color: #fff;
+  background: #37352f;
+  border-color: #37352f;
+}
+
+html[data-theme="notion"] .share-stop-button {
+  color: #8a4b08;
+  background: #fbf3db;
+}
+
+html[data-theme="notion"] .danger-button {
+  color: #d44c47;
+  background: #fff;
+}
+
+html[data-theme="notion"] .primary-button:hover:not(:disabled),
+html[data-theme="notion"] .secondary-button:hover:not(:disabled),
+html[data-theme="notion"] .share-stop-button:hover:not(:disabled),
+html[data-theme="notion"] .danger-button:hover:not(:disabled),
+html[data-theme="notion"] .site-filter-button:hover:not(:disabled),
+html[data-theme="notion"] .open-link-icon:hover:not(:disabled),
+html[data-theme="notion"] .open-link-icon:focus-visible,
+html[data-theme="notion"] .modal-close-button:hover:not(:disabled),
+html[data-theme="notion"] .modal-close-button:focus-visible {
+  color: #37352f;
+  background: #efefed;
+  border-color: rgb(55 53 47 / 24%);
+  outline: none;
+}
+
+html[data-theme="notion"] .primary-button:hover:not(:disabled) {
+  color: #fff;
+  background: #2f2e2a;
+  border-color: #2f2e2a;
+}
+
+html[data-theme="notion"] .state-pill,
+html[data-theme="notion"] .service-icon,
+html[data-theme="notion"] .runtime-version,
+html[data-theme="notion"] .help-section-number {
+  color: #37352f;
+  background: #f1f1ef;
+  border: 0;
+  border-radius: 4px;
+}
+
+html[data-theme="notion"] .state-pill[data-state="running"],
+html[data-theme="notion"] .service-icon {
+  color: #0f7b6c;
+  background: #dbeddb;
+}
+
+html[data-theme="notion"] .state-pill[data-state="failed"] {
+  color: #d44c47;
+  background: #ffe2dd;
+}
+
+html[data-theme="notion"] .state-pill[data-state="warning"],
+html[data-theme="notion"] .state-pill[data-state="degraded"] {
+  color: #8a4b08;
+  background: #fbf3db;
+}
+
+html[data-theme="notion"] .runtime-version,
+html[data-theme="notion"] .help-section-number {
+  color: #6940a5;
+  background: #e8deee;
+}
+
+html[data-theme="notion"] .site-row,
+html[data-theme="notion"] .proxy-row,
+html[data-theme="notion"] .proxy-summary > div,
+html[data-theme="notion"] .proxy-search-toolbar,
+html[data-theme="notion"] .proxy-selection-toolbar,
+html[data-theme="notion"] .site-selection-toolbar,
+html[data-theme="notion"] .modal-header,
+html[data-theme="notion"] .help-section + .help-section {
+  border-color: rgb(55 53 47 / 12%);
+}
+
+html[data-theme="notion"] .site-row.is-shared,
+html[data-theme="notion"] .site-row.selected,
+html[data-theme="notion"] .proxy-row.selected,
+html[data-theme="notion"] .proxy-selection-toolbar,
+html[data-theme="notion"] .site-selection-toolbar {
+  background: #f7f7f5;
+}
+
+html[data-theme="notion"] .update-version-grid div,
+html[data-theme="notion"] .update-artifact-details,
+html[data-theme="notion"] .php-fastcgi-settings {
+  background: #f7f7f5;
+  border: 0;
+  border-radius: 4px;
+}
+
+html[data-theme="notion"] .toggle-button {
+  background: #d3d3d1;
+  border: 0;
+  border-radius: 999px;
+  box-shadow: none;
+}
+
+html[data-theme="notion"] .toggle-button span {
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(15 15 15 / 24%);
+}
+
+html[data-theme="notion"] .toggle-button.active {
+  background: #2383e2;
+}
+
+html[data-theme="notion"] .setting-row p,
+html[data-theme="notion"] .setting-row small,
+html[data-theme="notion"] .page-header p,
+html[data-theme="notion"] .service-card p,
+html[data-theme="notion"] .runtime-card p,
+html[data-theme="notion"] .form-message {
+  color: #787774;
+}
+
+html[data-theme="notion"] .quit-overlay,
+html[data-theme="notion"] .modal-overlay {
+  background: rgb(15 15 15 / 38%);
+  backdrop-filter: none;
+}

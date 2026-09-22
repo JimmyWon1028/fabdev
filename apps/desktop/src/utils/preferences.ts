@@ -3,9 +3,12 @@ const SHOW_DASHBOARD_ON_LAUNCH_KEY = 'fabdev.preferences.showDashboardOnLaunch'
 const AUTO_CHECK_UPDATES_KEY = 'fabdev.preferences.autoCheckUpdates'
 const LAST_UPDATE_CHECK_KEY = 'fabdev.preferences.lastUpdateCheck'
 const LANGUAGE_KEY = 'fabdev.preferences.language'
+const THEME_KEY = 'fabdev.preferences.theme'
 
 export const supportedLanguages = ['en', 'zh-TW', 'zh-CN'] as const
 export type Language = (typeof supportedLanguages)[number]
+export const supportedThemes = ['default', 'neo-brutalism', 'glassmorphism', 'notion'] as const
+export type Theme = (typeof supportedThemes)[number]
 
 type PreferenceStorage = Pick<Storage, 'getItem' | 'setItem'>
 
@@ -115,4 +118,23 @@ export function saveLanguage(language: Language, storage = browserStorage()): vo
     return
   }
   storage.setItem(LANGUAGE_KEY, language)
+}
+
+export function loadTheme(storage = browserStorage()): Theme {
+  if (!storage) {
+    return 'default'
+  }
+  try {
+    const theme = storage.getItem(THEME_KEY)
+    return supportedThemes.includes(theme as Theme) ? (theme as Theme) : 'default'
+  } catch {
+    return 'default'
+  }
+}
+
+export function saveTheme(theme: Theme, storage = browserStorage()): void {
+  if (!storage) {
+    return
+  }
+  storage.setItem(THEME_KEY, theme)
 }

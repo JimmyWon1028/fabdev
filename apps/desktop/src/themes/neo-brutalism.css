@@ -1,0 +1,267 @@
+html[data-theme="neo-brutalism"] {
+  color: #111;
+  background: #e9e2ff;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+html[data-theme="neo-brutalism"] body,
+html[data-theme="neo-brutalism"] .content,
+html[data-theme="neo-brutalism"] .page-header {
+  background: #e9e2ff;
+}
+
+html[data-theme="neo-brutalism"] .sidebar {
+  color: #111;
+  background: #ffdf5d;
+  border-right: 3px solid #111;
+}
+
+html[data-theme="neo-brutalism"] .brand small,
+html[data-theme="neo-brutalism"] .agent-state,
+html[data-theme="neo-brutalism"] .navigation a,
+html[data-theme="neo-brutalism"] .settings-link {
+  color: #111;
+}
+
+html[data-theme="neo-brutalism"] .navigation-divider {
+  height: 3px;
+  background: #111;
+}
+
+html[data-theme="neo-brutalism"] .navigation a,
+html[data-theme="neo-brutalism"] .settings-link {
+  border: 2px solid transparent;
+  border-radius: 0;
+  font-weight: 800;
+}
+
+html[data-theme="neo-brutalism"] .navigation a:hover,
+html[data-theme="neo-brutalism"] .navigation a.router-link-active,
+html[data-theme="neo-brutalism"] .settings-link:hover,
+html[data-theme="neo-brutalism"] .settings-link.router-link-active {
+  color: #111;
+  background: #ff6fae;
+  border-color: #111;
+  box-shadow: 4px 4px 0 #111;
+}
+
+html[data-theme="neo-brutalism"] .page-header h1,
+html[data-theme="neo-brutalism"] .setting-row h2,
+html[data-theme="neo-brutalism"] .service-card h2,
+html[data-theme="neo-brutalism"] .form-card h2,
+html[data-theme="neo-brutalism"] .runtime-card h2 {
+  font-weight: 900;
+  letter-spacing: -0.035em;
+}
+
+html[data-theme="neo-brutalism"] .eyebrow {
+  color: #111 !important;
+  text-decoration: underline 4px #ff6fae;
+  text-underline-offset: 4px;
+}
+
+html[data-theme="neo-brutalism"] .service-card,
+html[data-theme="neo-brutalism"] .runtime-help-card,
+html[data-theme="neo-brutalism"] .form-card,
+html[data-theme="neo-brutalism"] .runtime-card,
+html[data-theme="neo-brutalism"] .terminal-card,
+html[data-theme="neo-brutalism"] .runtime-online-card,
+html[data-theme="neo-brutalism"] .site-list-toolbar,
+html[data-theme="neo-brutalism"] .site-list,
+html[data-theme="neo-brutalism"] .site-empty-state,
+html[data-theme="neo-brutalism"] .proxy-summary,
+html[data-theme="neo-brutalism"] .proxy-list,
+html[data-theme="neo-brutalism"] .setting-row,
+html[data-theme="neo-brutalism"] .php-ini-editor,
+html[data-theme="neo-brutalism"] .modal-dialog,
+html[data-theme="neo-brutalism"] .quit-dialog,
+html[data-theme="neo-brutalism"] .help-contents,
+html[data-theme="neo-brutalism"] .diagnostic-logs {
+  background: #fff;
+  border: 3px solid #111;
+  border-radius: 0;
+  box-shadow: 6px 6px 0 #111;
+}
+
+html[data-theme="neo-brutalism"] .runtime-help-card {
+  background: #8ff0a4;
+}
+
+html[data-theme="neo-brutalism"] .app-update-notice,
+html[data-theme="neo-brutalism"] .runtime-summary,
+html[data-theme="neo-brutalism"] .notice,
+html[data-theme="neo-brutalism"] .runtime-online-warning,
+html[data-theme="neo-brutalism"] .modal-message,
+html[data-theme="neo-brutalism"] .help-notes {
+  color: #111 !important;
+  background: #78e7ff;
+  border: 2px solid #111;
+  border-radius: 0;
+  box-shadow: 3px 3px 0 #111;
+}
+
+html[data-theme="neo-brutalism"] .notice.warning,
+html[data-theme="neo-brutalism"] .runtime-online-warning,
+html[data-theme="neo-brutalism"] .help-notes {
+  background: #ffdf5d;
+}
+
+html[data-theme="neo-brutalism"] .modal-message {
+  background: #ffb4b4;
+}
+
+html[data-theme="neo-brutalism"] input,
+html[data-theme="neo-brutalism"] select,
+html[data-theme="neo-brutalism"] .modal-dialog textarea {
+  color: #111;
+  background: #fff;
+  border: 2px solid #111;
+  border-radius: 0;
+  box-shadow: 3px 3px 0 #111;
+}
+
+html[data-theme="neo-brutalism"] input:focus,
+html[data-theme="neo-brutalism"] select:focus,
+html[data-theme="neo-brutalism"] .modal-dialog textarea:focus {
+  border-color: #111;
+  box-shadow: 5px 5px 0 #ff6fae;
+}
+
+html[data-theme="neo-brutalism"] .primary-button,
+html[data-theme="neo-brutalism"] .secondary-button,
+html[data-theme="neo-brutalism"] .share-stop-button,
+html[data-theme="neo-brutalism"] .danger-button,
+html[data-theme="neo-brutalism"] .site-filter-button,
+html[data-theme="neo-brutalism"] .open-link-icon,
+html[data-theme="neo-brutalism"] .modal-close-button {
+  color: #111;
+  background: #fff;
+  border: 2px solid #111;
+  border-radius: 0;
+  box-shadow: 3px 3px 0 #111;
+}
+
+html[data-theme="neo-brutalism"] .primary-button,
+html[data-theme="neo-brutalism"] .site-filter-button.active {
+  color: #111;
+  background: #78e08f;
+}
+
+html[data-theme="neo-brutalism"] .share-stop-button {
+  background: #ffb347;
+}
+
+html[data-theme="neo-brutalism"] .danger-button {
+  background: #ff7b7b;
+}
+
+html[data-theme="neo-brutalism"] .primary-button:hover:not(:disabled),
+html[data-theme="neo-brutalism"] .secondary-button:hover:not(:disabled),
+html[data-theme="neo-brutalism"] .share-stop-button:hover:not(:disabled),
+html[data-theme="neo-brutalism"] .danger-button:hover:not(:disabled),
+html[data-theme="neo-brutalism"] .site-filter-button:hover:not(:disabled),
+html[data-theme="neo-brutalism"] .open-link-icon:hover:not(:disabled),
+html[data-theme="neo-brutalism"] .open-link-icon:focus-visible,
+html[data-theme="neo-brutalism"] .modal-close-button:hover:not(:disabled),
+html[data-theme="neo-brutalism"] .modal-close-button:focus-visible {
+  color: #111;
+  background: #ff6fae;
+  border-color: #111;
+  box-shadow: 5px 5px 0 #111;
+  outline: none;
+  transform: translate(-1px, -1px);
+}
+
+html[data-theme="neo-brutalism"] .state-pill,
+html[data-theme="neo-brutalism"] .service-icon,
+html[data-theme="neo-brutalism"] .runtime-version,
+html[data-theme="neo-brutalism"] .help-section-number {
+  color: #111;
+  background: #d9d9d9;
+  border: 2px solid #111;
+  border-radius: 0;
+}
+
+html[data-theme="neo-brutalism"] .state-pill[data-state="running"],
+html[data-theme="neo-brutalism"] .service-icon {
+  background: #78e08f;
+}
+
+html[data-theme="neo-brutalism"] .state-pill[data-state="failed"] {
+  background: #ff7b7b;
+}
+
+html[data-theme="neo-brutalism"] .state-pill[data-state="warning"],
+html[data-theme="neo-brutalism"] .state-pill[data-state="degraded"] {
+  background: #ffdf5d;
+}
+
+html[data-theme="neo-brutalism"] .runtime-version,
+html[data-theme="neo-brutalism"] .help-section-number {
+  background: #bda7ff;
+}
+
+html[data-theme="neo-brutalism"] .site-row,
+html[data-theme="neo-brutalism"] .proxy-row,
+html[data-theme="neo-brutalism"] .proxy-summary > div,
+html[data-theme="neo-brutalism"] .proxy-search-toolbar,
+html[data-theme="neo-brutalism"] .proxy-selection-toolbar,
+html[data-theme="neo-brutalism"] .site-selection-toolbar,
+html[data-theme="neo-brutalism"] .modal-header,
+html[data-theme="neo-brutalism"] .help-section + .help-section {
+  border-color: #111;
+}
+
+html[data-theme="neo-brutalism"] .site-row.is-shared,
+html[data-theme="neo-brutalism"] .site-row.selected,
+html[data-theme="neo-brutalism"] .proxy-row.selected,
+html[data-theme="neo-brutalism"] .proxy-selection-toolbar,
+html[data-theme="neo-brutalism"] .site-selection-toolbar {
+  background: #d9ffdf;
+}
+
+html[data-theme="neo-brutalism"] .update-version-grid div,
+html[data-theme="neo-brutalism"] .update-artifact-details,
+html[data-theme="neo-brutalism"] .php-fastcgi-settings {
+  background: #f4f0ff;
+  border: 2px solid #111;
+  border-radius: 0;
+}
+
+html[data-theme="neo-brutalism"] .toggle-button {
+  background: #fff;
+  border: 2px solid #111;
+  border-radius: 0;
+  box-shadow: 3px 3px 0 #111;
+}
+
+html[data-theme="neo-brutalism"] .toggle-button span {
+  width: 20px;
+  height: 20px;
+  background: #111;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+html[data-theme="neo-brutalism"] .toggle-button.active {
+  background: #78e08f;
+}
+
+html[data-theme="neo-brutalism"] .toggle-button.active span {
+  transform: translateX(20px);
+}
+
+html[data-theme="neo-brutalism"] .setting-row p,
+html[data-theme="neo-brutalism"] .setting-row small,
+html[data-theme="neo-brutalism"] .page-header p,
+html[data-theme="neo-brutalism"] .service-card p,
+html[data-theme="neo-brutalism"] .runtime-card p,
+html[data-theme="neo-brutalism"] .form-message {
+  color: #333;
+}
+
+html[data-theme="neo-brutalism"] .quit-overlay,
+html[data-theme="neo-brutalism"] .modal-overlay {
+  background: rgb(17 17 17 / 55%);
+  backdrop-filter: none;
+}

@@ -1,0 +1,290 @@
+html[data-theme="glassmorphism"] {
+  color: #17324d;
+  background: #dce8ff;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html[data-theme="glassmorphism"] body {
+  background:
+    radial-gradient(circle at 12% 18%, rgb(129 199 255 / 78%) 0, transparent 30%),
+    radial-gradient(circle at 84% 14%, rgb(207 163 255 / 66%) 0, transparent 32%),
+    radial-gradient(circle at 70% 86%, rgb(119 234 215 / 58%) 0, transparent 34%),
+    linear-gradient(145deg, #d8edff 0%, #efe3ff 52%, #dffaf5 100%);
+  background-attachment: fixed;
+}
+
+html[data-theme="glassmorphism"] .content,
+html[data-theme="glassmorphism"] .page-header,
+html[data-theme="glassmorphism"] .page-body {
+  background: transparent;
+}
+
+html[data-theme="glassmorphism"] .sidebar {
+  color: #17324d;
+  background: rgb(255 255 255 / 42%);
+  border-right: 1px solid rgb(255 255 255 / 68%);
+  box-shadow: 12px 0 36px rgb(74 95 139 / 12%);
+  backdrop-filter: blur(28px) saturate(135%);
+}
+
+html[data-theme="glassmorphism"] .brand small,
+html[data-theme="glassmorphism"] .agent-state,
+html[data-theme="glassmorphism"] .navigation a,
+html[data-theme="glassmorphism"] .settings-link {
+  color: #35526e;
+}
+
+html[data-theme="glassmorphism"] .navigation-divider {
+  background: rgb(255 255 255 / 58%);
+}
+
+html[data-theme="glassmorphism"] .navigation a,
+html[data-theme="glassmorphism"] .settings-link {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-weight: 650;
+}
+
+html[data-theme="glassmorphism"] .navigation a:hover,
+html[data-theme="glassmorphism"] .navigation a.router-link-active,
+html[data-theme="glassmorphism"] .settings-link:hover,
+html[data-theme="glassmorphism"] .settings-link.router-link-active {
+  color: #17324d;
+  background: rgb(255 255 255 / 54%);
+  border-color: rgb(255 255 255 / 74%);
+  box-shadow: 0 8px 24px rgb(58 77 112 / 10%);
+  backdrop-filter: blur(18px);
+}
+
+html[data-theme="glassmorphism"] .page-header h1,
+html[data-theme="glassmorphism"] .setting-row h2,
+html[data-theme="glassmorphism"] .service-card h2,
+html[data-theme="glassmorphism"] .form-card h2,
+html[data-theme="glassmorphism"] .runtime-card h2 {
+  color: #17324d;
+}
+
+html[data-theme="glassmorphism"] .eyebrow {
+  color: #356f98 !important;
+}
+
+html[data-theme="glassmorphism"] .service-card,
+html[data-theme="glassmorphism"] .runtime-help-card,
+html[data-theme="glassmorphism"] .form-card,
+html[data-theme="glassmorphism"] .runtime-card,
+html[data-theme="glassmorphism"] .terminal-card,
+html[data-theme="glassmorphism"] .runtime-online-card,
+html[data-theme="glassmorphism"] .site-list-toolbar,
+html[data-theme="glassmorphism"] .site-list,
+html[data-theme="glassmorphism"] .site-empty-state,
+html[data-theme="glassmorphism"] .proxy-summary,
+html[data-theme="glassmorphism"] .proxy-list,
+html[data-theme="glassmorphism"] .setting-row,
+html[data-theme="glassmorphism"] .php-ini-editor,
+html[data-theme="glassmorphism"] .modal-dialog,
+html[data-theme="glassmorphism"] .quit-dialog,
+html[data-theme="glassmorphism"] .help-contents,
+html[data-theme="glassmorphism"] .diagnostic-logs {
+  background: rgb(255 255 255 / 48%);
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 18px;
+  box-shadow: 0 18px 48px rgb(56 77 119 / 14%);
+  backdrop-filter: blur(24px) saturate(140%);
+}
+
+html[data-theme="glassmorphism"] .runtime-help-card {
+  background: rgb(226 255 246 / 46%);
+}
+
+html[data-theme="glassmorphism"] .app-update-notice,
+html[data-theme="glassmorphism"] .runtime-summary,
+html[data-theme="glassmorphism"] .notice,
+html[data-theme="glassmorphism"] .runtime-online-warning,
+html[data-theme="glassmorphism"] .modal-message,
+html[data-theme="glassmorphism"] .help-notes {
+  color: #17324d !important;
+  background: rgb(255 255 255 / 44%);
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgb(56 77 119 / 10%);
+  backdrop-filter: blur(18px);
+}
+
+html[data-theme="glassmorphism"] .notice.warning,
+html[data-theme="glassmorphism"] .runtime-online-warning,
+html[data-theme="glassmorphism"] .help-notes {
+  background: rgb(255 241 196 / 58%);
+}
+
+html[data-theme="glassmorphism"] .modal-message {
+  background: rgb(255 218 224 / 58%);
+}
+
+html[data-theme="glassmorphism"] input,
+html[data-theme="glassmorphism"] select,
+html[data-theme="glassmorphism"] .modal-dialog textarea {
+  color: #17324d;
+  background: rgb(255 255 255 / 54%);
+  border: 1px solid rgb(255 255 255 / 78%);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 70%), 0 8px 22px rgb(56 77 119 / 10%);
+  backdrop-filter: blur(14px);
+}
+
+html[data-theme="glassmorphism"] input:focus,
+html[data-theme="glassmorphism"] select:focus,
+html[data-theme="glassmorphism"] .modal-dialog textarea:focus {
+  border-color: rgb(84 153 220 / 70%);
+  box-shadow: 0 0 0 3px rgb(84 153 220 / 16%), 0 10px 26px rgb(56 77 119 / 12%);
+}
+
+html[data-theme="glassmorphism"] .primary-button,
+html[data-theme="glassmorphism"] .secondary-button,
+html[data-theme="glassmorphism"] .share-stop-button,
+html[data-theme="glassmorphism"] .danger-button,
+html[data-theme="glassmorphism"] .site-filter-button,
+html[data-theme="glassmorphism"] .open-link-icon,
+html[data-theme="glassmorphism"] .modal-close-button {
+  color: #17324d;
+  background: rgb(255 255 255 / 46%);
+  border: 1px solid rgb(255 255 255 / 76%);
+  border-radius: 11px;
+  box-shadow: 0 8px 22px rgb(56 77 119 / 10%);
+  backdrop-filter: blur(14px);
+}
+
+html[data-theme="glassmorphism"] .primary-button,
+html[data-theme="glassmorphism"] .site-filter-button.active {
+  color: #fff;
+  background: rgb(45 116 165 / 82%);
+  border-color: rgb(255 255 255 / 56%);
+}
+
+html[data-theme="glassmorphism"] .share-stop-button {
+  color: #805212;
+  background: rgb(255 232 188 / 64%);
+}
+
+html[data-theme="glassmorphism"] .danger-button {
+  color: #9c3544;
+  background: rgb(255 225 229 / 60%);
+}
+
+html[data-theme="glassmorphism"] .primary-button:hover:not(:disabled),
+html[data-theme="glassmorphism"] .secondary-button:hover:not(:disabled),
+html[data-theme="glassmorphism"] .share-stop-button:hover:not(:disabled),
+html[data-theme="glassmorphism"] .danger-button:hover:not(:disabled),
+html[data-theme="glassmorphism"] .site-filter-button:hover:not(:disabled),
+html[data-theme="glassmorphism"] .open-link-icon:hover:not(:disabled),
+html[data-theme="glassmorphism"] .open-link-icon:focus-visible,
+html[data-theme="glassmorphism"] .modal-close-button:hover:not(:disabled),
+html[data-theme="glassmorphism"] .modal-close-button:focus-visible {
+  color: #17324d;
+  background: rgb(255 255 255 / 68%);
+  border-color: rgb(255 255 255 / 90%);
+  box-shadow: 0 12px 28px rgb(56 77 119 / 14%);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+html[data-theme="glassmorphism"] .primary-button:hover:not(:disabled) {
+  color: #fff;
+  background: rgb(35 101 148 / 90%);
+}
+
+html[data-theme="glassmorphism"] .state-pill,
+html[data-theme="glassmorphism"] .service-icon,
+html[data-theme="glassmorphism"] .runtime-version,
+html[data-theme="glassmorphism"] .help-section-number {
+  color: #17324d;
+  background: rgb(255 255 255 / 42%);
+  border: 1px solid rgb(255 255 255 / 68%);
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 64%);
+}
+
+html[data-theme="glassmorphism"] .state-pill[data-state="running"],
+html[data-theme="glassmorphism"] .service-icon {
+  color: #116f61;
+  background: rgb(191 243 226 / 58%);
+}
+
+html[data-theme="glassmorphism"] .state-pill[data-state="failed"] {
+  color: #9c3544;
+  background: rgb(255 206 214 / 58%);
+}
+
+html[data-theme="glassmorphism"] .state-pill[data-state="warning"],
+html[data-theme="glassmorphism"] .state-pill[data-state="degraded"] {
+  color: #805212;
+  background: rgb(255 231 181 / 60%);
+}
+
+html[data-theme="glassmorphism"] .runtime-version,
+html[data-theme="glassmorphism"] .help-section-number {
+  color: #5a3d91;
+  background: rgb(222 207 255 / 58%);
+}
+
+html[data-theme="glassmorphism"] .site-row,
+html[data-theme="glassmorphism"] .proxy-row,
+html[data-theme="glassmorphism"] .proxy-summary > div,
+html[data-theme="glassmorphism"] .proxy-search-toolbar,
+html[data-theme="glassmorphism"] .proxy-selection-toolbar,
+html[data-theme="glassmorphism"] .site-selection-toolbar,
+html[data-theme="glassmorphism"] .modal-header,
+html[data-theme="glassmorphism"] .help-section + .help-section {
+  border-color: rgb(255 255 255 / 52%);
+}
+
+html[data-theme="glassmorphism"] .site-row,
+html[data-theme="glassmorphism"] .proxy-row,
+html[data-theme="glassmorphism"] .proxy-search-toolbar {
+  background: rgb(255 255 255 / 18%);
+}
+
+html[data-theme="glassmorphism"] .site-row.is-shared,
+html[data-theme="glassmorphism"] .site-row.selected,
+html[data-theme="glassmorphism"] .proxy-row.selected,
+html[data-theme="glassmorphism"] .proxy-selection-toolbar,
+html[data-theme="glassmorphism"] .site-selection-toolbar {
+  background: rgb(222 255 245 / 34%);
+}
+
+html[data-theme="glassmorphism"] .update-version-grid div,
+html[data-theme="glassmorphism"] .update-artifact-details,
+html[data-theme="glassmorphism"] .php-fastcgi-settings {
+  background: rgb(255 255 255 / 32%);
+  border: 1px solid rgb(255 255 255 / 58%);
+  border-radius: 12px;
+}
+
+html[data-theme="glassmorphism"] .toggle-button {
+  background: rgb(112 135 157 / 36%);
+  border: 1px solid rgb(255 255 255 / 58%);
+  box-shadow: inset 0 1px 2px rgb(56 77 119 / 12%);
+}
+
+html[data-theme="glassmorphism"] .toggle-button span {
+  background: rgb(255 255 255 / 90%);
+  box-shadow: 0 3px 10px rgb(56 77 119 / 22%);
+}
+
+html[data-theme="glassmorphism"] .toggle-button.active {
+  background: rgb(45 116 165 / 74%);
+}
+
+html[data-theme="glassmorphism"] .setting-row p,
+html[data-theme="glassmorphism"] .setting-row small,
+html[data-theme="glassmorphism"] .page-header p,
+html[data-theme="glassmorphism"] .service-card p,
+html[data-theme="glassmorphism"] .runtime-card p,
+html[data-theme="glassmorphism"] .form-message {
+  color: #4f6980;
+}
+
+html[data-theme="glassmorphism"] .quit-overlay,
+html[data-theme="glassmorphism"] .modal-overlay {
+  background: rgb(26 46 72 / 28%);
+  backdrop-filter: blur(12px);
+}

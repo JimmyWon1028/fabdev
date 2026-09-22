@@ -2312,7 +2312,8 @@ button:disabled {
   }
 }
 
-.language-select {
+.language-select,
+.theme-select {
   flex: 0 0 180px;
   width: 180px;
 }

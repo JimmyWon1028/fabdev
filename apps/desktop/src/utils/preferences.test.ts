@@ -6,11 +6,13 @@ import {
   loadLastUpdateCheck,
   loadLanguage,
   loadShowDashboardOnLaunch,
+  loadTheme,
   saveAutoCheckUpdates,
   saveAutoStartServices,
   saveLastUpdateCheck,
   saveLanguage,
-  saveShowDashboardOnLaunch
+  saveShowDashboardOnLaunch,
+  saveTheme
 } from './preferences'
 
 function memoryStorage(initialValue: string | null = null) {
@@ -73,6 +75,37 @@ describe('language preference', () => {
 
   it('falls back when the saved language is unsupported', () => {
     expect(loadLanguage(memoryStorage('fr'))).toBe('zh-TW')
+  })
+})
+
+describe('theme preference', () => {
+  it('defaults to the existing theme', () => {
+    expect(loadTheme(memoryStorage())).toBe('default')
+  })
+
+  it('loads and persists Neo-Brutalism', () => {
+    const storage = memoryStorage()
+
+    saveTheme('neo-brutalism', storage)
+    expect(loadTheme(storage)).toBe('neo-brutalism')
+  })
+
+  it('loads and persists Notion', () => {
+    const storage = memoryStorage()
+
+    saveTheme('notion', storage)
+    expect(loadTheme(storage)).toBe('notion')
+  })
+
+  it('loads and persists Glassmorphism', () => {
+    const storage = memoryStorage()
+
+    saveTheme('glassmorphism', storage)
+    expect(loadTheme(storage)).toBe('glassmorphism')
+  })
+
+  it('falls back when the saved theme is unsupported', () => {
+    expect(loadTheme(memoryStorage('unknown'))).toBe('default')
   })
 })
 
