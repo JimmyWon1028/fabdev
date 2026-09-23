@@ -1,11 +1,19 @@
 # fabDev 穩定基線與 Roadmap
 
-> 更新日期：2026-09-20
+> 更新日期：2026-09-24
 > 目前階段：[`v0.1.26`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.26) 是公開 Latest Stable，已依 Windows-first 順序完成 Windows x64 App、fabDev Connect，並補齊同版 macOS ARM64 Community DMG；App 版本為 `0.1.26`、Agent Protocol 為 `40`。Windows 候選 Run [`35475685656`](https://github.com/JimmyWon1028/fabdev/actions/runs/35475685656)、Repository Owner 實機 Gate 及 Draft Run [`35476309050`](https://github.com/JimmyWon1028/fabdev/actions/runs/35476309050) 均已通過；Release ID `392254189` 已 Publish，現有 9 個 App-only Assets。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v4`
 
 ## 階段結論
 
 fabDev Desktop Community `v0.1.26` 是目前公開 Latest Stable。Windows 候選 CI、Repository Owner 實機 Gate、annotated Tag、Windows 重打包、Draft、Publish，以及同版 macOS ARM64 補齊與 9 個公開 Asset 匿名下載驗證均已完成；Tag 固定在 `76d6c2d`。Latest Manifest 同時且只提供 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
+
+## 2026-09-24 macOS Helper UDP DNS 修復與驗證
+
+- `megatower.test` 間歇無法解析時，直接查詢 dnsmasq `127.0.0.1:53535` 正常，但經 System Helper `127.0.0.1:53` 的同一 UDP socket 連續五筆查詢只有第 1、3、5 筆收到回覆。原因是 Helper 只對每個 client flow 呼叫一次 `receiveMessage()`，回覆後即取消整個 flow。
+- macOS Helper 現在持續接收同一 client flow 的 datagram，每筆 DNS request 獨立轉送到固定的 `127.0.0.1:53535`；只在該筆回覆或三秒逾時後清理 backend exchange，並在 client 取消、失敗、Helper 停止或閒置 30 秒後清理 session。新增連續查詢、backend timeout 後恢復與 client 閒置清理回歸測試。
+- `pnpm run test:helper:macos` 10/10、`pnpm run lint:helper:macos`、`pnpm run build:helper:macos`、完整 `pnpm test`／`pnpm lint` 與 `git diff --check` 通過。取得管理員授權後已替換本機 `local-test` Helper；安裝檔 SHA-256 與新建置 binary 相同，LaunchDaemon 持續運行。
+- 實際 `127.0.0.1:53` 同一 UDP socket 連續查詢 10/10、快速連送 20/20 且 transaction ID 無遺漏；另持續觀察滿 600 秒，DNS 查詢 120/120、`http://megatower.test/` HTTP 200 為 120/120。觀察結束後 DNS 53、HTTP 80、HTTPS 443 入口仍可連線，網站仍回 HTTP 200。
+- Windows `.test` 網域由 Windows Helper 維護受管理的 `hosts` 區塊，不使用 macOS UDP `53→53535` 轉送；本次未改 Windows 程式碼，也未做 Windows 實機重測。`megatower.test`／`demo.test` HTTPS 的 SNI 錯誤在直接連後端 8443 時同樣發生，故本次不宣稱 HTTPS 網站驗收通過。未進版、重新打包 DMG、建立 Tag 或發布 Release。
 
 ## 0.1.26 Stable（Windows-first，已補 macOS ARM64）
 

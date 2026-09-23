@@ -197,10 +197,15 @@ private final class ConnectionPair {
   }
 }
 
-private final class UDPProxy {
+final class UDPProxy {
   private let listener: NWListener
   private let backendPort: NWEndpoint.Port
   private let queue: DispatchQueue
+  private var sessions: [UUID: UDPClientSession] = [:]
+
+  var listeningPort: UInt16? {
+    listener.port?.rawValue
+  }
 
   init(listenPort: UInt16, backendPort: UInt16, queue: DispatchQueue) throws {
     guard let listenPort = NWEndpoint.Port(rawValue: listenPort),
@@ -232,64 +237,219 @@ private final class UDPProxy {
 
   func cancel() {
     listener.cancel()
+    queue.async { [self] in
+      for session in Array(sessions.values) {
+        session.cancel()
+      }
+      sessions.removeAll()
+    }
   }
 
   private func accept(_ client: NWConnection) {
-    client.stateUpdateHandler = { [weak self, weak client] state in
-      guard case .ready = state, let self, let client else {
+    let id = UUID()
+    let session = UDPClientSession(
+      client: client,
+      backendPort: backendPort,
+      queue: queue
+    ) { [weak self] in
+      self?.sessions.removeValue(forKey: id)
+    }
+    sessions[id] = session
+    session.start()
+  }
+}
+
+private final class UDPClientSession {
+  private let client: NWConnection
+  private let backendPort: NWEndpoint.Port
+  private let queue: DispatchQueue
+  private let onClose: () -> Void
+  private var exchanges: [UUID: UDPBackendExchange] = [:]
+  private var idleTimeout: DispatchWorkItem?
+  private var isClosed = false
+
+  init(
+    client: NWConnection,
+    backendPort: NWEndpoint.Port,
+    queue: DispatchQueue,
+    onClose: @escaping () -> Void
+  ) {
+    self.client = client
+    self.backendPort = backendPort
+    self.queue = queue
+    self.onClose = onClose
+  }
+
+  func start() {
+    client.stateUpdateHandler = { [weak self] state in
+      guard let self else {
         return
       }
-      self.receiveRequest(from: client)
+      switch state {
+      case .ready:
+        self.scheduleIdleTimeout()
+        self.receiveRequest()
+      case .failed, .cancelled:
+        self.cancel()
+      default:
+        break
+      }
     }
     client.start(queue: queue)
   }
 
-  private func receiveRequest(from client: NWConnection) {
-    client.receiveMessage { [weak self, weak client] data, _, _, error in
-      guard let self, let client else {
+  func cancel() {
+    guard !isClosed else {
+      return
+    }
+    isClosed = true
+    idleTimeout?.cancel()
+    for exchange in Array(exchanges.values) {
+      exchange.cancel()
+    }
+    exchanges.removeAll()
+    client.cancel()
+    onClose()
+  }
+
+  private func receiveRequest() {
+    client.receiveMessage { [weak self] data, _, _, error in
+      guard let self, !self.isClosed else {
         return
       }
-      guard let data, !data.isEmpty, error == nil else {
-        client.cancel()
+      if error != nil {
+        self.cancel()
         return
       }
 
-      self.forward(data, to: client)
+      self.receiveRequest()
+      guard let data, !data.isEmpty else {
+        return
+      }
+
+      self.scheduleIdleTimeout()
+      self.forward(data)
     }
   }
 
-  private func forward(_ request: Data, to client: NWConnection) {
-    let backend = NWConnection(host: "127.0.0.1", port: backendPort, using: .udp)
-    backend.stateUpdateHandler = { [weak backend, weak client] state in
-      guard case .ready = state, let backend, let client else {
+  private func scheduleIdleTimeout() {
+    idleTimeout?.cancel()
+    let idleTimeout = DispatchWorkItem { [weak self] in
+      self?.cancel()
+    }
+    self.idleTimeout = idleTimeout
+    queue.asyncAfter(deadline: .now() + 30, execute: idleTimeout)
+  }
+
+  private func forward(_ request: Data) {
+    let id = UUID()
+    let exchange = UDPBackendExchange(
+      request: request,
+      backendPort: backendPort,
+      queue: queue
+    ) { [weak self] response in
+      guard let self, !self.isClosed else {
+        return
+      }
+      self.exchanges.removeValue(forKey: id)
+      guard let response else {
         return
       }
 
-      backend.send(
-        content: request,
-        completion: .contentProcessed { sendError in
-          guard sendError == nil else {
-            backend.cancel()
-            return
-          }
-
-          backend.receiveMessage { [weak client] response, _, _, _ in
-            backend.cancel()
-            guard let client, let response else {
-              return
-            }
-
-            client.send(
-              content: response,
-              completion: .contentProcessed { _ in
-                // Each DNS datagram uses a short-lived proxy flow. Closing it after the
-                // response prevents abandoned health-check clients from accumulating.
-                client.cancel()
-              })
+      self.client.send(
+        content: response,
+        completion: .contentProcessed { [weak self] error in
+          if error != nil {
+            self?.cancel()
           }
         })
     }
+    exchanges[id] = exchange
+    exchange.start()
+  }
+}
+
+private final class UDPBackendExchange {
+  private let request: Data
+  private let backend: NWConnection
+  private let queue: DispatchQueue
+  private let onComplete: (Data?) -> Void
+  private var timeout: DispatchWorkItem?
+  private var isClosed = false
+
+  init(
+    request: Data,
+    backendPort: NWEndpoint.Port,
+    queue: DispatchQueue,
+    onComplete: @escaping (Data?) -> Void
+  ) {
+    self.request = request
+    backend = NWConnection(host: "127.0.0.1", port: backendPort, using: .udp)
+    self.queue = queue
+    self.onComplete = onComplete
+  }
+
+  func start() {
+    let timeout = DispatchWorkItem { [weak self] in
+      self?.finish(response: nil, failure: "backend timeout")
+    }
+    self.timeout = timeout
+    queue.asyncAfter(deadline: .now() + 3, execute: timeout)
+
+    backend.stateUpdateHandler = { [weak self] state in
+      guard let self, !self.isClosed else {
+        return
+      }
+      switch state {
+      case .ready:
+        self.backend.send(
+          content: self.request,
+          completion: .contentProcessed { [weak self] error in
+            guard let self else {
+              return
+            }
+            if let error {
+              self.finish(response: nil, failure: "backend send: \(error)")
+              return
+            }
+
+            self.backend.receiveMessage { [weak self] response, _, _, error in
+              self?.finish(
+                response: response,
+                failure: error.map { "backend receive: \($0)" }
+                  ?? (response == nil ? "backend returned no response" : nil)
+              )
+            }
+          })
+      case .failed(let error):
+        self.finish(response: nil, failure: "backend connection: \(error)")
+      case .cancelled:
+        self.finish(response: nil, failure: "backend cancelled")
+      default:
+        break
+      }
+    }
     backend.start(queue: queue)
+  }
+
+  func cancel() {
+    guard !isClosed else {
+      return
+    }
+    isClosed = true
+    timeout?.cancel()
+    backend.cancel()
+  }
+
+  private func finish(response: Data?, failure: String?) {
+    guard !isClosed else {
+      return
+    }
+    if let failure {
+      FileHandle.standardError.write(Data("fabdev-system-helper: DNS UDP \(failure)\n".utf8))
+    }
+    cancel()
+    onComplete(response)
   }
 }
 
