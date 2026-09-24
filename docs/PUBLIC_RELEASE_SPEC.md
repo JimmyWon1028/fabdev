@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 完成 App-only 與 Runtime Distribution 分離；`v0.1.26` 是目前 Latest Stable，已依 Windows-first 順序提供 Windows x64 App、fabDev Connect，並補齊同版 macOS ARM64 Community DMG
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 完成 App-only 與 Runtime Distribution 分離；`v0.1.27` 是目前 Latest Stable，已依 Windows-first 順序先提供 Windows x64 App 與 fabDev Connect，同版 macOS ARM64 尚未補齊；前版 `v0.1.26` 保留 macOS ARM64 Community DMG。
 
 ## 1. 目標
 
