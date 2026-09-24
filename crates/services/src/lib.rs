@@ -1742,7 +1742,7 @@ pub fn generate_configs(
   }
 
   let dnsmasq = format!(
-    "port={}\nlisten-address=127.0.0.1\nbind-interfaces\nno-resolv\naddress=/.test/127.0.0.1\npid-file={}\nlog-facility={}\n",
+    "port={}\nlisten-address=127.0.0.1\nbind-interfaces\nno-resolv\nlocal=/.test/\naddress=/.test/127.0.0.1\npid-file={}\nlog-facility={}\n",
     ports.dns,
     paths.services.join("dnsmasq.pid").display(),
     paths.logs.join("dnsmasq.log").display()
@@ -5792,6 +5792,8 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       std::fs::read_to_string(paths.sites.join("crm-demo.test.conf")).expect("read second config");
     let nginx_global =
       std::fs::read_to_string(paths.services.join("nginx/nginx.conf")).expect("read nginx config");
+    let dnsmasq =
+      std::fs::read_to_string(paths.services.join("dnsmasq.conf")).expect("read dnsmasq config");
     #[cfg(unix)]
     let php_pool = std::fs::read_to_string(paths.services.join("php/8.2/php-fpm.d/www.conf"))
       .expect("read pool config");
@@ -5832,6 +5834,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     )));
     assert!(nginx_global.contains("add_header X-fabDev-Default 1 always;"));
     assert!(nginx_global.contains("return 404;"));
+    assert!(dnsmasq.contains("no-resolv\nlocal=/.test/\naddress=/.test/127.0.0.1\n"));
     #[cfg(unix)]
     {
       assert!(php_pool.contains("services/php/8.2/php-fpm.sock"));
