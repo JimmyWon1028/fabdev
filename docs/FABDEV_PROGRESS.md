@@ -1,18 +1,20 @@
 # fabDev 穩定基線與 Roadmap
 
 > 更新日期：2026-09-24
-> 目前階段：本機 App 已進版為 `0.1.27`，正準備 Windows x64 候選，Agent Protocol 維持 `40`。[`v0.1.26`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.26) 仍是公開 Latest Stable，已依 Windows-first 順序完成 Windows x64 App、fabDev Connect，並補齊同版 macOS ARM64 Community DMG。Windows 候選 Run [`35475685656`](https://github.com/JimmyWon1028/fabdev/actions/runs/35475685656)、Repository Owner 實機 Gate 及 Draft Run [`35476309050`](https://github.com/JimmyWon1028/fabdev/actions/runs/35476309050) 均已通過；Release ID `392254189` 已 Publish，現有 9 個 App-only Assets。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v4`
+> 目前階段：App 已進版為 `0.1.27`，Windows x64 候選 CI 已通過，等待 Repository Owner 實機 Gate；Agent Protocol 維持 `40`。[`v0.1.26`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.26) 仍是公開 Latest Stable，已依 Windows-first 順序完成 Windows x64 App、fabDev Connect，並補齊同版 macOS ARM64 Community DMG。Windows 候選 Run [`35475685656`](https://github.com/JimmyWon1028/fabdev/actions/runs/35475685656)、Repository Owner 實機 Gate 及 Draft Run [`35476309050`](https://github.com/JimmyWon1028/fabdev/actions/runs/35476309050) 均已通過；Release ID `392254189` 已 Publish，現有 9 個 App-only Assets。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，目前 Latest 為 `catalog-v4`
 
 ## 階段結論
 
 fabDev Desktop Community `v0.1.26` 是目前公開 Latest Stable。Windows 候選 CI、Repository Owner 實機 Gate、annotated Tag、Windows 重打包、Draft、Publish，以及同版 macOS ARM64 補齊與 9 個公開 Asset 匿名下載驗證均已完成；Tag 固定在 `76d6c2d`。Latest Manifest 同時且只提供 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
-## 0.1.27 Windows x64 候選（本機驗證完成，待 CI）
+## 0.1.27 Windows x64 候選（CI 完成，待實機 Gate）
 
 - 2026-09-24 Repository Owner 明確要求開始下一版進版打包，依固定 Windows-first Gate 先建立 Windows x64 候選。四個正式版本來源及 `Cargo.lock` 的 13 個 fabDev workspace 套件已同步為 `0.1.27`，Agent Protocol 維持 `40`。
 - 本次候選包含 `v0.1.26` 之後已提交的 macOS Helper UDP DNS flow 修復、可選主題、Proxy upstream 網路失敗後 client 復原、Desktop 啟動／結束提示、Cyberpunk 主題與 dnsmasq `.test` 設定修正。`note.txt` 與 `res/` 是本機參考檔，已由 `.gitignore` 排除。
-- 本機 `pnpm test`、`pnpm lint`、`pnpm run build:web` 均通過。Windows x64 候選 CI、NSIS Artifact 與 Repository Owner 實機 Gate 尚未執行；本階段尚未建立 `v0.1.27` Tag、Draft 或 Stable Release，也未打包 macOS DMG 或處理線上 Runtime Package／Catalog。
+- 本機 `pnpm test`、`pnpm lint`、`pnpm run build:web` 與 `git diff --check` 均通過。候選 Commit `a66829a81ec46065a0690f898e1de26824bfe4d7` 已推送；Windows x64 [Run `35950396947`](https://github.com/JimmyWon1028/fabdev/actions/runs/35950396947) 於 2026-09-24 11:11:19～11:18:02（Asia/Taipei，UTC+8）完成，格式、前端測試、Release 契約、Desktop sidecars、Bundled Windows Runtimes、PHP FastCGI worker pool、MSVC workspace、fabDev Connect、Unsigned NSIS 與兩個 Artifact 上傳全數成功，Check Run annotations 為 0。
+- [Installer Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/35950396947/artifacts/10788811941) `fabDev-Community-Windows-x64` ID `10788811941`，ZIP 49,552,085 bytes、GitHub ZIP SHA-256 `e1c90a6043ae89c090b58df24d6bf2e7bd78cb1c461ed8929d818ff16ff1a479`，建置日誌確認內含 `fabDev_0.1.27_x64-setup.exe`；[Connect Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/35950396947/artifacts/10788428575) `fabDev-Connect-Windows-x64` ID `10788428575`，ZIP 332,556 bytes、GitHub ZIP SHA-256 `da9e7fafe4ff42c5bfccbbfeaf0a63ff4f7bb2efec6d300c423ef4f3d3b67708`。兩個 Artifact 保留至 2026-12-23 11:11:19（Asia/Taipei，UTC+8）；CI 成功不等於 Windows 實機啟動驗收。
 - 以 `/tmp` 隔離資料與非特權埠驗證 `0.1.27` Agent／CLI：Protocol `40` Ping、Start、`demo.test` DNS 回覆 `127.0.0.1`、PHP HTTP 回覆與 Stop 均成功；DNS 55335、HTTP 18085、HTTPS 18445 在 Stop 後均可重新綁定。
+- 目前停在 Repository Owner Windows 實機 Gate；尚未建立 `v0.1.27` Tag、Draft 或 Stable Release，也未打包 macOS DMG 或處理線上 Runtime Package／Catalog。
 
 ## 2026-09-24 macOS Helper UDP DNS 修復與驗證
 
