@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::convert::Infallible;
 use std::net::{IpAddr, SocketAddr};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -24,21 +25,54 @@ use hyper::{Method, Request, Response, StatusCode, Uri};
 use hyper_tls::HttpsConnector;
 use hyper_util::client::legacy::connect::HttpConnector;
 use hyper_util::client::legacy::Client;
-use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper_util::rt::{TokioExecutor, TokioIo, TokioTimer};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::{oneshot, Mutex};
+use tokio::sync::{oneshot, Mutex, RwLock};
 use tokio::task::{JoinHandle, JoinSet};
 
 const UPSTREAM_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const UPSTREAM_HEALTH_INTERVAL: Duration = Duration::from_secs(15);
 const UPSTREAM_HEALTH_TIMEOUT: Duration = Duration::from_secs(5);
 const CONNECTION_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
+const PROXY_POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
+const REQUEST_FAILURE_SUMMARY_INTERVAL: Duration = Duration::from_secs(60);
 const UPSTREAM_HEALTH_FAILURE_THRESHOLD: u8 = 3;
 const UPSTREAM_HEALTH_RECOVERY_THRESHOLD: u8 = 2;
 const UPSTREAM_REQUEST_RECOVERY_THRESHOLD: u8 = 2;
 
 type ProxyBody = BoxBody<Bytes, hyper::Error>;
 type ProxyClient = Client<HttpsConnector<HttpConnector>, Incoming>;
+
+struct ProxyClientPool {
+  client: RwLock<ProxyClient>,
+  generation: AtomicU64,
+}
+
+impl ProxyClientPool {
+  fn new() -> Self {
+    Self {
+      client: RwLock::new(build_proxy_client()),
+      generation: AtomicU64::new(1),
+    }
+  }
+
+  async fn current(&self) -> (ProxyClient, u64) {
+    let client = self.client.read().await;
+    let generation = self.generation.load(Ordering::SeqCst);
+    (client.clone(), generation)
+  }
+
+  async fn reset(&self) -> u64 {
+    let replacement = build_proxy_client();
+    let mut client = self.client.write().await;
+    *client = replacement;
+    self.generation.fetch_add(1, Ordering::SeqCst) + 1
+  }
+
+  fn generation(&self) -> u64 {
+    self.generation.load(Ordering::SeqCst)
+  }
+}
 
 struct ConnectionHealth {
   connection_id: String,
@@ -54,8 +88,27 @@ struct ConnectionHealthState {
   periodic_failures: u8,
   periodic_successes: u8,
   request_error: Option<String>,
+  request_error_kind: Option<&'static str>,
+  request_os_error_code: Option<i32>,
+  request_first_failure_timestamp_ms: Option<u128>,
+  request_last_failure_timestamp_ms: Option<u128>,
+  request_failure_count: u64,
+  request_last_summary_at: Option<Instant>,
   request_successes: u8,
   runtime_error: Option<String>,
+}
+
+impl ConnectionHealthState {
+  fn clear_request_error(&mut self) {
+    self.request_error = None;
+    self.request_error_kind = None;
+    self.request_os_error_code = None;
+    self.request_first_failure_timestamp_ms = None;
+    self.request_last_failure_timestamp_ms = None;
+    self.request_failure_count = 0;
+    self.request_last_summary_at = None;
+    self.request_successes = 0;
+  }
 }
 
 struct UpstreamHealthFailure {
@@ -96,41 +149,74 @@ impl ConnectionHealth {
     }
   }
 
-  async fn record_periodic_success(&self, elapsed: Duration) {
+  async fn record_periodic_success(&self, elapsed: Duration) -> bool {
     let mut state = self.state.lock().await;
     state.periodic_failures = 0;
     if state.periodic_error.is_none() {
       state.periodic_successes = 0;
-      return;
+      return false;
     }
     state.periodic_successes = state.periodic_successes.saturating_add(1);
     if state.periodic_successes < UPSTREAM_HEALTH_RECOVERY_THRESHOLD {
-      return;
+      return false;
     }
     state.periodic_error = None;
     state.periodic_successes = 0;
     self.log_transition("tcp", "recovered", elapsed, "none", None, None);
+    if state
+      .request_error_kind
+      .is_some_and(is_recoverable_network_error_kind)
+    {
+      state.clear_request_error();
+      self.log_transition(
+        "request",
+        "recovered",
+        elapsed,
+        "none",
+        None,
+        Some("cleared after TCP recovery"),
+      );
+    }
+    true
   }
 
   async fn record_request_failure(
     &self,
     message: String,
     error_kind: &'static str,
+    os_error_code: Option<i32>,
     elapsed: Duration,
+    client_generation: u64,
   ) {
+    let now = Instant::now();
+    let now_timestamp_ms = timestamp_ms();
     let mut state = self.state.lock().await;
     state.request_successes = 0;
     let entering_degraded = state.request_error.is_none();
     state.request_error = Some(message.clone());
+    state.request_error_kind = Some(error_kind);
+    state.request_os_error_code = os_error_code;
+    state.request_first_failure_timestamp_ms = state
+      .request_first_failure_timestamp_ms
+      .or(Some(now_timestamp_ms));
+    state.request_last_failure_timestamp_ms = Some(now_timestamp_ms);
+    state.request_failure_count = state.request_failure_count.saturating_add(1);
     if entering_degraded {
+      state.request_last_summary_at = Some(now);
       self.log_transition(
         "request",
         "degraded",
         elapsed,
         error_kind,
-        None,
+        os_error_code,
         Some(&message),
       );
+      self.log_request_failure_details(&state, client_generation, &message);
+    } else if state.request_last_summary_at.is_none_or(|last_summary| {
+      now.duration_since(last_summary) >= REQUEST_FAILURE_SUMMARY_INTERVAL
+    }) {
+      state.request_last_summary_at = Some(now);
+      self.log_request_failure_details(&state, client_generation, &message);
     }
   }
 
@@ -144,8 +230,7 @@ impl ConnectionHealth {
     if state.request_successes < UPSTREAM_REQUEST_RECOVERY_THRESHOLD {
       return;
     }
-    state.request_error = None;
-    state.request_successes = 0;
+    state.clear_request_error();
     self.log_transition("request", "recovered", elapsed, "none", None, None);
   }
 
@@ -190,10 +275,7 @@ impl ConnectionHealth {
     os_error_code: Option<i32>,
     message: Option<&str>,
   ) {
-    let timestamp_ms = SystemTime::now()
-      .duration_since(UNIX_EPOCH)
-      .unwrap_or_default()
-      .as_millis();
+    let timestamp_ms = timestamp_ms();
     eprintln!(
       "Proxy health transition timestamp_ms={timestamp_ms} connection_id={} target_authority={} check_type={check_type} elapsed_ms={} error_kind={error_kind} os_error_code={} state={state} message={}",
       self.connection_id,
@@ -203,6 +285,43 @@ impl ConnectionHealth {
         .map(|code| code.to_string())
         .unwrap_or_else(|| "none".to_owned()),
       message.unwrap_or("none")
+    );
+  }
+
+  fn log_request_failure_details(
+    &self,
+    state: &ConnectionHealthState,
+    client_generation: u64,
+    message: &str,
+  ) {
+    eprintln!(
+      "Proxy request failure summary timestamp_ms={} connection_id={} target_authority={} client_generation={client_generation} failure_count={} first_failure_timestamp_ms={} last_failure_timestamp_ms={} error_kind={} os_error_code={} message={message}",
+      timestamp_ms(),
+      self.connection_id,
+      self.target_authority,
+      state.request_failure_count,
+      state
+        .request_first_failure_timestamp_ms
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "none".to_owned()),
+      state
+        .request_last_failure_timestamp_ms
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| "none".to_owned()),
+      state.request_error_kind.unwrap_or("request"),
+      state
+        .request_os_error_code
+        .map(|code| code.to_string())
+        .unwrap_or_else(|| "none".to_owned()),
+    );
+  }
+
+  fn log_client_reset(&self, client_generation: u64) {
+    eprintln!(
+      "Proxy HTTP client reset timestamp_ms={} connection_id={} target_authority={} client_generation={client_generation} reason=tcp_recovered",
+      timestamp_ms(),
+      self.connection_id,
+      self.target_authority,
     );
   }
 }
@@ -655,17 +774,60 @@ fn classify_io_error(error: &std::io::Error) -> &'static str {
   }
 }
 
+fn classify_client_error(error: &hyper_util::client::legacy::Error) -> (&'static str, Option<i32>) {
+  let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
+  while let Some(current) = source {
+    if let Some(io_error) = current.downcast_ref::<std::io::Error>() {
+      return (classify_io_error(io_error), io_error.raw_os_error());
+    }
+    source = current.source();
+  }
+  if error.is_connect() {
+    ("connect", None)
+  } else {
+    ("request", None)
+  }
+}
+
+fn is_recoverable_network_error_kind(error_kind: &str) -> bool {
+  matches!(
+    error_kind,
+    "address_unavailable"
+      | "connect"
+      | "connection_refused"
+      | "dns"
+      | "host_unreachable"
+      | "network_unreachable"
+      | "not_connected"
+  )
+}
+
+fn timestamp_ms() -> u128 {
+  SystemTime::now()
+    .duration_since(UNIX_EPOCH)
+    .unwrap_or_default()
+    .as_millis()
+}
+
+fn build_proxy_client() -> ProxyClient {
+  let mut connector = HttpConnector::new();
+  connector.enforce_http(false);
+  connector.set_connect_timeout(Some(UPSTREAM_CONNECT_TIMEOUT));
+  let connector = HttpsConnector::new_with_connector(connector);
+  Client::builder(TokioExecutor::new())
+    .retry_canceled_requests(false)
+    .pool_idle_timeout(PROXY_POOL_IDLE_TIMEOUT)
+    .pool_timer(TokioTimer::new())
+    .build(connector)
+}
+
 async fn run_proxy(
   listener: TcpListener,
   settings: ProxyConnectionSettings,
   health: Arc<ConnectionHealth>,
   mut stop: oneshot::Receiver<()>,
 ) {
-  let mut connector = HttpConnector::new();
-  connector.enforce_http(false);
-  connector.set_connect_timeout(Some(UPSTREAM_CONNECT_TIMEOUT));
-  let connector = HttpsConnector::new_with_connector(connector);
-  let client: ProxyClient = Client::builder(TokioExecutor::new()).build(connector);
+  let clients = Arc::new(ProxyClientPool::new());
   let mut connections = JoinSet::new();
   let mut health_interval = tokio::time::interval_at(
     tokio::time::Instant::now() + health_initial_delay(&settings.id),
@@ -684,18 +846,23 @@ async fn run_proxy(
       _ = health_interval.tick() => {
         let started = Instant::now();
         match check_upstream(&settings).await {
-          Ok(()) => health.record_periodic_success(started.elapsed()).await,
+          Ok(()) => {
+            if health.record_periodic_success(started.elapsed()).await {
+              let client_generation = clients.reset().await;
+              health.log_client_reset(client_generation);
+            }
+          }
           Err(error) => health.record_periodic_failure(error, started.elapsed()).await,
         }
       }
       accepted = listener.accept() => match accepted {
         Ok((stream, _)) => {
           health.record_runtime_success().await;
-          let client = client.clone();
+          let clients = Arc::clone(&clients);
           let settings = settings.clone();
           let health = Arc::clone(&health);
           connections.spawn(async move {
-            serve_client(stream, client, settings, health).await;
+            serve_client(stream, clients, settings, health).await;
           });
         }
         Err(error) => {
@@ -758,14 +925,14 @@ async fn check_upstream(
 
 async fn serve_client(
   stream: TcpStream,
-  client: ProxyClient,
+  clients: Arc<ProxyClientPool>,
   settings: ProxyConnectionSettings,
   health: Arc<ConnectionHealth>,
 ) {
   let service = service_fn(move |request| {
     proxy_request(
       request,
-      client.clone(),
+      Arc::clone(&clients),
       settings.clone(),
       Arc::clone(&health),
     )
@@ -778,7 +945,7 @@ async fn serve_client(
 
 async fn proxy_request(
   mut request: Request<Incoming>,
-  client: ProxyClient,
+  clients: Arc<ProxyClientPool>,
   settings: ProxyConnectionSettings,
   health: Arc<ConnectionHealth>,
 ) -> Result<Response<ProxyBody>, Infallible> {
@@ -847,7 +1014,13 @@ async fn proxy_request(
     Err(error) => {
       let message = format!("unable to build Proxy target URI: {error}");
       health
-        .record_request_failure(message.clone(), "invalid_target", Duration::ZERO)
+        .record_request_failure(
+          message.clone(),
+          "invalid_target",
+          None,
+          Duration::ZERO,
+          clients.generation(),
+        )
         .await;
       return Ok(error_response(StatusCode::BAD_GATEWAY, &message));
     }
@@ -855,7 +1028,13 @@ async fn proxy_request(
   let Some(authority) = target_uri.authority().cloned() else {
     let message = "Proxy target URI has no authority".to_owned();
     health
-      .record_request_failure(message.clone(), "invalid_target", Duration::ZERO)
+      .record_request_failure(
+        message.clone(),
+        "invalid_target",
+        None,
+        Duration::ZERO,
+        clients.generation(),
+      )
       .await;
     return Ok(error_response(StatusCode::BAD_GATEWAY, &message));
   };
@@ -865,6 +1044,7 @@ async fn proxy_request(
   }
 
   let response_timeout = Duration::from_secs(settings.upstream_response_timeout_seconds.into());
+  let (client, client_generation) = clients.current().await;
   let request_started = Instant::now();
   let upstream = tokio::time::timeout(response_timeout, client.request(request)).await;
   let mut response = match upstream {
@@ -876,12 +1056,19 @@ async fn proxy_request(
     }
     Ok(Err(error)) => {
       let message = format!("Proxy upstream request failed: {error}");
+      let (error_kind, os_error_code) = classify_client_error(&error);
       let diagnostic = format!(
         "Proxy upstream request failed for {request_method} {request_path} version={request_version} content_length={request_content_length} transfer_encoding={request_transfer_encoding} expect={request_expect}: {}",
         error_chain(&error)
       );
       health
-        .record_request_failure(diagnostic, "request", request_started.elapsed())
+        .record_request_failure(
+          diagnostic,
+          error_kind,
+          os_error_code,
+          request_started.elapsed(),
+          client_generation,
+        )
         .await;
       error_response(StatusCode::BAD_GATEWAY, &message)
     }
@@ -890,11 +1077,17 @@ async fn proxy_request(
         "Proxy upstream response timed out after {} seconds",
         settings.upstream_response_timeout_seconds
       );
+      let diagnostic = format!(
+        "Proxy upstream response timed out for {request_method} {request_path} version={request_version} content_length={request_content_length} transfer_encoding={request_transfer_encoding} expect={request_expect} after {} seconds",
+        settings.upstream_response_timeout_seconds
+      );
       health
         .record_request_failure(
-          message.clone(),
+          diagnostic,
           "response_timeout",
+          None,
           request_started.elapsed(),
+          client_generation,
         )
         .await;
       error_response(StatusCode::GATEWAY_TIMEOUT, &message)
@@ -1359,14 +1552,142 @@ mod tests {
       Some("Proxy upstream health check failed: refused")
     );
 
-    health
-      .record_periodic_success(Duration::from_millis(5))
-      .await;
+    assert!(
+      !health
+        .record_periodic_success(Duration::from_millis(5))
+        .await
+    );
     assert!(health.last_error().await.is_some());
-    health
-      .record_periodic_success(Duration::from_millis(5))
-      .await;
+    assert!(
+      health
+        .record_periodic_success(Duration::from_millis(5))
+        .await
+    );
     assert_eq!(health.last_error().await, None);
+  }
+
+  #[tokio::test]
+  async fn resets_the_http_client_and_clears_stale_network_errors_after_recovery() {
+    let settings = test_connection(
+      "network-recovery",
+      reserve_port(),
+      "http://127.0.0.1:9".to_owned(),
+    );
+    let health = ConnectionHealth::new(&settings);
+    let clients = ProxyClientPool::new();
+    health
+      .record_request_failure(
+        "Proxy upstream request failed: Network is unreachable".to_owned(),
+        "network_unreachable",
+        Some(51),
+        Duration::from_millis(1),
+        clients.generation(),
+      )
+      .await;
+    let failure = || UpstreamHealthFailure {
+      message: "Proxy upstream health check failed: Network is unreachable".to_owned(),
+      error_kind: "network_unreachable",
+      os_error_code: Some(51),
+    };
+    for _ in 0..UPSTREAM_HEALTH_FAILURE_THRESHOLD {
+      health
+        .record_periodic_failure(failure(), Duration::from_millis(1))
+        .await;
+    }
+
+    assert_eq!(clients.generation(), 1);
+    assert!(health.last_error().await.is_some());
+    assert!(
+      !health
+        .record_periodic_success(Duration::from_millis(1))
+        .await
+    );
+    assert!(
+      health
+        .record_periodic_success(Duration::from_millis(1))
+        .await
+    );
+    let generation = clients.reset().await;
+
+    assert_eq!(generation, 2);
+    assert_eq!(clients.generation(), 2);
+    assert_eq!(health.last_error().await, None);
+  }
+
+  #[tokio::test]
+  async fn preserves_non_network_request_errors_after_tcp_recovery() {
+    let settings = test_connection(
+      "request-timeout",
+      reserve_port(),
+      "http://127.0.0.1:9".to_owned(),
+    );
+    let health = ConnectionHealth::new(&settings);
+    health
+      .record_request_failure(
+        "Proxy upstream response timed out after 120 seconds".to_owned(),
+        "response_timeout",
+        None,
+        Duration::from_secs(120),
+        1,
+      )
+      .await;
+    let failure = || UpstreamHealthFailure {
+      message: "Proxy upstream health check failed: Network is unreachable".to_owned(),
+      error_kind: "network_unreachable",
+      os_error_code: Some(51),
+    };
+    for _ in 0..UPSTREAM_HEALTH_FAILURE_THRESHOLD {
+      health
+        .record_periodic_failure(failure(), Duration::from_millis(1))
+        .await;
+    }
+    for _ in 0..UPSTREAM_HEALTH_RECOVERY_THRESHOLD {
+      let _ = health
+        .record_periodic_success(Duration::from_millis(1))
+        .await;
+    }
+
+    assert_eq!(
+      health.last_error().await.as_deref(),
+      Some("Proxy upstream response timed out after 120 seconds")
+    );
+  }
+
+  #[tokio::test]
+  async fn aggregates_repeated_request_failures_without_losing_timestamps() {
+    let settings = test_connection(
+      "failure-summary",
+      reserve_port(),
+      "http://127.0.0.1:9".to_owned(),
+    );
+    let health = ConnectionHealth::new(&settings);
+    health
+      .record_request_failure(
+        "first failure".to_owned(),
+        "network_unreachable",
+        Some(51),
+        Duration::from_millis(1),
+        1,
+      )
+      .await;
+    let first_timestamp = health.state.lock().await.request_first_failure_timestamp_ms;
+    health
+      .record_request_failure(
+        "second failure".to_owned(),
+        "network_unreachable",
+        Some(51),
+        Duration::from_millis(2),
+        1,
+      )
+      .await;
+    let state = health.state.lock().await;
+
+    assert_eq!(state.request_failure_count, 2);
+    assert_eq!(state.request_first_failure_timestamp_ms, first_timestamp);
+    assert!(state.request_last_failure_timestamp_ms >= first_timestamp);
+    assert_eq!(state.request_error.as_deref(), Some("second failure"));
+    assert_eq!(state.request_error_kind, Some("network_unreachable"));
+    assert_eq!(state.request_os_error_code, Some(51));
   }
 
   #[test]
@@ -1463,6 +1784,65 @@ mod tests {
 
     manager.stop("test").await.expect("stop Proxy");
     StdTcpListener::bind((Ipv4Addr::LOCALHOST, proxy_port)).expect("Proxy port should be released");
+  }
+
+  #[tokio::test]
+  async fn does_not_retry_a_failed_post_request() {
+    let upstream = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+      .await
+      .expect("start upstream");
+    let upstream_address = upstream.local_addr().expect("upstream address");
+    let upstream_task = tokio::spawn(async move {
+      let (mut stream, _) = upstream.accept().await.expect("accept POST request");
+      let mut request = Vec::new();
+      let mut buffer = [0_u8; 1024];
+      loop {
+        let read = stream.read(&mut buffer).await.expect("read POST request");
+        if read == 0 {
+          break;
+        }
+        request.extend_from_slice(&buffer[..read]);
+        if request.windows(4).any(|window| window == b"\r\n\r\n") {
+          break;
+        }
+      }
+      assert!(String::from_utf8(request)
+        .expect("UTF-8 POST request")
+        .starts_with("POST /form/table-update HTTP/1.1"));
+      drop(stream);
+      tokio::time::timeout(Duration::from_millis(500), upstream.accept())
+        .await
+        .is_ok()
+    });
+
+    let proxy_port = reserve_port();
+    let connection = test_connection(
+      "post-no-retry",
+      proxy_port,
+      format!("http://{upstream_address}"),
+    );
+    let mut manager = ProxyManager::new(vec![connection]).expect("create Proxy Manager");
+    manager.start("post-no-retry").await.expect("start Proxy");
+    let mut client = TcpStream::connect((Ipv4Addr::LOCALHOST, proxy_port))
+      .await
+      .expect("connect to Proxy");
+    client
+      .write_all(
+        b"POST /form/table-update HTTP/1.1\r\nHost: post-no-retry.test\r\nContent-Length: 7\r\nConnection: close\r\n\r\npayload",
+      )
+      .await
+      .expect("write POST request");
+    let mut response = Vec::new();
+    client
+      .read_to_end(&mut response)
+      .await
+      .expect("read Proxy response");
+    let response = String::from_utf8(response).expect("UTF-8 Proxy response");
+    let accepted_second_request = upstream_task.await.expect("complete upstream task");
+
+    manager.stop("post-no-retry").await.expect("stop Proxy");
+    assert!(response.starts_with("HTTP/1.1 502 Bad Gateway"));
+    assert!(!accepted_second_request, "POST request must not be retried");
   }
 
   #[tokio::test]
