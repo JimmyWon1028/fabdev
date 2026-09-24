@@ -74,28 +74,28 @@ onMounted(async () => {
   window.addEventListener('keydown', handleGlobalKeydown)
   window.addEventListener('error', handleWindowError)
   window.addEventListener('unhandledrejection', handleUnhandledRejection)
-  unlisteners.push(
-    await listen('fabdev://service-state-changed', () => store.refreshStatus()),
-    await listen<string>('fabdev://agent-error', (event) => store.setError(event.payload)),
-    await listen<AppUpdateDownloadProgress>(
+  const startup = store.autoStartServices
+    ? store.startServicesOnLaunch()
+    : Promise.all([store.refreshStatus(), store.loadSites()]).then(() => undefined)
+  const listeners = await Promise.all([
+    listen('fabdev://service-state-changed', () => store.refreshStatus()),
+    listen<string>('fabdev://agent-error', (event) => store.setError(event.payload)),
+    listen<AppUpdateDownloadProgress>(
       'fabdev://app-update-download-progress',
       (event) => store.setAppUpdateDownloadProgress(event.payload)
     ),
-    await listen('fabdev://check-for-updates', () => {
+    listen('fabdev://check-for-updates', () => {
       void router.push('/settings').then(() => store.checkAppUpdate()).catch(() => undefined)
     }),
-    await listen('fabdev://quit-started', () => {
+    listen('fabdev://quit-started', () => {
       isQuitting.value = true
     }),
-    await listen('fabdev://quit-failed', () => {
+    listen('fabdev://quit-failed', () => {
       isQuitting.value = false
     })
-  )
-  if (store.autoStartServices) {
-    await store.startServicesOnLaunch()
-  } else {
-    await Promise.all([store.refreshStatus(), store.loadSites()])
-  }
+  ])
+  unlisteners.push(...listeners)
+  await startup
   await store.restoreMariaDbOnLaunch()
   void Promise.all([
     store.loadPhpRuntimes(),

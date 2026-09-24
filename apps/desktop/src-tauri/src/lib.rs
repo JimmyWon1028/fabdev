@@ -41,6 +41,7 @@ const APP_UPDATE_CHECK_REQUESTED_EVENT: &str = "fabdev://check-for-updates";
 const APP_UPDATE_DOWNLOAD_PROGRESS_EVENT: &str = "fabdev://app-update-download-progress";
 const APP_QUIT_STARTED_EVENT: &str = "fabdev://quit-started";
 const APP_QUIT_FAILED_EVENT: &str = "fabdev://quit-failed";
+const FABDEV_TRAY_ID: &str = "fabdev";
 const DESKTOP_PROCESS_LOG_FILE: &str = "desktop-process.log";
 const AGENT_START_TIMEOUT: Duration = Duration::from_secs(5);
 const AGENT_START_POLL_INTERVAL: Duration = Duration::from_millis(50);
@@ -1042,6 +1043,12 @@ fn request_app_quit_for_update(app: AppHandle, installer_path: PathBuf) -> Resul
   request_app_quit_after_shutdown(app, Some(installer_path))
 }
 
+fn set_tray_visible(app: &AppHandle, visible: bool) {
+  if let Some(tray) = app.tray_by_id(FABDEV_TRAY_ID) {
+    let _ = tray.set_visible(visible);
+  }
+}
+
 fn request_app_quit_after_shutdown(
   app: AppHandle,
   installer_path: Option<PathBuf>,
@@ -1050,6 +1057,7 @@ fn request_app_quit_after_shutdown(
     return Err("fabDev is already shutting down".to_owned());
   }
   set_tray_all_busy(&app);
+  set_tray_visible(&app, false);
   if app
     .get_webview_window("main")
     .and_then(|window| window.is_visible().ok())
@@ -1064,6 +1072,7 @@ fn request_app_quit_after_shutdown(
         if let Some(installer_path) = installer_path {
           if let Err(error) = open_update_installer(&installer_path) {
             QUIT_IN_PROGRESS.store(false, Ordering::SeqCst);
+            set_tray_visible(&app, true);
             show_main_window(&app);
             let _ = app.emit(APP_QUIT_FAILED_EVENT, ());
             let _ = app.emit(AGENT_ERROR_EVENT, error.to_string());
@@ -1076,6 +1085,7 @@ fn request_app_quit_after_shutdown(
       }
       Err(error) => {
         QUIT_IN_PROGRESS.store(false, Ordering::SeqCst);
+        set_tray_visible(&app, true);
         show_main_window(&app);
         let _ = app.emit(APP_QUIT_FAILED_EVENT, ());
         let _ = app.emit(AGENT_ERROR_EVENT, error.to_string());
@@ -1978,7 +1988,7 @@ fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
     app_update: app_update.clone(),
   });
 
-  TrayIconBuilder::with_id("fabdev")
+  TrayIconBuilder::with_id(FABDEV_TRAY_ID)
     .icon(icon)
     .icon_as_template(cfg!(target_os = "macos"))
     .tooltip("fabDev")
