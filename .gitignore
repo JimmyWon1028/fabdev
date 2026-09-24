@@ -8,6 +8,8 @@ target/
 .tools/
 .build/
 artifacts/
+/note.txt
+/res/
 *.log
 *.sock
 *.sqlite
