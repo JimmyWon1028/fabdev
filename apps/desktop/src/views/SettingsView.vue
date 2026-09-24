@@ -213,6 +213,7 @@ async function installUpdate() {
           <option value="default">{{ t('settings.themeDefault') }}</option>
           <option value="neo-brutalism">{{ t('settings.themeNeoBrutalism') }}</option>
           <option value="glassmorphism">{{ t('settings.themeGlassmorphism') }}</option>
+          <option value="cyberpunk">{{ t('settings.themeCyberpunk') }}</option>
           <option value="notion">{{ t('settings.themeNotion') }}</option>
         </select>
       </article>

@@ -104,6 +104,13 @@ describe('theme preference', () => {
     expect(loadTheme(storage)).toBe('glassmorphism')
   })
 
+  it('loads and persists Cyberpunk', () => {
+    const storage = memoryStorage()
+
+    saveTheme('cyberpunk', storage)
+    expect(loadTheme(storage)).toBe('cyberpunk')
+  })
+
   it('falls back when the saved theme is unsupported', () => {
     expect(loadTheme(memoryStorage('unknown'))).toBe('default')
   })

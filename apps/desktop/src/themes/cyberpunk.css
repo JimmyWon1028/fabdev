@@ -1,0 +1,309 @@
+html[data-theme="cyberpunk"] {
+  color: #e9fbff;
+  background: #060711;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html[data-theme="cyberpunk"] body {
+  background:
+    linear-gradient(rgb(0 240 255 / 5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(0 240 255 / 5%) 1px, transparent 1px),
+    radial-gradient(circle at 82% 12%, rgb(255 0 153 / 23%) 0, transparent 31%),
+    radial-gradient(circle at 18% 84%, rgb(0 240 255 / 17%) 0, transparent 34%),
+    #060711;
+  background-attachment: fixed;
+  background-size: 38px 38px, 38px 38px, auto, auto, auto;
+}
+
+html[data-theme="cyberpunk"] .content,
+html[data-theme="cyberpunk"] .page-header,
+html[data-theme="cyberpunk"] .page-body {
+  background: transparent;
+}
+
+html[data-theme="cyberpunk"] .sidebar {
+  color: #e9fbff;
+  background: rgb(8 10 28 / 94%);
+  border-right: 1px solid #00f0ff;
+  box-shadow: 8px 0 30px rgb(0 240 255 / 12%);
+}
+
+html[data-theme="cyberpunk"] .brand small,
+html[data-theme="cyberpunk"] .agent-state,
+html[data-theme="cyberpunk"] .navigation a,
+html[data-theme="cyberpunk"] .settings-link {
+  color: #9eb7c5;
+}
+
+html[data-theme="cyberpunk"] .navigation-divider {
+  background: rgb(0 240 255 / 28%);
+}
+
+html[data-theme="cyberpunk"] .navigation a,
+html[data-theme="cyberpunk"] .settings-link {
+  border: 1px solid transparent;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+html[data-theme="cyberpunk"] .navigation a:hover,
+html[data-theme="cyberpunk"] .navigation a.router-link-active,
+html[data-theme="cyberpunk"] .settings-link:hover,
+html[data-theme="cyberpunk"] .settings-link.router-link-active {
+  color: #061016;
+  background: #00f0ff;
+  border-color: #8bffff;
+  box-shadow: 0 0 18px rgb(0 240 255 / 58%);
+}
+
+html[data-theme="cyberpunk"] .page-header h1,
+html[data-theme="cyberpunk"] .setting-row h2,
+html[data-theme="cyberpunk"] .service-card h2,
+html[data-theme="cyberpunk"] .form-card h2,
+html[data-theme="cyberpunk"] .runtime-card h2 {
+  color: #f7fdff;
+  font-weight: 800;
+  text-shadow: 0 0 14px rgb(0 240 255 / 20%);
+}
+
+html[data-theme="cyberpunk"] .eyebrow {
+  color: #ff3cac !important;
+  text-shadow: 0 0 10px rgb(255 0 153 / 48%);
+}
+
+html[data-theme="cyberpunk"] .service-card,
+html[data-theme="cyberpunk"] .runtime-help-card,
+html[data-theme="cyberpunk"] .form-card,
+html[data-theme="cyberpunk"] .runtime-card,
+html[data-theme="cyberpunk"] .terminal-card,
+html[data-theme="cyberpunk"] .runtime-online-card,
+html[data-theme="cyberpunk"] .site-list-toolbar,
+html[data-theme="cyberpunk"] .site-list,
+html[data-theme="cyberpunk"] .site-empty-state,
+html[data-theme="cyberpunk"] .proxy-summary,
+html[data-theme="cyberpunk"] .proxy-list,
+html[data-theme="cyberpunk"] .setting-row,
+html[data-theme="cyberpunk"] .php-ini-editor,
+html[data-theme="cyberpunk"] .modal-dialog,
+html[data-theme="cyberpunk"] .quit-dialog,
+html[data-theme="cyberpunk"] .help-contents,
+html[data-theme="cyberpunk"] .diagnostic-logs {
+  background: rgb(13 17 39 / 90%);
+  border: 1px solid rgb(0 240 255 / 58%);
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px rgb(255 0 153 / 10%), 0 12px 34px rgb(0 0 0 / 34%), 0 0 24px rgb(0 240 255 / 8%);
+}
+
+html[data-theme="cyberpunk"] .runtime-help-card {
+  background: linear-gradient(135deg, rgb(12 21 43 / 96%), rgb(24 12 44 / 94%));
+}
+
+html[data-theme="cyberpunk"] .app-update-notice,
+html[data-theme="cyberpunk"] .runtime-summary,
+html[data-theme="cyberpunk"] .notice,
+html[data-theme="cyberpunk"] .runtime-online-warning,
+html[data-theme="cyberpunk"] .modal-message,
+html[data-theme="cyberpunk"] .help-notes {
+  color: #e9fbff !important;
+  background: rgb(13 24 46 / 94%);
+  border: 1px solid rgb(0 240 255 / 48%);
+  border-radius: 3px;
+  box-shadow: 0 0 18px rgb(0 240 255 / 8%);
+}
+
+html[data-theme="cyberpunk"] .notice.warning,
+html[data-theme="cyberpunk"] .runtime-online-warning,
+html[data-theme="cyberpunk"] .help-notes {
+  color: #fff4b0 !important;
+  background: rgb(54 43 14 / 94%);
+  border-color: rgb(255 219 77 / 58%);
+}
+
+html[data-theme="cyberpunk"] .modal-message {
+  color: #ffd7e9 !important;
+  background: rgb(57 17 39 / 94%);
+  border-color: rgb(255 60 172 / 58%);
+}
+
+html[data-theme="cyberpunk"] input,
+html[data-theme="cyberpunk"] select,
+html[data-theme="cyberpunk"] .modal-dialog textarea {
+  color: #e9fbff;
+  background: #090d20;
+  border: 1px solid rgb(0 240 255 / 54%);
+  border-radius: 3px;
+  box-shadow: inset 0 0 14px rgb(0 240 255 / 5%);
+}
+
+html[data-theme="cyberpunk"] input:focus,
+html[data-theme="cyberpunk"] select:focus,
+html[data-theme="cyberpunk"] .modal-dialog textarea:focus {
+  border-color: #ff3cac;
+  box-shadow: 0 0 0 2px rgb(255 60 172 / 17%), 0 0 18px rgb(255 60 172 / 24%);
+}
+
+html[data-theme="cyberpunk"] .primary-button,
+html[data-theme="cyberpunk"] .secondary-button,
+html[data-theme="cyberpunk"] .share-stop-button,
+html[data-theme="cyberpunk"] .danger-button,
+html[data-theme="cyberpunk"] .site-filter-button,
+html[data-theme="cyberpunk"] .open-link-icon,
+html[data-theme="cyberpunk"] .modal-close-button {
+  color: #c8f9ff;
+  background: #0b1128;
+  border: 1px solid rgb(0 240 255 / 56%);
+  border-radius: 3px;
+  box-shadow: 0 0 14px rgb(0 240 255 / 9%);
+}
+
+html[data-theme="cyberpunk"] .primary-button,
+html[data-theme="cyberpunk"] .site-filter-button.active {
+  color: #061016;
+  background: #00f0ff;
+  border-color: #7cffff;
+}
+
+html[data-theme="cyberpunk"] .share-stop-button {
+  color: #ffe96c;
+  background: #2b2510;
+  border-color: rgb(255 219 77 / 60%);
+}
+
+html[data-theme="cyberpunk"] .danger-button {
+  color: #ff8bc8;
+  background: #271020;
+  border-color: rgb(255 60 172 / 64%);
+}
+
+html[data-theme="cyberpunk"] .primary-button:hover:not(:disabled),
+html[data-theme="cyberpunk"] .secondary-button:hover:not(:disabled),
+html[data-theme="cyberpunk"] .share-stop-button:hover:not(:disabled),
+html[data-theme="cyberpunk"] .danger-button:hover:not(:disabled),
+html[data-theme="cyberpunk"] .site-filter-button:hover:not(:disabled),
+html[data-theme="cyberpunk"] .open-link-icon:hover:not(:disabled),
+html[data-theme="cyberpunk"] .open-link-icon:focus-visible,
+html[data-theme="cyberpunk"] .modal-close-button:hover:not(:disabled),
+html[data-theme="cyberpunk"] .modal-close-button:focus-visible {
+  color: #071019;
+  background: #ff3cac;
+  border-color: #ff9bd5;
+  box-shadow: 0 0 20px rgb(255 60 172 / 48%);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+html[data-theme="cyberpunk"] .state-pill,
+html[data-theme="cyberpunk"] .service-icon,
+html[data-theme="cyberpunk"] .runtime-version,
+html[data-theme="cyberpunk"] .help-section-number {
+  color: #c8f9ff;
+  background: #13172b;
+  border: 1px solid rgb(0 240 255 / 36%);
+  border-radius: 3px;
+}
+
+html[data-theme="cyberpunk"] .state-pill[data-state="running"],
+html[data-theme="cyberpunk"] .service-icon {
+  color: #72ffe0;
+  background: rgb(9 56 52 / 90%);
+  border-color: rgb(53 255 214 / 46%);
+}
+
+html[data-theme="cyberpunk"] .state-pill[data-state="failed"] {
+  color: #ff8bc8;
+  background: rgb(61 14 42 / 90%);
+  border-color: rgb(255 60 172 / 48%);
+}
+
+html[data-theme="cyberpunk"] .state-pill[data-state="warning"],
+html[data-theme="cyberpunk"] .state-pill[data-state="degraded"] {
+  color: #ffe96c;
+  background: rgb(57 46 12 / 90%);
+  border-color: rgb(255 219 77 / 48%);
+}
+
+html[data-theme="cyberpunk"] .runtime-version,
+html[data-theme="cyberpunk"] .help-section-number {
+  color: #f1d8ff;
+  background: rgb(49 24 74 / 92%);
+  border-color: rgb(193 107 255 / 46%);
+}
+
+html[data-theme="cyberpunk"] .site-row,
+html[data-theme="cyberpunk"] .proxy-row,
+html[data-theme="cyberpunk"] .proxy-summary > div,
+html[data-theme="cyberpunk"] .proxy-search-toolbar,
+html[data-theme="cyberpunk"] .proxy-selection-toolbar,
+html[data-theme="cyberpunk"] .site-selection-toolbar,
+html[data-theme="cyberpunk"] .modal-header,
+html[data-theme="cyberpunk"] .help-section + .help-section {
+  border-color: rgb(0 240 255 / 20%);
+}
+
+html[data-theme="cyberpunk"] .site-row,
+html[data-theme="cyberpunk"] .proxy-row,
+html[data-theme="cyberpunk"] .proxy-search-toolbar {
+  background: rgb(10 14 32 / 76%);
+}
+
+html[data-theme="cyberpunk"] .site-row.is-shared,
+html[data-theme="cyberpunk"] .site-row.selected,
+html[data-theme="cyberpunk"] .proxy-row.selected,
+html[data-theme="cyberpunk"] .proxy-selection-toolbar,
+html[data-theme="cyberpunk"] .site-selection-toolbar {
+  background: rgb(9 49 52 / 78%);
+}
+
+html[data-theme="cyberpunk"] .update-version-grid div,
+html[data-theme="cyberpunk"] .update-artifact-details,
+html[data-theme="cyberpunk"] .php-fastcgi-settings {
+  background: rgb(7 11 27 / 84%);
+  border: 1px solid rgb(0 240 255 / 24%);
+  border-radius: 3px;
+}
+
+html[data-theme="cyberpunk"] .toggle-button {
+  background: #24283d;
+  border: 1px solid rgb(0 240 255 / 38%);
+  box-shadow: inset 0 0 10px rgb(0 0 0 / 38%);
+}
+
+html[data-theme="cyberpunk"] .toggle-button span {
+  background: #aab8c4;
+  box-shadow: 0 0 8px rgb(170 184 196 / 28%);
+}
+
+html[data-theme="cyberpunk"] .toggle-button.active {
+  background: #123b45;
+  border-color: #00f0ff;
+  box-shadow: 0 0 14px rgb(0 240 255 / 30%);
+}
+
+html[data-theme="cyberpunk"] .toggle-button.active span {
+  background: #00f0ff;
+  box-shadow: 0 0 12px rgb(0 240 255 / 70%);
+}
+
+html[data-theme="cyberpunk"] .setting-row p,
+html[data-theme="cyberpunk"] .setting-row small,
+html[data-theme="cyberpunk"] .page-header p,
+html[data-theme="cyberpunk"] .service-card p,
+html[data-theme="cyberpunk"] .runtime-card p,
+html[data-theme="cyberpunk"] .form-message {
+  color: #9eb7c5;
+}
+
+html[data-theme="cyberpunk"] .update-version-grid dd,
+html[data-theme="cyberpunk"] .proxy-summary strong,
+html[data-theme="cyberpunk"] .site-identity strong,
+html[data-theme="cyberpunk"] .proxy-endpoint code,
+html[data-theme="cyberpunk"] .proxy-target code,
+html[data-theme="cyberpunk"] .site-paths code {
+  color: #e9fbff;
+}
+
+html[data-theme="cyberpunk"] .quit-overlay,
+html[data-theme="cyberpunk"] .modal-overlay {
+  background: rgb(2 3 10 / 72%);
+  backdrop-filter: blur(6px);
+}

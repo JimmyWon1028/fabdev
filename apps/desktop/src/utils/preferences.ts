@@ -7,7 +7,7 @@ const THEME_KEY = 'fabdev.preferences.theme'
 
 export const supportedLanguages = ['en', 'zh-TW', 'zh-CN'] as const
 export type Language = (typeof supportedLanguages)[number]
-export const supportedThemes = ['default', 'neo-brutalism', 'glassmorphism', 'notion'] as const
+export const supportedThemes = ['default', 'neo-brutalism', 'glassmorphism', 'cyberpunk', 'notion'] as const
 export type Theme = (typeof supportedThemes)[number]
 
 type PreferenceStorage = Pick<Storage, 'getItem' | 'setItem'>
