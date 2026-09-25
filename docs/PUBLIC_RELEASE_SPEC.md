@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 完成 App-only 與 Runtime Distribution 分離；`v0.1.27` 是目前 Latest Stable，已依 Windows-first 順序先提供 Windows x64 App 與 fabDev Connect，同版 macOS ARM64 尚未補齊；前版 `v0.1.26` 保留 macOS ARM64 Community DMG。
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 完成 App-only 與 Runtime Distribution 分離；`v0.1.27` 是目前 Latest Stable，已依 Windows-first 順序先發布 Windows x64 App 與 fabDev Connect，現已補齊同版 macOS ARM64 Community DMG。
 
 ## 1. 目標
 
@@ -484,6 +484,21 @@ https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.26
 - `fabdev-app-v1.json` 與 `fabdev-stable-v1.json` 皆為 1,421 bytes、逐位元一致，SHA-256 `a044ee976c0ea43256da0615eebca3668c653ee823844f1657d56bf63f3f9922`；內容為 App `0.1.26`、Agent Protocol 40、`requiresFullInstaller=true`，並同時且只列出 Windows x64 與 macOS ARM64 Installer。
 - 9 個 Assets 已從未登入公開 URL 全部重新下載並與上傳集合逐位元一致；GitHub size／digest、總表、三份個別 checksum、Latest Manifest、Release 頁 HTTP 200 與兩平台 Installer Range HTTP 206 均通過。Release 未包含線上 Runtime Catalog、Package 或 Archive，目前沒有殘留 Draft Release。
 - 安裝與更新程序沒有改變，依既有驗收沿用規則不重跑 macOS／Windows 安裝、啟動、更新與移除人工流程。
+
+### 9.8 `v0.1.27` Windows-first Stable Publish 與同版 macOS 補齊
+
+Repository Owner 核准後，Release ID `395300351` 於 `2026-09-24T03:50:50Z`，即 2026-09-24 11:50:50（Asia/Taipei，UTC+8）先發布 Windows-first Stable，後續依補齊 macOS 與打包指示加入同版 ARM64 Community DMG：
+
+```text
+https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.27
+```
+
+- Annotated Tag Object `6cd0b877ae200e13840c91937c63c04f7f338597` 固定指向 Commit `3faf3607e68eede8ceef6e811680d0fb4fb1f349`。macOS 建置使用該 Commit 的隔離 detached worktree，沒有修改程式碼、版本或 Tag。
+- macOS bundled Runtime manifest、descriptor 與封裝腳本相較已驗證的 `v0.1.26` 未變；四個 Runtime Archive 已與公開 `v0.1.26` DMG 逐位元比對並重用，沒有重建線上 Runtime Package 或 Catalog。完整 `pnpm test`、`pnpm lint` 與 `git diff --check` 通過。
+- macOS DMG 為 100,064,230 bytes，SHA-256 `637b3b42d830747e05cca8a045b16e34311325b5f1ba86e360cbc582ba6bcf68`；`hdiutil verify`、28 項內部 checksum、App／CLI `0.1.27`、App／CLI／Helper ad-hoc codesign、主要 Binary ARM64 架構及 Runtime Archive 一致性均通過。
+- 上傳只新增 DMG 與其個別 checksum，並替換 `SHA256SUMS`、App／Stable Manifest 與 Release Notes。Windows Setup、Connect 及其個別 checksum 的 Asset ID、大小、digest 均未變；Release ID、Tag、Commit、`published_at` 與 Manifest `publishedAt=2026-09-24T03:28:16Z` 保持不變。
+- 最終 9 個 App-only Assets 共 150,370,187 bytes。Windows Setup 為 49,552,903 bytes、SHA-256 `ea809cd521e614282d02c7d407570f71029ee9c0ca6436e3d3f8f47a3e3c975e`；Connect 為 749,568 bytes、SHA-256 `32b97ddd35b800ec27f120601bd9b436b42ef034b47cb137d7defec0afd3459c`。跨平台 `SHA256SUMS` SHA-256 為 `57a831941239e3bdf736a0547980df66797945f609ae5ea4f35eaebb7db4ee2c`；兩份逐位元相同的 Manifest SHA-256 為 `50075f4383673165924d94203124bb030f21fd97e0ffee31bde39c58961a5f23`，同時且只列 Windows x64 與 macOS ARM64 Installer。
+- 全部 9 個 Assets 已從未登入公開 URL 重新下載並與上傳集合逐位元一致；GitHub size／digest、總表、三份個別 checksum、Latest Manifest、Release 頁 HTTP 200 與兩平台 Installer Range HTTP 206 均通過。安裝、啟動、更新與移除人工驗收依未變的既有程序結果沿用，由 Repository Owner 執行。
 
 ## 10. 撤回與回復
 

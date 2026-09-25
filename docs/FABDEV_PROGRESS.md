@@ -1,13 +1,19 @@
 # fabDev 穩定基線與 Roadmap
 
-> 更新日期：2026-09-24
-> 目前階段：[`v0.1.27`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.27) 已依 Windows-first 順序發布為 Latest Stable，目前只提供 Windows x64 App 與 fabDev Connect；同版 macOS ARM64 尚未補齊。Agent Protocol 維持 `40`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
+> 更新日期：2026-09-25
+> 目前階段：[`v0.1.27`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.27) 已依 Windows-first 順序發布為 Latest Stable，現已補齊同版 macOS ARM64；提供 Windows x64 App、fabDev Connect 與 macOS ARM64 Community DMG。Agent Protocol 維持 `40`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
 
 ## 階段結論
 
-fabDev Desktop Community `v0.1.27` 是目前公開 Latest Stable，Windows x64 與 fabDev Connect 已完成候選 CI、Repository Owner 實機 Gate、Annotated Tag、Draft、Publish 與匿名公開下載驗證；Tag 固定在 `3faf360`，Release ID `395300351`。Latest Manifest 目前只提供 Windows x64 Installer；macOS ARM64 尚未補入 `0.1.27`。前版 `v0.1.26` 仍保留 macOS ARM64 Community DMG。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
+fabDev Desktop Community `v0.1.27` 是目前公開 Latest Stable，Windows x64 與 fabDev Connect 已完成候選 CI、Repository Owner 實機 Gate、Annotated Tag、Draft 與 Publish；macOS ARM64 已從相同 Tag Commit 補入既有 Release。全部 9 個資產已完成匿名公開下載驗證；Tag 固定在 `3faf360`，Release ID `395300351`。Latest Manifest 同時且只提供 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
-## 0.1.27 Stable（Windows-first，待補 macOS ARM64）
+## 0.1.28 Windows-first 候選（進行中）
+
+- 2026-09-25 Repository Owner 要求開始進版並依固定協議先打包 Windows x64。四個正式版本來源及 `Cargo.lock` 的 13 個 fabDev workspace 套件已同步為 `0.1.28`，Agent Protocol 維持 `40`；目前公開 Latest 仍為 `v0.1.27`，尚未建立 `v0.1.28` Tag、Draft 或 Stable Release。
+- 候選基礎為已推送到 `main` 的主題與版面改動 Commit `70bb9ca`、`9e940d6`，包含 10 款主題與即時鍵盤切換；既有 Windows 與 macOS 共用的主題偏好契約維持一致。本輪不打包 macOS App，也不處理線上 Runtime Package／Catalog。
+- 本機版本更新後完整 `pnpm test` 通過 Desktop 113、Release 規則 20、macOS Helper 10 項及 Rust workspace 測試；`pnpm lint`、`pnpm build` 與 `git diff --check` 通過。Windows x64 CI 候選與 Repository Owner 實機 Gate 尚未完成，不將本機 macOS 建置結果視為 Windows 安裝包驗收。
+
+## 0.1.27 Stable（Windows-first，已補 macOS ARM64）
 
 - 2026-09-24 Repository Owner 明確要求開始下一版進版打包，依固定 Windows-first Gate 先建立 Windows x64 候選。四個正式版本來源及 `Cargo.lock` 的 13 個 fabDev workspace 套件已同步為 `0.1.27`，Agent Protocol 維持 `40`。
 - 本次候選包含 `v0.1.26` 之後已提交的 macOS Helper UDP DNS flow 修復、可選主題、Proxy upstream 網路失敗後 client 復原、Desktop 啟動／結束提示、Cyberpunk 主題與 dnsmasq `.test` 設定修正。`note.txt` 與 `res/` 是本機參考檔，已由 `.gitignore` 排除。
@@ -17,6 +23,8 @@ fabDev Desktop Community `v0.1.27` 是目前公開 Latest Stable，Windows x64 �
 - 2026-09-24 Repository Owner 明確確認此 Windows x64 候選的實機 Gate 通過，並已要求發布 Release；本紀錄不推定未提供的個別實機測試細節。接續固定 `v0.1.27` Annotated Tag，從該 Tag 重打包 Windows x64 並建立 Draft、驗證資產後發布 Windows-first Stable。此 Gate 時點尚未建立 Tag、Draft 或 Stable Release，也未打包 macOS DMG 或處理線上 Runtime Package／Catalog。
 - Gate 紀錄 Commit `3faf3607e68eede8ceef6e811680d0fb4fb1f349` 已推送，Annotated Tag `v0.1.27` 的 Tag Object 為 `6cd0b877ae200e13840c91937c63c04f7f338597`，固定指向該 Commit。Windows-only Draft [Run `35951595656`](https://github.com/JimmyWon1028/fabdev/actions/runs/35951595656) 於 2026-09-24 11:28:35～11:44:04（Asia/Taipei，UTC+8）完成，Windows 建置與 Draft Jobs 成功，macOS Job 依指定 skipped。
 - Release ID `395300351` 於 2026-09-24 11:50:50（Asia/Taipei，UTC+8）發布為 Latest Stable；7 個 App-only Assets 共 50,304,839 bytes。Windows Setup 為 49,552,903 bytes、SHA-256 `ea809cd521e614282d02c7d407570f71029ee9c0ca6436e3d3f8f47a3e3c975e`；Connect 為 749,568 bytes、SHA-256 `32b97ddd35b800ec27f120601bd9b436b42ef034b47cb137d7defec0afd3459c`；App／Stable Manifest 逐位元相同，SHA-256 `a59c34db749c7980d1ab6b9345ef577ca08127958543ac581f5d33c97cb9061b`，`publishedAt=2026-09-24T03:28:16Z`，只列 Windows x64 Installer、Protocol `40`。全部資產已在 Draft 與 Publish 後重新下載，公開檔與 Draft 逐位元相同，GitHub Asset ID／大小／digest、個別與總 SHA-256 均未改變；公開 Release 頁與 Latest Manifest 可匿名取得。沒有殘留 Draft Release。此版尚無 macOS ARM64 DMG，也未處理線上 Runtime Package／Catalog。
+- 2026-09-24 Repository Owner 要求補齊同版 macOS ARM64 並打包。使用隔離 detached worktree 從 Annotated Tag Commit `3faf3607e68eede8ceef6e811680d0fb4fb1f349` 建置，未修改程式碼、版本或 Tag。Bundled Runtime manifest、descriptor 與封裝腳本相較前一個已驗證 macOS Stable `v0.1.26` 未變；dnsmasq 2.93、Nginx 1.30.4、PHP 7.4.33 與 PHP 8.2.33 Archive 已與公開 `v0.1.26` DMG 逐位元比對並重用。完整 `pnpm test` 與 `pnpm lint` 通過，macOS Helper 10 項及 Release 規則 20 項測試通過；`git diff --check` 通過。DMG 為 100,064,230 bytes、SHA-256 `637b3b42d830747e05cca8a045b16e34311325b5f1ba86e360cbc582ba6bcf68`；`hdiutil verify`、28 項內部 checksum、App／CLI `0.1.27`、App／CLI／Helper ad-hoc codesign、Desktop／Agent／CLI／Helper 與主要 Runtime Binary ARM64、Runtime Archive 一致性及無 Homebrew 執行期依賴均通過。
+- macOS 補版只新增 DMG 與個別 checksum，並替換 `SHA256SUMS`、App／Stable Manifest 與 Release Notes。Windows Setup、Connect 與其個別 checksum 的 Asset ID、大小及 digest 皆未改變；Release ID、Tag Object `6cd0b877ae200e13840c91937c63c04f7f338597`、Commit、`published_at=2026-09-24T03:50:50Z` 與 Manifest `publishedAt=2026-09-24T03:28:16Z` 均保持不變。最終 9 個 App-only Assets 共 150,370,187 bytes，已從未登入公開 URL 全數重新下載，與發布前集合逐位元一致，GitHub size／digest、總表與三份個別 checksum 均通過。跨平台 App／Stable Manifest 逐位元相同，SHA-256 `50075f4383673165924d94203124bb030f21fd97e0ffee31bde39c58961a5f23`，只列 Windows x64 與 macOS ARM64 Installer，未包含線上 Runtime Package／Catalog。安裝、更新與移除人工驗收依既有程序結果沿用，由 Repository Owner 執行。
 
 ## 2026-09-24 macOS Helper UDP DNS 修復與驗證
 
@@ -248,7 +256,7 @@ fabDev Desktop Community `v0.1.27` 是目前公開 Latest Stable，Windows x64 �
 
 ## 驗證邊界
 
-- 目前公開 Stable Manifest 為 `0.1.26`，同時且只提供 Windows x64 與 macOS ARM64 Installer。Windows 已完成封裝版 App 內 `0.1.2 → 0.1.3`、`0.1.11 → 0.1.12` 更新驗收、0.1.12 舊 launcher 失敗重現與 0.1.14 手動覆蓋驗收、0.1.15 VC Runtime prerequisite 與 Proxy 連線 VM 驗收、0.1.17 Managed MariaDB 刪除／半成品復原實機 Gate、0.1.20 安裝語言／單一實例／版本 Gate，以及 `0.1.25`、`0.1.26` Repository Owner 實機 Gate；0.1.14 新 launcher 發起後續版本更新與下載中途取消尚未執行完整 VM UI 補測。macOS 已完成 `0.1.1 → 0.1.3` 與 `0.1.3 → 0.1.12` 覆蓋更新；`0.1.25`、`0.1.26` 因安裝程序未變，依既定規則只做重新打包、映像與封裝內容驗證，不重跑人工生命週期測試。
+- 目前公開 Stable Manifest 為 `0.1.27`，同時且只提供 Windows x64 與 macOS ARM64 Installer。Windows 已完成封裝版 App 內 `0.1.2 → 0.1.3`、`0.1.11 → 0.1.12` 更新驗收、0.1.12 舊 launcher 失敗重現與 0.1.14 手動覆蓋驗收、0.1.15 VC Runtime prerequisite 與 Proxy 連線 VM 驗收、0.1.17 Managed MariaDB 刪除／半成品復原實機 Gate、0.1.20 安裝語言／單一實例／版本 Gate，以及 `0.1.25`、`0.1.26`、`0.1.27` Repository Owner 實機 Gate；0.1.14 新 launcher 發起後續版本更新與下載中途取消尚未執行完整 VM UI 補測。macOS 已完成 `0.1.1 → 0.1.3` 與 `0.1.3 → 0.1.12` 覆蓋更新；`0.1.25`、`0.1.26`、`0.1.27` 因安裝程序未變，依既定規則只做重新打包、映像與封裝內容驗證，不重跑人工生命週期測試。
 - 更新失敗與重試由 Updater 聚焦測試覆蓋；公開 Release 的成功下載與覆蓋流程已實測，但不會為了製造故障而修改已發布 Asset 或 Stable Manifest。
 - `fabdev-updater` 已通過 `x86_64-pc-windows-msvc` 交叉編譯；完整 Desktop 的 Windows 本機交叉檢查停在既有 bundled SQLite C 建置缺少 MSVC `stdlib.h`，需由 Windows MSVC GitHub Actions 或實機環境驗證，並非 Updater Rust 程式錯誤。
 - `v0.1.0` 的首次 Site Home、App 選單 Quit 與舊 CA 清理三項阻擋問題，已由 `v0.1.1` Draft 在恢復至 fabDev 未安裝基線的 Mac 完成首次安裝、覆蓋更新與完整移除回歸。
