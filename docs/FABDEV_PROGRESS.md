@@ -1,7 +1,7 @@
 # fabDev 穩定基線與 Roadmap
 
 > 更新日期：2026-09-25
-> 目前階段：[`v0.1.27`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.27) 已依 Windows-first 順序發布為 Latest Stable，現已補齊同版 macOS ARM64；提供 Windows x64 App、fabDev Connect 與 macOS ARM64 Community DMG。Agent Protocol 維持 `40`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
+> 目前階段：[`v0.1.27`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.27) 是已補齊 macOS ARM64 的公開 Latest Stable；`0.1.28` Windows x64 候選 CI 已完成，等待 Repository Owner 實機 Gate。Agent Protocol 維持 `40`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
 
 ## 階段結論
 
@@ -11,7 +11,8 @@ fabDev Desktop Community `v0.1.27` 是目前公開 Latest Stable，Windows x64 �
 
 - 2026-09-25 Repository Owner 要求開始進版並依固定協議先打包 Windows x64。四個正式版本來源及 `Cargo.lock` 的 13 個 fabDev workspace 套件已同步為 `0.1.28`，Agent Protocol 維持 `40`；目前公開 Latest 仍為 `v0.1.27`，尚未建立 `v0.1.28` Tag、Draft 或 Stable Release。
 - 候選基礎為已推送到 `main` 的主題與版面改動 Commit `70bb9ca`、`9e940d6`，包含 10 款主題與即時鍵盤切換；既有 Windows 與 macOS 共用的主題偏好契約維持一致。本輪不打包 macOS App，也不處理線上 Runtime Package／Catalog。
-- 本機版本更新後完整 `pnpm test` 通過 Desktop 113、Release 規則 20、macOS Helper 10 項及 Rust workspace 測試；`pnpm lint`、`pnpm build` 與 `git diff --check` 通過。Windows x64 CI 候選與 Repository Owner 實機 Gate 尚未完成，不將本機 macOS 建置結果視為 Windows 安裝包驗收。
+- 本機版本更新後完整 `pnpm test` 通過 Desktop 113、Release 規則 20、macOS Helper 10 項及 Rust workspace 測試；`pnpm lint`、`pnpm build` 與 `git diff --check` 通過。候選 Commit `a435a1d60a583697d5de82ce66c7b508b662306c` 已推送；Windows x64 [Run `36111295612`](https://github.com/JimmyWon1028/fabdev/actions/runs/36111295612) 於 2026-09-25 16:08:21～16:14:52（Asia/Taipei，UTC+8）完成，格式、前端測試、Release 契約、Desktop sidecars、Bundled Windows Runtimes、PHP FastCGI worker pool、MSVC workspace、fabDev Connect、Unsigned NSIS 與兩個 Artifact 上傳全數成功；Check Run annotations 為 0。CI 成功不等於 Windows 實機啟動驗收，目前停在 Repository Owner 實機 Gate。
+- [Installer Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/36111295612/artifacts/10852908896) `fabDev-Community-Windows-x64` ID `10852908896`，ZIP 49,846,223 bytes、GitHub ZIP SHA-256 `8b6a3cc42eb011c30565fdbc2da75dfdb903588897822d789615b0eb3b7f59e1`，建置日誌確認內含 `fabDev_0.1.28_x64-setup.exe`；[Connect Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/36111295612/artifacts/10853013729) `fabDev-Connect-Windows-x64` ID `10853013729`，ZIP 332,578 bytes、GitHub ZIP SHA-256 `f50720c32c6aa0a3bf3bcf41d82e26d9e88761692268d256563ce69a21ceca29`。兩個 Artifact 保留至 2026-12-24 16:08:21（Asia/Taipei，UTC+8）。本輪未在 macOS 下載安裝包重做實機驗收，也未建立 Tag、Draft、Release 或處理線上 Runtime。
 
 ## 0.1.27 Stable（Windows-first，已補 macOS ARM64）
 
