@@ -43,6 +43,8 @@
 
 - 2026-09-25 已確認的主題與版面調整記錄於 [Desktop 主題與版面調整](UI_THEME_LAYOUT_2026-09-25.md)：Glassmorphism 使用連續的青藍／淡紫背景，Tron 與 Cyberpunk 各自提供全視窗背景；半透明項目仍需保持文字清晰。
 - Tron 保留既有 `cyberpunk` 儲存識別碼，新 Cyberpunk 使用 `cyberpunk-city`，不可因顯示名稱調整而重設使用者偏好。
+- 主題選單順序為 Default、Notion、Solarized、Neo-Brutalism、Glassmorphism、Tron、Cyberpunk、Graphite、Retro Terminal、Blueprint。Solarized 取代 Porcelain，保留 `porcelain` 儲存識別碼；Graphite、Retro Terminal、Blueprint 分別使用 `graphite`、`retro-terminal`、`blueprint`。
+- 主題選單展開時，上／下方向鍵移動後立即套用並保存；Enter、Esc、Tab 或點擊外部收起選單，保留目前主題。macOS WebKit 點擊按鈕未必自動取得焦點，開啟選單時須明確聚焦觸發按鈕，並讓彈出清單避開卡片裁切範圍。
 - Sites、PHP／MariaDB／Node.js Runtime 清單與設定項目的最大寬度統一為 `1180px`；PHP 輔助面板及 Site Home 與清單右緣對齊。Sites 操作按鈕在空間不足時換行，文字與「移除」按鈕不得裁切。
 - Sites 與 Proxy 的既有清單排版維持不變；需要更動時先取得 Repository Owner 明確指示。
 - Proxy 頂部維持資料操作與服務操作分組，不把兩類動作混在同一組。

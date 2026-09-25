@@ -3,6 +3,7 @@ import { getVersion } from '@tauri-apps/api/app'
 import { confirm } from '@tauri-apps/plugin-dialog'
 import { computed, onMounted, ref } from 'vue'
 
+import ThemeSelect from '../components/theme-select.vue'
 import { useAppStore } from '../stores/fabdev'
 import {
   formatUpdateBytes,
@@ -58,9 +59,9 @@ function changeLanguage(event: Event) {
   message.value = ''
 }
 
-function changeTheme(event: Event) {
+function changeTheme(theme: Theme) {
   try {
-    store.setTheme((event.target as HTMLSelectElement).value as Theme)
+    store.setTheme(theme)
     message.value = ''
   } catch (error) {
     message.value = t('settings.saveError', {
@@ -204,19 +205,11 @@ async function installUpdate() {
           <p>{{ t('settings.themeDescription') }}</p>
           <small>{{ t('settings.themeHelp') }}</small>
         </div>
-        <select
-          class="theme-select"
-          :value="store.theme"
-          :aria-label="t('settings.themeTitle')"
-          @change="changeTheme"
-        >
-          <option value="default">{{ t('settings.themeDefault') }}</option>
-          <option value="neo-brutalism">{{ t('settings.themeNeoBrutalism') }}</option>
-          <option value="glassmorphism">{{ t('settings.themeGlassmorphism') }}</option>
-          <option value="cyberpunk">{{ t('settings.themeCyberpunk') }}</option>
-          <option value="cyberpunk-city">{{ t('settings.themeCyberpunkCity') }}</option>
-          <option value="notion">{{ t('settings.themeNotion') }}</option>
-        </select>
+        <ThemeSelect
+          :model-value="store.theme"
+          :label="t('settings.themeTitle')"
+          @update:model-value="changeTheme"
+        />
       </article>
       <article class="setting-row">
         <div>

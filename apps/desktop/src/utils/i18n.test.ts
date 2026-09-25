@@ -22,6 +22,10 @@ describe('translations', () => {
     for (const language of ['en', 'zh-TW', 'zh-CN'] as const) {
       expect(translate('settings.themeCyberpunk', {}, language)).toBe('Tron')
       expect(translate('settings.themeCyberpunkCity', {}, language)).toBe('Cyberpunk')
+      expect(translate('settings.themeGraphite', {}, language)).toBe('Graphite')
+      expect(translate('settings.themeRetroTerminal', {}, language)).toBe('Retro Terminal')
+      expect(translate('settings.themeSolarized', {}, language)).toBe('Solarized')
+      expect(translate('settings.themeBlueprint', {}, language)).toBe('Blueprint')
     }
   })
 

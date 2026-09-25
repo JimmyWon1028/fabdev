@@ -8,7 +8,7 @@ const THEME_KEY = 'fabdev.preferences.theme'
 export const supportedLanguages = ['en', 'zh-TW', 'zh-CN'] as const
 export type Language = (typeof supportedLanguages)[number]
 // Keep the original cyberpunk identifier for existing Tron preferences.
-export const supportedThemes = ['default', 'neo-brutalism', 'glassmorphism', 'cyberpunk', 'cyberpunk-city', 'notion'] as const
+export const supportedThemes = ['default', 'notion', 'porcelain', 'neo-brutalism', 'glassmorphism', 'cyberpunk', 'cyberpunk-city', 'graphite', 'retro-terminal', 'blueprint'] as const
 export type Theme = (typeof supportedThemes)[number]
 
 type PreferenceStorage = Pick<Storage, 'getItem' | 'setItem'>

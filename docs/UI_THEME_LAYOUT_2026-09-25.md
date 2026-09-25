@@ -25,3 +25,28 @@
 - 隔離瀏覽器使用測試資料驗證 6 種主題、3 種視窗寬度：Runtime 與設定卡片對齊 Sites，PHP 輔助面板與 php.ini 編輯區右緣一致。
 - Sites 以 6 種主題、3 種語言及 11 種視窗寬度驗證共 198 組情境：Site Home／清單右緣一致，按鈕與文字未裁切。
 - 主題背景載入、透明卡片、選取狀態、對話框與鍵盤焦點已做瀏覽器檢查；Repository Owner 已確認最終畫面。此項不代表重新完成 Windows／macOS 安裝與服務生命週期驗收。
+
+## 同日追加：新主題與即時鍵盤切換
+
+Repository Owner 已確認本批效果，並再次授權紀錄、commit 與 push。新增及排序如下：
+
+1. Default
+2. Notion
+3. Solarized
+4. Neo-Brutalism
+5. Glassmorphism
+6. Tron
+7. Cyberpunk
+8. Graphite
+9. Retro Terminal
+10. Blueprint
+
+- Graphite 使用石墨灰背景、霧面卡片與冰藍強調色；Retro Terminal 使用黑底、琥珀色、等寬字體與淡掃描線；Blueprint 使用工程藍底、細網格與線框。
+- 原先預覽並實作的 Porcelain 已依指示改為 Solarized，使用米黃底、灰青文字、柔和藍色按鈕與橘色警示。為保留已選主題，內部識別碼仍為 `porcelain`，選單與三種語言均顯示 Solarized。
+- 四款主題由 `studio-themes.css` 使用限定主題範圍的配色變數套用，保留 Sites／Proxy 排版、項目寬度、狀態語意與文字可讀性。
+- 原生主題 select 改為 `theme-select.vue` 彈出清單；按上／下鍵移動後立即套用並保存，Home／End 可移到首／末項。Enter、Esc、Tab 或點擊外部收起；Esc 保留目前已套用的主題。清單以 Teleport 顯示並依視窗空間決定向上／向下展開。
+- 開啟時明確聚焦觸發按鈕，修復 macOS WebKit 滑鼠點擊未自動聚焦導致方向鍵無反應的問題；選單提供 combobox／listbox 語意、目前項目識別與選取狀態。
+
+追加驗證：偏好持久化、主題排序與三語名稱測試；隔離瀏覽器驗證全部 10 款主題的選單與鍵盤切換，並檢查新主題在 900／1280／1440／1800px 視窗的 Sites、PHP、MariaDB、Node.js、設定版面，以及 Proxy 選取、編輯彈窗和鍵盤焦點。Solarized 替換後另確認名稱、順序、米黃配色及重新載入保存結果。原生 WKWebView 已驗證點擊取得焦點、ArrowDown／ArrowUp 即時切換；前端 TypeScript 與 Vite 建置通過。
+
+本批提交前完整 `pnpm test` 通過：Desktop 113、Release 規則 20、Rust 302、macOS Helper 10 項；7 項需要外部環境的 Rust 測試維持 ignored。`pnpm lint`、前端建置及 `git diff --check` 通過。未變更版本、Protocol、App／Runtime 發布資產。

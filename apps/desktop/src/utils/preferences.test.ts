@@ -12,7 +12,8 @@ import {
   saveLastUpdateCheck,
   saveLanguage,
   saveShowDashboardOnLaunch,
-  saveTheme
+  saveTheme,
+  supportedThemes
 } from './preferences'
 
 function memoryStorage(initialValue: string | null = null) {
@@ -119,6 +120,19 @@ describe('theme preference', () => {
     expect(loadTheme(storage)).toBe('cyberpunk-city')
     saveTheme('cyberpunk', storage)
     expect(loadTheme(storage)).toBe('cyberpunk')
+  })
+
+  it.each(['graphite', 'retro-terminal', 'porcelain', 'blueprint'] as const)('persists %s across reloads', (theme) => {
+    const storage = memoryStorage('cyberpunk-city')
+    saveTheme(theme, storage)
+    expect(loadTheme(storage)).toBe(theme)
+  })
+
+  it('orders Solarized after Notion and the remaining new themes after Cyberpunk', () => {
+    expect(supportedThemes).toEqual([
+      'default', 'notion', 'porcelain', 'neo-brutalism', 'glassmorphism', 'cyberpunk',
+      'cyberpunk-city', 'graphite', 'retro-terminal', 'blueprint'
+    ])
   })
 
   it('falls back when the saved theme is unsupported', () => {

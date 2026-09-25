@@ -10,6 +10,8 @@ import './themes/glassmorphism.css'
 import './themes/cyberpunk.css'
 import './themes/cyberpunk-city.css'
 import './themes/notion.css'
+import './themes/studio-themes.css'
+import './themes/theme-picker.css'
 
 initializeTheme()
 createApp(App).use(createPinia()).use(router).mount('#app')

@@ -1,0 +1,494 @@
+/* These tokens are scoped to the four studio themes; existing themes stay independent. */
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) {
+  --studio-bg: #17191d;
+  --studio-panel: linear-gradient(145deg, #292d32, #22262b);
+  --studio-solid: #25292f;
+  --studio-inset: #1c2025;
+  --studio-sidebar: linear-gradient(180deg, #202429, #191c21);
+  --studio-text: #edf1f7;
+  --studio-muted: #aeb8c5;
+  --studio-line: #414852;
+  --studio-accent: #86bdff;
+  --studio-primary: linear-gradient(180deg, #2765a9, #214f85);
+  --studio-on-primary: #fff;
+  --studio-selection: #263e58;
+  --studio-success: #9cdeb4;
+  --studio-success-bg: #20392d;
+  --studio-danger: #ffb9b5;
+  --studio-danger-bg: #502b30;
+  --studio-warning: #f1cf8d;
+  --studio-warning-bg: #3e3523;
+  --studio-radius: 9px;
+  --studio-shadow: inset 0 1px 0 rgb(255 255 255 / 4%), 0 5px 14px rgb(0 0 0 / 18%);
+  --studio-font: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: dark;
+  color: var(--studio-text);
+  background: var(--studio-bg);
+  font-family: var(--studio-font);
+  scrollbar-color: var(--studio-line) var(--studio-bg);
+}
+
+html[data-theme="retro-terminal"] {
+  --studio-bg: #0e100c;
+  --studio-panel: rgb(17 19 12 / 92%);
+  --studio-solid: #17190f;
+  --studio-inset: #0d100a;
+  --studio-sidebar: rgb(11 14 8 / 62%);
+  --studio-text: #ffdf82;
+  --studio-muted: #c7b478;
+  --studio-line: #88743a;
+  --studio-accent: #ffd15c;
+  --studio-primary: #ffd15c;
+  --studio-on-primary: #231d09;
+  --studio-selection: #383018;
+  --studio-success: #b6dc80;
+  --studio-success-bg: #27331b;
+  --studio-danger: #ffaf87;
+  --studio-danger-bg: #40241a;
+  --studio-warning: #ffda75;
+  --studio-warning-bg: #3c3218;
+  --studio-radius: 3px;
+  --studio-shadow: inset 0 0 18px rgb(255 193 68 / 3%);
+  --studio-font: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* Solarized replaces Porcelain while preserving its saved preference identifier. */
+html[data-theme="porcelain"] {
+  --studio-bg: #fdf6e3;
+  --studio-panel: #f5edda;
+  --studio-solid: #fdf6e3;
+  --studio-inset: #eee8d5;
+  --studio-sidebar: #f4edda;
+  --studio-text: #435c64;
+  --studio-muted: #657b83;
+  --studio-line: #d5ccb4;
+  --studio-accent: #187797;
+  --studio-primary: #137c9e;
+  --studio-on-primary: #fffdf5;
+  --studio-selection: #e1e9dc;
+  --studio-success: #4f681b;
+  --studio-success-bg: #e8edcc;
+  --studio-danger: #b64a17;
+  --studio-danger-bg: #f8e3cd;
+  --studio-warning: #82640a;
+  --studio-warning-bg: #f3e8bd;
+  --studio-radius: 6px;
+  --studio-shadow: none;
+  color-scheme: light;
+}
+
+html[data-theme="blueprint"] {
+  --studio-bg: #062d50;
+  --studio-panel: rgb(6 43 76 / 76%);
+  --studio-solid: #0c3455;
+  --studio-inset: #082b48;
+  --studio-sidebar: rgb(4 31 57 / 42%);
+  --studio-text: #e5f4ff;
+  --studio-muted: #aacde6;
+  --studio-line: #6796b8;
+  --studio-accent: #8cddff;
+  --studio-primary: #126293;
+  --studio-on-primary: #fff;
+  --studio-selection: #164f75;
+  --studio-success: #a5e5cc;
+  --studio-success-bg: #17483f;
+  --studio-danger: #ffc0c0;
+  --studio-danger-bg: #523246;
+  --studio-warning: #ffdda0;
+  --studio-warning-bg: #494330;
+  --studio-radius: 4px;
+  --studio-shadow: inset 0 0 0 3px rgb(139 210 255 / 5%);
+  --studio-font: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) body {
+  background: var(--studio-bg);
+}
+
+html[data-theme="retro-terminal"] body {
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgb(249 196 66 / 3%) 3px 4px), var(--studio-bg);
+}
+
+html[data-theme="blueprint"] body {
+  background:
+    linear-gradient(rgb(129 198 245 / 12%) 1px, transparent 1px) 0 0 / 100px 100px,
+    linear-gradient(90deg, rgb(129 198 245 / 12%) 1px, transparent 1px) 0 0 / 100px 100px,
+    linear-gradient(rgb(129 198 245 / 6%) 1px, transparent 1px) 0 0 / 20px 20px,
+    linear-gradient(90deg, rgb(129 198 245 / 6%) 1px, transparent 1px) 0 0 / 20px 20px,
+    var(--studio-bg);
+  background-attachment: fixed;
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .content,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .page-header,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .page-body {
+  background: transparent;
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .sidebar {
+  color: var(--studio-text);
+  background: var(--studio-sidebar);
+  border-right: 1px solid var(--studio-line);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .navigation-divider {
+  background: var(--studio-line);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .navigation a,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .settings-link {
+  color: var(--studio-muted);
+  border: 1px solid transparent;
+  border-radius: var(--studio-radius);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .navigation a:hover,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .settings-link:hover,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .navigation a.router-link-active,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .settings-link.router-link-active {
+  color: var(--studio-on-primary);
+  background: var(--studio-primary);
+  border-color: var(--studio-accent);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .eyebrow {
+  color: var(--studio-accent) !important;
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .service-card,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-help-card,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .form-card,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-card,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .terminal-card,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-online-card,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-list-toolbar,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-list,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-empty-state,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-summary,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-list,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .setting-row,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .php-ini-editor,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-contents,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-logs {
+  background: var(--studio-panel);
+  border: 1px solid var(--studio-line);
+  border-radius: var(--studio-radius);
+  box-shadow: var(--studio-shadow);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .modal-dialog,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .quit-dialog {
+  color: var(--studio-text);
+  background: var(--studio-solid);
+  border: 1px solid var(--studio-line);
+  border-radius: var(--studio-radius);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 35%);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-row,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-row {
+  background: transparent;
+  border-color: var(--studio-line);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-summary > div,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .modal-header,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-section + .help-section,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-checks li,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-logs li {
+  border-color: var(--studio-line);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-search-toolbar,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .update-version-grid div,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .update-artifact-details,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .php-fastcgi-settings {
+  background: var(--studio-inset);
+  border-color: var(--studio-line);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-row.is-shared,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-row.selected,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-row.selected,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-selection-toolbar,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-selection-toolbar {
+  background: var(--studio-selection);
+  border-color: var(--studio-line);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-row.selected,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-row.selected {
+  box-shadow: inset 3px 0 0 var(--studio-accent);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) input,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) select,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) textarea {
+  color: var(--studio-text);
+  background: var(--studio-inset);
+  border: 1px solid var(--studio-line);
+  border-radius: var(--studio-radius);
+  accent-color: var(--studio-accent);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) input::placeholder,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) textarea::placeholder {
+  color: var(--studio-muted);
+  opacity: 0.85;
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) input:focus,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) select:focus,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) textarea:focus {
+  border-color: var(--studio-accent);
+  box-shadow: 0 0 0 2px var(--studio-selection);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .primary-button,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .secondary-button,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .share-stop-button,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .danger-button,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-filter-button,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .open-link-icon,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .modal-close-button {
+  color: var(--studio-text);
+  background: var(--studio-solid);
+  border: 1px solid var(--studio-line);
+  border-radius: var(--studio-radius);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .primary-button,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-filter-button.active {
+  color: var(--studio-on-primary);
+  background: var(--studio-primary);
+  border-color: var(--studio-accent);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .primary-button:hover:not(:disabled),
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .secondary-button:hover:not(:disabled),
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .share-stop-button:hover:not(:disabled),
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .danger-button:hover:not(:disabled),
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-filter-button:hover:not(:disabled),
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .open-link-icon:hover:not(:disabled),
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .modal-close-button:hover:not(:disabled) {
+  color: var(--studio-text);
+  background: var(--studio-selection);
+  border-color: var(--studio-accent);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) button:focus-visible,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) a:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: 3px;
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) button:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .state-pill,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-version,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-section-number,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .service-icon,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-filter-button span,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-summary span,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-state {
+  color: var(--studio-accent);
+  background: var(--studio-inset);
+  border: 1px solid var(--studio-line);
+  border-radius: var(--studio-radius);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .state-pill[data-state="running"],
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .service-icon,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-summary [data-status="passed"],
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-state[data-status="passed"] {
+  color: var(--studio-success);
+  background: var(--studio-success-bg);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .state-pill[data-state="failed"],
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .danger-button,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-summary [data-status="failed"],
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-state[data-status="failed"] {
+  color: var(--studio-danger);
+  background: var(--studio-danger-bg);
+  border-color: var(--studio-danger);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .state-pill[data-state="warning"],
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .state-pill[data-state="degraded"],
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .share-stop-button,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-summary [data-status="warning"],
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-state[data-status="warning"] {
+  color: var(--studio-warning);
+  background: var(--studio-warning-bg);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .danger-button:hover:not(:disabled) {
+  color: var(--studio-danger-bg);
+  background: var(--studio-danger);
+  border-color: var(--studio-danger);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .share-stop-button:hover:not(:disabled) {
+  color: var(--studio-warning-bg);
+  background: var(--studio-warning);
+  border-color: var(--studio-warning);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .notice,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .app-update-notice,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-summary {
+  color: var(--studio-text);
+  background: var(--studio-selection);
+  border: 1px solid var(--studio-line);
+  border-radius: var(--studio-radius);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .notice.warning,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-online-warning,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-notes {
+  color: var(--studio-warning) !important;
+  background: var(--studio-warning-bg);
+  border-color: var(--studio-warning);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .modal-message {
+  color: var(--studio-danger);
+  background: var(--studio-danger-bg);
+  border-color: var(--studio-danger);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .setting-row p,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .setting-row small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .page-header p,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .service-card p,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-card p,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-help-card p,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .terminal-card p,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .terminal-card small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .terminal-card code,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-card .runtime-details p,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-card .runtime-details > div > small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-online-header p:not(.eyebrow),
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-online-details dt,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-row-progress small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-footnote,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-home-description,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-list-filter-row > small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-empty-state,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-row small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-row small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-summary small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-empty,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-search-toolbar small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-selection-toolbar,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-selection-toolbar,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .modal-header p,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .modal-form label small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .quit-dialog p,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-contents strong,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-section p,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .service-scope-note,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .php-pool-metric span,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .php-pool-unavailable,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .update-version-grid dt,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .update-progress-label,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .app-update-notice span,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .php-fastcgi-settings small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .php-ini-actions,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .form-message,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .brand small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .agent-state,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-domain,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .mariadb-settings-heading p,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .mariadb-settings-card > p,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-help,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-copy-message,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-logs code {
+  color: var(--studio-muted);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .form-card label,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .modal-form label,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-selection-toolbar label,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-selection-toolbar label,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-contents a,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-section ol,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-section ul,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .update-version-grid dd,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .update-artifact-details code,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-summary strong,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .php-pool-metric strong,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-summary strong,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-identity strong,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-identity strong,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-endpoint code,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-target code,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-paths code,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-section h3,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .diagnostic-checks strong {
+  color: var(--studio-text);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .warning-text {
+  color: var(--studio-warning);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .error-message,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-state small,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .runtime-online-progress small {
+  color: var(--studio-danger);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-share-address {
+  color: var(--studio-success) !important;
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-share-address.is-inactive {
+  color: var(--studio-muted) !important;
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-contents a:hover,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-contents a:focus-visible {
+  color: var(--studio-accent);
+  background: var(--studio-selection);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .toggle-button {
+  background: var(--studio-line);
+  border: 1px solid var(--studio-line);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 16%);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .toggle-button span {
+  background: var(--studio-text);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .toggle-button.active {
+  background: var(--studio-primary);
+  border-color: var(--studio-accent);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .toggle-button.active span {
+  background: var(--studio-on-primary);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) progress {
+  accent-color: var(--studio-accent);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .quit-spinner {
+  border-color: var(--studio-line);
+  border-top-color: var(--studio-accent);
+}
+
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .quit-overlay,
+html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .modal-overlay {
+  background: rgb(3 9 18 / 65%);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}

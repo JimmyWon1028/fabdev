@@ -1,0 +1,127 @@
+/* The menu is teleported so card clipping and backdrop filters cannot hide it. */
+:root {
+  --picker-surface: var(--studio-solid, #fff);
+  --picker-text: var(--studio-text, #18201b);
+  --picker-line: var(--studio-line, #ccd5cf);
+  --picker-selected: var(--studio-primary, #126a45);
+  --picker-on-selected: var(--studio-on-primary, #fff);
+  --picker-hover: var(--studio-selection, #e3f4e9);
+  --picker-accent: var(--studio-accent, #17764f);
+}
+
+html[data-theme="notion"] {
+  --picker-text: #37352f;
+  --picker-line: #d4d4d1;
+  --picker-selected: #37352f;
+  --picker-hover: #efefed;
+  --picker-accent: #2383e2;
+}
+
+html[data-theme="neo-brutalism"] {
+  --picker-text: #111;
+  --picker-line: #111;
+  --picker-selected: #78e08f;
+  --picker-on-selected: #111;
+  --picker-hover: #ff6fae;
+  --picker-accent: #111;
+}
+
+html[data-theme="glassmorphism"] {
+  --picker-surface: rgb(241 249 255 / 94%);
+  --picker-text: #203259;
+  --picker-line: rgb(255 255 255 / 84%);
+  --picker-selected: linear-gradient(110deg, #087fa7, #5350d9);
+  --picker-hover: #dce9fc;
+  --picker-accent: #4053c7;
+}
+
+html[data-theme="cyberpunk"] {
+  --picker-surface: #081923;
+  --picker-text: #e3f8fc;
+  --picker-line: #599cb2;
+  --picker-selected: #16485b;
+  --picker-hover: #103443;
+  --picker-accent: #96e8ff;
+}
+
+html[data-theme="cyberpunk-city"] {
+  --picker-surface: #100f29;
+  --picker-text: #e9fbff;
+  --picker-line: #7b66ce;
+  --picker-selected: linear-gradient(110deg, #772b86, #29458f);
+  --picker-hover: #30214b;
+  --picker-accent: #ff9be7;
+}
+
+.theme-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+  gap: 12px;
+  width: 200px;
+  max-width: 100%;
+  padding: 9px 12px;
+  color: var(--picker-text);
+  background: var(--picker-surface);
+  border: 1px solid var(--picker-line);
+  border-radius: var(--studio-radius, 7px);
+  text-align: left;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.theme-select svg {
+  flex-shrink: 0;
+}
+
+.theme-select:focus-visible {
+  outline: 2px solid var(--picker-accent);
+  outline-offset: 3px;
+}
+
+.theme-menu {
+  position: fixed;
+  z-index: 1100;
+  padding: 5px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--picker-text);
+  background: var(--picker-surface);
+  border: 1px solid var(--picker-line);
+  border-radius: var(--studio-radius, 9px);
+  box-shadow: 0 12px 36px rgb(0 0 0 / 28%);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  font-size: 14px;
+}
+
+.theme-menu-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.theme-menu-option:hover {
+  background: var(--picker-hover);
+}
+
+.theme-menu-option[aria-selected="true"] {
+  color: var(--picker-on-selected);
+  background: var(--picker-selected);
+}
+
+.theme-menu-check {
+  flex: 0 0 16px;
+}
+
+html[data-theme="neo-brutalism"] :is(.theme-select, .theme-menu) {
+  border: 2px solid #111;
+  border-radius: 0;
+  box-shadow: 4px 4px 0 #111;
+}
