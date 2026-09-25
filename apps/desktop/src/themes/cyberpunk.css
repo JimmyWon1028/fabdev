@@ -1,18 +1,17 @@
 html[data-theme="cyberpunk"] {
-  color: #e9fbff;
-  background: #060711;
+  color-scheme: dark;
+  color: #e3f8fc;
+  background: #03090d;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+/* Background source: https://getwallpapers.com/collection/tron-legacy-backgrounds */
 html[data-theme="cyberpunk"] body {
   background:
-    linear-gradient(rgb(0 240 255 / 5%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(0 240 255 / 5%) 1px, transparent 1px),
-    radial-gradient(circle at 82% 12%, rgb(255 0 153 / 23%) 0, transparent 31%),
-    radial-gradient(circle at 18% 84%, rgb(0 240 255 / 17%) 0, transparent 34%),
-    #060711;
+    linear-gradient(180deg, rgb(3 9 13 / 8%), rgb(3 9 13 / 18%)),
+    url('./tron-city.jpg') center / cover no-repeat,
+    #03090d;
   background-attachment: fixed;
-  background-size: 38px 38px, 38px 38px, auto, auto, auto;
 }
 
 html[data-theme="cyberpunk"] .content,
@@ -22,38 +21,70 @@ html[data-theme="cyberpunk"] .page-body {
 }
 
 html[data-theme="cyberpunk"] .sidebar {
-  color: #e9fbff;
-  background: rgb(8 10 28 / 94%);
-  border-right: 1px solid #00f0ff;
-  box-shadow: 8px 0 30px rgb(0 240 255 / 12%);
+  color: #e3f8fc;
+  background:
+    linear-gradient(#b7f3ff, #b7f3ff) left 20px top 80px / 42px 2px no-repeat,
+    linear-gradient(90deg, rgb(94 223 255 / 40%), transparent) left 20px top 81px / 176px 1px no-repeat,
+    linear-gradient(90deg, transparent 8px, rgb(99 207 255 / 12%) 8px 9px, transparent 9px),
+    linear-gradient(180deg, rgb(7 21 34 / 28%), rgb(2 8 15 / 24%));
+  border-right: 1px solid #96e8ff;
+  box-shadow: inset -3px 0 0 rgb(94 223 255 / 12%), 3px 0 14px rgb(94 223 255 / 24%);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+html[data-theme="cyberpunk"] .brand-mark {
+  border-radius: 9px;
+  outline: 1px solid rgb(181 242 255 / 62%);
+  outline-offset: 3px;
+  box-shadow: 0 0 18px rgb(94 223 255 / 22%);
 }
 
 html[data-theme="cyberpunk"] .brand small,
 html[data-theme="cyberpunk"] .agent-state,
 html[data-theme="cyberpunk"] .navigation a,
 html[data-theme="cyberpunk"] .settings-link {
-  color: #9eb7c5;
+  color: #bed5de;
 }
 
 html[data-theme="cyberpunk"] .navigation-divider {
-  background: rgb(0 240 255 / 28%);
+  background: linear-gradient(90deg, #b5f2ff 0 24px, rgb(94 223 255 / 24%) 24px calc(100% - 26px), #ffad65 calc(100% - 26px) calc(100% - 12px), transparent calc(100% - 12px));
+  box-shadow: 0 0 7px rgb(94 223 255 / 16%);
 }
 
 html[data-theme="cyberpunk"] .navigation a,
 html[data-theme="cyberpunk"] .settings-link {
+  position: relative;
   border: 1px solid transparent;
   border-radius: 3px;
   font-weight: 700;
+}
+
+html[data-theme="cyberpunk"] .navigation a.router-link-active::after,
+html[data-theme="cyberpunk"] .settings-link.router-link-active::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  width: 15px;
+  height: 15px;
+  border: 1px solid #b5f2ff;
+  border-right-color: transparent;
+  border-radius: 50%;
+  background: radial-gradient(circle, transparent 0 3px, rgb(145 234 255 / 58%) 3px 4px, transparent 4px);
+  box-shadow: 0 0 8px rgb(94 223 255 / 30%);
+  transform: translateY(-50%) rotate(-35deg);
+  pointer-events: none;
 }
 
 html[data-theme="cyberpunk"] .navigation a:hover,
 html[data-theme="cyberpunk"] .navigation a.router-link-active,
 html[data-theme="cyberpunk"] .settings-link:hover,
 html[data-theme="cyberpunk"] .settings-link.router-link-active {
-  color: #061016;
-  background: #00f0ff;
-  border-color: #8bffff;
-  box-shadow: 0 0 18px rgb(0 240 255 / 58%);
+  color: #e2faff;
+  background: linear-gradient(90deg, rgb(64 178 208 / 20%), rgb(19 53 65 / 16%));
+  border-color: rgb(145 234 255 / 76%);
+  box-shadow: inset 3px 0 0 #dcfaff, inset 0 0 18px rgb(94 223 255 / 12%), 0 0 5px rgb(94 223 255 / 25%), 0 0 20px rgb(94 223 255 / 20%);
 }
 
 html[data-theme="cyberpunk"] .page-header h1,
@@ -61,14 +92,14 @@ html[data-theme="cyberpunk"] .setting-row h2,
 html[data-theme="cyberpunk"] .service-card h2,
 html[data-theme="cyberpunk"] .form-card h2,
 html[data-theme="cyberpunk"] .runtime-card h2 {
-  color: #f7fdff;
-  font-weight: 800;
-  text-shadow: 0 0 14px rgb(0 240 255 / 20%);
+  color: #f1fcff;
+  font-weight: 650;
+  text-shadow: 0 0 4px rgb(145 234 255 / 36%), 0 0 16px rgb(94 223 255 / 30%);
 }
 
 html[data-theme="cyberpunk"] .eyebrow {
-  color: #ff3cac !important;
-  text-shadow: 0 0 10px rgb(255 0 153 / 48%);
+  color: #91d9eb !important;
+  text-shadow: 0 0 10px rgb(94 223 255 / 24%);
 }
 
 html[data-theme="cyberpunk"] .service-card,
@@ -88,14 +119,44 @@ html[data-theme="cyberpunk"] .modal-dialog,
 html[data-theme="cyberpunk"] .quit-dialog,
 html[data-theme="cyberpunk"] .help-contents,
 html[data-theme="cyberpunk"] .diagnostic-logs {
-  background: rgb(13 17 39 / 90%);
-  border: 1px solid rgb(0 240 255 / 58%);
+  background:
+    var(--tron-circuit, none) right 16px top 4px / 260px 22px no-repeat,
+    linear-gradient(#daf9ff, #daf9ff) left top / 60px 2px no-repeat,
+    linear-gradient(#a4edff, #a4edff) right bottom / 60px 2px no-repeat,
+    repeating-linear-gradient(0deg, rgb(105 190 255 / 2%) 0 1px, transparent 1px 4px),
+    var(--tron-panel-surface, linear-gradient(135deg, rgb(9 26 42 / 42%), rgb(3 10 19 / 34%)));
+  border: 1px solid rgb(104 213 255 / 64%);
   border-radius: 4px;
-  box-shadow: 0 0 0 1px rgb(255 0 153 / 10%), 0 12px 34px rgb(0 0 0 / 34%), 0 0 24px rgb(0 240 255 / 8%);
+  box-shadow: inset 0 0 16px rgb(70 174 255 / 5%), 0 0 3px rgb(94 223 255 / 24%), 0 0 20px rgb(46 152 240 / 12%), 0 12px 34px rgb(0 0 0 / 40%);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+html[data-theme="cyberpunk"] .modal-dialog,
+html[data-theme="cyberpunk"] .quit-dialog {
+  --tron-panel-surface: linear-gradient(135deg, rgb(9 26 42 / 97%), rgb(3 10 19 / 95%));
+}
+
+/* Blur the scene behind the list without filtering its text or controls. */
+html[data-theme="cyberpunk"] .site-list,
+html[data-theme="cyberpunk"] .proxy-list {
+  --tron-panel-surface: linear-gradient(135deg, rgb(9 26 42 / 32%), rgb(3 10 19 / 24%));
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+html[data-theme="cyberpunk"] .setting-row,
+html[data-theme="cyberpunk"] .service-card,
+html[data-theme="cyberpunk"] .form-card,
+html[data-theme="cyberpunk"] .runtime-card,
+html[data-theme="cyberpunk"] .terminal-card,
+html[data-theme="cyberpunk"] .runtime-online-card,
+html[data-theme="cyberpunk"] .modal-dialog {
+  --tron-circuit: url('./cyberpunk-circuit.svg');
 }
 
 html[data-theme="cyberpunk"] .runtime-help-card {
-  background: linear-gradient(135deg, rgb(12 21 43 / 96%), rgb(24 12 44 / 94%));
+  background: linear-gradient(135deg, rgb(8 23 31 / 42%), rgb(5 13 19 / 34%));
 }
 
 html[data-theme="cyberpunk"] .app-update-notice,
@@ -104,42 +165,42 @@ html[data-theme="cyberpunk"] .notice,
 html[data-theme="cyberpunk"] .runtime-online-warning,
 html[data-theme="cyberpunk"] .modal-message,
 html[data-theme="cyberpunk"] .help-notes {
-  color: #e9fbff !important;
-  background: rgb(13 24 46 / 94%);
-  border: 1px solid rgb(0 240 255 / 48%);
+  color: #e3f8fc !important;
+  background: rgb(9 23 31 / 94%);
+  border: 1px solid rgb(94 223 255 / 48%);
   border-radius: 3px;
-  box-shadow: 0 0 18px rgb(0 240 255 / 8%);
+  box-shadow: 0 0 18px rgb(94 223 255 / 8%);
 }
 
 html[data-theme="cyberpunk"] .notice.warning,
 html[data-theme="cyberpunk"] .runtime-online-warning,
 html[data-theme="cyberpunk"] .help-notes {
-  color: #fff4b0 !important;
-  background: rgb(54 43 14 / 94%);
-  border-color: rgb(255 219 77 / 58%);
+  color: #ffe0be !important;
+  background: rgb(38 27 15 / 94%);
+  border-color: rgb(255 177 92 / 58%);
 }
 
 html[data-theme="cyberpunk"] .modal-message {
-  color: #ffd7e9 !important;
-  background: rgb(57 17 39 / 94%);
-  border-color: rgb(255 60 172 / 58%);
+  color: #ffe0c7 !important;
+  background: rgb(40 23 12 / 94%);
+  border-color: rgb(255 156 66 / 58%);
 }
 
 html[data-theme="cyberpunk"] input,
 html[data-theme="cyberpunk"] select,
 html[data-theme="cyberpunk"] .modal-dialog textarea {
-  color: #e9fbff;
-  background: #090d20;
-  border: 1px solid rgb(0 240 255 / 54%);
+  color: #e3f8fc;
+  background: #050e14;
+  border: 1px solid rgb(94 223 255 / 54%);
   border-radius: 3px;
-  box-shadow: inset 0 0 14px rgb(0 240 255 / 5%);
+  box-shadow: inset 0 0 14px rgb(94 223 255 / 5%);
 }
 
 html[data-theme="cyberpunk"] input:focus,
 html[data-theme="cyberpunk"] select:focus,
 html[data-theme="cyberpunk"] .modal-dialog textarea:focus {
-  border-color: #ff3cac;
-  box-shadow: 0 0 0 2px rgb(255 60 172 / 17%), 0 0 18px rgb(255 60 172 / 24%);
+  border-color: #b5f2ff;
+  box-shadow: 0 0 0 2px rgb(94 223 255 / 16%), 0 0 18px rgb(94 223 255 / 20%);
 }
 
 html[data-theme="cyberpunk"] .primary-button,
@@ -149,30 +210,31 @@ html[data-theme="cyberpunk"] .danger-button,
 html[data-theme="cyberpunk"] .site-filter-button,
 html[data-theme="cyberpunk"] .open-link-icon,
 html[data-theme="cyberpunk"] .modal-close-button {
-  color: #c8f9ff;
-  background: #0b1128;
-  border: 1px solid rgb(0 240 255 / 56%);
+  color: #bcebf5;
+  background: #07151d;
+  border: 1px solid rgb(94 223 255 / 56%);
   border-radius: 3px;
-  box-shadow: 0 0 14px rgb(0 240 255 / 9%);
+  box-shadow: 0 0 14px rgb(94 223 255 / 9%);
 }
 
 html[data-theme="cyberpunk"] .primary-button,
 html[data-theme="cyberpunk"] .site-filter-button.active {
-  color: #061016;
-  background: #00f0ff;
-  border-color: #7cffff;
+  color: #e4faff;
+  background: linear-gradient(180deg, #143a49, #0b222d);
+  border-color: #91eaff;
+  box-shadow: inset 0 -2px 0 rgb(181 242 255 / 74%), 0 0 16px rgb(94 223 255 / 18%);
 }
 
 html[data-theme="cyberpunk"] .share-stop-button {
-  color: #ffe96c;
-  background: #2b2510;
-  border-color: rgb(255 219 77 / 60%);
+  color: #ffc38a;
+  background: #251b10;
+  border-color: rgb(255 177 92 / 60%);
 }
 
 html[data-theme="cyberpunk"] .danger-button {
-  color: #ff8bc8;
-  background: #271020;
-  border-color: rgb(255 60 172 / 64%);
+  color: #ffb477;
+  background: #26170d;
+  border-color: rgb(255 156 66 / 64%);
 }
 
 html[data-theme="cyberpunk"] .primary-button:hover:not(:disabled),
@@ -184,49 +246,63 @@ html[data-theme="cyberpunk"] .open-link-icon:hover:not(:disabled),
 html[data-theme="cyberpunk"] .open-link-icon:focus-visible,
 html[data-theme="cyberpunk"] .modal-close-button:hover:not(:disabled),
 html[data-theme="cyberpunk"] .modal-close-button:focus-visible {
-  color: #071019;
-  background: #ff3cac;
-  border-color: #ff9bd5;
-  box-shadow: 0 0 20px rgb(255 60 172 / 48%);
+  color: #f0fcff;
+  background: #153745;
+  border-color: #b5f2ff;
+  box-shadow: inset 0 -1px 0 #b5f2ff, 0 0 20px rgb(94 223 255 / 28%);
   outline: none;
   transform: translateY(-1px);
+}
+
+html[data-theme="cyberpunk"] .share-stop-button:hover:not(:disabled),
+html[data-theme="cyberpunk"] .danger-button:hover:not(:disabled) {
+  color: #fff1e4;
+  background: #462812;
+  border-color: #ffc38a;
+  box-shadow: inset 0 -1px 0 #ffc38a, 0 0 18px rgb(255 156 66 / 24%);
+}
+
+html[data-theme="cyberpunk"] button:focus-visible,
+html[data-theme="cyberpunk"] a:focus-visible {
+  outline: 2px solid #c5f6ff;
+  outline-offset: 3px;
 }
 
 html[data-theme="cyberpunk"] .state-pill,
 html[data-theme="cyberpunk"] .service-icon,
 html[data-theme="cyberpunk"] .runtime-version,
 html[data-theme="cyberpunk"] .help-section-number {
-  color: #c8f9ff;
-  background: #13172b;
-  border: 1px solid rgb(0 240 255 / 36%);
+  color: #bcebf5;
+  background: #0b1820;
+  border: 1px solid rgb(94 223 255 / 36%);
   border-radius: 3px;
 }
 
 html[data-theme="cyberpunk"] .state-pill[data-state="running"],
 html[data-theme="cyberpunk"] .service-icon {
-  color: #72ffe0;
-  background: rgb(9 56 52 / 90%);
-  border-color: rgb(53 255 214 / 46%);
+  color: #a2edff;
+  background: rgb(10 40 49 / 90%);
+  border-color: rgb(94 223 255 / 46%);
 }
 
 html[data-theme="cyberpunk"] .state-pill[data-state="failed"] {
-  color: #ff8bc8;
-  background: rgb(61 14 42 / 90%);
-  border-color: rgb(255 60 172 / 48%);
+  color: #ffb477;
+  background: rgb(43 24 13 / 90%);
+  border-color: rgb(255 156 66 / 48%);
 }
 
 html[data-theme="cyberpunk"] .state-pill[data-state="warning"],
 html[data-theme="cyberpunk"] .state-pill[data-state="degraded"] {
-  color: #ffe96c;
-  background: rgb(57 46 12 / 90%);
-  border-color: rgb(255 219 77 / 48%);
+  color: #ffc38a;
+  background: rgb(40 29 16 / 90%);
+  border-color: rgb(255 177 92 / 48%);
 }
 
 html[data-theme="cyberpunk"] .runtime-version,
 html[data-theme="cyberpunk"] .help-section-number {
-  color: #f1d8ff;
-  background: rgb(49 24 74 / 92%);
-  border-color: rgb(193 107 255 / 46%);
+  color: #bcebf5;
+  background: rgb(10 28 38 / 92%);
+  border-color: rgb(94 223 255 / 46%);
 }
 
 html[data-theme="cyberpunk"] .site-row,
@@ -236,14 +312,18 @@ html[data-theme="cyberpunk"] .proxy-search-toolbar,
 html[data-theme="cyberpunk"] .proxy-selection-toolbar,
 html[data-theme="cyberpunk"] .site-selection-toolbar,
 html[data-theme="cyberpunk"] .modal-header,
+html[data-theme="cyberpunk"] .modal-actions,
 html[data-theme="cyberpunk"] .help-section + .help-section {
-  border-color: rgb(0 240 255 / 20%);
+  border-color: rgb(94 223 255 / 20%);
 }
 
 html[data-theme="cyberpunk"] .site-row,
-html[data-theme="cyberpunk"] .proxy-row,
+html[data-theme="cyberpunk"] .proxy-row {
+  background: rgb(5 14 20 / 12%);
+}
+
 html[data-theme="cyberpunk"] .proxy-search-toolbar {
-  background: rgb(10 14 32 / 76%);
+  background: rgb(5 14 20 / 76%);
 }
 
 html[data-theme="cyberpunk"] .site-row.is-shared,
@@ -251,37 +331,52 @@ html[data-theme="cyberpunk"] .site-row.selected,
 html[data-theme="cyberpunk"] .proxy-row.selected,
 html[data-theme="cyberpunk"] .proxy-selection-toolbar,
 html[data-theme="cyberpunk"] .site-selection-toolbar {
-  background: rgb(9 49 52 / 78%);
+  background-color: rgb(10 39 48 / 78%);
+  box-shadow: inset 2px 0 0 #91eaff;
+}
+
+html[data-theme="cyberpunk"] .site-row.is-shared,
+html[data-theme="cyberpunk"] .site-row.selected,
+html[data-theme="cyberpunk"] .proxy-row.selected {
+  background-color: rgb(10 49 62 / 42%);
+}
+
+html[data-theme="cyberpunk"] .site-row,
+html[data-theme="cyberpunk"] .proxy-row {
+  background-image: url('./cyberpunk-circuit.svg');
+  background-position: right 14px top 2px;
+  background-size: 260px 22px;
+  background-repeat: no-repeat;
 }
 
 html[data-theme="cyberpunk"] .update-version-grid div,
 html[data-theme="cyberpunk"] .update-artifact-details,
 html[data-theme="cyberpunk"] .php-fastcgi-settings {
-  background: rgb(7 11 27 / 84%);
-  border: 1px solid rgb(0 240 255 / 24%);
+  background: rgb(4 12 18 / 84%);
+  border: 1px solid rgb(94 223 255 / 24%);
   border-radius: 3px;
 }
 
 html[data-theme="cyberpunk"] .toggle-button {
-  background: #24283d;
-  border: 1px solid rgb(0 240 255 / 38%);
+  background: #16252e;
+  border: 1px solid rgb(94 223 255 / 38%);
   box-shadow: inset 0 0 10px rgb(0 0 0 / 38%);
 }
 
 html[data-theme="cyberpunk"] .toggle-button span {
-  background: #aab8c4;
+  background: #9cafb7;
   box-shadow: 0 0 8px rgb(170 184 196 / 28%);
 }
 
 html[data-theme="cyberpunk"] .toggle-button.active {
-  background: #123b45;
-  border-color: #00f0ff;
-  box-shadow: 0 0 14px rgb(0 240 255 / 30%);
+  background: #123640;
+  border-color: #91eaff;
+  box-shadow: 0 0 14px rgb(94 223 255 / 30%);
 }
 
 html[data-theme="cyberpunk"] .toggle-button.active span {
-  background: #00f0ff;
-  box-shadow: 0 0 12px rgb(0 240 255 / 70%);
+  background: #91eaff;
+  box-shadow: 0 0 12px rgb(94 223 255 / 70%);
 }
 
 html[data-theme="cyberpunk"] .setting-row p,
@@ -289,21 +384,103 @@ html[data-theme="cyberpunk"] .setting-row small,
 html[data-theme="cyberpunk"] .page-header p,
 html[data-theme="cyberpunk"] .service-card p,
 html[data-theme="cyberpunk"] .runtime-card p,
+html[data-theme="cyberpunk"] .runtime-help-card p,
+html[data-theme="cyberpunk"] .terminal-card p,
+html[data-theme="cyberpunk"] .terminal-card small,
+html[data-theme="cyberpunk"] .terminal-card code,
+html[data-theme="cyberpunk"] .runtime-card .runtime-details p,
+html[data-theme="cyberpunk"] .runtime-card .runtime-details > div > small,
+html[data-theme="cyberpunk"] .runtime-online-header p:not(.eyebrow),
+html[data-theme="cyberpunk"] .runtime-online-details dt,
+html[data-theme="cyberpunk"] .runtime-row-progress small,
+html[data-theme="cyberpunk"] .runtime-footnote,
+html[data-theme="cyberpunk"] .site-home-description,
+html[data-theme="cyberpunk"] .site-list-filter-row > small,
+html[data-theme="cyberpunk"] .site-empty-state,
+html[data-theme="cyberpunk"] .site-row small,
+html[data-theme="cyberpunk"] .proxy-row small,
+html[data-theme="cyberpunk"] .proxy-summary small,
+html[data-theme="cyberpunk"] .proxy-empty,
+html[data-theme="cyberpunk"] .proxy-search-toolbar small,
+html[data-theme="cyberpunk"] .proxy-selection-toolbar,
+html[data-theme="cyberpunk"] .site-selection-toolbar,
+html[data-theme="cyberpunk"] .modal-header p,
+html[data-theme="cyberpunk"] .modal-form label small,
+html[data-theme="cyberpunk"] .quit-dialog p,
+html[data-theme="cyberpunk"] .help-contents strong,
+html[data-theme="cyberpunk"] .help-section p,
+html[data-theme="cyberpunk"] .service-scope-note,
+html[data-theme="cyberpunk"] .php-pool-metric span,
+html[data-theme="cyberpunk"] .php-pool-unavailable,
+html[data-theme="cyberpunk"] .update-version-grid dt,
+html[data-theme="cyberpunk"] .update-progress-label,
+html[data-theme="cyberpunk"] .app-update-notice span,
+html[data-theme="cyberpunk"] .php-fastcgi-settings small,
+html[data-theme="cyberpunk"] .php-ini-actions,
 html[data-theme="cyberpunk"] .form-message {
-  color: #9eb7c5;
+  color: #9db7c1;
+}
+
+html[data-theme="cyberpunk"] .form-card label,
+html[data-theme="cyberpunk"] .modal-form label,
+html[data-theme="cyberpunk"] .site-selection-toolbar label,
+html[data-theme="cyberpunk"] .proxy-selection-toolbar label,
+html[data-theme="cyberpunk"] .help-contents a,
+html[data-theme="cyberpunk"] .help-section ol,
+html[data-theme="cyberpunk"] .help-section ul {
+  color: #c3e6ef;
+}
+
+html[data-theme="cyberpunk"] .site-filter-button span {
+  color: #bcebf5;
+  background: #16333e;
+}
+
+html[data-theme="cyberpunk"] .help-contents a:hover,
+html[data-theme="cyberpunk"] .help-contents a:focus-visible {
+  color: #e2faff;
+  background: #153745;
+}
+
+html[data-theme="cyberpunk"] .warning-text,
+html[data-theme="cyberpunk"] .error-message,
+html[data-theme="cyberpunk"] .proxy-state small,
+html[data-theme="cyberpunk"] .runtime-online-progress small {
+  color: #ffc38a;
 }
 
 html[data-theme="cyberpunk"] .update-version-grid dd,
+html[data-theme="cyberpunk"] .update-artifact-details code,
+html[data-theme="cyberpunk"] .runtime-summary strong,
+html[data-theme="cyberpunk"] .php-pool-metric strong,
 html[data-theme="cyberpunk"] .proxy-summary strong,
 html[data-theme="cyberpunk"] .site-identity strong,
+html[data-theme="cyberpunk"] .proxy-identity strong,
 html[data-theme="cyberpunk"] .proxy-endpoint code,
 html[data-theme="cyberpunk"] .proxy-target code,
 html[data-theme="cyberpunk"] .site-paths code {
-  color: #e9fbff;
+  color: #e3f8fc;
 }
 
 html[data-theme="cyberpunk"] .quit-overlay,
 html[data-theme="cyberpunk"] .modal-overlay {
-  background: rgb(2 3 10 / 72%);
+  background: rgb(1 5 8 / 72%);
+  -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
+}
+
+html[data-theme="cyberpunk"] input[type="checkbox"] {
+  accent-color: #91eaff;
+}
+
+html[data-theme="cyberpunk"] .status-dot[data-state="running"],
+html[data-theme="cyberpunk"] .agent-state:not(.offline) .status-dot {
+  background: #b5f2ff;
+  box-shadow: 0 0 4px #91eaff, 0 0 12px rgb(94 223 255 / 58%);
+}
+
+html[data-theme="cyberpunk"] .status-dot[data-state="failed"],
+html[data-theme="cyberpunk"] .status-dot[data-state="degraded"] {
+  background: #ffad65;
+  box-shadow: 0 0 9px rgb(255 156 66 / 48%);
 }

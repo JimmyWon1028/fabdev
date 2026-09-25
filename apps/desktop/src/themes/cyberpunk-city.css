@@ -1,0 +1,421 @@
+html[data-theme="cyberpunk-city"] {
+  color-scheme: dark;
+  color: #e9fbff;
+  background: #08071d;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+html[data-theme="cyberpunk-city"] body {
+  background:
+    linear-gradient(180deg, rgb(5 5 24 / 16%), rgb(5 5 24 / 32%)),
+    url('./cyberpunk-city.svg') center / cover no-repeat,
+    #08071d;
+  background-attachment: fixed;
+}
+
+html[data-theme="cyberpunk-city"] .content,
+html[data-theme="cyberpunk-city"] .page-header,
+html[data-theme="cyberpunk-city"] .page-body {
+  background: transparent;
+}
+
+html[data-theme="cyberpunk-city"] .sidebar {
+  color: #e9fbff;
+  background:
+    linear-gradient(180deg, #ff4cdb, transparent) right top / 2px 44% no-repeat,
+    linear-gradient(0deg, #49ddff, transparent) right bottom / 2px 44% no-repeat,
+    linear-gradient(160deg, rgb(17 11 47 / 28%), rgb(6 15 38 / 24%));
+  border-right: 1px solid rgb(128 127 255 / 56%);
+  box-shadow: 8px 0 32px rgb(57 83 255 / 18%);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+html[data-theme="cyberpunk-city"] .brand small,
+html[data-theme="cyberpunk-city"] .agent-state,
+html[data-theme="cyberpunk-city"] .navigation a,
+html[data-theme="cyberpunk-city"] .settings-link {
+  color: #bed2df;
+}
+
+html[data-theme="cyberpunk-city"] .navigation-divider {
+  background: rgb(0 240 255 / 28%);
+}
+
+html[data-theme="cyberpunk-city"] .navigation a,
+html[data-theme="cyberpunk-city"] .settings-link {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-weight: 700;
+}
+
+html[data-theme="cyberpunk-city"] .navigation a:hover,
+html[data-theme="cyberpunk-city"] .navigation a.router-link-active,
+html[data-theme="cyberpunk-city"] .settings-link:hover,
+html[data-theme="cyberpunk-city"] .settings-link.router-link-active {
+  color: #f9eeff;
+  background: linear-gradient(110deg, rgb(164 39 176 / 46%), rgb(44 66 163 / 32%));
+  border-color: rgb(248 102 228 / 76%);
+  box-shadow: inset 3px 0 0 #ff7ce2, 0 0 20px rgb(228 51 217 / 24%);
+}
+
+html[data-theme="cyberpunk-city"] .page-header h1,
+html[data-theme="cyberpunk-city"] .setting-row h2,
+html[data-theme="cyberpunk-city"] .service-card h2,
+html[data-theme="cyberpunk-city"] .form-card h2,
+html[data-theme="cyberpunk-city"] .runtime-card h2 {
+  color: #f7fdff;
+  font-weight: 700;
+  text-shadow: 0 0 18px rgb(99 190 255 / 26%);
+}
+
+html[data-theme="cyberpunk-city"] .eyebrow {
+  color: #ff3cac !important;
+  text-shadow: 0 0 10px rgb(255 0 153 / 48%);
+}
+
+html[data-theme="cyberpunk-city"] .service-card,
+html[data-theme="cyberpunk-city"] .runtime-help-card,
+html[data-theme="cyberpunk-city"] .form-card,
+html[data-theme="cyberpunk-city"] .runtime-card,
+html[data-theme="cyberpunk-city"] .terminal-card,
+html[data-theme="cyberpunk-city"] .runtime-online-card,
+html[data-theme="cyberpunk-city"] .site-list-toolbar,
+html[data-theme="cyberpunk-city"] .site-list,
+html[data-theme="cyberpunk-city"] .site-empty-state,
+html[data-theme="cyberpunk-city"] .proxy-summary,
+html[data-theme="cyberpunk-city"] .proxy-list,
+html[data-theme="cyberpunk-city"] .setting-row,
+html[data-theme="cyberpunk-city"] .php-ini-editor,
+html[data-theme="cyberpunk-city"] .modal-dialog,
+html[data-theme="cyberpunk-city"] .quit-dialog,
+html[data-theme="cyberpunk-city"] .help-contents,
+html[data-theme="cyberpunk-city"] .diagnostic-logs {
+  background:
+    linear-gradient(90deg, #ff59d7, #7a6cff, #55ddff) left top / 100% 2px no-repeat,
+    var(--cyberpunk-panel-surface, linear-gradient(120deg, rgb(24 17 57 / 42%), rgb(6 19 44 / 34%)));
+  border: 1px solid rgb(119 121 255 / 52%);
+  border-radius: 8px;
+  box-shadow: inset 0 1px 0 rgb(255 165 245 / 16%), 0 12px 34px rgb(2 3 23 / 38%), -4px 0 22px rgb(243 42 196 / 8%), 4px 0 22px rgb(31 160 255 / 10%);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+html[data-theme="cyberpunk-city"] .modal-dialog,
+html[data-theme="cyberpunk-city"] .quit-dialog {
+  --cyberpunk-panel-surface: linear-gradient(120deg, rgb(24 17 57 / 84%), rgb(6 19 44 / 80%));
+}
+
+html[data-theme="cyberpunk-city"] .runtime-help-card {
+  background: linear-gradient(135deg, rgb(17 37 69 / 42%), rgb(47 14 63 / 34%));
+}
+
+html[data-theme="cyberpunk-city"] .app-update-notice,
+html[data-theme="cyberpunk-city"] .runtime-summary,
+html[data-theme="cyberpunk-city"] .notice,
+html[data-theme="cyberpunk-city"] .runtime-online-warning,
+html[data-theme="cyberpunk-city"] .modal-message,
+html[data-theme="cyberpunk-city"] .help-notes {
+  color: #e9fbff !important;
+  background: rgb(13 24 46 / 60%);
+  border: 1px solid rgb(0 240 255 / 48%);
+  border-radius: 3px;
+  box-shadow: 0 0 18px rgb(0 240 255 / 8%);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+html[data-theme="cyberpunk-city"] .notice.warning,
+html[data-theme="cyberpunk-city"] .runtime-online-warning,
+html[data-theme="cyberpunk-city"] .help-notes {
+  color: #fff4b0 !important;
+  background: rgb(54 43 14 / 60%);
+  border-color: rgb(255 219 77 / 58%);
+}
+
+html[data-theme="cyberpunk-city"] .modal-message {
+  color: #ffd7e9 !important;
+  background: rgb(57 17 39 / 94%);
+  border-color: rgb(255 60 172 / 58%);
+}
+
+html[data-theme="cyberpunk-city"] input,
+html[data-theme="cyberpunk-city"] select,
+html[data-theme="cyberpunk-city"] .modal-dialog textarea {
+  color: #e9fbff;
+  background: #090d20;
+  border: 1px solid rgb(0 240 255 / 54%);
+  border-radius: 3px;
+  box-shadow: inset 0 0 14px rgb(0 240 255 / 5%);
+}
+
+html[data-theme="cyberpunk-city"] input:focus,
+html[data-theme="cyberpunk-city"] select:focus,
+html[data-theme="cyberpunk-city"] .modal-dialog textarea:focus {
+  border-color: #ff3cac;
+  box-shadow: 0 0 0 2px rgb(255 60 172 / 17%), 0 0 18px rgb(255 60 172 / 24%);
+}
+
+html[data-theme="cyberpunk-city"] .primary-button,
+html[data-theme="cyberpunk-city"] .secondary-button,
+html[data-theme="cyberpunk-city"] .share-stop-button,
+html[data-theme="cyberpunk-city"] .danger-button,
+html[data-theme="cyberpunk-city"] .site-filter-button,
+html[data-theme="cyberpunk-city"] .open-link-icon,
+html[data-theme="cyberpunk-city"] .modal-close-button {
+  color: #c8f9ff;
+  background: #0b1128;
+  border: 1px solid rgb(0 240 255 / 56%);
+  border-radius: 3px;
+  box-shadow: 0 0 14px rgb(0 240 255 / 9%);
+}
+
+html[data-theme="cyberpunk-city"] .primary-button,
+html[data-theme="cyberpunk-city"] .site-filter-button.active {
+  color: #effbff;
+  background: linear-gradient(120deg, #4730a4, #185d97);
+  border-color: #77dfff;
+  box-shadow: 0 0 16px rgb(71 124 255 / 32%);
+}
+
+html[data-theme="cyberpunk-city"] .share-stop-button {
+  color: #ffe96c;
+  background: #2b2510;
+  border-color: rgb(255 219 77 / 60%);
+}
+
+html[data-theme="cyberpunk-city"] .danger-button {
+  color: #ffbd99;
+  background: #331924;
+  border-color: rgb(255 143 108 / 64%);
+}
+
+html[data-theme="cyberpunk-city"] .primary-button:hover:not(:disabled),
+html[data-theme="cyberpunk-city"] .secondary-button:hover:not(:disabled),
+html[data-theme="cyberpunk-city"] .share-stop-button:hover:not(:disabled),
+html[data-theme="cyberpunk-city"] .danger-button:hover:not(:disabled),
+html[data-theme="cyberpunk-city"] .site-filter-button:hover:not(:disabled),
+html[data-theme="cyberpunk-city"] .open-link-icon:hover:not(:disabled),
+html[data-theme="cyberpunk-city"] .open-link-icon:focus-visible,
+html[data-theme="cyberpunk-city"] .modal-close-button:hover:not(:disabled),
+html[data-theme="cyberpunk-city"] .modal-close-button:focus-visible {
+  color: #fff4ff;
+  background: #552059;
+  border-color: #ff9bd5;
+  box-shadow: 0 0 20px rgb(255 60 172 / 48%);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+html[data-theme="cyberpunk-city"] button:focus-visible,
+html[data-theme="cyberpunk-city"] a:focus-visible {
+  outline: 2px solid #ff9be7;
+  outline-offset: 3px;
+}
+
+html[data-theme="cyberpunk-city"] .danger-button:hover:not(:disabled) {
+  color: #fff4ef;
+  background: #6b3035;
+  border-color: #ffc49c;
+}
+
+html[data-theme="cyberpunk-city"] .state-pill,
+html[data-theme="cyberpunk-city"] .service-icon,
+html[data-theme="cyberpunk-city"] .runtime-version,
+html[data-theme="cyberpunk-city"] .help-section-number {
+  color: #c8f9ff;
+  background: #13172b;
+  border: 1px solid rgb(0 240 255 / 36%);
+  border-radius: 3px;
+}
+
+html[data-theme="cyberpunk-city"] .state-pill[data-state="running"],
+html[data-theme="cyberpunk-city"] .service-icon {
+  color: #72ffe0;
+  background: rgb(9 56 52 / 90%);
+  border-color: rgb(53 255 214 / 46%);
+}
+
+html[data-theme="cyberpunk-city"] .state-pill[data-state="failed"] {
+  color: #ff8bc8;
+  background: rgb(61 14 42 / 90%);
+  border-color: rgb(255 60 172 / 48%);
+}
+
+html[data-theme="cyberpunk-city"] .state-pill[data-state="warning"],
+html[data-theme="cyberpunk-city"] .state-pill[data-state="degraded"] {
+  color: #ffe96c;
+  background: rgb(57 46 12 / 90%);
+  border-color: rgb(255 219 77 / 48%);
+}
+
+html[data-theme="cyberpunk-city"] .runtime-version,
+html[data-theme="cyberpunk-city"] .help-section-number {
+  color: #f1d8ff;
+  background: rgb(49 24 74 / 92%);
+  border-color: rgb(193 107 255 / 46%);
+}
+
+html[data-theme="cyberpunk-city"] .site-row,
+html[data-theme="cyberpunk-city"] .proxy-row,
+html[data-theme="cyberpunk-city"] .proxy-summary > div,
+html[data-theme="cyberpunk-city"] .proxy-search-toolbar,
+html[data-theme="cyberpunk-city"] .proxy-selection-toolbar,
+html[data-theme="cyberpunk-city"] .site-selection-toolbar,
+html[data-theme="cyberpunk-city"] .modal-header,
+html[data-theme="cyberpunk-city"] .help-section + .help-section {
+  border-color: rgb(0 240 255 / 20%);
+}
+
+html[data-theme="cyberpunk-city"] .site-row,
+html[data-theme="cyberpunk-city"] .proxy-row {
+  background: rgb(9 10 34 / 12%);
+}
+
+html[data-theme="cyberpunk-city"] .proxy-search-toolbar {
+  background: rgb(9 10 34 / 30%);
+}
+
+html[data-theme="cyberpunk-city"] .site-row.is-shared,
+html[data-theme="cyberpunk-city"] .site-row.selected,
+html[data-theme="cyberpunk-city"] .proxy-row.selected,
+html[data-theme="cyberpunk-city"] .proxy-selection-toolbar,
+html[data-theme="cyberpunk-city"] .site-selection-toolbar {
+  background: rgb(60 34 94 / 68%);
+  box-shadow: inset 3px 0 0 #fb78e6;
+}
+
+html[data-theme="cyberpunk-city"] .site-row.is-shared,
+html[data-theme="cyberpunk-city"] .site-row.selected,
+html[data-theme="cyberpunk-city"] .proxy-row.selected {
+  background: rgb(60 34 94 / 40%);
+}
+
+html[data-theme="cyberpunk-city"] .update-version-grid div,
+html[data-theme="cyberpunk-city"] .update-artifact-details,
+html[data-theme="cyberpunk-city"] .php-fastcgi-settings {
+  background: rgb(7 11 27 / 28%);
+  border: 1px solid rgb(0 240 255 / 24%);
+  border-radius: 3px;
+}
+
+html[data-theme="cyberpunk-city"] .toggle-button {
+  background: #24283d;
+  border: 1px solid rgb(0 240 255 / 38%);
+  box-shadow: inset 0 0 10px rgb(0 0 0 / 38%);
+}
+
+html[data-theme="cyberpunk-city"] .toggle-button span {
+  background: #aab8c4;
+  box-shadow: 0 0 8px rgb(170 184 196 / 28%);
+}
+
+html[data-theme="cyberpunk-city"] .toggle-button.active {
+  background: #123b45;
+  border-color: #00f0ff;
+  box-shadow: 0 0 14px rgb(0 240 255 / 30%);
+}
+
+html[data-theme="cyberpunk-city"] .toggle-button.active span {
+  background: #00f0ff;
+  box-shadow: 0 0 12px rgb(0 240 255 / 70%);
+}
+
+html[data-theme="cyberpunk-city"] .setting-row p,
+html[data-theme="cyberpunk-city"] .setting-row small,
+html[data-theme="cyberpunk-city"] .page-header p,
+html[data-theme="cyberpunk-city"] .service-card p,
+html[data-theme="cyberpunk-city"] .runtime-card p,
+html[data-theme="cyberpunk-city"] .runtime-help-card p,
+html[data-theme="cyberpunk-city"] .terminal-card p,
+html[data-theme="cyberpunk-city"] .terminal-card small,
+html[data-theme="cyberpunk-city"] .terminal-card code,
+html[data-theme="cyberpunk-city"] .runtime-card .runtime-details p,
+html[data-theme="cyberpunk-city"] .runtime-card .runtime-details > div > small,
+html[data-theme="cyberpunk-city"] .runtime-online-header p:not(.eyebrow),
+html[data-theme="cyberpunk-city"] .runtime-online-details dt,
+html[data-theme="cyberpunk-city"] .runtime-row-progress small,
+html[data-theme="cyberpunk-city"] .runtime-footnote,
+html[data-theme="cyberpunk-city"] .site-home-description,
+html[data-theme="cyberpunk-city"] .site-list-filter-row > small,
+html[data-theme="cyberpunk-city"] .site-empty-state,
+html[data-theme="cyberpunk-city"] .site-row small,
+html[data-theme="cyberpunk-city"] .proxy-row small,
+html[data-theme="cyberpunk-city"] .proxy-summary small,
+html[data-theme="cyberpunk-city"] .proxy-empty,
+html[data-theme="cyberpunk-city"] .proxy-search-toolbar small,
+html[data-theme="cyberpunk-city"] .proxy-selection-toolbar,
+html[data-theme="cyberpunk-city"] .site-selection-toolbar,
+html[data-theme="cyberpunk-city"] .modal-header p,
+html[data-theme="cyberpunk-city"] .modal-form label small,
+html[data-theme="cyberpunk-city"] .quit-dialog p,
+html[data-theme="cyberpunk-city"] .help-contents strong,
+html[data-theme="cyberpunk-city"] .help-section p,
+html[data-theme="cyberpunk-city"] .service-scope-note,
+html[data-theme="cyberpunk-city"] .php-pool-metric span,
+html[data-theme="cyberpunk-city"] .php-pool-unavailable,
+html[data-theme="cyberpunk-city"] .update-version-grid dt,
+html[data-theme="cyberpunk-city"] .update-progress-label,
+html[data-theme="cyberpunk-city"] .app-update-notice span,
+html[data-theme="cyberpunk-city"] .php-fastcgi-settings small,
+html[data-theme="cyberpunk-city"] .php-ini-actions,
+html[data-theme="cyberpunk-city"] .form-message {
+  color: #9db7c1;
+}
+
+html[data-theme="cyberpunk-city"] .form-card label,
+html[data-theme="cyberpunk-city"] .modal-form label,
+html[data-theme="cyberpunk-city"] .site-selection-toolbar label,
+html[data-theme="cyberpunk-city"] .proxy-selection-toolbar label,
+html[data-theme="cyberpunk-city"] .help-contents a,
+html[data-theme="cyberpunk-city"] .help-section ol,
+html[data-theme="cyberpunk-city"] .help-section ul {
+  color: #c3e6ef;
+}
+
+html[data-theme="cyberpunk-city"] .site-filter-button span {
+  color: #bcebf5;
+  background: #16333e;
+}
+
+html[data-theme="cyberpunk-city"] .help-contents a:hover,
+html[data-theme="cyberpunk-city"] .help-contents a:focus-visible {
+  color: #e2faff;
+  background: #153745;
+}
+
+html[data-theme="cyberpunk-city"] .warning-text,
+html[data-theme="cyberpunk-city"] .error-message,
+html[data-theme="cyberpunk-city"] .proxy-state small,
+html[data-theme="cyberpunk-city"] .runtime-online-progress small {
+  color: #ffc38a;
+}
+
+html[data-theme="cyberpunk-city"] .update-version-grid dd,
+html[data-theme="cyberpunk-city"] .update-artifact-details code,
+html[data-theme="cyberpunk-city"] .runtime-summary strong,
+html[data-theme="cyberpunk-city"] .php-pool-metric strong,
+html[data-theme="cyberpunk-city"] .proxy-summary strong,
+html[data-theme="cyberpunk-city"] .site-identity strong,
+html[data-theme="cyberpunk-city"] .proxy-identity strong,
+html[data-theme="cyberpunk-city"] .proxy-endpoint code,
+html[data-theme="cyberpunk-city"] .proxy-target code,
+html[data-theme="cyberpunk-city"] .site-paths code {
+  color: #e3f8fc;
+}
+
+html[data-theme="cyberpunk-city"] .quit-overlay,
+html[data-theme="cyberpunk-city"] .modal-overlay {
+  background: rgb(2 3 10 / 72%);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+html[data-theme="cyberpunk-city"] input[type="checkbox"] {
+  accent-color: #ef6cdb;
+}
+
+html[data-theme="cyberpunk-city"] .brand-mark {
+  border-radius: 9px;
+  box-shadow: -3px 0 16px rgb(255 76 219 / 28%), 3px 0 16px rgb(73 221 255 / 30%);
+}

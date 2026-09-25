@@ -421,7 +421,7 @@ async function revealPhpIni() {
     </div>
   </header>
 
-  <div class="page-body">
+  <div class="page-body php-runtime-page">
     <div class="runtime-summary">
       <span>{{ t('runtimes.globalPhp') }}</span>
       <strong>{{ store.phpRuntimes.globalVersion ?? t('runtimes.notSet') }}</strong>

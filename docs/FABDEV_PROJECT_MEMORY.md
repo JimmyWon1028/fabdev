@@ -1,6 +1,6 @@
 # fabDev 長期專案記憶
 
-> 最後整理：2026-09-20
+> 最後整理：2026-09-25
 
 本文件保存只屬於 fabDev、值得跨電腦延續的決策與實作經驗。它不保存聊天逐字稿、個人資料、憑證、Token、私鑰、真實客戶資料、本機絕對路徑、一次性 Artifact，或已被新版取代的暫時狀態。
 
@@ -41,6 +41,9 @@
 
 ## 已確認的 UI 契約
 
+- 2026-09-25 已確認的主題與版面調整記錄於 [Desktop 主題與版面調整](UI_THEME_LAYOUT_2026-09-25.md)：Glassmorphism 使用連續的青藍／淡紫背景，Tron 與 Cyberpunk 各自提供全視窗背景；半透明項目仍需保持文字清晰。
+- Tron 保留既有 `cyberpunk` 儲存識別碼，新 Cyberpunk 使用 `cyberpunk-city`，不可因顯示名稱調整而重設使用者偏好。
+- Sites、PHP／MariaDB／Node.js Runtime 清單與設定項目的最大寬度統一為 `1180px`；PHP 輔助面板及 Site Home 與清單右緣對齊。Sites 操作按鈕在空間不足時換行，文字與「移除」按鈕不得裁切。
 - Sites 與 Proxy 的既有清單排版維持不變；需要更動時先取得 Repository Owner 明確指示。
 - Proxy 頂部維持資料操作與服務操作分組，不把兩類動作混在同一組。
 - Runtime 卡片維持緊湊且一致；PHP 只顯示使用中的 Site 數量，Agent 狀態維持在設定下方。

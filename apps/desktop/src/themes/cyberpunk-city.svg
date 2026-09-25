@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" fill="none">
+  <defs>
+    <linearGradient id="sky" x1="800" y1="0" x2="800" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111342"/>
+      <stop offset="0.48" stop-color="#251669"/>
+      <stop offset="1" stop-color="#04091f"/>
+    </linearGradient>
+    <radialGradient id="haze">
+      <stop stop-color="#3e65ff" stop-opacity="0.64"/>
+      <stop offset="0.5" stop-color="#6f28c7" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#16133d" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="road" x1="800" y1="580" x2="800" y2="1000" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#14276b"/>
+      <stop offset="1" stop-color="#05091f"/>
+    </linearGradient>
+    <linearGradient id="pink-reflection" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#ff45ce" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#ff45ce" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="blue-reflection" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#48dfff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#48dfff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+    <pattern id="windows" width="28" height="34" patternUnits="userSpaceOnUse">
+      <path d="M4 8H17" stroke="#3e97ff" stroke-opacity="0.3" stroke-width="3"/>
+      <path d="M4 22H12" stroke="#a54bee" stroke-opacity="0.2" stroke-width="2"/>
+    </pattern>
+    <g id="lights" stroke-linejoin="round">
+      <g stroke="#48cfff" stroke-width="2">
+        <path d="M91 0L235 577M288 0L372 545M447 54L481 530M563 189L578 529"/>
+        <path d="M32 87L227 130M62 202L254 220M109 333L293 332M151 435L320 418"/>
+        <path d="M1100 590L1312 0M1250 669L1568 0M1385 737L1600 361"/>
+        <path d="M1151 446L1600 227M1134 497L1600 306M1120 541L1600 388M1182 598L1600 484M1261 650L1600 586M1321 685L1600 657"/>
+      </g>
+      <g stroke="#ed42dd" stroke-width="3">
+        <path d="M140 135L305 168L328 243L161 224Z"/>
+        <path d="M338 295L453 303L460 366L352 364Z"/>
+        <path d="M606 278H660V400H606Z"/>
+        <path d="M1144 569L1600 421M1294 704L1600 672"/>
+        <path d="M1114 596L1279 710L1552 879"/>
+      </g>
+      <g stroke="#89f1ff" stroke-width="4">
+        <path d="M104 288L233 301M124 312L204 320M401 141L492 165M409 162L465 177"/>
+        <path d="M457 407L542 410M464 426L521 428M677 455H732M681 476H716"/>
+        <path d="M1266 171L1405 69M1229 276L1360 195M1194 377L1319 315M1388 381L1523 310M1356 454L1490 396"/>
+        <path d="M857 605L1034 676L1430 1000"/>
+      </g>
+      <g stroke="#9395ff" stroke-width="2" stroke-opacity="0.7">
+        <path d="M525 294H569M528 312H564M531 330H560M534 349H555"/>
+        <path d="M749 250V536M777 228V537M809 281V538M937 201V540M965 242V548"/>
+        <path d="M0 920L640 615L824 589M0 967L676 637L824 603"/>
+      </g>
+    </g>
+  </defs>
+  <path fill="url(#sky)" d="M0 0H1600V1000H0Z"/>
+  <ellipse cx="844" cy="392" rx="650" ry="510" fill="url(#haze)"/>
+  <g fill="#0a1235" stroke="#4041a4" stroke-opacity="0.26">
+    <path d="M693 558V208H735V558M734 554V177H790V554M792 557V261H831V557M927 558V172H977V558M979 559V243H1023V559"/>
+    <path d="M0 0H245L384 593L200 663L0 633Z"/>
+    <path d="M274 0H420L497 559L384 593Z"/>
+    <path d="M450 70L536 89L585 546L497 559Z"/>
+    <path d="M550 195L623 185L666 537L585 546Z"/>
+    <path d="M1102 0H1600V779L1061 552Z"/>
+  </g>
+  <g fill="url(#windows)" opacity="0.8">
+    <path d="M0 0H245L384 593L200 663L0 633Z"/>
+    <path d="M274 0H420L497 559L384 593Z"/>
+    <path d="M450 70L536 89L585 546L497 559Z"/>
+    <path d="M696 232H730V551H696ZM937 188H975V551H937Z"/>
+  </g>
+  <g fill="#2b166c" stroke="#9560f0" stroke-opacity="0.38">
+    <path d="M135 127L309 161L335 248L154 230Z"/>
+    <path d="M334 287L458 297L468 372L347 372Z"/>
+    <path d="M396 128L499 153L506 189L404 170Z"/>
+    <path d="M602 272H665V406H602Z"/>
+    <path d="M670 442H740V490H670Z"/>
+  </g>
+  <g stroke="#f3b2ff" stroke-opacity="0.6" stroke-width="3">
+    <path d="M175 164L201 168L208 190L182 188ZM221 173L261 181M226 190L270 198M188 207L288 221"/>
+    <path d="M358 319H430M365 338H412M620 293V326M635 290V322M619 348H644M620 372H638"/>
+  </g>
+  <path d="M0 1000V709L701 563L859 554L1061 552L1600 779V1000Z" fill="url(#road)"/>
+  <path d="M689 592L712 593L450 1000H250Z" fill="url(#blue-reflection)" opacity="0.55"/>
+  <path d="M973 601L1028 614L1470 1000H1210Z" fill="url(#pink-reflection)" opacity="0.7"/>
+  <path d="M589 631L617 633L136 1000H0Z" fill="url(#pink-reflection)" opacity="0.3"/>
+  <g stroke="#657eff" stroke-opacity="0.12">
+    <path d="M0 724H1600M0 758H1600M0 800H1600M0 854H1600M0 920H1600M0 982H1600"/>
+    <path d="M312 696H584M295 713H546M975 760H1116M991 779H1142M433 842H607M395 861H583M1131 886H1305M1160 910H1340" stroke-width="3"/>
+  </g>
+  <use href="#lights" filter="url(#glow)" opacity="0.68"/>
+  <use href="#lights" opacity="0.72"/>
+  <path d="M1053 0L1007 448L1071 571" stroke="#7865ff" stroke-width="6" stroke-opacity="0.26"/>
+  <path d="M1053 0L1007 448L1071 571" stroke="#d08bff" stroke-width="1.5" stroke-opacity="0.7"/>
+  <ellipse cx="845" cy="537" rx="300" ry="160" fill="url(#haze)" opacity="0.72"/>
+</svg>

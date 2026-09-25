@@ -104,9 +104,19 @@ describe('theme preference', () => {
     expect(loadTheme(storage)).toBe('glassmorphism')
   })
 
-  it('loads and persists Cyberpunk', () => {
+  it('preserves the existing Tron preference identifier', () => {
     const storage = memoryStorage()
 
+    saveTheme('cyberpunk', storage)
+    expect(loadTheme(storage)).toBe('cyberpunk')
+  })
+
+  it('persists Cyberpunk independently from Tron', () => {
+    const storage = memoryStorage('cyberpunk')
+
+    expect(loadTheme(storage)).toBe('cyberpunk')
+    saveTheme('cyberpunk-city', storage)
+    expect(loadTheme(storage)).toBe('cyberpunk-city')
     saveTheme('cyberpunk', storage)
     expect(loadTheme(storage)).toBe('cyberpunk')
   })

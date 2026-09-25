@@ -1129,7 +1129,7 @@ button:disabled {
 .site-row {
   display: grid;
   grid-template-areas: "select identity paths runtime state actions";
-  grid-template-columns: 18px 155px minmax(180px, 1fr) 106px 180px max-content;
+  grid-template-columns: 18px 155px minmax(180px, 1fr) 106px 180px minmax(0, max-content);
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -1277,13 +1277,16 @@ button:disabled {
   grid-area: actions;
   align-items: center;
   justify-content: flex-end;
-  min-width: max-content;
+  min-width: 0;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .site-actions button {
+  flex: 0 0 auto;
   padding: 6px 8px;
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .site-php-select {
@@ -1337,11 +1340,6 @@ button:disabled {
     grid-template-columns: 18px clamp(155px, 26cqw, 240px) 104px minmax(96px, 1fr) minmax(0, max-content);
   }
 
-  .site-actions {
-    min-width: 0;
-    flex-wrap: wrap;
-  }
-
   .site-paths {
     display: none;
   }
@@ -1391,7 +1389,7 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  max-width: 820px;
+  max-width: 1180px;
   padding: 12px 16px;
 }
 
@@ -1418,7 +1416,11 @@ button:disabled {
 .runtime-list {
   display: grid;
   gap: 8px;
-  max-width: 820px;
+  max-width: 1180px;
+}
+
+.php-runtime-page > :is(.runtime-summary, .runtime-online-card, .terminal-card, .php-ini-editor, .runtime-footnote, .notice) {
+  max-width: 1180px;
 }
 
 .runtime-card .runtime-details p,
@@ -1685,7 +1687,7 @@ button:disabled {
 
 .site-home-card {
   width: 100%;
-  max-width: 980px;
+  max-width: 1180px;
   padding: 16px 18px;
   container-type: inline-size;
 }
@@ -2127,7 +2129,7 @@ button:disabled {
 .settings-list {
   display: grid;
   gap: 11px;
-  max-width: 820px;
+  max-width: 1180px;
 }
 
 .setting-row {

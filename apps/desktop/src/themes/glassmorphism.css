@@ -1,15 +1,19 @@
 html[data-theme="glassmorphism"] {
-  color: #17324d;
-  background: #dce8ff;
+  --glass-surface: linear-gradient(135deg, rgb(255 255 255 / 66%), rgb(255 255 255 / 38%));
+  color-scheme: light;
+  color: #203259;
+  background: #9baaf1;
   font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 html[data-theme="glassmorphism"] body {
+  /* One continuous cyan, blue and lavender backdrop spans the entire window. */
   background:
-    radial-gradient(circle at 12% 18%, rgb(129 199 255 / 78%) 0, transparent 30%),
-    radial-gradient(circle at 84% 14%, rgb(207 163 255 / 66%) 0, transparent 32%),
-    radial-gradient(circle at 70% 86%, rgb(119 234 215 / 58%) 0, transparent 34%),
-    linear-gradient(145deg, #d8edff 0%, #efe3ff 52%, #dffaf5 100%);
+    radial-gradient(ellipse at 86% 2%, rgb(75 197 241 / 88%) 0%, transparent 60%),
+    radial-gradient(ellipse at 77% 94%, rgb(83 181 245 / 76%) 0%, transparent 55%),
+    radial-gradient(ellipse at 0% 100%, rgb(209 114 238 / 80%) 0%, transparent 56%),
+    radial-gradient(ellipse at 51% 52%, rgb(106 226 221 / 34%) 0%, transparent 40%),
+    linear-gradient(120deg, #a79af2 0%, #95aff2 48%, #6dbaf3 100%);
   background-attachment: fixed;
 }
 
@@ -20,22 +24,21 @@ html[data-theme="glassmorphism"] .page-body {
 }
 
 html[data-theme="glassmorphism"] .sidebar {
-  color: #17324d;
-  background: rgb(255 255 255 / 42%);
-  border-right: 1px solid rgb(255 255 255 / 68%);
-  box-shadow: 12px 0 36px rgb(74 95 139 / 12%);
-  backdrop-filter: blur(28px) saturate(135%);
+  color: #203259;
+  background: transparent;
+  border-right: 1px solid transparent;
+  box-shadow: none;
 }
 
 html[data-theme="glassmorphism"] .brand small,
 html[data-theme="glassmorphism"] .agent-state,
 html[data-theme="glassmorphism"] .navigation a,
 html[data-theme="glassmorphism"] .settings-link {
-  color: #35526e;
+  color: #405477;
 }
 
 html[data-theme="glassmorphism"] .navigation-divider {
-  background: rgb(255 255 255 / 58%);
+  background: rgb(84 108 153 / 14%);
 }
 
 html[data-theme="glassmorphism"] .navigation a,
@@ -49,11 +52,19 @@ html[data-theme="glassmorphism"] .navigation a:hover,
 html[data-theme="glassmorphism"] .navigation a.router-link-active,
 html[data-theme="glassmorphism"] .settings-link:hover,
 html[data-theme="glassmorphism"] .settings-link.router-link-active {
-  color: #17324d;
-  background: rgb(255 255 255 / 54%);
+  color: #203259;
+  background: rgb(255 255 255 / 72%);
   border-color: rgb(255 255 255 / 74%);
-  box-shadow: 0 8px 24px rgb(58 77 112 / 10%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 62%), 0 8px 24px rgb(29 29 31 / 10%);
+  -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
+}
+
+html[data-theme="glassmorphism"] .navigation a.router-link-active,
+html[data-theme="glassmorphism"] .settings-link.router-link-active {
+  color: #fff;
+  background: linear-gradient(110deg, #087fa7, #5350d9);
+  border-color: rgb(255 255 255 / 52%);
 }
 
 html[data-theme="glassmorphism"] .page-header h1,
@@ -61,11 +72,11 @@ html[data-theme="glassmorphism"] .setting-row h2,
 html[data-theme="glassmorphism"] .service-card h2,
 html[data-theme="glassmorphism"] .form-card h2,
 html[data-theme="glassmorphism"] .runtime-card h2 {
-  color: #17324d;
+  color: #203259;
 }
 
 html[data-theme="glassmorphism"] .eyebrow {
-  color: #356f98 !important;
+  color: #36527c !important;
 }
 
 html[data-theme="glassmorphism"] .service-card,
@@ -85,15 +96,29 @@ html[data-theme="glassmorphism"] .modal-dialog,
 html[data-theme="glassmorphism"] .quit-dialog,
 html[data-theme="glassmorphism"] .help-contents,
 html[data-theme="glassmorphism"] .diagnostic-logs {
-  background: rgb(255 255 255 / 48%);
-  border: 1px solid rgb(255 255 255 / 72%);
+  background: var(--glass-surface);
+  border: 1px solid rgb(255 255 255 / 62%);
+  border-top-color: rgb(255 255 255 / 88%);
+  border-left-color: rgb(255 255 255 / 78%);
   border-radius: 18px;
-  box-shadow: 0 18px 48px rgb(56 77 119 / 14%);
-  backdrop-filter: blur(24px) saturate(140%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 70%), inset 0 -1px 0 rgb(255 255 255 / 20%), 0 2px 4px rgb(29 29 31 / 5%), 0 12px 32px rgb(54 85 146 / 8%);
+  -webkit-backdrop-filter: blur(24px) saturate(115%);
+  backdrop-filter: blur(24px) saturate(115%);
 }
 
 html[data-theme="glassmorphism"] .runtime-help-card {
-  background: rgb(226 255 246 / 46%);
+  --glass-surface: linear-gradient(135deg, rgb(226 247 255 / 72%), rgb(255 255 255 / 48%));
+}
+
+/* Background beads stay behind content and cannot intercept pointer events. */
+html[data-theme="glassmorphism"] .setting-row,
+html[data-theme="glassmorphism"] .service-card,
+html[data-theme="glassmorphism"] .form-card,
+html[data-theme="glassmorphism"] .runtime-card,
+html[data-theme="glassmorphism"] .terminal-card,
+html[data-theme="glassmorphism"] .runtime-online-card,
+html[data-theme="glassmorphism"] .runtime-help-card {
+  background: url('./glass-droplets.svg') var(--glass-beads-position, right 18px top 3px) / var(--glass-beads-size, 320px 39px) no-repeat, var(--glass-surface);
 }
 
 html[data-theme="glassmorphism"] .app-update-notice,
@@ -102,40 +127,42 @@ html[data-theme="glassmorphism"] .notice,
 html[data-theme="glassmorphism"] .runtime-online-warning,
 html[data-theme="glassmorphism"] .modal-message,
 html[data-theme="glassmorphism"] .help-notes {
-  color: #17324d !important;
-  background: rgb(255 255 255 / 44%);
+  color: #203259 !important;
+  background: rgb(255 255 255 / 60%);
   border: 1px solid rgb(255 255 255 / 72%);
   border-radius: 14px;
-  box-shadow: 0 12px 30px rgb(56 77 119 / 10%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 52%), 0 12px 30px rgb(29 29 31 / 10%);
+  -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
 
 html[data-theme="glassmorphism"] .notice.warning,
 html[data-theme="glassmorphism"] .runtime-online-warning,
 html[data-theme="glassmorphism"] .help-notes {
-  background: rgb(255 241 196 / 58%);
+  background: rgb(255 242 214 / 80%);
 }
 
 html[data-theme="glassmorphism"] .modal-message {
-  background: rgb(255 218 224 / 58%);
+  background: rgb(255 230 236 / 82%);
 }
 
 html[data-theme="glassmorphism"] input,
 html[data-theme="glassmorphism"] select,
 html[data-theme="glassmorphism"] .modal-dialog textarea {
-  color: #17324d;
-  background: rgb(255 255 255 / 54%);
-  border: 1px solid rgb(255 255 255 / 78%);
+  color: #203259;
+  background: rgb(255 255 255 / 66%);
+  border: 1px solid rgb(84 108 153 / 18%);
   border-radius: 12px;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 70%), 0 8px 22px rgb(56 77 119 / 10%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 70%), 0 2px 6px rgb(29 29 31 / 5%);
+  -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
 
 html[data-theme="glassmorphism"] input:focus,
 html[data-theme="glassmorphism"] select:focus,
 html[data-theme="glassmorphism"] .modal-dialog textarea:focus {
-  border-color: rgb(84 153 220 / 70%);
-  box-shadow: 0 0 0 3px rgb(84 153 220 / 16%), 0 10px 26px rgb(56 77 119 / 12%);
+  border-color: #4053c7;
+  box-shadow: 0 0 0 3px rgb(78 99 215 / 16%), 0 10px 26px rgb(29 29 31 / 12%);
 }
 
 html[data-theme="glassmorphism"] .primary-button,
@@ -145,29 +172,30 @@ html[data-theme="glassmorphism"] .danger-button,
 html[data-theme="glassmorphism"] .site-filter-button,
 html[data-theme="glassmorphism"] .open-link-icon,
 html[data-theme="glassmorphism"] .modal-close-button {
-  color: #17324d;
-  background: rgb(255 255 255 / 46%);
-  border: 1px solid rgb(255 255 255 / 76%);
+  color: #203259;
+  background: rgb(255 255 255 / 60%);
+  border: 1px solid rgb(84 108 153 / 16%);
   border-radius: 11px;
-  box-shadow: 0 8px 22px rgb(56 77 119 / 10%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 66%), 0 2px 6px rgb(29 29 31 / 6%);
+  -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
 
 html[data-theme="glassmorphism"] .primary-button,
 html[data-theme="glassmorphism"] .site-filter-button.active {
   color: #fff;
-  background: rgb(45 116 165 / 82%);
+  background: linear-gradient(110deg, #087fa7, #5350d9);
   border-color: rgb(255 255 255 / 56%);
 }
 
 html[data-theme="glassmorphism"] .share-stop-button {
-  color: #805212;
-  background: rgb(255 232 188 / 64%);
+  color: #82501e;
+  background: rgb(255 238 218 / 82%);
 }
 
 html[data-theme="glassmorphism"] .danger-button {
-  color: #9c3544;
-  background: rgb(255 225 229 / 60%);
+  color: #a72d54;
+  background: rgb(255 227 237 / 82%);
 }
 
 html[data-theme="glassmorphism"] .primary-button:hover:not(:disabled),
@@ -179,25 +207,35 @@ html[data-theme="glassmorphism"] .open-link-icon:hover:not(:disabled),
 html[data-theme="glassmorphism"] .open-link-icon:focus-visible,
 html[data-theme="glassmorphism"] .modal-close-button:hover:not(:disabled),
 html[data-theme="glassmorphism"] .modal-close-button:focus-visible {
-  color: #17324d;
-  background: rgb(255 255 255 / 68%);
+  color: #203259;
+  background: rgb(255 255 255 / 90%);
   border-color: rgb(255 255 255 / 90%);
-  box-shadow: 0 12px 28px rgb(56 77 119 / 14%);
+  box-shadow: 0 12px 28px rgb(29 29 31 / 14%);
   outline: none;
   transform: translateY(-1px);
 }
 
 html[data-theme="glassmorphism"] .primary-button:hover:not(:disabled) {
   color: #fff;
-  background: rgb(35 101 148 / 90%);
+  background: linear-gradient(110deg, #086d94, #4540bf);
+}
+
+html[data-theme="glassmorphism"] button:focus-visible,
+html[data-theme="glassmorphism"] a:focus-visible {
+  outline: 2px solid #4053c7;
+  outline-offset: 3px;
+}
+
+html[data-theme="glassmorphism"] input[type="checkbox"] {
+  accent-color: #4e52ce;
 }
 
 html[data-theme="glassmorphism"] .state-pill,
 html[data-theme="glassmorphism"] .service-icon,
 html[data-theme="glassmorphism"] .runtime-version,
 html[data-theme="glassmorphism"] .help-section-number {
-  color: #17324d;
-  background: rgb(255 255 255 / 42%);
+  color: #203259;
+  background: rgb(255 255 255 / 66%);
   border: 1px solid rgb(255 255 255 / 68%);
   border-radius: 10px;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 64%);
@@ -205,25 +243,25 @@ html[data-theme="glassmorphism"] .help-section-number {
 
 html[data-theme="glassmorphism"] .state-pill[data-state="running"],
 html[data-theme="glassmorphism"] .service-icon {
-  color: #116f61;
-  background: rgb(191 243 226 / 58%);
+  color: #23674f;
+  background: rgb(204 247 227 / 80%);
 }
 
 html[data-theme="glassmorphism"] .state-pill[data-state="failed"] {
-  color: #9c3544;
-  background: rgb(255 206 214 / 58%);
+  color: #a72d54;
+  background: rgb(255 225 236 / 82%);
 }
 
 html[data-theme="glassmorphism"] .state-pill[data-state="warning"],
 html[data-theme="glassmorphism"] .state-pill[data-state="degraded"] {
-  color: #805212;
-  background: rgb(255 231 181 / 60%);
+  color: #82501e;
+  background: rgb(255 238 216 / 82%);
 }
 
 html[data-theme="glassmorphism"] .runtime-version,
 html[data-theme="glassmorphism"] .help-section-number {
-  color: #5a3d91;
-  background: rgb(222 207 255 / 58%);
+  color: #203259;
+  background: rgb(218 225 255 / 76%);
 }
 
 html[data-theme="glassmorphism"] .site-row,
@@ -240,7 +278,7 @@ html[data-theme="glassmorphism"] .help-section + .help-section {
 html[data-theme="glassmorphism"] .site-row,
 html[data-theme="glassmorphism"] .proxy-row,
 html[data-theme="glassmorphism"] .proxy-search-toolbar {
-  background: rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 8%);
 }
 
 html[data-theme="glassmorphism"] .site-row.is-shared,
@@ -248,30 +286,49 @@ html[data-theme="glassmorphism"] .site-row.selected,
 html[data-theme="glassmorphism"] .proxy-row.selected,
 html[data-theme="glassmorphism"] .proxy-selection-toolbar,
 html[data-theme="glassmorphism"] .site-selection-toolbar {
-  background: rgb(222 255 245 / 34%);
+  background-color: rgb(68 127 220 / 12%);
+}
+
+html[data-theme="glassmorphism"] .site-row,
+html[data-theme="glassmorphism"] .proxy-row {
+  background-image: url('./glass-droplets.svg');
+  background-position: var(--glass-beads-position, right 14px top 0);
+  background-size: var(--glass-beads-size, 280px 34px);
+  background-repeat: no-repeat;
+}
+
+/* Offset each surface so neighboring rows do not repeat the same bead positions. */
+html[data-theme="glassmorphism"] :is(.setting-row, .service-card, .form-card, .runtime-card, .terminal-card, .runtime-online-card, .runtime-help-card, .site-row, .proxy-row):nth-child(3n + 2) {
+  --glass-beads-position: right 47px top -4px;
+  --glass-beads-size: 354px 43px;
+}
+
+html[data-theme="glassmorphism"] :is(.setting-row, .service-card, .form-card, .runtime-card, .terminal-card, .runtime-online-card, .runtime-help-card, .site-row, .proxy-row):nth-child(3n) {
+  --glass-beads-position: right 8px top 6px;
+  --glass-beads-size: 235px 29px;
 }
 
 html[data-theme="glassmorphism"] .update-version-grid div,
 html[data-theme="glassmorphism"] .update-artifact-details,
 html[data-theme="glassmorphism"] .php-fastcgi-settings {
-  background: rgb(255 255 255 / 32%);
+  background: rgb(255 255 255 / 48%);
   border: 1px solid rgb(255 255 255 / 58%);
   border-radius: 12px;
 }
 
 html[data-theme="glassmorphism"] .toggle-button {
-  background: rgb(112 135 157 / 36%);
+  background: rgb(119 143 179 / 28%);
   border: 1px solid rgb(255 255 255 / 58%);
-  box-shadow: inset 0 1px 2px rgb(56 77 119 / 12%);
+  box-shadow: inset 0 1px 2px rgb(29 29 31 / 12%);
 }
 
 html[data-theme="glassmorphism"] .toggle-button span {
   background: rgb(255 255 255 / 90%);
-  box-shadow: 0 3px 10px rgb(56 77 119 / 22%);
+  box-shadow: 0 3px 10px rgb(48 68 112 / 22%);
 }
 
 html[data-theme="glassmorphism"] .toggle-button.active {
-  background: rgb(45 116 165 / 74%);
+  background: linear-gradient(110deg, #087fa7, #5350d9);
 }
 
 html[data-theme="glassmorphism"] .setting-row p,
@@ -279,12 +336,85 @@ html[data-theme="glassmorphism"] .setting-row small,
 html[data-theme="glassmorphism"] .page-header p,
 html[data-theme="glassmorphism"] .service-card p,
 html[data-theme="glassmorphism"] .runtime-card p,
+html[data-theme="glassmorphism"] .runtime-help-card p,
+html[data-theme="glassmorphism"] .terminal-card p,
+html[data-theme="glassmorphism"] .terminal-card small,
+html[data-theme="glassmorphism"] .terminal-card code,
+html[data-theme="glassmorphism"] .runtime-card .runtime-details p,
+html[data-theme="glassmorphism"] .runtime-card .runtime-details > div > small,
+html[data-theme="glassmorphism"] .runtime-online-header p:not(.eyebrow),
+html[data-theme="glassmorphism"] .runtime-online-details dt,
+html[data-theme="glassmorphism"] .runtime-row-progress small,
+html[data-theme="glassmorphism"] .runtime-footnote,
+html[data-theme="glassmorphism"] .site-home-description,
+html[data-theme="glassmorphism"] .site-list-filter-row > small,
+html[data-theme="glassmorphism"] .site-empty-state,
+html[data-theme="glassmorphism"] .site-row small,
+html[data-theme="glassmorphism"] .proxy-row small,
+html[data-theme="glassmorphism"] .proxy-summary small,
+html[data-theme="glassmorphism"] .proxy-empty,
+html[data-theme="glassmorphism"] .proxy-search-toolbar small,
+html[data-theme="glassmorphism"] .proxy-selection-toolbar,
+html[data-theme="glassmorphism"] .site-selection-toolbar,
+html[data-theme="glassmorphism"] .modal-header p,
+html[data-theme="glassmorphism"] .modal-form label small,
+html[data-theme="glassmorphism"] .quit-dialog p,
+html[data-theme="glassmorphism"] .help-contents strong,
+html[data-theme="glassmorphism"] .help-section p,
+html[data-theme="glassmorphism"] .service-scope-note,
+html[data-theme="glassmorphism"] .php-pool-metric span,
+html[data-theme="glassmorphism"] .php-pool-unavailable,
+html[data-theme="glassmorphism"] .update-version-grid dt,
+html[data-theme="glassmorphism"] .update-progress-label,
+html[data-theme="glassmorphism"] .app-update-notice span,
+html[data-theme="glassmorphism"] .php-fastcgi-settings small,
+html[data-theme="glassmorphism"] .php-ini-actions,
 html[data-theme="glassmorphism"] .form-message {
-  color: #4f6980;
+  color: #405477;
+}
+
+html[data-theme="glassmorphism"] .form-card label,
+html[data-theme="glassmorphism"] .modal-form label,
+html[data-theme="glassmorphism"] .site-selection-toolbar label,
+html[data-theme="glassmorphism"] .proxy-selection-toolbar label,
+html[data-theme="glassmorphism"] .help-contents a,
+html[data-theme="glassmorphism"] .help-section ol,
+html[data-theme="glassmorphism"] .help-section ul {
+  color: #203259;
 }
 
 html[data-theme="glassmorphism"] .quit-overlay,
 html[data-theme="glassmorphism"] .modal-overlay {
-  background: rgb(26 46 72 / 28%);
+  background: rgb(48 68 112 / 22%);
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
+}
+
+html[data-theme="glassmorphism"] .update-version-grid dd,
+html[data-theme="glassmorphism"] .update-artifact-details code,
+html[data-theme="glassmorphism"] .runtime-summary strong,
+html[data-theme="glassmorphism"] .php-pool-metric strong,
+html[data-theme="glassmorphism"] .proxy-summary strong,
+html[data-theme="glassmorphism"] .site-identity strong,
+html[data-theme="glassmorphism"] .proxy-identity strong,
+html[data-theme="glassmorphism"] .proxy-endpoint code,
+html[data-theme="glassmorphism"] .proxy-target code,
+html[data-theme="glassmorphism"] .site-paths code {
+  color: #203259;
+}
+
+html[data-theme="glassmorphism"] input::placeholder,
+html[data-theme="glassmorphism"] textarea::placeholder {
+  color: #586b8b;
+  opacity: 1;
+}
+
+html[data-theme="glassmorphism"] select option {
+  color: #203259;
+  background: #f4f8ff;
+}
+
+html[data-theme="glassmorphism"] .site-filter-button span {
+  color: #3f4598;
+  background: rgb(221 227 255 / 60%);
 }

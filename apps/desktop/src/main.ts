@@ -8,6 +8,7 @@ import './styles.css'
 import './themes/neo-brutalism.css'
 import './themes/glassmorphism.css'
 import './themes/cyberpunk.css'
+import './themes/cyberpunk-city.css'
 import './themes/notion.css'
 
 initializeTheme()

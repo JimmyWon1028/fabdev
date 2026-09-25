@@ -18,6 +18,13 @@ describe('translations', () => {
       .toBe('demo.test was switched to PHP 8.2')
   })
 
+  it('distinguishes Tron and Cyberpunk in every supported language', () => {
+    for (const language of ['en', 'zh-TW', 'zh-CN'] as const) {
+      expect(translate('settings.themeCyberpunk', {}, language)).toBe('Tron')
+      expect(translate('settings.themeCyberpunkCity', {}, language)).toBe('Cyberpunk')
+    }
+  })
+
   it('uses Windows PHP FastCGI terminology in translated UI text', () => {
     vi.stubGlobal('navigator', {
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
