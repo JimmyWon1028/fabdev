@@ -1,6 +1,6 @@
 # fabDev 產品與服務架構
 
-> 狀態：fabDev Desktop Community `v0.1.28` 是目前已發布的 Windows-first App-only Stable，先提供 Windows x64 App 與 fabDev Connect；同版 macOS ARM64 Community DMG 尚未補入。Agent Protocol 維持 `40`，後續項目屬維護、功能擴充與產品化驗收。
+> 狀態：fabDev Desktop Community `v0.1.28` 是目前已發布的 Windows-first App-only Stable，現已補齊同版 macOS ARM64 Community DMG，提供 Windows x64 App、fabDev Connect 與 macOS ARM64 App。Agent Protocol 維持 `40`，後續項目屬維護、功能擴充與產品化驗收。
 > 更新日期：2026-09-25
 > 本文件記錄架構決策；即時進度與優先工作見 `docs/FABDEV_PROGRESS.md`。
 
