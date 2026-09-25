@@ -23,7 +23,11 @@ macOS Community 發行目前維持既有 Unsigned Community DMG。除非 Reposit
 
 fabDev App Release 與線上 Runtime Distribution 自 `v0.1.21` 起完全分離。`JimmyWon1028/fabdev` 的 App Release 只包含 Windows／macOS App Installer、fabDev Connect、App Manifest 及 checksum；不得加入、重建、複製或上傳線上 PHP、MariaDB、Node.js Runtime Package、Runtime Catalog 或 Runtime `.tar.gz`。選裝 Runtime Package 與 Catalog 只由獨立的 `JimmyWon1028/fabdev-runtimes` 管理，使用自己的 Catalog sequence、最低相容版本與發布生命週期，不跟隨 App SemVer 或 App Tag。一般 App／Agent／Desktop 功能修正及 App 進版不構成 Runtime 重新打包、Catalog 更新或 Runtime Release 授權；只有 Runtime 內容或 Catalog 本身確實變更且 Repository Owner 明確要求時才處理。此分離不改變 App Installer 內既有 bundled Runtime 的產品契約，但 bundled Runtime 內容未變時不得因 App 發布而另外重打選裝 Runtime Package。
 
-## 目前 0.1.27 Stable 基線（2026-09-24）
+## 目前 0.1.28 Windows-first Stable 基線（2026-09-25）
+
+公開 Latest 為 Windows-first Stable App `0.1.28`／Agent Protocol `40`，目前只提供 Windows 11 x64 Community Installer 與 fabDev Connect；同版 macOS ARM64 DMG 尚未補入。Annotated Tag `v0.1.28` 固定在 Commit `f3645d5d20cfceca53f6dba6ae5849afcf4cd321`，Tag Object `ea5094153412913c66478ed393c2e9dcb42627d2`，Release ID `396444623`。Windows 候選 Run `36111295612`、Repository Owner 實機 Gate 與 Windows-first Draft Run `36112452167` 均已通過。7 個 App-only Assets 共 50,606,340 bytes，已從未登入公開 URL 重新下載，通過 GitHub digest、大小、逐位元比對、總表、兩份個別 checksum 與 App／Stable Manifest 驗證；Windows Setup SHA-256 為 `fe274ed4112629642d0147c1868a3125b5996d8ed3b56fab6269533cec9eabf2`，Connect 為 `962f9a69ef5ef527b33865d7e78d2193c1383e7cc24bed4726dfee62c07b62c0`。Latest Manifest 目前只列 Windows x64 Installer；先前 `v0.1.27` macOS DMG 仍可於原 Release 取得。本次未處理線上 Runtime Package／Catalog。
+
+## 前版 0.1.27 Stable 基線（2026-09-24）
 
 公開 Latest 為 Windows-first 後已補齊 macOS ARM64 的 Stable App `0.1.27`／Agent Protocol `40`，提供 Windows x64 App、fabDev Connect 與 macOS ARM64 Community DMG。Annotated Tag `v0.1.27` 固定在 Commit `3faf3607e68eede8ceef6e811680d0fb4fb1f349`，Release ID `395300351`；Windows 候選 Run `35950396947`、Repository Owner 實機 Gate 與 Draft Run `35951595656` 均已通過。9 個 App-only Assets 共 150,370,187 bytes，已從未登入公開 URL 重新下載並通過 GitHub digest、大小、逐位元比對、總表、三份個別 checksum 與 App／Stable Manifest 驗證；原有 Windows Asset ID、大小與 digest 均未改變。Windows Setup SHA-256 為 `ea809cd521e614282d02c7d407570f71029ee9c0ca6436e3d3f8f47a3e3c975e`，Connect 為 `32b97ddd35b800ec27f120601bd9b436b42ef034b47cb137d7defec0afd3459c`，macOS DMG 為 `637b3b42d830747e05cca8a045b16e34311325b5f1ba86e360cbc582ba6bcf68`；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。此版未處理線上 Runtime Package／Catalog。
 
