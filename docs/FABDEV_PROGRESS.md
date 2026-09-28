@@ -1,13 +1,13 @@
 # fabDev 穩定基線與 Roadmap
 
 > 更新日期：2026-09-28
-> 目前階段：`0.1.29` Windows x64 候選實機 Gate 已通過，準備 Windows-first Release；[`v0.1.28`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.28) 仍是公開 Latest Stable，已依 Windows-first 順序補齊同版 macOS ARM64 DMG，提供 Windows x64 App、fabDev Connect 與 macOS ARM64 App。Agent Protocol 維持 `40`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
+> 目前階段：[`v0.1.29`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.29) 是公開 Latest Stable，依 Windows-first 順序先提供 Windows 11 x64 Community Installer 與 fabDev Connect；同版 macOS ARM64 App 尚未補入，前版 `v0.1.28` 的 macOS DMG 仍可下載。Agent Protocol 維持 `40`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
 
 ## 階段結論
 
-fabDev Desktop Community `v0.1.28` 已依 Windows-first 順序完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Draft 與 Publish，並從相同 Tag Commit 補齊 macOS ARM64 Community DMG。Release ID `396444623`，目前 9 個 App-only Assets 已完成匿名公開下載驗證；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
+fabDev Desktop Community `v0.1.29` 已完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Windows-first Draft 與 Publish。Release ID `397957496`，7 個 App-only Assets 已完成匿名公開下載驗證；Latest Manifest 目前只列 Windows x64 Installer，macOS ARM64 尚未補入。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
-## 0.1.29 Windows-first Release（準備中）
+## 0.1.29 Stable（Windows-first，macOS ARM64 尚未補入）
 
 - 2026-09-28 Repository Owner 要求進版打包，並指定先建立 Windows x64 候選。四個正式版本來源及 `Cargo.lock` 的 13 個 fabDev workspace 套件已同步為 `0.1.29`；Agent Protocol 維持 `40`。候選原始碼包含本輪 F01～F09 缺陷修正、Site 名稱輸入、主題深淺模式與 Glassmorphism 分隔線修正。App 安裝與更新流程、線上 Runtime Package／Catalog 未變更。
 - 本機完整 `pnpm test` 通過 Desktop 148、Release 規則 21、Rust workspace 309、macOS Helper 10 項，共 488 項；另有 7 項 Rust 測試依既有設定維持 ignored。`pnpm lint`、`pnpm build` 與 `git diff --check` 通過。候選原始碼 Commit `5d93a98d8566c4426cfa12ef9012b24f0a80cd8a` 已推送。
@@ -15,6 +15,8 @@ fabDev Desktop Community `v0.1.28` 已依 Windows-first 順序完成 Windows x64
 - 第二輪 Windows x64 [Run `36376697892`](https://github.com/JimmyWon1028/fabdev/actions/runs/36376697892) 成功：前端與 Release 規則測試、sidecars、bundled Runtimes、Windows PHP FastCGI worker pool、MSVC workspace、原生 Rust 測試、fabDev Connect、Unsigned NSIS 安裝包及兩個 Artifact 上傳均通過。日誌確認安裝包檔名為 `fabDev_0.1.29_x64-setup.exe`。
 - [Installer Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/36376697892/artifacts/10950989015) `fabDev-Community-Windows-x64` ID `10950989015`，ZIP 49,858,673 bytes、GitHub ZIP SHA-256 `5f6a45454181b33d5a861b2d57e7d5ada8dd2b0e9b50bfe2fb7e8970e5476611`；[Connect Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/36376697892/artifacts/10950974333) `fabDev-Connect-Windows-x64` ID `10950974333`，ZIP 332,569 bytes、GitHub ZIP SHA-256 `ba822aac06a621d1b993004ae0415712aac3be7171f676ae63b77082c9966647`。兩個 Artifact 保留至 2026-12-27 12:12:11（Asia/Taipei，UTC+8）。Windows 實機 Gate 尚待 Repository Owner 驗收；尚未建立 Tag、Draft 或 Release，也未處理 macOS App 或線上 Runtime Package／Catalog。
 - 2026-09-28 Repository Owner 明確回報上述 `0.1.29` Windows x64 候選實機 Gate 通過，並要求發布 Release；本紀錄不推定未提供的個別實機測試細節。依固定流程從 Gate 紀錄 Commit 建立 annotated `v0.1.29` Tag，重新打包 Windows x64 並建立、驗證 Windows-first Draft，通過後 Publish。本次不打包 macOS App，也不處理線上 Runtime Package／Catalog。
+- Gate 紀錄 Commit `6b1ad20cd37949beb625e316c2fc30016358e8b3` 已推送，annotated `v0.1.29` Tag Object `1acf63a4b21a1bae9c0c0c22fb081a28f42da98c` 固定指向該 Commit。Windows-first Draft [Run `36377847967`](https://github.com/JimmyWon1028/fabdev/actions/runs/36377847967) 成功：請求驗證、Windows x64 原生測試、Connect、unsigned NSIS 與 Draft Jobs 均通過，macOS Job 依指定 skipped；Manifest `publishedAt=2026-09-28T04:28:03Z`。7 個 Draft App-only Assets 共 50,617,787 bytes，均已重新下載並通過 GitHub 大小／digest、總表、兩份個別 checksum、App／Stable Manifest 逐位元一致性及單一 Windows x64 Installer／Protocol `40` 契約驗證。NSIS 含 214 個檔案，Desktop／Agent／Helper／Connect 與內建 PHP CGI 均為 Windows x64；沒有 macOS 或線上 Runtime Package／Catalog。
+- Repository Owner 明確要求 Publish 後，Release ID `397957496` 於 2026-09-28 12:48:09（Asia/Taipei，UTC+8）發布為 `draft=false`、`prerelease=false` 的 Latest Stable。Windows Setup 為 49,865,851 bytes、SHA-256 `ee2ccfda6cddda3f2cbe490e81b2855fcb274de65eddbcd53c84d1ca12549f12`；Connect 為 749,568 bytes、SHA-256 `c8554dcb5253d28b55a72d5f76df1f903e0c30b1d9853f18bccc73d5645fd99e`；App／Stable Manifest 逐位元相同，SHA-256 `596cbe1c5692c4e1322c002364cfe32b7a243df8d7248bbafb5eb105b4c8bdc9`。7 個公開 Assets 已從未登入 Latest URL 全數重新下載並與 Draft 逐位元相同，Asset ID／大小／GitHub digest 未變，個別與總 SHA-256 通過；Release 頁 HTTP 200、Setup Range HTTP 206，Tag 與 Release ID 未移動。沒有殘留 Draft。Latest Manifest 只列 Windows x64 Installer；在 macOS 同版補齊前，macOS App 檢查更新可能回報錯誤，`v0.1.28` macOS DMG 仍可下載。本次未處理 macOS App 或線上 Runtime Package／Catalog。
 
 ## 0.1.28 Stable（Windows-first，已補 macOS ARM64）
 
