@@ -495,7 +495,7 @@ YmRPX/wo6j63
       quoted(r"C:\Users\Dev User\FabDev\ca.crt"),
       r#""C:\Users\Dev User\FabDev\ca.crt""#
     );
-    assert_eq!(quoted(""), r#"""#);
+    assert_eq!(quoted(""), "\"\"");
   }
 
   #[test]
