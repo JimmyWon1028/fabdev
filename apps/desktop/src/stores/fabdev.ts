@@ -10,6 +10,7 @@ import {
   type PhpRuntimeState,
   type ProxyConnectionInput,
   type ProxyManagerState,
+  type RuntimeUpdateArtifact,
   type RuntimeUpdateCheck,
   type RuntimeUpdateOperation,
   type Site,
@@ -23,6 +24,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
 
 import { RequestGate } from '../utils/request-gate'
+import { isRuntimeDownloadActive, runtimeOperationForArtifact } from '../utils/runtime'
 
 import type {
   AppUpdateCheck,
@@ -37,11 +39,14 @@ import {
   loadLastUpdateCheck,
   loadShowDashboardOnLaunch,
   loadTheme,
+  loadThemeMode,
   saveAutoCheckUpdates,
   saveAutoStartServices,
   saveLastUpdateCheck,
   saveShowDashboardOnLaunch,
   saveTheme,
+  saveThemeMode,
+  type ThemeMode,
   type Theme
 } from '../utils/preferences'
 import { applyTheme } from '../utils/theme'
@@ -58,6 +63,7 @@ interface StoreState {
   autoStartServices: boolean
   showDashboardOnLaunch: boolean
   theme: Theme
+  themeMode: ThemeMode
   autoCheckUpdates: boolean
   lastUpdateCheck: string | null
   appUpdateBusy: boolean
@@ -79,7 +85,7 @@ interface StoreState {
   phpRuntimes: PhpRuntimeState
   terminalPhp: TerminalPhpState | null
   runtimeUpdateCheck: RuntimeUpdateCheck | null
-  runtimeUpdateOperation: RuntimeUpdateOperation | null
+  runtimeUpdateOperations: Record<string, RuntimeUpdateOperation>
   nodeRuntime: NodeRuntimeState
   proxyManager: ProxyManagerState
 }
@@ -91,6 +97,8 @@ async function sendRequest(request: AgentRequest): Promise<AgentResponse> {
 interface StoreRequests {
   status: RequestGate<AgentStatus>
   proxy: RequestGate<ProxyManagerState>
+  runtime: Map<string, RequestGate<RuntimeUpdateOperation>>
+  runtimePolls: Map<string, Promise<RuntimeUpdateOperation>>
   foregroundCount: number
 }
 
@@ -102,6 +110,8 @@ function requestsFor(store: object): StoreRequests {
     requests = {
       status: new RequestGate<AgentStatus>(),
       proxy: new RequestGate<ProxyManagerState>(),
+      runtime: new Map(),
+      runtimePolls: new Map(),
       foregroundCount: 0
     }
     storeRequests.set(store, requests)
@@ -129,6 +139,21 @@ function applyStatus(store: StoreState, status: AgentStatus) {
 function applyProxyManager(store: StoreState, state: ProxyManagerState) {
   requestsFor(store).proxy.invalidate()
   store.proxyManager = state
+}
+
+function runtimeRequestFor(store: StoreState, operationId: string) {
+  const requests = requestsFor(store).runtime
+  let request = requests.get(operationId)
+  if (!request) {
+    request = new RequestGate<RuntimeUpdateOperation>()
+    requests.set(operationId, request)
+  }
+  return request
+}
+
+function applyRuntimeOperation(store: StoreState, operation: RuntimeUpdateOperation) {
+  runtimeRequestFor(store, operation.operationId).invalidate()
+  store.runtimeUpdateOperations[operation.operationId] = operation
 }
 
 function requestStatus(store: StoreState, reportError: boolean): Promise<AgentStatus> {
@@ -160,6 +185,7 @@ export const useAppStore = defineStore('fabdev', {
     autoStartServices: loadAutoStartServices(),
     showDashboardOnLaunch: loadShowDashboardOnLaunch(),
     theme: loadTheme(),
+    themeMode: loadThemeMode(loadTheme()),
     autoCheckUpdates: loadAutoCheckUpdates(),
     lastUpdateCheck: loadLastUpdateCheck(),
     appUpdateBusy: false,
@@ -184,7 +210,7 @@ export const useAppStore = defineStore('fabdev', {
     },
     terminalPhp: null,
     runtimeUpdateCheck: null,
-    runtimeUpdateOperation: null,
+    runtimeUpdateOperations: {},
     nodeRuntime: {
       activeVersion: null,
       installed: [],
@@ -199,6 +225,42 @@ export const useAppStore = defineStore('fabdev', {
     }
   }),
   actions: {
+    runtimeOperationFor(artifact: RuntimeUpdateArtifact | null): RuntimeUpdateOperation | null {
+      return Object.values(this.runtimeUpdateOperations).reverse()
+        .find((operation) => runtimeOperationForArtifact(artifact, operation)) ?? null
+    },
+    trackRuntimeDownload(operationId: string) {
+      void this.waitForRuntimeDownload(operationId).catch((error: unknown) => {
+        if (isRuntimeDownloadActive(this.runtimeUpdateOperations[operationId]?.status ?? 'failed')) {
+          this.error = error instanceof Error ? error.message : String(error)
+        }
+      })
+    },
+    waitForRuntimeDownload(operationId: string): Promise<RuntimeUpdateOperation> {
+      const polls = requestsFor(this).runtimePolls
+      const existing = polls.get(operationId)
+      if (existing) {
+        return existing
+      }
+      const poll = (async () => {
+        let operation = this.runtimeUpdateOperations[operationId]
+        if (!operation) {
+          operation = await this.getRuntimeUpdateOperation(operationId)
+        }
+        while (isRuntimeDownloadActive(operation.status)) {
+          await new Promise((resolve) => setTimeout(resolve, 250))
+          operation = this.runtimeUpdateOperations[operationId]
+          if (isRuntimeDownloadActive(operation.status)) {
+            operation = await this.getRuntimeUpdateOperation(operationId)
+          }
+        }
+        return operation
+      })().finally(() => {
+        polls.delete(operationId)
+      })
+      polls.set(operationId, poll)
+      return poll
+    },
     async readConfigTransferFile(path: string) {
       return invoke<string>('read_config_transfer_file', { path })
     },
@@ -221,9 +283,18 @@ export const useAppStore = defineStore('fabdev', {
       this.showDashboardOnLaunch = enabled
     },
     setTheme(theme: Theme) {
+      // The Dark toggle stays fixed while browsing or selecting another theme.
+      const mode = this.themeMode
+      saveThemeMode(theme, mode)
       saveTheme(theme)
       this.theme = theme
-      applyTheme(theme)
+      this.themeMode = mode
+      applyTheme(theme, mode)
+    },
+    setThemeMode(mode: ThemeMode) {
+      saveThemeMode(this.theme, mode)
+      this.themeMode = mode
+      applyTheme(this.theme, mode)
     },
     setAutoCheckUpdates(enabled: boolean) {
       saveAutoCheckUpdates(enabled)
@@ -448,7 +519,11 @@ export const useAppStore = defineStore('fabdev', {
       const response = await sendRequest({ type: 'checkRuntimeUpdates' })
       if (response.type === 'runtimeUpdates') {
         this.runtimeUpdateCheck = response.payload
-        this.runtimeUpdateOperation = null
+        for (const operation of Object.values(this.runtimeUpdateOperations)) {
+          if (isRuntimeDownloadActive(operation.status)) {
+            this.trackRuntimeDownload(operation.operationId)
+          }
+        }
         return response.payload
       }
       if (response.type === 'error') {
@@ -462,7 +537,8 @@ export const useAppStore = defineStore('fabdev', {
         payload: { name, version }
       })
       if (response.type === 'runtimeUpdateOperation') {
-        this.runtimeUpdateOperation = response.payload
+        applyRuntimeOperation(this, response.payload)
+        this.trackRuntimeDownload(response.payload.operationId)
         return response.payload
       }
       if (response.type === 'error') {
@@ -470,19 +546,23 @@ export const useAppStore = defineStore('fabdev', {
       }
       throw new Error('Agent returned an unexpected response')
     },
-    async getRuntimeUpdateOperation(operationId: string) {
-      const response = await sendRequest({
-        type: 'getRuntimeUpdateOperation',
-        payload: { operationId }
+    async getRuntimeUpdateOperation(operationId: string): Promise<RuntimeUpdateOperation> {
+      await runtimeRequestFor(this, operationId).run(async () => {
+        const response = await sendRequest({
+          type: 'getRuntimeUpdateOperation',
+          payload: { operationId }
+        })
+        if (response.type === 'runtimeUpdateOperation') {
+          return response.payload
+        }
+        if (response.type === 'error') {
+          throw new Error(response.payload.message)
+        }
+        throw new Error('Agent returned an unexpected response')
+      }, (operation) => {
+        this.runtimeUpdateOperations[operationId] = operation
       })
-      if (response.type === 'runtimeUpdateOperation') {
-        this.runtimeUpdateOperation = response.payload
-        return response.payload
-      }
-      if (response.type === 'error') {
-        throw new Error(response.payload.message)
-      }
-      throw new Error('Agent returned an unexpected response')
+      return this.runtimeUpdateOperations[operationId]
     },
     async cancelRuntimeDownload(operationId: string) {
       const response = await sendRequest({
@@ -490,7 +570,7 @@ export const useAppStore = defineStore('fabdev', {
         payload: { operationId }
       })
       if (response.type === 'runtimeUpdateOperation') {
-        this.runtimeUpdateOperation = response.payload
+        applyRuntimeOperation(this, response.payload)
         return response.payload
       }
       if (response.type === 'error') {
@@ -504,7 +584,7 @@ export const useAppStore = defineStore('fabdev', {
         payload: { operationId }
       })
       if (response.type === 'runtimeUpdateOperation') {
-        this.runtimeUpdateOperation = response.payload
+        applyRuntimeOperation(this, response.payload)
         if (response.payload.status === 'completed') {
           if (response.payload.name === 'php') {
             await this.loadPhpRuntimes()

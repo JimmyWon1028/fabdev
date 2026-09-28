@@ -1,9 +1,10 @@
 import type { AgentResponse, AgentStatus, ProxyManagerState } from '@fabdev/contracts'
 import { invoke } from '@tauri-apps/api/core'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAppStore } from './fabdev'
+import { supportedThemes } from '../utils/preferences'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
@@ -179,4 +180,64 @@ describe('status and Proxy request ordering', () => {
     expect(store.proxyManager.connections[0].name).toBe('recovered')
   })
 
+})
+
+describe('theme mode preferences', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('preserves legacy dark mode when switching themes and reloading', () => {
+    const values = new Map([['fabdev.preferences.theme', 'neubrutalism-dark']])
+    vi.stubGlobal('window', { localStorage: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value) }
+    } })
+    vi.stubGlobal('document', { documentElement: { dataset: {} } })
+    const store = useAppStore()
+    expect(store.theme).toBe('neo-brutalism')
+    expect(store.themeMode).toBe('dark')
+    store.setTheme('notion')
+    expect(store.themeMode).toBe('dark')
+    store.setTheme('neo-brutalism')
+    expect(store.themeMode).toBe('dark')
+    store.setTheme('notion')
+    expect(store.themeMode).toBe('dark')
+    setActivePinia(createPinia())
+    const restored = useAppStore()
+    expect(restored.theme).toBe('notion')
+    expect(restored.themeMode).toBe('dark')
+    expect(document.documentElement.dataset.colorMode).toBe('dark')
+  })
+
+  it.each(['dark', 'light'] as const)('keeps %s through every theme in both directions despite saved modes', (mode) => {
+    const opposite = mode === 'dark' ? 'light' : 'dark'
+    const values = new Map(supportedThemes.map((theme) => [`fabdev.preferences.themeMode.${theme}`, opposite]))
+    vi.stubGlobal('window', { localStorage: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value) }
+    } })
+    vi.stubGlobal('document', { documentElement: { dataset: {} } })
+    const store = useAppStore()
+    store.setThemeMode(mode)
+    for (const theme of [...supportedThemes, ...[...supportedThemes].reverse()]) {
+      store.setTheme(theme)
+      expect(store.theme).toBe(theme)
+      expect(store.themeMode).toBe(mode)
+      expect(document.documentElement.dataset.theme).toBe(theme)
+      expect(document.documentElement.dataset.colorMode).toBe(mode)
+    }
+    setActivePinia(createPinia())
+    expect(useAppStore().themeMode).toBe(mode)
+  })
+
+  it('keeps the current mode and page intact when saving fails', () => {
+    vi.stubGlobal('window', { localStorage: {
+      getItem: () => null,
+      setItem: () => { throw new Error('Storage unavailable') }
+    } })
+    vi.stubGlobal('document', { documentElement: { dataset: { theme: 'default', colorMode: 'light' } } })
+    const store = useAppStore()
+    expect(() => store.setThemeMode('dark')).toThrow('Storage unavailable')
+    expect(store.themeMode).toBe('light')
+    expect(document.documentElement.dataset.colorMode).toBe('light')
+  })
 })

@@ -977,6 +977,8 @@ async function toggleLanShare(site: Site) {
           :required="editingSiteId !== null"
           placeholder="ERP Demo"
           autocapitalize="none"
+          autocorrect="off"
+          spellcheck="false"
           autofocus
         />
       </label>

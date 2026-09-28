@@ -8,6 +8,10 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
 use windows_sys::Win32::Foundation::{CloseHandle, GetLastError, HANDLE};
+use windows_sys::Win32::Security::Cryptography::{
+  CertCreateCertificateContext, CertFreeCertificateContext, CertGetCertificateContextProperty,
+  CryptStringToBinaryW, CERT_SHA1_HASH_PROP_ID, CRYPT_STRING_BASE64HEADER, X509_ASN_ENCODING,
+};
 use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject, INFINITE};
 use windows_sys::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW};
 use windows_sys::Win32::UI::WindowsAndMessaging::SW_HIDE;
@@ -198,21 +202,62 @@ fn untrust_ca(certificate: &Path) -> Result<()> {
 }
 
 fn certificate_sha1(certificate: &Path) -> Result<String> {
-  let output = run_certutil([
-    OsStr::new("-hashfile"),
-    certificate.as_os_str(),
-    OsStr::new("SHA1"),
-  ])?;
-  output
-    .lines()
-    .map(|line| {
-      line
-        .chars()
-        .filter(|character| character.is_ascii_hexdigit())
-        .collect()
-    })
-    .find(|line: &String| line.len() == 40)
-    .context("certutil did not return the local CA SHA-1 fingerprint")
+  let pem = std::fs::read_to_string(certificate).context("unable to read the local CA")?;
+  let encoded = pem.encode_utf16().collect::<Vec<_>>();
+  if encoded.is_empty() {
+    bail!("local CA PEM is empty");
+  }
+  let encoded_len = u32::try_from(encoded.len()).context("local CA PEM is too large")?;
+  let mut der = vec![0_u8; encoded.len()];
+  let mut der_len = encoded_len;
+  // The Root store identifies the certificate's DER bytes, not its PEM text.
+  if unsafe {
+    CryptStringToBinaryW(
+      encoded.as_ptr(),
+      encoded_len,
+      CRYPT_STRING_BASE64HEADER,
+      der.as_mut_ptr(),
+      &mut der_len,
+      std::ptr::null_mut(),
+      std::ptr::null_mut(),
+    )
+  } == 0
+  {
+    bail!("unable to decode local CA PEM: {}", unsafe {
+      GetLastError()
+    });
+  }
+  let context = unsafe { CertCreateCertificateContext(X509_ASN_ENCODING, der.as_ptr(), der_len) };
+  if context.is_null() {
+    bail!("unable to parse local CA certificate: {}", unsafe {
+      GetLastError()
+    });
+  }
+  let mut fingerprint = [0_u8; 20];
+  let mut size = fingerprint.len() as u32;
+  let result = unsafe {
+    CertGetCertificateContextProperty(
+      context,
+      CERT_SHA1_HASH_PROP_ID,
+      fingerprint.as_mut_ptr().cast(),
+      &mut size,
+    )
+  };
+  let error = if result == 0 {
+    unsafe { GetLastError() }
+  } else {
+    0
+  };
+  unsafe { CertFreeCertificateContext(context) };
+  if result == 0 || size != fingerprint.len() as u32 {
+    bail!("unable to read local CA SHA-1 thumbprint: {error}");
+  }
+  Ok(
+    fingerprint
+      .iter()
+      .map(|byte| format!("{byte:02x}"))
+      .collect(),
+  )
 }
 
 fn run_certutil<I, S>(arguments: I) -> Result<String>
@@ -374,6 +419,21 @@ impl Drop for ProcessHandle {
 mod tests {
   use super::*;
 
+  // Public certificate generated only for this fixture; no private key is stored.
+  const TEST_CA_PEM: &str = "-----BEGIN CERTIFICATE-----
+MIIBtTCCAVugAwIBAgIUZyKrnxsTyTvVJBgWJdW+XNAQZtwwCgYIKoZIzj0EAwIw
+NzEPMA0GA1UECgwGZmFiRGV2MSQwIgYDVQQDDBtmYWJEZXYgTG9jYWwgRGV2ZWxv
+cG1lbnQgQ0EwIBcNNzUwMTAxMDAwMDAwWhgPNDA5NjAxMDEwMDAwMDBaMDcxDzAN
+BgNVBAoMBmZhYkRldjEkMCIGA1UEAwwbZmFiRGV2IExvY2FsIERldmVsb3BtZW50
+IENBMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEXwi0Fbi4g5KleSWJGTdEHAvQ
+anLLFzLFXp+Sdc1YG12r9uR9P4dmOFqCIxifEcAPLFtsphzk6yX0E2uJht/lpqND
+MEEwDwYDVR0PAQH/BAUDAweGADAdBgNVHQ4EFgQU5UTF75/bYUETTzD0/TgGsrqU
+INcwDwYDVR0TAQH/BAUwAwEB/zAKBggqhkjOPQQDAgNIADBFAiAc51VnAObCZqFw
+iHi1g4tJTACnoy69O8hcOZiftiOWrgIhAMrELSOdLNKByaneW3iWIoM03rCb4Akf
+YmRPX/wo6j63
+-----END CERTIFICATE-----
+";
+
   struct TestDirectory(PathBuf);
 
   impl TestDirectory {
@@ -395,6 +455,34 @@ mod tests {
     fn drop(&mut self) {
       let _ = std::fs::remove_dir_all(&self.0);
     }
+  }
+
+  #[test]
+  fn identifies_the_same_certificate_despite_pem_line_endings() {
+    let fixture = TestDirectory::create("ca-thumbprint");
+    let certificate = fixture.0.join("ca.crt");
+    for pem in [TEST_CA_PEM.to_owned(), TEST_CA_PEM.replace('\n', "\r\n")] {
+      std::fs::write(&certificate, pem).expect("write public certificate fixture");
+      assert_eq!(
+        certificate_sha1(&certificate).expect("read certificate thumbprint"),
+        "6509663693e1bc4d6c40d3e176261b7a111819b1"
+      );
+    }
+  }
+
+  #[test]
+  fn rejects_empty_pem_and_non_certificate_data() {
+    let fixture = TestDirectory::create("invalid-ca-thumbprint");
+    let certificate = fixture.0.join("ca.crt");
+    for pem in [
+      "",
+      "not a certificate",
+      "-----BEGIN CERTIFICATE-----\nYWJj\n-----END CERTIFICATE-----",
+    ] {
+      std::fs::write(&certificate, pem).expect("write invalid certificate fixture");
+      assert!(certificate_sha1(&certificate).is_err());
+    }
+    assert!(certificate_sha1(&fixture.0.join("missing.crt")).is_err());
   }
 
   #[test]

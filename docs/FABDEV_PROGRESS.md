@@ -1,11 +1,16 @@
 # fabDev 穩定基線與 Roadmap
 
-> 更新日期：2026-09-25
-> 目前階段：[`v0.1.28`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.28) 是公開 Latest Stable，已依 Windows-first 順序補齊同版 macOS ARM64 DMG，提供 Windows x64 App、fabDev Connect 與 macOS ARM64 App。Agent Protocol 維持 `40`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
+> 更新日期：2026-09-28
+> 目前階段：`0.1.29` Windows x64 候選準備中；[`v0.1.28`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.28) 仍是公開 Latest Stable，已依 Windows-first 順序補齊同版 macOS ARM64 DMG，提供 Windows x64 App、fabDev Connect 與 macOS ARM64 App。Agent Protocol 維持 `40`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
 
 ## 階段結論
 
 fabDev Desktop Community `v0.1.28` 已依 Windows-first 順序完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Draft 與 Publish，並從相同 Tag Commit 補齊 macOS ARM64 Community DMG。Release ID `396444623`，目前 9 個 App-only Assets 已完成匿名公開下載驗證；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
+
+## 0.1.29 Windows x64 候選（準備中）
+
+- 2026-09-28 Repository Owner 要求進版打包，並指定先建立 Windows x64 候選。四個正式版本來源及 `Cargo.lock` 的 13 個 fabDev workspace 套件已同步為 `0.1.29`；Agent Protocol 維持 `40`。候選原始碼包含本輪 F01～F09 缺陷修正、Site 名稱輸入、主題深淺模式與 Glassmorphism 分隔線修正。App 安裝與更新流程、線上 Runtime Package／Catalog 未變更。
+- 本機完整 `pnpm test` 通過 Desktop 148、Release 規則 21、Rust workspace 309、macOS Helper 10 項，共 488 項；另有 7 項 Rust 測試依既有設定維持 ignored。`pnpm lint`、`pnpm build` 與 `git diff --check` 通過。Windows 原生測試與 NSIS 候選安裝包仍待 Windows x64 CI；尚未建立候選 Artifact、Tag、Draft 或 Release。
 
 ## 0.1.28 Stable（Windows-first，已補 macOS ARM64）
 

@@ -7,12 +7,15 @@ import {
   loadLanguage,
   loadShowDashboardOnLaunch,
   loadTheme,
+  loadThemeMode,
+  defaultThemeMode,
   saveAutoCheckUpdates,
   saveAutoStartServices,
   saveLastUpdateCheck,
   saveLanguage,
   saveShowDashboardOnLaunch,
   saveTheme,
+  saveThemeMode,
   supportedThemes
 } from './preferences'
 
@@ -84,11 +87,39 @@ describe('theme preference', () => {
     expect(loadTheme(memoryStorage())).toBe('default')
   })
 
-  it('loads and persists Neo-Brutalism', () => {
+  it('preserves the saved Neubrutalism identifier', () => {
     const storage = memoryStorage()
 
     saveTheme('neo-brutalism', storage)
     expect(loadTheme(storage)).toBe('neo-brutalism')
+  })
+
+  it('restores the old Neubrutalism dark preference as one theme plus a mode', () => {
+    const storage = memoryStorage('neubrutalism-dark')
+    expect(loadTheme(storage)).toBe('neo-brutalism')
+    expect(loadThemeMode('neo-brutalism', storage)).toBe('dark')
+  })
+
+  it.each(supportedThemes)('persists both color modes for %s independently', (theme) => {
+    const values = new Map<string, string>()
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value) }
+    }
+    expect(loadThemeMode(theme, storage)).toBe(defaultThemeMode(theme))
+    saveThemeMode(theme, 'dark', storage)
+    expect(loadThemeMode(theme, storage)).toBe('dark')
+    saveThemeMode(theme, 'light', storage)
+    expect(loadThemeMode(theme, storage)).toBe('light')
+    const other = theme === 'notion' ? 'graphite' : 'notion'
+    expect(loadThemeMode(other, storage)).toBe(defaultThemeMode(other))
+  })
+
+  it('falls back to the original palette for invalid or unavailable mode storage', () => {
+    expect(loadThemeMode('notion', memoryStorage('invalid'))).toBe('light')
+    expect(loadThemeMode('graphite', memoryStorage('invalid'))).toBe('dark')
+    const storage = { getItem: () => { throw new Error('denied') }, setItem: () => {} }
+    expect(loadThemeMode('glassmorphism', storage)).toBe('light')
   })
 
   it('loads and persists Notion', () => {
@@ -128,7 +159,7 @@ describe('theme preference', () => {
     expect(loadTheme(storage)).toBe(theme)
   })
 
-  it('orders Solarized after Notion and the remaining new themes after Cyberpunk', () => {
+  it('lists Neubrutalism only once and keeps its dark variant out of the menu', () => {
     expect(supportedThemes).toEqual([
       'default', 'notion', 'porcelain', 'neo-brutalism', 'glassmorphism', 'cyberpunk',
       'cyberpunk-city', 'graphite', 'retro-terminal', 'blueprint'

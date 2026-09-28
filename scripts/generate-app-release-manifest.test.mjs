@@ -100,6 +100,24 @@ test('keeps the Windows installer language and Desktop single-instance contracts
   assert.match(windowsWorkflow, /Run Windows distribution contract tests[\s\S]*pnpm run test:release/)
 })
 
+test('runs Windows Rust regressions before producing either candidate or Draft installers', async () => {
+  const [candidate, draft] = await Promise.all([
+    readFile(join(repoRoot, '.github/workflows/windows-x64.yml'), 'utf8'),
+    readFile(join(repoRoot, '.github/workflows/release-draft.yml'), 'utf8')
+  ])
+  const windowsDraft = draft.slice(draft.indexOf('  build-windows:'), draft.indexOf('  create-draft:'))
+  for (const workflow of [candidate, windowsDraft]) {
+    const testCommand = workflow.indexOf('cargo test --workspace --target x86_64-pc-windows-msvc')
+    const installer = workflow.indexOf('Build unsigned NSIS installer')
+    assert.ok(testCommand >= 0 && testCommand < installer)
+    assert.doesNotMatch(workflow, /continue-on-error: true/)
+  }
+  const paths = candidate.slice(candidate.indexOf('    paths:'), candidate.indexOf('\npermissions:'))
+  for (const path of ['apps/connect/**', 'helpers/windows/**', 'crates/**']) {
+    assert.ok(paths.includes(`- "${path}"`), `Windows CI must run for changes to ${path}`)
+  }
+})
+
 test('pins Windows CI actions to Node.js 24 compatible releases', async () => {
   const windowsWorkflow = await readFile(
     join(repoRoot, '.github/workflows/windows-x64.yml'),

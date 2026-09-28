@@ -8,7 +8,9 @@ on:
     paths:
       - ".github/workflows/windows-x64.yml"
       - "apps/desktop/**"
+      - "apps/connect/**"
       - "crates/**"
+      - "helpers/windows/**"
       - "packages/**"
       - "resources/runtime-packages/windows-x64*.json"
       - "scripts/build-desktop-bundle-assets.mjs"
@@ -81,6 +83,9 @@ jobs:
 
       - name: Check Rust workspace
         run: cargo check --workspace --all-targets --target x86_64-pc-windows-msvc
+
+      - name: Run Rust workspace tests
+        run: cargo test --workspace --target x86_64-pc-windows-msvc
 
       - name: Build fabDev Connect
         run: cargo build -p fabdev-connect --release --target x86_64-pc-windows-msvc

@@ -99,7 +99,17 @@ pub fn render_nginx_site(config: &NginxSiteConfig) -> Result<String, SiteDriverE
         ),
       )
     }
-    None => ("index.html", "=404", String::new(), String::new()),
+    None => (
+      "index.html",
+      "=404",
+      r#"
+  location ~* \.php(?:/|$) {
+    deny all;
+  }
+"#
+      .to_owned(),
+      String::new(),
+    ),
   };
   let application_server = format!(
     r#"server {{
@@ -111,12 +121,11 @@ pub fn render_nginx_site(config: &NginxSiteConfig) -> Result<String, SiteDriverE
   location / {{
     try_files $uri $uri/ {fallback};
   }}
-{php_location}
-{php_status_location}
-
   location ~ /\. {{
     deny all;
   }}
+{php_location}
+{php_status_location}
 }}
 "#,
     domain = config.site.domain,
@@ -150,12 +159,11 @@ server {{
   location / {{
     try_files $uri $uri/ {fallback};
   }}
-{php_location}
-{php_status_location}
-
   location ~ /\. {{
     deny all;
   }}
+{php_location}
+{php_status_location}
 }}
 "#,
     domain = config.site.domain,
@@ -198,6 +206,7 @@ mod tests {
     }
   }
 
+  #[cfg(unix)]
   #[test]
   fn renders_site_for_unix_socket() {
     let output = render_nginx_site(&NginxSiteConfig {
@@ -226,6 +235,7 @@ mod tests {
     );
   }
 
+  #[cfg(unix)]
   #[test]
   fn quotes_php_socket_with_spaces() {
     let output = render_nginx_site(&NginxSiteConfig {
@@ -258,7 +268,7 @@ mod tests {
   fn renders_site_for_tcp_fastcgi() {
     let output = render_nginx_site(&NginxSiteConfig {
       site: site(),
-      nginx_root: "/tmp/fabdev/nginx".into(),
+      nginx_root: std::env::temp_dir().join("fabdev/nginx"),
       fastcgi_endpoint: Some(FastCgiEndpoint::Tcp(
         "127.0.0.1:19082".parse().expect("parse address"),
       )),
@@ -273,12 +283,12 @@ mod tests {
   }
 
   #[test]
-  fn renders_static_site_without_php_location() {
+  fn renders_static_site_without_fastcgi_and_blocks_php_source() {
     let mut static_site = site();
     static_site.php_version = None;
     let output = render_nginx_site(&NginxSiteConfig {
       site: static_site,
-      nginx_root: "/tmp/fabdev/nginx".into(),
+      nginx_root: std::env::temp_dir().join("fabdev/nginx"),
       fastcgi_endpoint: None,
       listen_port: 8080,
       https_listen_port: 8443,
@@ -289,23 +299,68 @@ mod tests {
     assert!(output.contains("index index.html;"));
     assert!(output.contains("try_files $uri $uri/ =404;"));
     assert!(!output.contains("fastcgi_pass"));
+    assert!(output.contains("location ~* \\.php(?:/|$) {\n    deny all;\n  }"));
     assert!(!output.contains("location ~ \\.php$"));
     assert!(!output.contains("/__fabdev/php-fpm-status"));
+  }
+
+  #[test]
+  fn protects_hidden_paths_before_php_in_http_and_https_sites() {
+    for secured in [false, true] {
+      for endpoint in [
+        None,
+        Some(FastCgiEndpoint::Tcp("127.0.0.1:19082".parse().unwrap())),
+      ] {
+        let output = render_nginx_site(&NginxSiteConfig {
+          site: site(),
+          nginx_root: std::env::temp_dir().join("fabdev/nginx"),
+          fastcgi_endpoint: endpoint.clone(),
+          listen_port: 8080,
+          https_listen_port: 8443,
+          tls: secured.then(|| NginxTlsConfig {
+            certificate: std::env::temp_dir().join("fabdev/site.crt"),
+            private_key: std::env::temp_dir().join("fabdev/site.key"),
+          }),
+        })
+        .expect("render protected Site");
+        let hidden = output.find("location ~ /\\.").expect("hidden path guard");
+        let php = output
+          .find(if endpoint.is_some() {
+            "location ~ \\.php$"
+          } else {
+            "location ~* \\.php(?:/|$)"
+          })
+          .expect("PHP handler or source guard");
+        assert!(
+          hidden < php,
+          "hidden paths must be denied before the PHP rule"
+        );
+        if endpoint.is_none() {
+          assert!(!output.contains("fastcgi_pass"));
+          assert!(output.contains("try_files $uri $uri/ =404;"));
+        } else {
+          assert!(output.contains("fastcgi_pass 127.0.0.1:19082;"));
+          assert!(output.contains("try_files $uri $uri/ /index.php?$query_string;"));
+        }
+      }
+    }
   }
 
   #[test]
   fn renders_https_redirect_and_tls_server() {
     let mut secured_site = site();
     secured_site.secured = true;
+    let certificate = std::env::temp_dir().join("fabdev/tls/erp.test.crt");
+    let private_key = std::env::temp_dir().join("fabdev/tls/erp.test.key");
     let output = render_nginx_site(&NginxSiteConfig {
       site: secured_site,
-      nginx_root: "/tmp/fabdev/nginx".into(),
-      fastcgi_endpoint: Some(FastCgiEndpoint::UnixSocket("/tmp/fabdev/php82.sock".into())),
+      nginx_root: std::env::temp_dir().join("fabdev/nginx"),
+      fastcgi_endpoint: Some(FastCgiEndpoint::Tcp("127.0.0.1:19082".parse().unwrap())),
       listen_port: 8080,
       https_listen_port: 8443,
       tls: Some(NginxTlsConfig {
-        certificate: "/tmp/fabdev/tls/erp.test.crt".into(),
-        private_key: "/tmp/fabdev/tls/erp.test.key".into(),
+        certificate: certificate.clone(),
+        private_key: private_key.clone(),
       }),
     })
     .expect("render secure config");
@@ -319,7 +374,10 @@ mod tests {
     );
     assert!(output.contains("listen 127.0.0.1:8443 ssl;"));
     assert!(output.contains("http2 on;"));
-    assert!(output.contains("ssl_certificate \"/tmp/fabdev/tls/erp.test.crt\";"));
-    assert!(output.contains("ssl_certificate_key \"/tmp/fabdev/tls/erp.test.key\";"));
+    assert!(output.contains(&format!("ssl_certificate {};", quote_path(&certificate))));
+    assert!(output.contains(&format!(
+      "ssl_certificate_key {};",
+      quote_path(&private_key)
+    )));
   }
 }

@@ -533,6 +533,39 @@ impl LanShareState {
     Ok(())
   }
 
+  async fn sync_sites(&mut self, sites: &[Site]) -> Result<()> {
+    let Some(mut info) = self.info.clone() else {
+      return Ok(());
+    };
+    // Preserve explicit sharing by Site ID, never by a reused domain.
+    info.sites = info
+      .sites
+      .iter()
+      .filter_map(|shared| {
+        sites
+          .iter()
+          .find(|site| site.id == shared.site_id && site.enabled)
+          .map(|site| LanShareSiteInfo {
+            site_id: site.id,
+            domain: site.domain.clone(),
+          })
+      })
+      .collect();
+    if info.sites.is_empty() {
+      return self.stop().await;
+    }
+    info
+      .sites
+      .sort_by(|left, right| left.domain.cmp(&right.domain));
+    if let Some(server) = self.server.as_ref() {
+      server
+        .set_allowed_domains(info.sites.iter().map(|site| site.domain.clone()).collect())
+        .await?;
+    }
+    self.info = Some(info);
+    Ok(())
+  }
+
   async fn stop(&mut self) -> Result<()> {
     let server = self.server.take();
     self
@@ -3086,6 +3119,7 @@ async fn sync_home_sites(state: &AgentState) -> Result<Vec<Site>> {
     repository.list()?
   };
   if existing_home == desired_home {
+    state.lan_share.lock().await.sync_sites(&sites).await?;
     return Ok(sites);
   }
 
@@ -3101,6 +3135,7 @@ async fn sync_home_sites(state: &AgentState) -> Result<Vec<Site>> {
     .await
   };
   let Err(error) = apply_result else {
+    state.lan_share.lock().await.sync_sites(&sites).await?;
     return Ok(sites);
   };
 
@@ -4726,6 +4761,160 @@ mod tests {
     let info = state.info().expect("keep LAN share");
     assert_eq!(info.sites[0].site_id, site_id);
     assert_eq!(info.sites[0].domain, "new.test");
+  }
+
+  #[cfg(unix)]
+  async fn shared_home_fixture() -> (PathBuf, AgentState, Site, SocketAddr) {
+    let root = std::env::temp_dir().join(format!("fabdev-shared-home-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(root.join("data"));
+    paths.ensure().unwrap();
+    let home = root.join("home");
+    std::fs::create_dir_all(home.join("shared")).unwrap();
+    let repository = SiteRepository::in_memory().unwrap();
+    repository.save_site_home(&home).unwrap();
+    let state = AgentState {
+      paths: paths.clone(),
+      sites: Mutex::new(repository),
+      services: Mutex::new(ServiceSupervisor::new(
+        paths.clone(),
+        RuntimePaths::from_runtime_root(&paths.runtimes),
+        ServicePorts {
+          dns: 53535,
+          http: 8080,
+          https: 8443,
+          mariadb: 3306,
+        },
+      )),
+      lan_share: Mutex::new(LanShareState::new(8080)),
+      proxy_manager: Mutex::new(ProxyManager::new(Vec::new()).unwrap()),
+      runtime_updates: RuntimeUpdateManager::default(),
+      shutdown: Arc::new(Notify::new()),
+    };
+    let site = sync_home_sites(&state).await.unwrap().remove(0);
+    let server = ShareServer::start_restricted(
+      "127.0.0.1:0".parse().unwrap(),
+      "127.0.0.1:9".parse().unwrap(),
+      vec![site.domain.clone()],
+    )
+    .await
+    .unwrap();
+    let address = server.local_addr();
+    {
+      let mut share = state.lan_share.lock().await;
+      share.server = Some(server);
+      share.info = Some(LanShareInfo {
+        host: address.ip().to_string(),
+        port: address.port(),
+        sites: vec![LanShareSiteInfo {
+          site_id: site.id,
+          domain: site.domain.clone(),
+        }],
+      });
+    }
+    (root, state, site, address)
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn home_sync_stops_the_last_share_and_does_not_share_a_reused_domain() {
+    let (root, state, site, address) = shared_home_fixture().await;
+    std::fs::remove_dir(&site.project_path).unwrap();
+    assert!(sync_home_sites(&state).await.unwrap().is_empty());
+    assert!(state.lan_share.lock().await.info().is_none());
+    let released = tokio::net::TcpListener::bind(address)
+      .await
+      .expect("release share port");
+    drop(released);
+
+    std::fs::create_dir(&site.project_path).unwrap();
+    let replacement = sync_home_sites(&state).await.unwrap().remove(0);
+    assert_eq!(replacement.domain, site.domain);
+    assert_ne!(replacement.id, site.id);
+    assert!(state.lan_share.lock().await.info().is_none());
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn switching_home_keeps_linked_shares_and_revokes_old_home_domains() {
+    use tokio::io::AsyncReadExt;
+
+    let (root, state, home_site, address) = shared_home_fixture().await;
+    let mut linked = home_site.clone();
+    linked.id = Uuid::new_v4();
+    linked.domain = "linked.test".to_owned();
+    linked.project_path = root.join("linked");
+    linked.document_root = linked.project_path.clone();
+    std::fs::create_dir(&linked.project_path).unwrap();
+    state.sites.lock().await.insert(&linked).unwrap();
+    {
+      let mut share = state.lan_share.lock().await;
+      share.info.as_mut().unwrap().sites.push(LanShareSiteInfo {
+        site_id: linked.id,
+        domain: linked.domain.clone(),
+      });
+      share
+        .sync_sites(&[home_site.clone(), linked.clone()])
+        .await
+        .unwrap();
+    }
+    let new_home = root.join("new-home");
+    std::fs::create_dir_all(new_home.join("shared")).unwrap();
+    state.sites.lock().await.save_site_home(&new_home).unwrap();
+    let sites = sync_home_sites(&state).await.unwrap();
+    assert!(sites
+      .iter()
+      .any(|site| site.domain == home_site.domain && site.id != home_site.id));
+    let share = state.lan_share.lock().await.info().unwrap();
+    assert_eq!(share.port, address.port());
+    assert_eq!(share.sites.len(), 1);
+    assert_eq!(share.sites[0].site_id, linked.id);
+
+    let mut client = tokio::net::TcpStream::connect(address).await.unwrap();
+    client
+      .write_all(
+        format!(
+          "GET / HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+          home_site.domain
+        )
+        .as_bytes(),
+      )
+      .await
+      .unwrap();
+    let mut response = String::new();
+    tokio::time::timeout(
+      std::time::Duration::from_secs(2),
+      client.read_to_string(&mut response),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(response.starts_with("HTTP/1.1 403"));
+    state.lan_share.lock().await.stop().await.unwrap();
+    tokio::net::TcpListener::bind(address)
+      .await
+      .expect("release remaining share port");
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn failed_home_sync_preserves_the_previous_registry_and_share() {
+    let (root, state, site, address) = shared_home_fixture().await;
+    std::fs::remove_dir(&site.project_path).unwrap();
+    // Force configuration preparation to fail without starting real services.
+    std::fs::remove_dir_all(&state.paths.sites).unwrap();
+    std::fs::write(&state.paths.sites, "not a directory").unwrap();
+    assert!(sync_home_sites(&state).await.is_err());
+    assert_eq!(state.sites.lock().await.list().unwrap(), vec![site.clone()]);
+    let info = state.lan_share.lock().await.info().unwrap();
+    assert_eq!(info.sites[0].site_id, site.id);
+    assert_eq!(info.port, address.port());
+    state.lan_share.lock().await.stop().await.unwrap();
+    tokio::net::TcpListener::bind(address)
+      .await
+      .expect("release unchanged share port");
+    std::fs::remove_dir_all(root).unwrap();
   }
 
   #[test]

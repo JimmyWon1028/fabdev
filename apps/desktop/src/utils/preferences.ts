@@ -7,9 +7,14 @@ const THEME_KEY = 'fabdev.preferences.theme'
 
 export const supportedLanguages = ['en', 'zh-TW', 'zh-CN'] as const
 export type Language = (typeof supportedLanguages)[number]
-// Keep the original cyberpunk identifier for existing Tron preferences.
+// Preserve the original identifiers for existing Tron and Neubrutalism preferences.
 export const supportedThemes = ['default', 'notion', 'porcelain', 'neo-brutalism', 'glassmorphism', 'cyberpunk', 'cyberpunk-city', 'graphite', 'retro-terminal', 'blueprint'] as const
 export type Theme = (typeof supportedThemes)[number]
+export type ThemeMode = 'light' | 'dark'
+
+export function defaultThemeMode(theme: Theme): ThemeMode {
+  return ['cyberpunk', 'cyberpunk-city', 'graphite', 'retro-terminal', 'blueprint'].includes(theme) ? 'dark' : 'light'
+}
 
 type PreferenceStorage = Pick<Storage, 'getItem' | 'setItem'>
 
@@ -127,7 +132,8 @@ export function loadTheme(storage = browserStorage()): Theme {
   }
   try {
     const theme = storage.getItem(THEME_KEY)
-    return supportedThemes.includes(theme as Theme) ? (theme as Theme) : 'default'
+    if (theme === 'neubrutalism-dark') return 'neo-brutalism'
+    return supportedThemes.includes(theme as (typeof supportedThemes)[number]) ? (theme as Theme) : 'default'
   } catch {
     return 'default'
   }
@@ -138,4 +144,20 @@ export function saveTheme(theme: Theme, storage = browserStorage()): void {
     return
   }
   storage.setItem(THEME_KEY, theme)
+}
+
+export function loadThemeMode(theme: Theme, storage = browserStorage()): ThemeMode {
+  try {
+    const saved = storage?.getItem(`fabdev.preferences.themeMode.${theme}`)
+    if (saved === 'light' || saved === 'dark') return saved
+    // Preserve the dark variant saved before color modes became independent.
+    if (theme === 'neo-brutalism' && storage?.getItem(THEME_KEY) === 'neubrutalism-dark') return 'dark'
+  } catch {
+    // Unavailable storage falls back to the theme's original appearance.
+  }
+  return defaultThemeMode(theme)
+}
+
+export function saveThemeMode(theme: Theme, mode: ThemeMode, storage = browserStorage()): void {
+  storage?.setItem(`fabdev.preferences.themeMode.${theme}`, mode)
 }

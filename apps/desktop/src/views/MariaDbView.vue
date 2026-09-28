@@ -16,7 +16,6 @@ import {
   formatRuntimeBytes,
   formatRuntimeTarget,
   isRuntimeDownloadActive,
-  runtimeOperationForArtifact,
   latestRuntimeArtifact,
   runtimeProgressPercent
 } from '../utils/runtime'
@@ -55,9 +54,7 @@ const runtimeState = computed(() => {
   return catalogRuntimeState(artifact.activeVersion, artifact)
 })
 const onlineOperation = computed(() => {
-  const operation = store.runtimeUpdateOperation
-  const artifact = onlineArtifact.value
-  return runtimeOperationForArtifact(artifact, operation)
+  return store.runtimeOperationFor(onlineArtifact.value)
 })
 const onlineProgress = computed(() => onlineOperation.value
   ? runtimeProgressPercent(
@@ -171,7 +168,7 @@ async function installOrUpdateOnlineRuntime() {
   if (operation?.status !== 'verified') {
     operation = await downloadOnlineRuntime(artifact)
   }
-  if (operation?.status === 'verified') {
+  if (mounted && operation?.status === 'verified') {
     await installOnlineRuntime(artifact, operation)
   }
 }
@@ -189,7 +186,7 @@ async function downloadOnlineRuntime(
     okLabel: t('runtimes.onlineDownload'),
     cancelLabel: t('runtimes.cancel')
   })
-  if (!approved) {
+  if (!approved || !mounted) {
     return null
   }
 
@@ -198,9 +195,9 @@ async function downloadOnlineRuntime(
   store.clearError()
   try {
     let operation = await store.startRuntimeDownload(artifact.name, artifact.version)
-    while (mounted && isRuntimeDownloadActive(operation.status)) {
-      await new Promise((resolve) => window.setTimeout(resolve, 250))
-      operation = await store.getRuntimeUpdateOperation(operation.operationId)
+    operation = await store.waitForRuntimeDownload(operation.operationId)
+    if (!mounted) {
+      return null
     }
     if (operation.status === 'verified') {
       message.value = t('mariadb.onlineVerified', { version: operation.version })
@@ -234,7 +231,7 @@ async function installOnlineRuntime(
     okLabel: t(updating ? 'runtimes.update' : 'dashboard.installMariaDb'),
     cancelLabel: t('runtimes.cancel')
   })
-  if (!approved) {
+  if (!approved || !mounted) {
     return
   }
 

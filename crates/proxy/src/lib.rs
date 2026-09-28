@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::convert::Infallible;
+use std::future::Future;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -825,15 +826,56 @@ async fn run_proxy(
   listener: TcpListener,
   settings: ProxyConnectionSettings,
   health: Arc<ConnectionHealth>,
-  mut stop: oneshot::Receiver<()>,
+  stop: oneshot::Receiver<()>,
 ) {
-  let clients = Arc::new(ProxyClientPool::new());
-  let mut connections = JoinSet::new();
-  let mut health_interval = tokio::time::interval_at(
+  let health_interval = tokio::time::interval_at(
     tokio::time::Instant::now() + health_initial_delay(&settings.id),
     UPSTREAM_HEALTH_INTERVAL,
   );
+  run_proxy_with_health_check(
+    listener,
+    settings,
+    health,
+    stop,
+    health_interval,
+    |settings| async move { check_upstream(&settings).await },
+  )
+  .await;
+}
+
+async fn run_proxy_with_health_check<F, Check>(
+  listener: TcpListener,
+  settings: ProxyConnectionSettings,
+  health: Arc<ConnectionHealth>,
+  mut stop: oneshot::Receiver<()>,
+  mut health_interval: tokio::time::Interval,
+  mut check: F,
+) where
+  F: FnMut(ProxyConnectionSettings) -> Check,
+  Check: Future<Output = std::result::Result<(), UpstreamHealthFailure>>,
+{
+  let clients = Arc::new(ProxyClientPool::new());
+  let mut connections = JoinSet::new();
   health_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+  let mut health_checks = Box::pin(async {
+    loop {
+      health_interval.tick().await;
+      let started = Instant::now();
+      match check(settings.clone()).await {
+        Ok(()) => {
+          if health.record_periodic_success(started.elapsed()).await {
+            let client_generation = clients.reset().await;
+            health.log_client_reset(client_generation);
+          }
+        }
+        Err(error) => {
+          health
+            .record_periodic_failure(error, started.elapsed())
+            .await
+        }
+      }
+    }
+  });
 
   loop {
     #[cfg(test)]
@@ -843,18 +885,7 @@ async fn run_proxy(
     tokio::select! {
       _ = &mut stop => break,
       _ = connections.join_next(), if !connections.is_empty() => {}
-      _ = health_interval.tick() => {
-        let started = Instant::now();
-        match check_upstream(&settings).await {
-          Ok(()) => {
-            if health.record_periodic_success(started.elapsed()).await {
-              let client_generation = clients.reset().await;
-              health.log_client_reset(client_generation);
-            }
-          }
-          Err(error) => health.record_periodic_failure(error, started.elapsed()).await,
-        }
-      }
+      _ = &mut health_checks => {}
       accepted = listener.accept() => match accepted {
         Ok((stream, _)) => {
           health.record_runtime_success().await;
@@ -875,6 +906,7 @@ async fn run_proxy(
     }
   }
 
+  drop(health_checks);
   let drain = async { while connections.join_next().await.is_some() {} };
   if tokio::time::timeout(CONNECTION_DRAIN_TIMEOUT, drain)
     .await
@@ -1229,6 +1261,135 @@ mod tests {
     manager.remove(&id).await.expect("remove Proxy connection");
     assert!(manager.connections().is_empty());
     StdTcpListener::bind((Ipv4Addr::LOCALHOST, port)).expect("removed Proxy port should be free");
+  }
+
+  struct PendingHealthCheck {
+    calls: AtomicU64,
+    dropped: std::sync::atomic::AtomicBool,
+    started: tokio::sync::Notify,
+  }
+
+  struct HealthCheckGuard(Arc<PendingHealthCheck>);
+
+  impl Drop for HealthCheckGuard {
+    fn drop(&mut self) {
+      self.0.dropped.store(true, Ordering::SeqCst);
+    }
+  }
+
+  async fn start_proxy_with_pending_health_check(
+    target: String,
+  ) -> (u16, ProxyManager, Arc<PendingHealthCheck>) {
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let settings = test_connection("pending-health", port, target);
+    let health = Arc::new(ConnectionHealth::new(&settings));
+    let mut manager = ProxyManager::new(vec![settings.clone()]).unwrap();
+    let probe = Arc::new(PendingHealthCheck {
+      calls: AtomicU64::new(0),
+      dropped: std::sync::atomic::AtomicBool::new(false),
+      started: tokio::sync::Notify::new(),
+    });
+    let task_probe = Arc::clone(&probe);
+    let task_health = Arc::clone(&health);
+    let (stop, receiver) = oneshot::channel();
+    let task = tokio::spawn(async move {
+      run_proxy_with_health_check(
+        listener,
+        settings,
+        task_health,
+        receiver,
+        tokio::time::interval(Duration::from_millis(10)),
+        move |_| {
+          let probe = Arc::clone(&task_probe);
+          async move {
+            let _guard = HealthCheckGuard(Arc::clone(&probe));
+            probe.calls.fetch_add(1, Ordering::SeqCst);
+            probe.started.notify_one();
+            std::future::pending().await
+          }
+        },
+      )
+      .await;
+    });
+    manager.running.insert(
+      "pending-health".to_owned(),
+      RunningProxy {
+        stop: Some(stop),
+        task,
+        health,
+      },
+    );
+    tokio::time::timeout(Duration::from_secs(2), probe.started.notified())
+      .await
+      .expect("health check started");
+    (port, manager, probe)
+  }
+
+  #[tokio::test]
+  async fn serves_http_while_a_health_check_is_pending() {
+    let upstream = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let upstream_address = upstream.local_addr().unwrap();
+    let upstream_task = tokio::spawn(async move {
+      let (mut stream, _) = upstream.accept().await.unwrap();
+      let mut request = Vec::new();
+      let mut buffer = [0_u8; 1024];
+      while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+        let length = stream.read(&mut buffer).await.unwrap();
+        assert_ne!(length, 0);
+        request.extend_from_slice(&buffer[..length]);
+      }
+      stream
+        .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK")
+        .await
+        .unwrap();
+    });
+    let (port, mut manager, probe) =
+      start_proxy_with_pending_health_check(format!("http://{upstream_address}")).await;
+    let result = tokio::time::timeout(Duration::from_secs(1), async {
+      let mut client = TcpStream::connect((Ipv4Addr::LOCALHOST, port))
+        .await
+        .unwrap();
+      client
+        .write_all(b"GET /ping HTTP/1.1\r\nHost: pending-health.test\r\nConnection: close\r\n\r\n")
+        .await
+        .unwrap();
+      let mut response = String::new();
+      client.read_to_string(&mut response).await.unwrap();
+      response
+    })
+    .await;
+    manager.stop("pending-health").await.unwrap();
+    upstream_task.abort();
+    let _ = upstream_task.await;
+    StdTcpListener::bind((Ipv4Addr::LOCALHOST, port)).expect("Proxy released its port");
+    StdTcpListener::bind(upstream_address).expect("upstream released its port");
+    let response = result.expect("HTTP must finish before the health check completes");
+    assert!(response.starts_with("HTTP/1.1 200 OK"));
+    assert!(response.ends_with("OK"));
+    assert_eq!(probe.calls.load(Ordering::SeqCst), 1);
+    assert!(probe.dropped.load(Ordering::SeqCst));
+  }
+
+  #[tokio::test]
+  async fn stops_and_cancels_a_pending_health_check_without_waiting_for_its_timeout() {
+    let (port, mut manager, probe) =
+      start_proxy_with_pending_health_check("http://127.0.0.1:9".to_owned()).await;
+    tokio::time::sleep(Duration::from_millis(35)).await;
+    let started = Instant::now();
+    manager.stop("pending-health").await.unwrap();
+    let elapsed = started.elapsed();
+    StdTcpListener::bind((Ipv4Addr::LOCALHOST, port)).expect("Proxy released its port");
+    assert!(elapsed < Duration::from_secs(1), "stop took {elapsed:?}");
+    assert_eq!(
+      probe.calls.load(Ordering::SeqCst),
+      1,
+      "health checks must not overlap"
+    );
+    assert!(
+      probe.dropped.load(Ordering::SeqCst),
+      "pending check must be cancelled"
+    );
   }
 
   #[tokio::test]

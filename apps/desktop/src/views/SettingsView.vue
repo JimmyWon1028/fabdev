@@ -70,6 +70,17 @@ function changeTheme(theme: Theme) {
   }
 }
 
+function toggleThemeMode() {
+  try {
+    store.setThemeMode(store.themeMode === 'dark' ? 'light' : 'dark')
+    message.value = ''
+  } catch (error) {
+    message.value = t('settings.saveError', {
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+}
+
 function toggleAutoStartServices() {
   const enabled = !store.autoStartServices
   try {
@@ -205,11 +216,22 @@ async function installUpdate() {
           <p>{{ t('settings.themeDescription') }}</p>
           <small>{{ t('settings.themeHelp') }}</small>
         </div>
-        <ThemeSelect
-          :model-value="store.theme"
-          :label="t('settings.themeTitle')"
-          @update:model-value="changeTheme"
-        />
+        <div class="theme-controls">
+          <button
+            type="button"
+            class="secondary-button theme-dark-toggle"
+            :aria-label="t('settings.darkMode')"
+            :aria-pressed="store.themeMode === 'dark'"
+            @click="toggleThemeMode"
+          >
+            Dark
+          </button>
+          <ThemeSelect
+            :model-value="store.theme"
+            :label="t('settings.themeTitle')"
+            @update:model-value="changeTheme"
+          />
+        </div>
       </article>
       <article class="setting-row">
         <div>

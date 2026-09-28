@@ -20,6 +20,7 @@ describe('translations', () => {
 
   it('distinguishes Tron and Cyberpunk in every supported language', () => {
     for (const language of ['en', 'zh-TW', 'zh-CN'] as const) {
+      expect(translate('settings.themeNeoBrutalism', {}, language)).toBe('Neubrutalism')
       expect(translate('settings.themeCyberpunk', {}, language)).toBe('Tron')
       expect(translate('settings.themeCyberpunkCity', {}, language)).toBe('Cyberpunk')
       expect(translate('settings.themeGraphite', {}, language)).toBe('Graphite')

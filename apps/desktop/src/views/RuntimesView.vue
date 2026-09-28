@@ -15,7 +15,6 @@ import {
   formatRuntimeBytes,
   formatRuntimeTarget,
   isRuntimeDownloadActive,
-  runtimeOperationForArtifact,
   runtimeProgressPercent
 } from '../utils/runtime'
 
@@ -35,7 +34,6 @@ const onlineArtifacts = computed(() =>
 const catalogRows = computed(() =>
   buildCatalogRuntimeRows(store.phpRuntimes.installed, onlineArtifacts.value)
 )
-const onlineOperation = computed(() => store.runtimeUpdateOperation)
 const currentRuntimeTarget = computed(() =>
   formatRuntimeTarget(isWindows ? 'windows' : 'macos', isWindows ? 'x64' : 'arm64')
 )
@@ -130,7 +128,7 @@ async function downloadOnlineRuntime(
       cancelLabel: t('runtimes.cancel')
     }
   )
-  if (!approved) {
+  if (!approved || !mounted) {
     return null
   }
 
@@ -139,7 +137,10 @@ async function downloadOnlineRuntime(
   let completedOperation: RuntimeUpdateOperation | null = null
   try {
     let operation = await store.startRuntimeDownload(artifact.name, artifact.version)
-    operation = await pollRuntimeDownload(operation)
+    operation = await store.waitForRuntimeDownload(operation.operationId)
+    if (!mounted) {
+      return null
+    }
     completedOperation = operation
     if (operation.status === 'verified') {
       message.value = t('runtimes.onlineVerified', { version: operation.version })
@@ -156,19 +157,8 @@ async function downloadOnlineRuntime(
   return completedOperation
 }
 
-async function pollRuntimeDownload(
-  initial: RuntimeUpdateOperation
-): Promise<RuntimeUpdateOperation> {
-  let operation = initial
-  while (mounted && isRuntimeDownloadActive(operation.status)) {
-    await new Promise((resolve) => window.setTimeout(resolve, 250))
-    operation = await store.getRuntimeUpdateOperation(operation.operationId)
-  }
-  return operation
-}
-
-async function cancelOnlineDownload() {
-  const operation = onlineOperation.value
+async function cancelOnlineDownload(artifact: RuntimeUpdateArtifact) {
+  const operation = operationForArtifact(artifact)
   if (!operation || !isRuntimeDownloadActive(operation.status)) {
     return
   }
@@ -183,7 +173,7 @@ async function installOnlineRuntime(
   artifact: RuntimeUpdateArtifact | null,
   operation: RuntimeUpdateOperation | null
 ): Promise<boolean> {
-  if (!artifact || !operation || operation.status !== 'verified') {
+  if (!mounted || !artifact || !operation || operation.status !== 'verified') {
     return false
   }
   const approved = await confirm(
@@ -199,7 +189,7 @@ async function installOnlineRuntime(
       cancelLabel: t('runtimes.cancel')
     }
   )
-  if (!approved) {
+  if (!approved || !mounted) {
     return false
   }
 
@@ -222,8 +212,7 @@ async function installOnlineRuntime(
 }
 
 function operationForArtifact(artifact: RuntimeUpdateArtifact | null): RuntimeUpdateOperation | null {
-  const operation = onlineOperation.value
-  return runtimeOperationForArtifact(artifact, operation)
+  return store.runtimeOperationFor(artifact)
 }
 
 function operationProgress(artifact: RuntimeUpdateArtifact | null): number {
@@ -519,7 +508,7 @@ async function revealPhpIni() {
           <button
             v-if="row.artifact && isRuntimeDownloadActive(operationForArtifact(row.artifact)?.status ?? 'failed')"
             class="danger-button"
-            @click="cancelOnlineDownload"
+            @click="cancelOnlineDownload(row.artifact)"
           >
             {{ t('runtimes.onlineCancelDownload') }}
           </button>

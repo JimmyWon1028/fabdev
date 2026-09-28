@@ -1,0 +1,692 @@
+/* Alternate palettes share component coverage; original theme effects stay in place. */
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) {
+  --mode-bg: #141c18;
+  --mode-panel: #1e2923;
+  --mode-solid: #1e2923;
+  --mode-inset: #111b16;
+  --mode-sidebar: #17211b;
+  --mode-text: #e9f2ec;
+  --mode-muted: #afc3b6;
+  --mode-line: #456050;
+  --mode-accent: #8bd6af;
+  --mode-primary: #26704f;
+  --mode-on-primary: #fff;
+  --mode-selection: #293e31;
+  --mode-success: #a0ddb7;
+  --mode-success-bg: #213c2d;
+  --mode-danger: #ffb0ac;
+  --mode-danger-bg: #4b2930;
+  --mode-warning: #ebce8f;
+  --mode-warning-bg: #40371e;
+  --mode-radius: 9px;
+  --mode-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+  --picker-surface: var(--mode-solid);
+  --picker-text: var(--mode-text);
+  --picker-line: var(--mode-line);
+  --picker-selected: var(--mode-primary);
+  --picker-on-selected: var(--mode-on-primary);
+  --picker-hover: var(--mode-selection);
+  --picker-accent: var(--mode-accent);
+  color: var(--mode-text);
+  background: var(--mode-bg);
+  color-scheme: dark;
+  scrollbar-color: var(--mode-line) var(--mode-bg);
+}
+
+html[data-theme="notion"][data-theme-variant="alternate"] {
+  --mode-bg: #191919;
+  --mode-panel: #202020;
+  --mode-solid: #252525;
+  --mode-inset: #171717;
+  --mode-sidebar: #202020;
+  --mode-text: #eeeeec;
+  --mode-muted: #b0afaa;
+  --mode-line: #4b4b49;
+  --mode-accent: #8bc3f0;
+  --mode-primary: #326c9d;
+  --mode-selection: #303332;
+  --mode-radius: 4px;
+  --mode-shadow: none;
+}
+
+html[data-theme="glassmorphism"][data-theme-variant="alternate"] {
+  --mode-bg: #11172e;
+  --mode-panel: linear-gradient(135deg, rgb(32 53 94 / 72%), rgb(49 31 80 / 62%));
+  --mode-solid: #202b49;
+  --mode-inset: rgb(13 23 46 / 72%);
+  --mode-sidebar: transparent;
+  --mode-text: #eef6ff;
+  --mode-muted: #becfe9;
+  --mode-line: rgb(180 211 255 / 38%);
+  --mode-accent: #a7dfff;
+  --mode-primary: linear-gradient(110deg, #126e96, #6452bd);
+  --mode-selection: #344b72;
+  --mode-radius: 18px;
+  --mode-shadow: inset 0 1px 0 rgb(216 235 255 / 24%), 0 12px 32px rgb(0 0 0 / 22%);
+}
+
+html[data-theme="porcelain"][data-theme-variant="alternate"] {
+  --mode-bg: #002b36;
+  --mode-panel: #073642;
+  --mode-solid: #073642;
+  --mode-inset: #00232d;
+  --mode-sidebar: #002b36;
+  --mode-text: #c3cfcc;
+  --mode-muted: #93a1a1;
+  --mode-line: #486c72;
+  --mode-accent: #71bfcc;
+  --mode-primary: #176b86;
+  --mode-selection: #124550;
+  --mode-success: #b5c762;
+  --mode-success-bg: #283d23;
+  --mode-danger: #f5a086;
+  --mode-danger-bg: #4c3030;
+  --mode-warning: #e2ba59;
+  --mode-warning-bg: #403b22;
+  --mode-radius: 6px;
+  --mode-shadow: none;
+}
+
+html[data-theme="graphite"][data-theme-variant="alternate"] {
+  color-scheme: light;
+  --mode-bg: #e8ebef;
+  --mode-panel: linear-gradient(145deg, #ffffff, #e9edf2);
+  --mode-solid: #f7f9fb;
+  --mode-inset: #e4e9ef;
+  --mode-sidebar: linear-gradient(180deg, #e0e5eb, #f0f3f6);
+  --mode-text: #252e3b;
+  --mode-muted: #536275;
+  --mode-line: #adb9c8;
+  --mode-accent: #235f97;
+  --mode-primary: #2868a5;
+  --mode-selection: #d2e2f2;
+  --mode-radius: 9px;
+  --mode-shadow: inset 0 1px 0 #fff, 0 5px 14px rgb(30 44 61 / 10%);
+  --mode-success: #236045;
+  --mode-success-bg: #dcefe3;
+  --mode-danger: #a7373b;
+  --mode-danger-bg: #f9e1e1;
+  --mode-warning: #795410;
+  --mode-warning-bg: #f7edce;
+}
+
+html[data-theme="retro-terminal"][data-theme-variant="alternate"] {
+  color-scheme: light;
+  --mode-bg: #f5edcf;
+  --mode-panel: #faf4df;
+  --mode-solid: #faf4df;
+  --mode-inset: #ede2bc;
+  --mode-sidebar: #eee4bf;
+  --mode-text: #3c341a;
+  --mode-muted: #6f5e31;
+  --mode-line: #a58c4d;
+  --mode-accent: #805314;
+  --mode-primary: #785215;
+  --mode-selection: #e8d7a1;
+  --mode-radius: 3px;
+  --mode-shadow: none;
+  --mode-success: #236045;
+  --mode-success-bg: #dcefe3;
+  --mode-danger: #a7373b;
+  --mode-danger-bg: #f9e1e1;
+  --mode-warning: #795410;
+  --mode-warning-bg: #f7edce;
+}
+
+html[data-theme="blueprint"][data-theme-variant="alternate"] {
+  color-scheme: light;
+  --mode-bg: #e5f1fb;
+  --mode-panel: rgb(245 251 255 / 86%);
+  --mode-solid: #f2f8fe;
+  --mode-inset: #dcecf9;
+  --mode-sidebar: rgb(209 231 249 / 65%);
+  --mode-text: #123d60;
+  --mode-muted: #416882;
+  --mode-line: #7aabc9;
+  --mode-accent: #09649b;
+  --mode-primary: #126293;
+  --mode-selection: #c9e3f5;
+  --mode-radius: 4px;
+  --mode-shadow: inset 0 0 0 3px rgb(19 91 143 / 5%);
+  --mode-success: #236045;
+  --mode-success-bg: #dcefe3;
+  --mode-danger: #a7373b;
+  --mode-danger-bg: #f9e1e1;
+  --mode-warning: #795410;
+  --mode-warning-bg: #f7edce;
+}
+
+html[data-theme="cyberpunk"][data-theme-variant="alternate"] {
+  color-scheme: light;
+  --mode-bg: #dcebf1;
+  --mode-panel: rgb(237 249 253 / 82%);
+  --mode-solid: #edf9fd;
+  --mode-inset: rgb(216 235 244 / 90%);
+  --mode-sidebar: rgb(229 245 250 / 60%);
+  --mode-text: #13384c;
+  --mode-muted: #395e70;
+  --mode-line: #6b9ead;
+  --mode-accent: #126681;
+  --mode-primary: #126681;
+  --mode-selection: #c5e4ee;
+  --mode-radius: 3px;
+  --mode-shadow: inset 3px 0 0 #5cb4cc, 0 4px 18px rgb(17 76 95 / 14%);
+  --mode-success: #236045;
+  --mode-success-bg: #dcefe3;
+  --mode-danger: #a7373b;
+  --mode-danger-bg: #f9e1e1;
+  --mode-warning: #795410;
+  --mode-warning-bg: #f7edce;
+}
+
+html[data-theme="cyberpunk-city"][data-theme-variant="alternate"] {
+  color-scheme: light;
+  --mode-bg: #ece4fa;
+  --mode-panel: linear-gradient(90deg, #d535a8, #7962d5, #168eb9) left top / 100% 2px no-repeat, rgb(248 241 255 / 85%);
+  --mode-solid: #faf1ff;
+  --mode-inset: rgb(235 224 247 / 92%);
+  --mode-sidebar: rgb(246 237 255 / 64%);
+  --mode-text: #302047;
+  --mode-muted: #65517b;
+  --mode-line: #b293d4;
+  --mode-accent: #994584;
+  --mode-primary: linear-gradient(110deg, #9c347e, #4a4e9b);
+  --mode-selection: #e6d5f2;
+  --mode-radius: 8px;
+  --mode-shadow: 0 8px 26px rgb(78 37 110 / 14%);
+  --mode-success: #236045;
+  --mode-success-bg: #dcefe3;
+  --mode-danger: #a7373b;
+  --mode-danger-bg: #f9e1e1;
+  --mode-warning: #795410;
+  --mode-warning-bg: #f7edce;
+}
+
+/* Palette switching must preserve Default component sizes and shapes. */
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]):not([data-theme="default"]) .sidebar {
+  border-right-width: 1px;
+  border-right-style: solid;
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]):not([data-theme="default"]) :is(
+  .navigation a,
+  .settings-link,
+  .service-card,
+  .runtime-help-card,
+  .form-card,
+  .runtime-card,
+  .terminal-card,
+  .runtime-online-card,
+  .site-list-toolbar,
+  .site-list,
+  .site-empty-state,
+  .proxy-summary,
+  .proxy-list,
+  .setting-row,
+  .php-ini-editor,
+  .help-contents,
+  .diagnostic-logs,
+  .modal-dialog,
+  .quit-dialog,
+  input,
+  select,
+  textarea,
+  .primary-button,
+  .secondary-button,
+  .share-stop-button,
+  .danger-button,
+  .site-filter-button,
+  .open-link-icon,
+  .modal-close-button,
+  .state-pill,
+  .runtime-version,
+  .help-section-number,
+  .service-icon,
+  .site-filter-button span,
+  .diagnostic-summary span,
+  .diagnostic-state,
+  .notice,
+  .app-update-notice,
+  .runtime-summary
+) {
+  border-width: 1px;
+  border-style: solid;
+  border-radius: var(--mode-radius);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]):not([data-theme="default"]) .toggle-button {
+  border-width: 1px;
+  border-style: solid;
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]):not([data-theme="default"]) .theme-menu {
+  border-radius: var(--mode-radius);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) body {
+  background: var(--mode-bg);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .content,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .page-header,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .page-body {
+  background: transparent;
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .sidebar {
+  color: var(--mode-text);
+  background: var(--mode-sidebar);
+  border-right-color: var(--mode-line);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .navigation-divider {
+  background: var(--mode-line);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .navigation a,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .settings-link {
+  color: var(--mode-muted);
+  border-color: transparent;
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .navigation a:hover,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .settings-link:hover,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .navigation a.router-link-active,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .settings-link.router-link-active {
+  color: var(--mode-on-primary);
+  background: var(--mode-primary);
+  border-color: var(--mode-accent);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .eyebrow {
+  color: var(--mode-accent) !important;
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .service-card,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-help-card,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .form-card,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-card,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .terminal-card,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-online-card,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-list-toolbar,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-list,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-empty-state,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-summary,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-list,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .setting-row,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .php-ini-editor,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-contents,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-logs {
+  background: var(--mode-panel);
+  border-color: var(--mode-line);
+  box-shadow: var(--mode-shadow);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .modal-dialog,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .quit-dialog {
+  color: var(--mode-text);
+  background: var(--mode-solid);
+  border-color: var(--mode-line);
+  box-shadow: 0 20px 70px rgb(0 0 0 / 35%);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-row,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-row {
+  background: transparent;
+  border-color: var(--mode-line);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-summary > div,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .modal-header,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-section + .help-section,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-checks li,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-logs li {
+  border-color: var(--mode-line);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-search-toolbar,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .update-version-grid div,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .update-artifact-details,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .php-fastcgi-settings {
+  background: var(--mode-inset);
+  border-color: var(--mode-line);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-row.is-shared,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-row.selected,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-row.selected,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-selection-toolbar,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-selection-toolbar {
+  background: var(--mode-selection);
+  border-color: var(--mode-line);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-row.selected,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-row.selected {
+  box-shadow: inset 3px 0 0 var(--mode-accent);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) input,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) select,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) textarea {
+  color: var(--mode-text);
+  background: var(--mode-inset);
+  border-color: var(--mode-line);
+  accent-color: var(--mode-accent);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) input::placeholder,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) textarea::placeholder {
+  color: var(--mode-muted);
+  opacity: 0.85;
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) input:focus,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) select:focus,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) textarea:focus {
+  border-color: var(--mode-accent);
+  box-shadow: 0 0 0 2px var(--mode-selection);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .primary-button,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .secondary-button,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .share-stop-button,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .danger-button,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-filter-button,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .open-link-icon,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .modal-close-button {
+  color: var(--mode-text);
+  background: var(--mode-solid);
+  border-color: var(--mode-line);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .primary-button,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-filter-button.active {
+  color: var(--mode-on-primary);
+  background: var(--mode-primary);
+  border-color: var(--mode-accent);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .primary-button:hover:not(:disabled),
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .secondary-button:hover:not(:disabled),
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .share-stop-button:hover:not(:disabled),
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .danger-button:hover:not(:disabled),
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-filter-button:hover:not(:disabled),
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .open-link-icon:hover:not(:disabled),
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .modal-close-button:hover:not(:disabled) {
+  color: var(--mode-text) !important;
+  background: var(--mode-selection);
+  border-color: var(--mode-accent);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) button:focus-visible,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) a:focus-visible {
+  outline: 2px solid var(--mode-accent);
+  outline-offset: 3px;
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) button:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .state-pill,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-version,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-section-number,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .service-icon,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-filter-button span,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-summary span,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-state {
+  color: var(--mode-accent);
+  background: var(--mode-inset);
+  border-color: var(--mode-line);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .state-pill[data-state="running"],
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .service-icon,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-summary [data-status="passed"],
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-state[data-status="passed"] {
+  color: var(--mode-success);
+  background: var(--mode-success-bg);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .state-pill[data-state="failed"],
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .danger-button,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-summary [data-status="failed"],
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-state[data-status="failed"] {
+  color: var(--mode-danger);
+  background: var(--mode-danger-bg);
+  border-color: var(--mode-danger);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .state-pill[data-state="warning"],
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .state-pill[data-state="degraded"],
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .share-stop-button,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-summary [data-status="warning"],
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-state[data-status="warning"] {
+  color: var(--mode-warning);
+  background: var(--mode-warning-bg);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .danger-button:hover:not(:disabled) {
+  color: var(--mode-danger-bg);
+  background: var(--mode-danger);
+  border-color: var(--mode-danger);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .share-stop-button:hover:not(:disabled) {
+  color: var(--mode-warning-bg);
+  background: var(--mode-warning);
+  border-color: var(--mode-warning);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .notice,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .app-update-notice,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-summary {
+  color: var(--mode-text) !important;
+  background: var(--mode-selection);
+  border-color: var(--mode-line);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .notice.warning,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-online-warning,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-notes {
+  color: var(--mode-warning) !important;
+  background: var(--mode-warning-bg);
+  border-color: var(--mode-warning);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .modal-message {
+  color: var(--mode-danger) !important;
+  background: var(--mode-danger-bg);
+  border-color: var(--mode-danger);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .setting-row p,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .setting-row small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .page-header p,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .service-card p,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-card p,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-help-card p,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .terminal-card p,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .terminal-card small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .terminal-card code,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-card .runtime-details p,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-card .runtime-details > div > small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-online-header p:not(.eyebrow),
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-online-details dt,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-row-progress small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-footnote,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-home-description,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-list-filter-row > small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-empty-state,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-row small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-row small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-summary small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-empty,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-search-toolbar small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-selection-toolbar,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-selection-toolbar,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .modal-header p,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .modal-form label small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .quit-dialog p,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-contents strong,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-section p,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .service-scope-note,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .php-pool-metric span,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .php-pool-unavailable,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .update-version-grid dt,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .update-progress-label,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .app-update-notice span,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .php-fastcgi-settings small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .php-ini-actions,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .form-message,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .brand small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .agent-state,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-domain,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .mariadb-settings-heading p,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .mariadb-settings-card > p,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-help,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-copy-message,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-logs code {
+  color: var(--mode-muted);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .form-card label,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .modal-form label,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-selection-toolbar label,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-selection-toolbar label,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-contents a,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-section ol,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-section ul,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .update-version-grid dd,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .update-artifact-details code,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-summary strong,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .php-pool-metric strong,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-summary strong,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-identity strong,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-identity strong,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-endpoint code,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-target code,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-paths code,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-section h3,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .diagnostic-checks strong {
+  color: var(--mode-text);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .warning-text {
+  color: var(--mode-warning);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .error-message,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-state small,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-online-progress small {
+  color: var(--mode-danger);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-share-address {
+  color: var(--mode-success) !important;
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-share-address.is-inactive {
+  color: var(--mode-muted) !important;
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-contents a:hover,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-contents a:focus-visible {
+  color: var(--mode-accent);
+  background: var(--mode-selection);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .toggle-button {
+  background: var(--mode-line);
+  border-color: var(--mode-line);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 16%);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .toggle-button span {
+  background: var(--mode-text);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .toggle-button.active {
+  background: var(--mode-primary);
+  border-color: var(--mode-accent);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .toggle-button.active span {
+  background: var(--mode-on-primary);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) progress {
+  accent-color: var(--mode-accent);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .quit-spinner {
+  border-color: var(--mode-line);
+  border-top-color: var(--mode-accent);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .quit-overlay,
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .modal-overlay {
+  background: rgb(3 9 18 / 65%);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) :is(h1, h2, h3) {
+  color: var(--mode-text);
+  text-shadow: none;
+}
+
+html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]):not([data-theme="default"]) .toggle-button {
+  border-radius: 999px;
+}
+
+/* Keep one continuous backdrop and the existing frosted glass and droplet layers. */
+html[data-theme="glassmorphism"][data-color-mode="dark"] body {
+  background:
+    radial-gradient(ellipse at 90% 0%, #12436a 0%, transparent 62%),
+    radial-gradient(ellipse at 0% 100%, #4a256c 0%, transparent 62%),
+    linear-gradient(120deg, #182244, #102a40);
+  background-attachment: fixed;
+}
+
+html[data-theme="glassmorphism"][data-color-mode="dark"] :is(.setting-row, .service-card, .runtime-card, .runtime-online-card, .terminal-card, .runtime-help-card) {
+  background: url('./glass-droplets.svg') var(--glass-beads-position, right 18px top 3px) / var(--glass-beads-size, 320px 39px) no-repeat, var(--mode-panel);
+}
+
+html[data-theme="cyberpunk"][data-color-mode="light"] body {
+  background: linear-gradient(rgb(228 244 250 / 76%), rgb(228 244 250 / 84%)), url('./tron-city.jpg') center / cover no-repeat, #dcebf1;
+  background-attachment: fixed;
+}
+
+html[data-theme="cyberpunk-city"][data-color-mode="light"] body {
+  background: linear-gradient(rgb(244 230 255 / 76%), rgb(230 237 255 / 84%)), url('./cyberpunk-city.svg') center / cover no-repeat, #ece4fa;
+  background-attachment: fixed;
+}
+
+html[data-theme="blueprint"][data-color-mode="light"] body {
+  background:
+    linear-gradient(rgb(29 104 161 / 12%) 1px, transparent 1px) 0 0 / 100px 100px,
+    linear-gradient(90deg, rgb(29 104 161 / 12%) 1px, transparent 1px) 0 0 / 100px 100px,
+    linear-gradient(rgb(29 104 161 / 6%) 1px, transparent 1px) 0 0 / 20px 20px,
+    linear-gradient(90deg, rgb(29 104 161 / 6%) 1px, transparent 1px) 0 0 / 20px 20px, var(--mode-bg);
+}
+
+html[data-theme="retro-terminal"][data-color-mode="light"] body {
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgb(123 86 19 / 3%) 3px 4px), var(--mode-bg);
+}
+
+html[data-theme][data-color-mode] .theme-dark-toggle[aria-pressed="true"] {
+  color: var(--picker-on-selected);
+  background: var(--picker-selected);
+  border-color: var(--picker-accent);
+}
+
+html[data-theme="glassmorphism"][data-color-mode="dark"] :is(.site-row, .proxy-row) {
+  background-image: url('./glass-droplets.svg');
+  background-position: var(--glass-beads-position, right 18px top 3px);
+  background-size: var(--glass-beads-size, 320px 39px);
+  background-repeat: no-repeat;
+}

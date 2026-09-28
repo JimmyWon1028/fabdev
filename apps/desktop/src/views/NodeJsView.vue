@@ -12,7 +12,6 @@ import {
   formatRuntimeBytes,
   formatRuntimeTarget,
   isRuntimeDownloadActive,
-  runtimeOperationForArtifact,
   runtimeProgressPercent
 } from '../utils/runtime'
 
@@ -38,8 +37,7 @@ onMounted(() => void refresh())
 onBeforeUnmount(() => { mounted = false })
 
 function operationFor(artifact: RuntimeUpdateArtifact | null) {
-  const operation = store.runtimeUpdateOperation
-  return runtimeOperationForArtifact(artifact, operation)
+  return store.runtimeOperationFor(artifact)
 }
 
 function operationStatusLabel(artifact: RuntimeUpdateArtifact | null) {
@@ -72,7 +70,7 @@ async function installOrUpdate(artifact: RuntimeUpdateArtifact) {
   if (operation?.status !== 'verified') {
     operation = await download(artifact)
   }
-  if (operation?.status !== 'verified') {
+  if (!mounted || operation?.status !== 'verified') {
     return
   }
   const approved = await confirm(t('node.onlineInstallConfirm', {
@@ -85,7 +83,7 @@ async function installOrUpdate(artifact: RuntimeUpdateArtifact) {
     okLabel: t('node.install'),
     cancelLabel: t('runtimes.cancel')
   })
-  if (!approved) {
+  if (!approved || !mounted) {
     return
   }
   action.value = `install:${artifact.version}`
@@ -115,16 +113,16 @@ async function download(artifact: RuntimeUpdateArtifact): Promise<RuntimeUpdateO
     okLabel: t('runtimes.onlineDownload'),
     cancelLabel: t('runtimes.cancel')
   })
-  if (!approved) {
+  if (!approved || !mounted) {
     return null
   }
   action.value = `download:${artifact.version}`
   message.value = t('node.onlineDownloading')
   try {
     let operation = await store.startRuntimeDownload(artifact.name, artifact.version)
-    while (mounted && isRuntimeDownloadActive(operation.status)) {
-      await new Promise((resolve) => window.setTimeout(resolve, 250))
-      operation = await store.getRuntimeUpdateOperation(operation.operationId)
+    operation = await store.waitForRuntimeDownload(operation.operationId)
+    if (!mounted) {
+      return null
     }
     if (operation.status === 'verified') {
       message.value = t('node.onlineVerified', { version: artifact.version })

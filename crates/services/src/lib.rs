@@ -209,7 +209,7 @@ impl ServiceSupervisor {
     let ingress_ports = (ports != ServicePorts::system()).then_some(ServicePorts::system());
     #[cfg(windows)]
     let ingress_ports = None;
-    let recovered_mariadb_pid = recover_mariadb_pid(&paths, &runtimes);
+    let recovered_mariadb_pid = recover_mariadb_pid(&paths, &runtimes, ports.mariadb);
     Self {
       paths,
       runtimes,
@@ -227,7 +227,8 @@ impl ServiceSupervisor {
 
   pub fn set_mariadb_runtime(&mut self, runtime: PathBuf) {
     self.runtimes.mariadb = runtime;
-    self.recovered_mariadb_pid = recover_mariadb_pid(&self.paths, &self.runtimes);
+    self.recovered_mariadb_pid =
+      recover_mariadb_pid(&self.paths, &self.runtimes, self.ports.mariadb);
   }
 
   pub fn status(&mut self) -> AgentStatus {
@@ -266,7 +267,9 @@ impl ServiceSupervisor {
       mariadb: mariadb_state(
         &mut self.mariadb,
         &mut self.recovered_mariadb_pid,
-        mariadb_server_binary(&self.runtimes.mariadb),
+        &self.paths,
+        &self.runtimes,
+        self.ports.mariadb,
       ),
     }
   }
@@ -552,7 +555,7 @@ impl ServiceSupervisor {
   }
 
   pub async fn start_mariadb(&mut self) -> Result<()> {
-    if self.mariadb.is_some() || recovered_process_running(&mut self.recovered_mariadb_pid) {
+    if self.mariadb.is_some() || self.recovered_mariadb_running() {
       bail!("fabDev MariaDB is already running");
     }
     let server = mariadb_server_binary(&self.runtimes.mariadb);
@@ -677,8 +680,17 @@ impl ServiceSupervisor {
     load_mariadb_settings(&self.paths, self.ports.mariadb)
   }
 
+  fn recovered_mariadb_running(&mut self) -> bool {
+    recovered_process_running(
+      &mut self.recovered_mariadb_pid,
+      &self.paths,
+      &self.runtimes,
+      self.ports.mariadb,
+    )
+  }
+
   pub fn save_mariadb_settings(&mut self, settings: MariaDbSettings) -> Result<MariaDbSettings> {
-    if self.mariadb.is_some() || recovered_process_running(&mut self.recovered_mariadb_pid) {
+    if self.mariadb.is_some() || self.recovered_mariadb_running() {
       bail!("stop MariaDB before changing its settings");
     }
     let settings = validate_mariadb_settings(settings)?;
@@ -724,7 +736,7 @@ impl ServiceSupervisor {
   }
 
   pub fn save_mariadb_config(&mut self, contents: &str) -> Result<(String, String)> {
-    if self.mariadb.is_some() || recovered_process_running(&mut self.recovered_mariadb_pid) {
+    if self.mariadb.is_some() || self.recovered_mariadb_running() {
       bail!("stop MariaDB before changing its configuration");
     }
     validate_mariadb_custom_config(contents)?;
@@ -781,7 +793,7 @@ impl ServiceSupervisor {
       Some(child) => child.try_wait()?.is_none(),
       None => false,
     };
-    if !child_running && !recovered_process_running(&mut self.recovered_mariadb_pid) {
+    if !child_running && !self.recovered_mariadb_running() {
       bail!("start MariaDB before changing the root password");
     }
 
@@ -3839,20 +3851,34 @@ fn process_running(pid: u32) -> bool {
 
 #[cfg(windows)]
 fn process_running(pid: u32) -> bool {
-  use windows_sys::Win32::Foundation::{CloseHandle, WAIT_TIMEOUT};
+  use windows_sys::Win32::Foundation::{CloseHandle, GetLastError};
   use windows_sys::Win32::System::Threading::{
     OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE,
   };
 
-  let process = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) };
-  if process.is_null() {
+  if pid == 0 {
     return true;
   }
-  let running = unsafe { WaitForSingleObject(process, 0) } == WAIT_TIMEOUT;
+  let process = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) };
+  if process.is_null() {
+    return windows_process_may_be_running(Err(unsafe { GetLastError() }));
+  }
+  let result = unsafe { WaitForSingleObject(process, 0) };
   unsafe {
     CloseHandle(process);
   }
-  running
+  windows_process_may_be_running(Ok(result))
+}
+
+#[cfg(windows)]
+fn windows_process_may_be_running(result: std::result::Result<u32, u32>) -> bool {
+  use windows_sys::Win32::Foundation::{ERROR_INVALID_PARAMETER, WAIT_OBJECT_0};
+
+  // Unknown or inaccessible process states must not retire a PHP pool still serving requests.
+  match result {
+    Ok(wait_result) => wait_result != WAIT_OBJECT_0,
+    Err(open_error) => open_error != ERROR_INVALID_PARAMETER,
+  }
 }
 
 #[cfg(not(any(unix, windows)))]
@@ -4183,10 +4209,14 @@ fn child_state(child: &mut Option<Child>, executable: PathBuf) -> ServiceState {
 fn mariadb_state(
   child: &mut Option<Child>,
   recovered_pid: &mut Option<u32>,
-  executable: PathBuf,
+  paths: &AppPaths,
+  runtimes: &RuntimePaths,
+  default_port: u16,
 ) -> ServiceState {
-  let state = child_state(child, executable);
-  if matches!(state, ServiceState::Installed) && recovered_process_running(recovered_pid) {
+  let state = child_state(child, mariadb_server_binary(&runtimes.mariadb));
+  if matches!(state, ServiceState::Installed)
+    && recovered_process_running(recovered_pid, paths, runtimes, default_port)
+  {
     ServiceState::Running
   } else {
     state
@@ -4194,7 +4224,11 @@ fn mariadb_state(
 }
 
 #[cfg(unix)]
-fn recover_mariadb_pid(paths: &AppPaths, runtimes: &RuntimePaths) -> Option<u32> {
+fn recover_mariadb_pid(
+  paths: &AppPaths,
+  runtimes: &RuntimePaths,
+  _default_port: u16,
+) -> Option<u32> {
   use std::os::unix::fs::FileTypeExt;
   use std::os::unix::net::UnixStream;
 
@@ -4221,13 +4255,88 @@ fn recover_mariadb_pid(paths: &AppPaths, runtimes: &RuntimePaths) -> Option<u32>
   Some(pid)
 }
 
-#[cfg(not(unix))]
-fn recover_mariadb_pid(_paths: &AppPaths, _runtimes: &RuntimePaths) -> Option<u32> {
-  None
+#[cfg(windows)]
+fn recover_mariadb_pid(
+  paths: &AppPaths,
+  runtimes: &RuntimePaths,
+  default_port: u16,
+) -> Option<u32> {
+  recover_windows_mariadb_pid(
+    paths,
+    runtimes,
+    default_port,
+    running_windows_process_executable,
+  )
+}
+
+#[cfg(any(windows, test))]
+fn recover_windows_mariadb_pid(
+  paths: &AppPaths,
+  runtimes: &RuntimePaths,
+  default_port: u16,
+  process_executable: impl FnOnce(u32) -> Option<PathBuf>,
+) -> Option<u32> {
+  if !runtimes.mariadb.join("bin/mariadbd.exe").is_file() {
+    return None;
+  }
+  let pid = std::fs::read_to_string(paths.services.join("mariadb/mariadb.pid"))
+    .ok()?
+    .trim()
+    .parse::<u32>()
+    .ok()
+    .filter(|pid| *pid > 0)?;
+  let executable = process_executable(pid)?;
+  if !is_managed_windows_mariadb_executable(&executable, runtimes) {
+    return None;
+  }
+  let settings = load_mariadb_settings(paths, default_port).ok()?;
+  TcpStream::connect_timeout(
+    &std::net::SocketAddr::from((Ipv4Addr::LOCALHOST, settings.port)),
+    Duration::from_millis(100),
+  )
+  .ok()?;
+  Some(pid)
+}
+
+#[cfg(windows)]
+fn running_windows_process_executable(pid: u32) -> Option<PathBuf> {
+  use std::ffi::OsString;
+  use std::os::windows::ffi::OsStringExt;
+
+  use windows_sys::Win32::Foundation::{CloseHandle, WAIT_TIMEOUT};
+  use windows_sys::Win32::System::Threading::{
+    OpenProcess, QueryFullProcessImageNameW, WaitForSingleObject,
+    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
+  };
+
+  let process = unsafe {
+    OpenProcess(
+      PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
+      0,
+      pid,
+    )
+  };
+  if process.is_null() {
+    return None;
+  }
+  let mut buffer = vec![0_u16; 32_768];
+  let mut length = buffer.len() as u32;
+  let running = unsafe { WaitForSingleObject(process, 0) } == WAIT_TIMEOUT;
+  let has_path = running
+    && unsafe { QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut length) } != 0;
+  unsafe {
+    CloseHandle(process);
+  }
+  has_path.then(|| PathBuf::from(OsString::from_wide(&buffer[..length as usize])))
 }
 
 #[cfg(unix)]
-fn recovered_process_running(pid: &mut Option<u32>) -> bool {
+fn recovered_process_running(
+  pid: &mut Option<u32>,
+  _paths: &AppPaths,
+  _runtimes: &RuntimePaths,
+  _default_port: u16,
+) -> bool {
   if pid.is_some_and(unix_process_running) {
     true
   } else {
@@ -4236,10 +4345,15 @@ fn recovered_process_running(pid: &mut Option<u32>) -> bool {
   }
 }
 
-#[cfg(not(unix))]
-fn recovered_process_running(pid: &mut Option<u32>) -> bool {
-  *pid = None;
-  false
+#[cfg(windows)]
+fn recovered_process_running(
+  pid: &mut Option<u32>,
+  paths: &AppPaths,
+  runtimes: &RuntimePaths,
+  default_port: u16,
+) -> bool {
+  *pid = recover_mariadb_pid(paths, runtimes, default_port);
+  pid.is_some()
 }
 
 #[cfg(unix)]
@@ -4738,7 +4852,7 @@ mod tests {
     );
   }
 
-  #[cfg(unix)]
+  #[cfg(any(unix, windows))]
   #[tokio::test]
   async fn waits_for_previous_nginx_workers_before_retiring_php() {
     let running = wait_for_processes_to_exit(&[std::process::id()], Duration::from_millis(1)).await;
@@ -4746,6 +4860,97 @@ mod tests {
 
     assert!(running.is_err());
     assert!(stopped.is_ok());
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn distinguishes_exited_windows_processes_from_unknown_or_inaccessible_processes() {
+    use windows_sys::Win32::Foundation::{
+      ERROR_ACCESS_DENIED, ERROR_INVALID_HANDLE, ERROR_INVALID_PARAMETER, WAIT_FAILED,
+      WAIT_OBJECT_0, WAIT_TIMEOUT,
+    };
+
+    assert!(!windows_process_may_be_running(Err(
+      ERROR_INVALID_PARAMETER
+    )));
+    assert!(windows_process_may_be_running(Err(ERROR_ACCESS_DENIED)));
+    assert!(windows_process_may_be_running(Err(ERROR_INVALID_HANDLE)));
+    assert!(!windows_process_may_be_running(Ok(WAIT_OBJECT_0)));
+    assert!(windows_process_may_be_running(Ok(WAIT_TIMEOUT)));
+    assert!(windows_process_may_be_running(Ok(WAIT_FAILED)));
+    assert!(process_running(0));
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn windows_reload_process_fixture() {
+    if std::env::var_os("FABDEV_RELOAD_PROCESS_FIXTURE").is_some() {
+      let mut line = String::new();
+      std::io::stdin()
+        .read_line(&mut line)
+        .expect("wait for fixture release");
+    }
+  }
+
+  #[cfg(windows)]
+  #[tokio::test]
+  async fn retires_unused_windows_php_after_the_previous_worker_exits() {
+    let spawn_fixture = || {
+      Command::new(std::env::current_exe().expect("test executable"))
+        .args(["--exact", "tests::windows_reload_process_fixture"])
+        .env("FABDEV_RELOAD_PROCESS_FIXTURE", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
+        .expect("spawn isolated process fixture")
+    };
+    let mut worker = spawn_fixture();
+    let worker_pid = worker.id().expect("worker PID");
+    assert!(process_running(worker_pid));
+    let active = wait_for_processes_to_exit(&[worker_pid], Duration::from_millis(10)).await;
+    assert!(
+      active.is_err(),
+      "running workers must retain their PHP pool"
+    );
+    drop(worker.stdin.take());
+    tokio::time::timeout(Duration::from_secs(5), worker.wait())
+      .await
+      .expect("worker should exit")
+      .expect("reap worker");
+    assert!(!process_running(worker_pid));
+    drop(worker);
+    assert!(
+      !process_running(worker_pid),
+      "a released PID must not be considered alive"
+    );
+
+    let root = std::env::temp_dir().join(format!("fabdev-php-retire-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(root.join("data"));
+    let runtimes = RuntimePaths::from_runtime_root(paths.runtimes.clone());
+    let version: PhpVersion = "8.2".parse().unwrap();
+    let service = php_service_path(&paths, &version);
+    std::fs::create_dir_all(&service).expect("create fixture service");
+    let php = spawn_fixture();
+    let php_pid = php.id().expect("PHP fixture PID");
+    std::fs::write(service.join("php-fpm.pid"), php_pid.to_string()).unwrap();
+    std::fs::write(service.join("php-fpm.sock"), "stale fixture").unwrap();
+    let mut supervisor = ServiceSupervisor::new(paths, runtimes, ServicePorts::system());
+    supervisor.php_fpm.insert(version.clone(), php);
+    supervisor.expected_php_versions.insert(version.clone());
+
+    supervisor
+      .stop_php_version_after_nginx_reload(&version, &NginxReloadDrain::Workers(vec![worker_pid]))
+      .await
+      .expect("retire unused PHP pool");
+
+    assert!(!supervisor.php_fpm.contains_key(&version));
+    assert!(!supervisor.expected_php_versions.contains(&version));
+    assert!(!process_running(php_pid));
+    assert!(!service.join("php-fpm.pid").exists());
+    assert!(!service.join("php-fpm.sock").exists());
+    std::fs::remove_dir_all(root).expect("remove fixture");
   }
 
   #[cfg(unix)]
@@ -5615,6 +5820,159 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     assert_eq!(supervisor.recovered_mariadb_pid, Some(std::process::id()));
     drop(listener);
     std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[test]
+  fn windows_mariadb_recovery_requires_owned_live_process_and_saved_tcp_port() {
+    let root = std::env::temp_dir().join(format!("fabdev-mdb-recovery-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(root.join("data"));
+    paths.ensure().expect("create app paths");
+    let runtimes = RuntimePaths::from_runtime_root(paths.runtimes.clone());
+    let server = runtimes.mariadb.join("bin/mariadbd.exe");
+    std::fs::create_dir_all(server.parent().expect("server parent")).expect("create runtime");
+    std::fs::write(&server, "fixture").expect("write server fixture");
+    let pid_path = paths.services.join("mariadb/mariadb.pid");
+    std::fs::create_dir_all(pid_path.parent().expect("PID parent")).expect("create service");
+    std::fs::write(&pid_path, "42\n").expect("write PID");
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind fixture");
+    let port = listener.local_addr().expect("fixture address").port();
+    let settings = default_mariadb_settings(&paths, port);
+    save_mariadb_settings_file(&paths, &settings).expect("save custom port");
+
+    assert_eq!(
+      recover_windows_mariadb_pid(&paths, &runtimes, 1, |pid| {
+        assert_eq!(pid, 42);
+        Some(server.clone())
+      }),
+      Some(42)
+    );
+    assert_eq!(
+      recover_windows_mariadb_pid(&paths, &runtimes, 1, |_| None),
+      None
+    );
+    assert_eq!(
+      recover_windows_mariadb_pid(&paths, &runtimes, 1, |_| {
+        Some(root.join("external/bin/mariadbd.exe"))
+      }),
+      None
+    );
+    for invalid_pid in ["0", "not-a-pid", "4294967296"] {
+      std::fs::write(&pid_path, invalid_pid).expect("write invalid PID");
+      assert_eq!(
+        recover_windows_mariadb_pid(&paths, &runtimes, 1, |_| panic!("invalid PID inspected")),
+        None
+      );
+    }
+    std::fs::write(&pid_path, "42").expect("restore PID");
+    drop(listener);
+    assert_eq!(
+      recover_windows_mariadb_pid(&paths, &runtimes, 1, |_| Some(server.clone())),
+      None
+    );
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn windows_mariadb_process_fixture() {
+    let Ok(root) = std::env::var("FABDEV_MARIADB_PROCESS_FIXTURE") else {
+      return;
+    };
+    let paths = AppPaths::from_root(root);
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind fixture");
+    let settings = default_mariadb_settings(&paths, listener.local_addr().unwrap().port());
+    save_mariadb_settings_file(&paths, &settings).expect("save fixture port");
+    std::fs::create_dir_all(paths.services.join("mariadb")).expect("create fixture service");
+    std::fs::write(
+      paths.services.join("mariadb/mariadb.pid"),
+      std::process::id().to_string(),
+    )
+    .expect("write fixture PID");
+    for connection in listener.incoming() {
+      drop(connection.expect("accept readiness probe"));
+    }
+  }
+
+  #[cfg(windows)]
+  #[tokio::test]
+  async fn recovers_and_stops_windows_mariadb_after_agent_restart() {
+    struct FixtureProcess(std::process::Child);
+    impl Drop for FixtureProcess {
+      fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+      }
+    }
+
+    let root = std::env::temp_dir().join(format!("fabdev-mdb-process-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(root.join("data"));
+    paths.ensure().expect("create app paths");
+    let runtimes = RuntimePaths::from_runtime_root(paths.runtimes.clone());
+    let server = mariadb_server_binary(&runtimes.mariadb);
+    std::fs::create_dir_all(server.parent().expect("server parent")).expect("create runtime");
+    std::fs::copy(std::env::current_exe().expect("test executable"), &server)
+      .expect("copy isolated process fixture");
+    let mut process = FixtureProcess(
+      std::process::Command::new(&server)
+        .args([
+          "--exact",
+          "tests::windows_mariadb_process_fixture",
+          "--nocapture",
+        ])
+        .env("FABDEV_MARIADB_PROCESS_FIXTURE", &paths.root)
+        .spawn()
+        .expect("start process fixture"),
+    );
+    let started = Instant::now();
+    while recover_mariadb_pid(&paths, &runtimes, 3306).is_none() {
+      assert!(
+        started.elapsed() < Duration::from_secs(10),
+        "fixture did not become ready"
+      );
+      assert!(process.0.try_wait().expect("inspect fixture").is_none());
+      tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    save_mariadb_desired_state(&paths, true).expect("remember running preference");
+    let mut supervisor = ServiceSupervisor::new(paths.clone(), runtimes, ServicePorts::system());
+    let settings = supervisor
+      .mariadb_settings()
+      .expect("read fixture settings");
+
+    assert_eq!(supervisor.status().mariadb, ServiceState::Running);
+    assert_eq!(supervisor.recovered_mariadb_pid, Some(process.0.id()));
+    supervisor
+      .restore_mariadb_last_state()
+      .await
+      .expect("reuse existing process");
+    assert!(supervisor.mariadb.is_none());
+    assert!(supervisor.save_mariadb_settings(settings.clone()).is_err());
+    supervisor
+      .stop_mariadb()
+      .await
+      .expect("stop recovered process");
+    process.0.wait().expect("wait for fixture exit");
+    assert!(running_windows_process_executable(process.0.id()).is_none());
+    assert_eq!(supervisor.status().mariadb, ServiceState::Installed);
+    assert!(load_mariadb_desired_state(&paths).expect("read saved preference"));
+    assert!(!paths.services.join("mariadb/mariadb.pid").exists());
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, settings.port))
+      .expect("recovered process released its port");
+    drop(listener);
+    drop(process);
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[cfg(windows)]
+  #[test]
+  fn windows_process_identity_rejects_missing_processes() {
+    assert_eq!(running_windows_process_executable(0), None);
+    assert_eq!(running_windows_process_executable(u32::MAX), None);
+    let current =
+      running_windows_process_executable(std::process::id()).expect("inspect current process");
+    assert_eq!(
+      normalize_windows_path(&current),
+      normalize_windows_path(&std::env::current_exe().expect("current executable"))
+    );
   }
 
   #[cfg(unix)]
@@ -6727,13 +7085,18 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
   }
 
   #[test]
-  fn uses_php_85_static_opcache_template() {
+  fn selects_the_platform_specific_php_85_opcache_template() {
     let version: PhpVersion = "8.5".parse().expect("parse PHP 8.5");
     let contents = php_ini_template(&version);
 
-    assert!(!contents.contains("zend_extension"));
     assert!(contents.contains("opcache.enable = 1"));
-    assert!(contents.contains("@PHP_EXTENSION_API@/imagick.so"));
+    if cfg!(windows) {
+      assert!(contents.contains("zend_extension = opcache"));
+      assert!(!contents.contains("imagick.so"));
+    } else {
+      assert!(!contents.contains("zend_extension"));
+      assert!(contents.contains("@PHP_EXTENSION_API@/imagick.so"));
+    }
   }
 
   #[test]

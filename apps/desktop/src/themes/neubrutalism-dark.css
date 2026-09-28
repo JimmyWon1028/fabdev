@@ -1,0 +1,471 @@
+/* Charcoal, chalk outlines and yellow accents inspired by neubrutalism.com. */
+html[data-theme="neo-brutalism"][data-color-mode="dark"] {
+  --neu-bg: #20202a;
+  --neu-panel: #272731;
+  --neu-solid: #20202a;
+  --neu-inset: #19191f;
+  --neu-sidebar: #20202a;
+  --neu-text: #eeeef0;
+  --neu-muted: #c6c6ce;
+  --neu-line: #eeeef0;
+  --neu-accent: #ffd43b;
+  --neu-primary: #ffd43b;
+  --neu-on-primary: #141414;
+  --neu-selection: #39341d;
+  --neu-success: #a1deb2;
+  --neu-success-bg: #23392b;
+  --neu-danger: #ff9696;
+  --neu-danger-bg: #42292e;
+  --neu-warning: #ffd43b;
+  --neu-warning-bg: #302b17;
+  --neu-radius: 0;
+  --neu-shadow: 6px 6px 0 #000;
+  --picker-surface: var(--neu-solid);
+  --picker-text: var(--neu-text);
+  --picker-line: var(--neu-line);
+  --picker-selected: var(--neu-primary);
+  --picker-on-selected: var(--neu-on-primary);
+  --picker-hover: var(--neu-selection);
+  --picker-accent: var(--neu-accent);
+  color-scheme: dark;
+  color: var(--neu-text);
+  background: var(--neu-bg);
+  font-family: Arial, Helvetica, sans-serif;
+  scrollbar-color: #82828e var(--neu-bg);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] body {
+  background: var(--neu-bg);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .content,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .page-header,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .page-body {
+  background: transparent;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .sidebar {
+  color: var(--neu-text);
+  background: var(--neu-sidebar);
+  border-right: 2px solid var(--neu-line);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .navigation-divider {
+  background: var(--neu-line);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .navigation a,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .settings-link {
+  color: var(--neu-muted);
+  border: 2px solid transparent;
+  border-radius: var(--neu-radius);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .navigation a:hover,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .settings-link:hover,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .navigation a.router-link-active,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .settings-link.router-link-active {
+  color: var(--neu-on-primary);
+  background: var(--neu-primary);
+  border-color: var(--neu-accent);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .eyebrow {
+  color: var(--neu-accent) !important;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .service-card,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-help-card,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .form-card,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-card,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .terminal-card,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-online-card,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-list-toolbar,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-list,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-empty-state,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-summary,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-list,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .setting-row,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .php-ini-editor,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-contents,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-logs {
+  background: var(--neu-panel);
+  border: 2px solid var(--neu-line);
+  border-radius: var(--neu-radius);
+  box-shadow: var(--neu-shadow);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .modal-dialog,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .quit-dialog {
+  color: var(--neu-text);
+  background: var(--neu-solid);
+  border: 2px solid var(--neu-line);
+  border-radius: var(--neu-radius);
+  box-shadow: 6px 6px 0 #000;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-row,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-row {
+  background: transparent;
+  border-color: var(--neu-line);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-summary > div,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .modal-header,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-section + .help-section,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-checks li,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-logs li {
+  border-color: var(--neu-line);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-search-toolbar,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .update-version-grid div,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .update-artifact-details,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .php-fastcgi-settings {
+  background: var(--neu-inset);
+  border-color: var(--neu-line);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-row.is-shared,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-row.selected,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-row.selected,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-selection-toolbar,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-selection-toolbar {
+  background: var(--neu-selection);
+  border-color: var(--neu-line);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-row.selected,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-row.selected {
+  box-shadow: inset 3px 0 0 var(--neu-accent);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] input,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] select,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] textarea {
+  color: var(--neu-text);
+  background: var(--neu-inset);
+  border: 2px solid var(--neu-line);
+  border-radius: var(--neu-radius);
+  accent-color: var(--neu-accent);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] input::placeholder,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] textarea::placeholder {
+  color: var(--neu-muted);
+  opacity: 0.85;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] input:focus,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] select:focus,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] textarea:focus {
+  border-color: var(--neu-accent);
+  box-shadow: 3px 3px 0 var(--neu-accent);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .primary-button,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .secondary-button,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .share-stop-button,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .danger-button,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-filter-button,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .open-link-icon,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .modal-close-button {
+  color: var(--neu-text);
+  background: var(--neu-solid);
+  border: 2px solid var(--neu-line);
+  border-radius: var(--neu-radius);
+  box-shadow: 3px 3px 0 #000;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .primary-button,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-filter-button.active {
+  color: var(--neu-on-primary);
+  background: var(--neu-primary);
+  border-color: var(--neu-accent);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .primary-button:hover:not(:disabled),
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .secondary-button:hover:not(:disabled),
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .share-stop-button:hover:not(:disabled),
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .danger-button:hover:not(:disabled),
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-filter-button:hover:not(:disabled),
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .open-link-icon:hover:not(:disabled),
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .modal-close-button:hover:not(:disabled) {
+  color: var(--neu-text);
+  background: var(--neu-selection);
+  border-color: var(--neu-accent);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] button:focus-visible,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] a:focus-visible {
+  outline: 2px solid var(--neu-accent);
+  outline-offset: 3px;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] button:disabled {
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .state-pill,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-version,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-section-number,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .service-icon,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-filter-button span,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-summary span,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-state {
+  color: var(--neu-accent);
+  background: var(--neu-inset);
+  border: 2px solid var(--neu-line);
+  border-radius: var(--neu-radius);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .state-pill[data-state="running"],
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .service-icon,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-summary [data-status="passed"],
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-state[data-status="passed"] {
+  color: var(--neu-success);
+  background: var(--neu-success-bg);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .state-pill[data-state="failed"],
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .danger-button,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-summary [data-status="failed"],
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-state[data-status="failed"] {
+  color: var(--neu-danger);
+  background: var(--neu-danger-bg);
+  border-color: var(--neu-danger);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .state-pill[data-state="warning"],
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .state-pill[data-state="degraded"],
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .share-stop-button,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-summary [data-status="warning"],
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-state[data-status="warning"] {
+  color: var(--neu-warning);
+  background: var(--neu-warning-bg);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .danger-button:hover:not(:disabled) {
+  color: var(--neu-danger-bg);
+  background: var(--neu-danger);
+  border-color: var(--neu-danger);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .share-stop-button:hover:not(:disabled) {
+  color: var(--neu-warning-bg);
+  background: var(--neu-warning);
+  border-color: var(--neu-warning);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .notice,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .app-update-notice,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-summary {
+  color: var(--neu-text);
+  background: var(--neu-selection);
+  border: 2px solid var(--neu-line);
+  border-radius: var(--neu-radius);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .notice.warning,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-online-warning,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-notes {
+  color: var(--neu-warning) !important;
+  background: var(--neu-warning-bg);
+  border-color: var(--neu-warning);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .modal-message {
+  color: var(--neu-danger);
+  background: var(--neu-danger-bg);
+  border-color: var(--neu-danger);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .setting-row p,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .setting-row small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .page-header p,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .service-card p,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-card p,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-help-card p,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .terminal-card p,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .terminal-card small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .terminal-card code,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-card .runtime-details p,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-card .runtime-details > div > small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-online-header p:not(.eyebrow),
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-online-details dt,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-row-progress small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-footnote,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-home-description,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-list-filter-row > small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-empty-state,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-row small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-row small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-summary small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-empty,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-search-toolbar small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-selection-toolbar,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-selection-toolbar,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .modal-header p,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .modal-form label small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .quit-dialog p,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-contents strong,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-section p,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .service-scope-note,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .php-pool-metric span,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .php-pool-unavailable,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .update-version-grid dt,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .update-progress-label,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .app-update-notice span,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .php-fastcgi-settings small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .php-ini-actions,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .form-message,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .brand small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .agent-state,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-domain,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .mariadb-settings-heading p,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .mariadb-settings-card > p,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-help,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-copy-message,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-logs code {
+  color: var(--neu-muted);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .form-card label,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .modal-form label,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-selection-toolbar label,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-selection-toolbar label,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-contents a,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-section ol,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-section ul,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .update-version-grid dd,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .update-artifact-details code,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-summary strong,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .php-pool-metric strong,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-summary strong,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-identity strong,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-identity strong,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-endpoint code,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-target code,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-paths code,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-section h3,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .diagnostic-checks strong {
+  color: var(--neu-text);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .warning-text {
+  color: var(--neu-warning);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .error-message,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-state small,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-online-progress small {
+  color: var(--neu-danger);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-share-address {
+  color: var(--neu-success) !important;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-share-address.is-inactive {
+  color: var(--neu-muted) !important;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-contents a:hover,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-contents a:focus-visible {
+  color: var(--neu-accent);
+  background: var(--neu-selection);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .toggle-button {
+  background: var(--neu-line);
+  border: 2px solid var(--neu-line);
+  box-shadow: 3px 3px 0 #000;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .toggle-button span {
+  background: var(--neu-text);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .toggle-button.active {
+  background: var(--neu-primary);
+  border-color: var(--neu-accent);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .toggle-button.active span {
+  background: var(--neu-on-primary);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] progress {
+  accent-color: var(--neu-accent);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .quit-spinner {
+  border-color: var(--neu-line);
+  border-top-color: var(--neu-accent);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .quit-overlay,
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .modal-overlay {
+  background: rgb(3 9 18 / 65%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] :is(.page-header h1, .setting-row h2, .service-card h2, .form-card h2, .runtime-card h2) {
+  font-weight: 900;
+  letter-spacing: -0.035em;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .eyebrow {
+  text-decoration: underline 4px var(--neu-accent);
+  text-underline-offset: 5px;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] :is(.navigation a, .settings-link) {
+  font-weight: 800;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] :is(.navigation a.router-link-active, .settings-link.router-link-active) {
+  border-color: #000;
+  box-shadow: 4px 4px 0 var(--neu-line);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] :is(.primary-button, .site-filter-button.active) {
+  border-color: #000;
+  box-shadow: 3px 3px 0 var(--neu-line);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] :is(.toggle-button, .toggle-button span, .update-version-grid div, .update-artifact-details, .php-fastcgi-settings) {
+  border-radius: 0;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .toggle-button {
+  background: var(--neu-inset);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .toggle-button.active {
+  background: var(--neu-primary);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .toggle-button span {
+  width: 20px;
+  height: 20px;
+  box-shadow: none;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .toggle-button.active span {
+  transform: translateX(20px);
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] :is(.theme-select, .theme-menu) {
+  border: 2px solid var(--neu-line);
+  border-radius: 0;
+  box-shadow: 4px 4px 0 #000;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .theme-menu-option {
+  border-radius: 0;
+}

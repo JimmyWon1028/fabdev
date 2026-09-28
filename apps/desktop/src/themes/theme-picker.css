@@ -125,3 +125,24 @@ html[data-theme="neo-brutalism"] :is(.theme-select, .theme-menu) {
   border-radius: 0;
   box-shadow: 4px 4px 0 #111;
 }
+
+.theme-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: 100%;
+}
+
+.theme-dark-toggle {
+  min-width: 68px;
+}
+
+html[data-theme="neo-brutalism"][data-color-mode="dark"] .theme-dark-toggle[aria-pressed="true"] {
+  color: var(--neu-on-primary);
+  background: var(--neu-primary);
+  border-color: #000;
+  box-shadow: 3px 3px 0 var(--neu-line);
+}
