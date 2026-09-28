@@ -1,19 +1,20 @@
 # fabDev 穩定基線與 Roadmap
 
 > 更新日期：2026-09-28
-> 目前階段：`0.1.29` Windows x64 候選已建置，待 Repository Owner 實機 Gate；[`v0.1.28`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.28) 仍是公開 Latest Stable，已依 Windows-first 順序補齊同版 macOS ARM64 DMG，提供 Windows x64 App、fabDev Connect 與 macOS ARM64 App。Agent Protocol 維持 `40`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
+> 目前階段：`0.1.29` Windows x64 候選實機 Gate 已通過，準備 Windows-first Release；[`v0.1.28`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.28) 仍是公開 Latest Stable，已依 Windows-first 順序補齊同版 macOS ARM64 DMG，提供 Windows x64 App、fabDev Connect 與 macOS ARM64 App。Agent Protocol 維持 `40`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
 
 ## 階段結論
 
 fabDev Desktop Community `v0.1.28` 已依 Windows-first 順序完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Draft 與 Publish，並從相同 Tag Commit 補齊 macOS ARM64 Community DMG。Release ID `396444623`，目前 9 個 App-only Assets 已完成匿名公開下載驗證；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
-## 0.1.29 Windows x64 候選（待實機 Gate）
+## 0.1.29 Windows-first Release（準備中）
 
 - 2026-09-28 Repository Owner 要求進版打包，並指定先建立 Windows x64 候選。四個正式版本來源及 `Cargo.lock` 的 13 個 fabDev workspace 套件已同步為 `0.1.29`；Agent Protocol 維持 `40`。候選原始碼包含本輪 F01～F09 缺陷修正、Site 名稱輸入、主題深淺模式與 Glassmorphism 分隔線修正。App 安裝與更新流程、線上 Runtime Package／Catalog 未變更。
 - 本機完整 `pnpm test` 通過 Desktop 148、Release 規則 21、Rust workspace 309、macOS Helper 10 項，共 488 項；另有 7 項 Rust 測試依既有設定維持 ignored。`pnpm lint`、`pnpm build` 與 `git diff --check` 通過。候選原始碼 Commit `5d93a98d8566c4426cfa12ef9012b24f0a80cd8a` 已推送。
 - 首輪 Windows x64 [Run `36376180787`](https://github.com/JimmyWon1028/fabdev/actions/runs/36376180787) 的舊有 Windows Helper 測試對空字串引號的預期值不正確，導致原生 Rust 測試失敗，尚未產出 NSIS Artifact。只修正該測試預期值的 Commit `04c009602637ed8c6c21d2a336c335c192e4bf56` 已推送；目標平台測試編譯、`cargo fmt --check` 與 `git diff --check` 通過。
 - 第二輪 Windows x64 [Run `36376697892`](https://github.com/JimmyWon1028/fabdev/actions/runs/36376697892) 成功：前端與 Release 規則測試、sidecars、bundled Runtimes、Windows PHP FastCGI worker pool、MSVC workspace、原生 Rust 測試、fabDev Connect、Unsigned NSIS 安裝包及兩個 Artifact 上傳均通過。日誌確認安裝包檔名為 `fabDev_0.1.29_x64-setup.exe`。
 - [Installer Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/36376697892/artifacts/10950989015) `fabDev-Community-Windows-x64` ID `10950989015`，ZIP 49,858,673 bytes、GitHub ZIP SHA-256 `5f6a45454181b33d5a861b2d57e7d5ada8dd2b0e9b50bfe2fb7e8970e5476611`；[Connect Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/36376697892/artifacts/10950974333) `fabDev-Connect-Windows-x64` ID `10950974333`，ZIP 332,569 bytes、GitHub ZIP SHA-256 `ba822aac06a621d1b993004ae0415712aac3be7171f676ae63b77082c9966647`。兩個 Artifact 保留至 2026-12-27 12:12:11（Asia/Taipei，UTC+8）。Windows 實機 Gate 尚待 Repository Owner 驗收；尚未建立 Tag、Draft 或 Release，也未處理 macOS App 或線上 Runtime Package／Catalog。
+- 2026-09-28 Repository Owner 明確回報上述 `0.1.29` Windows x64 候選實機 Gate 通過，並要求發布 Release；本紀錄不推定未提供的個別實機測試細節。依固定流程從 Gate 紀錄 Commit 建立 annotated `v0.1.29` Tag，重新打包 Windows x64 並建立、驗證 Windows-first Draft，通過後 Publish。本次不打包 macOS App，也不處理線上 Runtime Package／Catalog。
 
 ## 0.1.28 Stable（Windows-first，已補 macOS ARM64）
 
