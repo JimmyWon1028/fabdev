@@ -2381,7 +2381,8 @@ button:disabled {
   gap: 10px;
 }
 
-.php-fastcgi-controls select {
+.php-fastcgi-controls select,
+.php-fastcgi-controls input {
   width: 88px;
 }
 

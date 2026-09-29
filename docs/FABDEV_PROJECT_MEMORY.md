@@ -1,6 +1,6 @@
 # fabDev 長期專案記憶
 
-> 最後整理：2026-09-25
+> 最後整理：2026-09-29
 
 本文件保存只屬於 fabDev、值得跨電腦延續的決策與實作經驗。它不保存聊天逐字稿、個人資料、憑證、Token、私鑰、真實客戶資料、本機絕對路徑、一次性 Artifact，或已被新版取代的暫時狀態。
 
@@ -93,6 +93,7 @@
 - App Quit 或 Agent 升級為清理程序而暫停 MariaDB 時，不得覆寫使用者上次明確選擇的啟動偏好。
 - 修改 MariaDB 設定契約、Runtime 安裝／移除、PHP-FPM 模板或設定產生器時，加入 Managed 與 System 自動切換的回歸測試。
 - System／Homebrew Socket、Windows Named Pipe 與 TCP readiness 是內部細節，不在一般 UI 提供手動來源切換。
+- macOS Site 的 Nginx `fastcgi_read_timeout` 與 PHP-FPM `request_terminate_timeout` 是獨立限制。Adminer 伺服器端匯入約 120 秒中止時，曾由 PHP-FPM log 確認為 pool 的 `request_terminate_timeout = 120s`，與 `max_input_time` 無關。未發布原始碼的 PHP 頁面按版本設定此值，預設 180 秒、範圍 1～360 秒；Sites 上限仍為 360 秒。Windows 使用 PHP-CGI，沒有此 PHP-FPM 參數，其對應能力待下個 Windows 版本規劃。
 
 ## App 與 Runtime 發布模型
 

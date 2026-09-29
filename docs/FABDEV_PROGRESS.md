@@ -7,6 +7,13 @@
 
 fabDev Desktop Community `v0.1.29` 已完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Windows-first Draft 與 Publish，並從相同 Tag Commit 補齊 macOS ARM64 Community DMG。Release ID `397957496`，9 個 App-only Assets 已完成匿名公開下載驗證；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
+## 2026-09-29 未發布：macOS PHP-FPM 請求逾時
+
+- Adminer `lysm` 的伺服器端 SQL 匯入在約 121.9 秒被 PHP-FPM 終止；該 Site 的 Nginx `fastcgi_read_timeout` 已為 360 秒，真正的限制是共用 PHP-FPM pool 的 `request_terminate_timeout = 120s`。
+- Repository Owner 指定在 PHP 頁面按 PHP 版本設定 PHP-FPM 請求逾時，預設 180 秒、範圍 1～360 秒；Sites 的每站上限維持 360 秒。儲存時只重啟對應版本的 PHP-FPM，並保留既有 `php.ini` 編輯流程。此未發布變更新增 Agent Protocol `41`。
+- Windows 使用 PHP-CGI，沒有 PHP-FPM 的 `request_terminate_timeout`；此次功能只在 macOS 提供，Windows PHP 頁面明示差異。Windows 可調整 `php.ini` 的 `max_execution_time` 與每站 Nginx 回應逾時，但它們不是相同的請求硬性上限。Repository Owner 已確認此平台差異；Windows 對應能力的預計版本於下個 Windows 版本規劃時決定，屆時須於 UI、測試及 Release Notes 清楚標示。
+- 本次原始碼的完整 `pnpm test`、`pnpm lint`、針對性 Rust 測試與 `git diff --check` 已通過。Repository Owner 於 2026-09-29 回報「test ok」；未提供個別實機測試項目，因此僅記錄其測試結果，不推定已重新打包、發布或完成其他人工驗收。
+
 ## 0.1.29 Stable（Windows-first，已補 macOS ARM64）
 
 - 2026-09-28 Repository Owner 要求進版打包，並指定先建立 Windows x64 候選。四個正式版本來源及 `Cargo.lock` 的 13 個 fabDev workspace 套件已同步為 `0.1.29`；Agent Protocol 維持 `40`。候選原始碼包含本輪 F01～F09 缺陷修正、Site 名稱輸入、主題深淺模式與 Glassmorphism 分隔線修正。App 安裝與更新流程、線上 Runtime Package／Catalog 未變更。

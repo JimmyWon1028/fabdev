@@ -35,6 +35,10 @@ const MARIADB_CONFIG_TEMPLATE: &str = include_str!("../../../resources/mariadb/m
 const MARIADB_CUSTOM_CONFIG_TEMPLATE: &str = "[mariadbd]\n\n";
 const MARIADB_CONFIG_MAX_BYTES: usize = 512 * 1024;
 const PHP_FPM_STATUS_PATH: &str = "/__fabdev/php-fpm-status";
+#[cfg(unix)]
+const DEFAULT_PHP_FPM_REQUEST_TIMEOUT_SECONDS: u16 = 180;
+#[cfg(unix)]
+const MAX_PHP_FPM_REQUEST_TIMEOUT_SECONDS: u16 = 360;
 #[cfg(any(windows, test))]
 const DEFAULT_WINDOWS_PHP_FASTCGI_WORKERS: u8 = 4;
 #[cfg(any(windows, test))]
@@ -172,6 +176,13 @@ pub struct GeneratedPhpConfig {
 #[serde(rename_all = "camelCase")]
 struct WindowsPhpFastCgiSettings {
   workers: u8,
+}
+
+#[cfg(unix)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PhpFpmSettings {
+  request_terminate_timeout_seconds: u16,
 }
 
 #[derive(Clone, Debug)]
@@ -1442,6 +1453,17 @@ impl ServiceSupervisor {
       .with_context(|| format!("unable to read PHP {} configuration", config.version))
   }
 
+  #[cfg(unix)]
+  pub fn read_php_fpm_settings(&self, version: &PhpVersion) -> Result<u16> {
+    self.runtimes.resolve_php(version)?;
+    load_php_fpm_request_timeout(&self.paths, version)
+  }
+
+  #[cfg(not(unix))]
+  pub fn read_php_fpm_settings(&self, _version: &PhpVersion) -> Result<u16> {
+    bail!("PHP-FPM settings are only available on macOS")
+  }
+
   #[cfg(any(windows, test))]
   pub fn read_php_fastcgi_settings(&self, version: &PhpVersion) -> Result<u8> {
     self.runtimes.resolve_php(version)?;
@@ -1564,6 +1586,58 @@ impl ServiceSupervisor {
       }
     }
     Ok(())
+  }
+
+  #[cfg(unix)]
+  pub async fn save_php_fpm_settings(
+    &mut self,
+    version: &PhpVersion,
+    request_terminate_timeout_seconds: u16,
+  ) -> Result<()> {
+    validate_php_fpm_request_timeout(request_terminate_timeout_seconds)?;
+    self.runtimes.resolve_php(version)?;
+    let settings_path = php_fpm_settings_path(&self.paths, version);
+    let previous = match std::fs::read(&settings_path) {
+      Ok(contents) => Some(contents),
+      Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+      Err(error) => {
+        return Err(error).with_context(|| {
+          format!(
+            "unable to read PHP-FPM settings: {}",
+            settings_path.display()
+          )
+        })
+      }
+    };
+    save_php_fpm_request_timeout(&self.paths, version, request_terminate_timeout_seconds)?;
+    let apply_result = async {
+      let config = generate_php_config(&self.paths, &self.runtimes, version)?;
+      validate_php_config(&config)?;
+      if self.expected_php_versions.contains(version) {
+        self.stop_php_version(version).await?;
+        self.ensure_php_version_running(&config).await?;
+      }
+      Ok::<(), anyhow::Error>(())
+    }
+    .await;
+    if let Err(error) = apply_result {
+      restore_optional_file(&settings_path, previous.as_deref())?;
+      let restored_config = generate_php_config(&self.paths, &self.runtimes, version)?;
+      if self.expected_php_versions.contains(version) {
+        let _ = self.ensure_php_version_running(&restored_config).await;
+      }
+      return Err(error.context("unable to apply PHP-FPM request timeout"));
+    }
+    Ok(())
+  }
+
+  #[cfg(not(unix))]
+  pub async fn save_php_fpm_settings(
+    &mut self,
+    _version: &PhpVersion,
+    _request_terminate_timeout_seconds: u16,
+  ) -> Result<()> {
+    bail!("PHP-FPM settings are only available on macOS")
   }
 
   #[cfg(any(windows, test))]
@@ -2522,8 +2596,15 @@ fn generate_php_config(
   #[cfg(unix)]
   {
     let php_pool = php_service.join("php-fpm.d/www.conf");
+    let request_timeout = load_php_fpm_request_timeout(paths, version)?;
     std::fs::write(&php_fpm, render_php(PHP_FPM_TEMPLATE))?;
-    std::fs::write(&php_pool, render_php(PHP_POOL_TEMPLATE))?;
+    std::fs::write(
+      &php_pool,
+      render_php(PHP_POOL_TEMPLATE).replace(
+        "@REQUEST_TERMINATE_TIMEOUT_SECONDS@",
+        &request_timeout.to_string(),
+      ),
+    )?;
   }
 
   Ok(GeneratedPhpConfig {
@@ -2796,6 +2877,60 @@ fn managed_php_ini_path(paths: &AppPaths, version: &PhpVersion) -> PathBuf {
     .join("php.ini")
 }
 
+#[cfg(unix)]
+fn php_fpm_settings_path(paths: &AppPaths, version: &PhpVersion) -> PathBuf {
+  paths
+    .config
+    .join("php")
+    .join(version.to_string())
+    .join("fpm.json")
+}
+
+#[cfg(unix)]
+fn validate_php_fpm_request_timeout(seconds: u16) -> Result<()> {
+  if !(1..=MAX_PHP_FPM_REQUEST_TIMEOUT_SECONDS).contains(&seconds) {
+    bail!(
+      "PHP-FPM request timeout must be between 1 and {MAX_PHP_FPM_REQUEST_TIMEOUT_SECONDS} seconds"
+    );
+  }
+  Ok(())
+}
+
+#[cfg(unix)]
+fn load_php_fpm_request_timeout(paths: &AppPaths, version: &PhpVersion) -> Result<u16> {
+  let path = php_fpm_settings_path(paths, version);
+  if !path.exists() {
+    return Ok(DEFAULT_PHP_FPM_REQUEST_TIMEOUT_SECONDS);
+  }
+  let settings: PhpFpmSettings = serde_json::from_slice(&std::fs::read(&path)?)
+    .with_context(|| format!("unable to read PHP-FPM settings: {}", path.display()))?;
+  validate_php_fpm_request_timeout(settings.request_terminate_timeout_seconds)?;
+  Ok(settings.request_terminate_timeout_seconds)
+}
+
+#[cfg(unix)]
+fn save_php_fpm_request_timeout(
+  paths: &AppPaths,
+  version: &PhpVersion,
+  seconds: u16,
+) -> Result<()> {
+  validate_php_fpm_request_timeout(seconds)?;
+  let path = php_fpm_settings_path(paths, version);
+  let parent = path
+    .parent()
+    .context("PHP-FPM settings path has no parent")?;
+  std::fs::create_dir_all(parent)?;
+  let pending = parent.join(".fpm.json.pending");
+  let mut contents = serde_json::to_vec_pretty(&PhpFpmSettings {
+    request_terminate_timeout_seconds: seconds,
+  })?;
+  contents.push(b'\n');
+  std::fs::write(&pending, contents)
+    .with_context(|| format!("unable to write PHP-FPM settings: {}", pending.display()))?;
+  std::fs::rename(&pending, &path)
+    .with_context(|| format!("unable to activate PHP-FPM settings: {}", path.display()))
+}
+
 #[cfg(any(windows, test))]
 fn windows_php_fastcgi_settings_path(paths: &AppPaths, version: &PhpVersion) -> PathBuf {
   paths
@@ -2859,7 +2994,6 @@ fn save_windows_php_fastcgi_settings(
   })
 }
 
-#[cfg(any(windows, test))]
 fn restore_optional_file(path: &Path, contents: Option<&[u8]>) -> Result<()> {
   match contents {
     Some(contents) => std::fs::write(path, contents)?,
@@ -4714,6 +4848,37 @@ mod tests {
     );
   }
 
+  #[cfg(unix)]
+  #[test]
+  fn persists_php_fpm_request_timeout_per_php_series() {
+    let root = std::env::temp_dir().join(format!("fabdev-fpm-settings-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(&root);
+    let php82: PhpVersion = "8.2".parse().expect("parse PHP version");
+    let php84: PhpVersion = "8.4".parse().expect("parse PHP version");
+
+    assert_eq!(
+      load_php_fpm_request_timeout(&paths, &php82).expect("load default timeout"),
+      180
+    );
+    save_php_fpm_request_timeout(&paths, &php82, 360).expect("save timeout");
+    assert_eq!(
+      load_php_fpm_request_timeout(&paths, &php82).expect("load saved timeout"),
+      360
+    );
+    assert_eq!(
+      load_php_fpm_request_timeout(&paths, &php84).expect("load other PHP timeout"),
+      180
+    );
+    assert!(save_php_fpm_request_timeout(&paths, &php82, 0).is_err());
+    assert!(save_php_fpm_request_timeout(&paths, &php82, 361).is_err());
+    assert_eq!(
+      load_php_fpm_request_timeout(&paths, &php82).expect("preserve saved timeout"),
+      360
+    );
+
+    std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
   #[test]
   fn persists_windows_php_fastcgi_workers_per_php_series() {
     let root = std::env::temp_dir().join(format!("fabdev-fastcgi-settings-{}", Uuid::new_v4()));
@@ -6203,7 +6368,13 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       assert!(php_pool.contains("pm.max_requests = 500"));
       assert!(php_pool.contains("pm.status_path = /__fabdev/php-fpm-status"));
       assert!(php_pool.contains("request_slowlog_timeout = 10s"));
-      assert!(php_pool.contains("request_terminate_timeout = 120s"));
+      assert!(php_pool.contains("request_terminate_timeout = 180s"));
+      let php82: PhpVersion = "8.2".parse().expect("parse PHP version");
+      save_php_fpm_request_timeout(&paths, &php82, 360).expect("save PHP-FPM timeout");
+      generate_php_config(&paths, &runtimes, &php82).expect("regenerate PHP config");
+      let updated_pool = std::fs::read_to_string(paths.services.join("php/8.2/php-fpm.d/www.conf"))
+        .expect("read updated PHP-FPM pool");
+      assert!(updated_pool.contains("request_terminate_timeout = 360s"));
       assert!(php_pool.contains(&format!(
         "slowlog = {}/services/php/8.2/logs/php-slow.log",
         paths.root.display()

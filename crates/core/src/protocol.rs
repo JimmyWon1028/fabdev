@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Site, SiteEditInput, SiteInput};
 
-pub const PROTOCOL_VERSION: u16 = 40;
+pub const PROTOCOL_VERSION: u16 = 41;
 pub const DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 120;
 pub const MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 360;
 
@@ -88,6 +88,13 @@ pub enum AgentRequest {
   SavePhpIni {
     php_version: crate::PhpVersion,
     contents: String,
+  },
+  GetPhpFpmSettings {
+    php_version: crate::PhpVersion,
+  },
+  SavePhpFpmSettings {
+    php_version: crate::PhpVersion,
+    request_terminate_timeout_seconds: u16,
   },
   GetPhpFastCgiSettings {
     php_version: crate::PhpVersion,
@@ -191,6 +198,14 @@ pub enum AgentResponse {
   },
   PhpIniSaved {
     php_version: crate::PhpVersion,
+  },
+  PhpFpmSettings {
+    php_version: crate::PhpVersion,
+    request_terminate_timeout_seconds: u16,
+  },
+  PhpFpmSettingsSaved {
+    php_version: crate::PhpVersion,
+    request_terminate_timeout_seconds: u16,
   },
   PhpFastCgiSettings {
     php_version: crate::PhpVersion,
@@ -759,6 +774,43 @@ mod tests {
       json!({
         "type": "phpFastCgiSettingsSaved",
         "payload": { "phpVersion": "8.4", "workers": 8 }
+      })
+    );
+  }
+
+  #[test]
+  fn serializes_php_fpm_request_timeout_settings() {
+    let php_version: crate::PhpVersion = "8.2".parse().expect("parse PHP version");
+    assert_eq!(
+      serde_json::to_value(AgentRequest::GetPhpFpmSettings {
+        php_version: php_version.clone(),
+      })
+      .expect("serialize PHP-FPM settings request"),
+      json!({
+        "type": "getPhpFpmSettings",
+        "payload": { "phpVersion": "8.2" }
+      })
+    );
+    assert_eq!(
+      serde_json::to_value(AgentRequest::SavePhpFpmSettings {
+        php_version: php_version.clone(),
+        request_terminate_timeout_seconds: 360,
+      })
+      .expect("serialize PHP-FPM settings save request"),
+      json!({
+        "type": "savePhpFpmSettings",
+        "payload": { "phpVersion": "8.2", "requestTerminateTimeoutSeconds": 360 }
+      })
+    );
+    assert_eq!(
+      serde_json::to_value(AgentResponse::PhpFpmSettingsSaved {
+        php_version,
+        request_terminate_timeout_seconds: 360,
+      })
+      .expect("serialize PHP-FPM settings response"),
+      json!({
+        "type": "phpFpmSettingsSaved",
+        "payload": { "phpVersion": "8.2", "requestTerminateTimeoutSeconds": 360 }
       })
     );
   }

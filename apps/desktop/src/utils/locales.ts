@@ -364,6 +364,12 @@ const en = {
   'runtimes.removed': 'PHP {version} was removed',
   'runtimes.iniSaved': 'PHP {version} php.ini was validated and applied',
   'runtimes.phpSettings': 'PHP settings',
+  'runtimes.fpmTimeout': 'PHP-FPM request timeout (seconds)',
+  'runtimes.fpmTimeoutHelp': 'macOS only. Shared by Sites using this PHP version. Default 180 seconds; maximum 360 seconds. Applying restarts PHP-FPM.',
+  'runtimes.fpmTimeoutApply': 'Apply timeout',
+  'runtimes.fpmTimeoutApplying': 'Applying…',
+  'runtimes.fpmTimeoutSaved': 'PHP {version} PHP-FPM restarted with a {seconds}-second request timeout',
+  'runtimes.fpmTimeoutWindowsHelp': 'Windows uses PHP-CGI and has no PHP-FPM request timeout. Use max_execution_time in php.ini and the Site response timeout; these are not the same hard request limit.',
   'runtimes.fastCgiWorkers': 'FastCGI workers',
   'runtimes.fastCgiWorkersHelp': 'Windows only. Choose 2, 4, or 8 workers; the matching PHP FastCGI pool restarts when applied.',
   'runtimes.fastCgiApply': 'Apply workers',
@@ -782,6 +788,12 @@ const zhTWSiteTimeoutCopy = {
 
 const zhTWFastCgiSettingsCopy = {
   'runtimes.phpSettings': 'PHP 設定',
+  'runtimes.fpmTimeout': 'PHP-FPM 請求逾時（秒）',
+  'runtimes.fpmTimeoutHelp': '僅 macOS 使用；同版本 PHP 的所有 Site 共用。預設 180 秒，最多 360 秒；套用時會重啟 PHP-FPM。',
+  'runtimes.fpmTimeoutApply': '套用逾時',
+  'runtimes.fpmTimeoutApplying': '套用中…',
+  'runtimes.fpmTimeoutSaved': 'PHP {version} PHP-FPM 已用 {seconds} 秒請求逾時重新啟動',
+  'runtimes.fpmTimeoutWindowsHelp': 'Windows 使用 PHP-CGI，沒有 PHP-FPM 請求逾時。可使用 php.ini 的 max_execution_time 與 Site 回應逾時，但兩者不等同於請求硬性上限。',
   'runtimes.fastCgiWorkers': 'FastCGI Worker 數量',
   'runtimes.fastCgiWorkersHelp': '僅 Windows 使用；可選 2、4 或 8，套用時會重啟對應 PHP FastCGI pool。',
   'runtimes.fastCgiApply': '套用 Worker',
@@ -796,6 +808,12 @@ const zhCNSiteTimeoutCopy = {
 
 const zhCNFastCgiSettingsCopy = {
   'runtimes.phpSettings': 'PHP 设置',
+  'runtimes.fpmTimeout': 'PHP-FPM 请求超时（秒）',
+  'runtimes.fpmTimeoutHelp': '仅 macOS 使用；同版本 PHP 的所有 Site 共用。默认 180 秒，最多 360 秒；应用时会重启 PHP-FPM。',
+  'runtimes.fpmTimeoutApply': '应用超时',
+  'runtimes.fpmTimeoutApplying': '应用中…',
+  'runtimes.fpmTimeoutSaved': 'PHP {version} PHP-FPM 已使用 {seconds} 秒请求超时重新启动',
+  'runtimes.fpmTimeoutWindowsHelp': 'Windows 使用 PHP-CGI，没有 PHP-FPM 请求超时。可使用 php.ini 的 max_execution_time 与 Site 响应超时，但两者不等同于请求硬性上限。',
   'runtimes.fastCgiWorkers': 'FastCGI Worker 数量',
   'runtimes.fastCgiWorkersHelp': '仅 Windows 使用；可选 2、4 或 8，应用时会重启对应 PHP FastCGI pool。',
   'runtimes.fastCgiApply': '应用 Worker',

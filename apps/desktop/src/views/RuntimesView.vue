@@ -25,6 +25,7 @@ const message = ref('')
 const phpIniSeries = ref<string | null>(null)
 const phpIniContents = ref('')
 const phpFastCgiWorkers = ref(4)
+const phpFpmRequestTimeoutSeconds = ref(180)
 let mounted = true
 
 const isWindows = isWindowsPlatform()
@@ -39,6 +40,11 @@ const currentRuntimeTarget = computed(() =>
 )
 const showInFileManagerLabel = computed(() =>
   t(isWindows ? 'runtimes.showInExplorer' : 'runtimes.showInFinder')
+)
+const validPhpFpmRequestTimeout = computed(() =>
+  Number.isInteger(phpFpmRequestTimeoutSeconds.value) &&
+  phpFpmRequestTimeoutSeconds.value >= 1 &&
+  phpFpmRequestTimeoutSeconds.value <= 360
 )
 
 onMounted(() => {
@@ -306,13 +312,17 @@ async function editPhpIni(runtime: PhpRuntimeInfo) {
   action.value = `ini:${runtime.series}`
   message.value = ''
   try {
-    const [contents, fastCgiSettings] = await Promise.all([
+    const [contents, fastCgiSettings, fpmSettings] = await Promise.all([
       store.getPhpIni(runtime.series),
-      isWindows ? store.getPhpFastCgiSettings(runtime.series) : Promise.resolve(null)
+      isWindows ? store.getPhpFastCgiSettings(runtime.series) : Promise.resolve(null),
+      isWindows ? Promise.resolve(null) : store.getPhpFpmSettings(runtime.series)
     ])
     phpIniContents.value = contents
     if (fastCgiSettings) {
       phpFastCgiWorkers.value = fastCgiSettings.workers
+    }
+    if (fpmSettings) {
+      phpFpmRequestTimeoutSeconds.value = fpmSettings.requestTerminateTimeoutSeconds
     }
     phpIniSeries.value = runtime.series
   } catch (error) {
@@ -337,6 +347,29 @@ async function savePhpFastCgiSettings() {
     message.value = t('runtimes.fastCgiSaved', {
       version: phpIniSeries.value,
       workers: settings.workers
+    })
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    action.value = null
+  }
+}
+
+async function savePhpFpmSettings() {
+  if (!phpIniSeries.value || !validPhpFpmRequestTimeout.value) {
+    return
+  }
+  action.value = `save-fpm:${phpIniSeries.value}`
+  message.value = ''
+  try {
+    const settings = await store.savePhpFpmSettings(
+      phpIniSeries.value,
+      phpFpmRequestTimeoutSeconds.value
+    )
+    phpFpmRequestTimeoutSeconds.value = settings.requestTerminateTimeoutSeconds
+    message.value = t('runtimes.fpmTimeoutSaved', {
+      version: phpIniSeries.value,
+      seconds: settings.requestTerminateTimeoutSeconds
     })
   } catch (error) {
     message.value = error instanceof Error ? error.message : String(error)
@@ -518,7 +551,7 @@ async function revealPhpIni() {
             :disabled="action !== null"
             @click="editPhpIni(row.runtime)"
           >
-            {{ isWindows ? t('runtimes.phpSettings') : 'php.ini' }}
+            {{ t('runtimes.phpSettings') }}
           </button>
           <button
             v-if="row.runtime && !row.runtime.active"
@@ -590,7 +623,7 @@ async function revealPhpIni() {
           <p class="eyebrow">
             PHP {{ phpIniSeries }}
           </p>
-          <h2>{{ isWindows ? t('runtimes.phpSettings') : 'php.ini' }}</h2>
+          <h2>{{ t('runtimes.phpSettings') }}</h2>
         </div>
         <div class="header-actions">
           <button class="secondary-button" :disabled="action !== null" @click="revealPhpIni">
@@ -627,6 +660,33 @@ async function revealPhpIni() {
             {{ action?.startsWith('save-fastcgi:')
               ? t('runtimes.fastCgiApplying')
               : t('runtimes.fastCgiApply') }}
+          </button>
+        </div>
+      </div>
+      <small v-if="isWindows">{{ t('runtimes.fpmTimeoutWindowsHelp') }}</small>
+      <div v-else class="php-fastcgi-settings">
+        <div>
+          <strong>{{ t('runtimes.fpmTimeout') }}</strong>
+          <small>{{ t('runtimes.fpmTimeoutHelp') }}</small>
+        </div>
+        <div class="php-fastcgi-controls">
+          <input
+            v-model.number="phpFpmRequestTimeoutSeconds"
+            type="number"
+            min="1"
+            max="360"
+            step="1"
+            :aria-label="t('runtimes.fpmTimeout')"
+            :disabled="action !== null"
+          />
+          <button
+            class="primary-button"
+            :disabled="action !== null || !validPhpFpmRequestTimeout"
+            @click="savePhpFpmSettings"
+          >
+            {{ action?.startsWith('save-fpm:')
+              ? t('runtimes.fpmTimeoutApplying')
+              : t('runtimes.fpmTimeoutApply') }}
           </button>
         </div>
       </div>

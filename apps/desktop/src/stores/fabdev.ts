@@ -7,6 +7,7 @@ import {
   type MariaDbSettings,
   type NodeRuntimeState,
   type PhpFastCgiSettings,
+  type PhpFpmSettings,
   type PhpRuntimeState,
   type ProxyConnectionInput,
   type ProxyManagerState,
@@ -653,6 +654,35 @@ export const useAppStore = defineStore('fabdev', {
         payload: { phpVersion, contents }
       })
       if (response.type === 'phpIniSaved') {
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async getPhpFpmSettings(phpVersion: string): Promise<PhpFpmSettings> {
+      const response = await sendRequest({
+        type: 'getPhpFpmSettings',
+        payload: { phpVersion }
+      })
+      if (response.type === 'phpFpmSettings') {
+        return response.payload
+      }
+      if (response.type === 'error') {
+        throw new Error(response.payload.message)
+      }
+      throw new Error('Agent returned an unexpected response')
+    },
+    async savePhpFpmSettings(
+      phpVersion: string,
+      requestTerminateTimeoutSeconds: number
+    ): Promise<PhpFpmSettings> {
+      const response = await sendRequest({
+        type: 'savePhpFpmSettings',
+        payload: { phpVersion, requestTerminateTimeoutSeconds }
+      })
+      if (response.type === 'phpFpmSettingsSaved') {
         return response.payload
       }
       if (response.type === 'error') {

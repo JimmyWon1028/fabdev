@@ -1,4 +1,4 @@
-export const protocolVersion = 40
+export const protocolVersion = 41
 
 export type ServiceState =
   | 'notInstalled'
@@ -124,6 +124,11 @@ export interface PhpRuntimeState {
 export interface PhpFastCgiSettings {
   phpVersion: string
   workers: number
+}
+
+export interface PhpFpmSettings {
+  phpVersion: string
+  requestTerminateTimeoutSeconds: number
 }
 
 export interface TerminalPhpState {
@@ -282,6 +287,11 @@ export type AgentRequest =
   | { type: 'removePhpRuntime'; payload: { version: string } }
   | { type: 'getPhpIni'; payload: { phpVersion: string } }
   | { type: 'savePhpIni'; payload: { phpVersion: string; contents: string } }
+  | { type: 'getPhpFpmSettings'; payload: { phpVersion: string } }
+  | {
+      type: 'savePhpFpmSettings'
+      payload: { phpVersion: string; requestTerminateTimeoutSeconds: number }
+    }
   | { type: 'getPhpFastCgiSettings'; payload: { phpVersion: string } }
   | { type: 'savePhpFastCgiSettings'; payload: { phpVersion: string; workers: number } }
   | { type: 'getDefaultPhpIni' }
@@ -349,6 +359,8 @@ export type AgentResponse =
   | { type: 'phpRuntimeRemoved'; payload: PhpRuntimeState }
   | { type: 'phpIni'; payload: { phpVersion: string; contents: string } }
   | { type: 'phpIniSaved'; payload: { phpVersion: string } }
+  | { type: 'phpFpmSettings'; payload: PhpFpmSettings }
+  | { type: 'phpFpmSettingsSaved'; payload: PhpFpmSettings }
   | { type: 'phpFastCgiSettings'; payload: PhpFastCgiSettings }
   | { type: 'phpFastCgiSettingsSaved'; payload: PhpFastCgiSettings }
   | { type: 'defaultPhpIni'; payload: { contents: string } }

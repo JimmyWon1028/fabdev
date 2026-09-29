@@ -1488,6 +1488,44 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
         },
       }
     }
+    AgentRequest::GetPhpFpmSettings { php_version } => {
+      match state
+        .services
+        .lock()
+        .await
+        .read_php_fpm_settings(&php_version)
+      {
+        Ok(request_terminate_timeout_seconds) => AgentResponse::PhpFpmSettings {
+          php_version,
+          request_terminate_timeout_seconds,
+        },
+        Err(error) => AgentResponse::Error {
+          code: "php_fpm_settings_read_failed".to_owned(),
+          message: error.to_string(),
+        },
+      }
+    }
+    AgentRequest::SavePhpFpmSettings {
+      php_version,
+      request_terminate_timeout_seconds,
+    } => {
+      match state
+        .services
+        .lock()
+        .await
+        .save_php_fpm_settings(&php_version, request_terminate_timeout_seconds)
+        .await
+      {
+        Ok(()) => AgentResponse::PhpFpmSettingsSaved {
+          php_version,
+          request_terminate_timeout_seconds,
+        },
+        Err(error) => AgentResponse::Error {
+          code: "php_fpm_settings_save_failed".to_owned(),
+          message: error.to_string(),
+        },
+      }
+    }
     AgentRequest::GetPhpFastCgiSettings { php_version } => {
       match state
         .services
