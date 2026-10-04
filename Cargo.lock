@@ -1212,6 +1212,7 @@ dependencies = [
  "anyhow",
  "fabdev-core",
  "fabdev-sites",
+ "futures-util",
  "nix",
  "rcgen",
  "serde",

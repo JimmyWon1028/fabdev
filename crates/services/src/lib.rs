@@ -15,6 +15,7 @@ use fabdev_core::{
   SiteDiagnosticStatus, PROTOCOL_VERSION,
 };
 use fabdev_sites::{render_nginx_site, FastCgiEndpoint, NginxSiteConfig, NginxTlsConfig};
+use futures_util::{stream, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Child, Command};
 
@@ -530,23 +531,30 @@ impl ServiceSupervisor {
   }
 
   pub async fn php_fpm_pool_statuses(&self, sites: &[Site]) -> Vec<PhpFpmPoolStatus> {
-    let mut statuses = Vec::new();
+    let mut queries = Vec::new();
     for version in &self.expected_php_versions {
-      let Some(site) = sites.iter().find(|site| {
-        site.enabled
-          && site
-            .php_version
-            .as_ref()
-            .is_some_and(|site_version| site_version == version)
-      }) else {
+      let Some(site) = sites
+        .iter()
+        .find(|site| site.enabled && site.php_version.as_ref() == Some(version))
+      else {
         continue;
       };
-      match query_php_fpm_status(self.ports.http, &site.domain, version).await {
-        Ok(status) => statuses.push(status),
-        Err(error) => eprintln!("unable to read PHP {version} FPM status: {error:#}"),
-      }
+      queries.push(async move {
+        match query_php_fpm_status(self.ports.http, &site.domain, version).await {
+          Ok(status) => Some(status),
+          Err(error) => {
+            eprintln!("unable to read PHP {version} FPM status: {error:#}");
+            None
+          }
+        }
+      });
     }
-    statuses
+    //2026.10.04 modify by codex, reason: overlap independent pool queries with bounded connections while retaining version order and cancellation.
+    stream::iter(queries)
+      .buffered(4)
+      .filter_map(|status| async move { status })
+      .collect()
+      .await
   }
 
   pub const fn supports_php_fpm_pool_statuses(&self) -> bool {
@@ -5401,6 +5409,201 @@ mod tests {
     assert_eq!(status.max_listen_queue, 2);
     assert_eq!(status.max_children_reached, 4);
     assert_eq!(status.slow_requests, 6);
+  }
+
+  async fn php_fpm_status_fixture(
+    versions: &[&str],
+  ) -> (ServiceSupervisor, Vec<Site>, tokio::net::TcpListener) {
+    let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+      .await
+      .unwrap();
+    let root = std::env::temp_dir().join(format!("fabdev-pool-status-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(&root);
+    let mut supervisor = ServiceSupervisor::new(
+      paths,
+      RuntimePaths::from_runtime_root(root.join("runtimes")),
+      ServicePorts {
+        http: listener.local_addr().unwrap().port(),
+        ..ServicePorts::system()
+      },
+    );
+    let sites = versions
+      .iter()
+      .map(|version| {
+        let version: PhpVersion = version.parse().unwrap();
+        supervisor.expected_php_versions.insert(version.clone());
+        Site {
+          id: Uuid::new_v4(),
+          name: format!("PHP {version}"),
+          domain: format!("php-{}-{}.test", version.major, version.minor),
+          project_path: root.clone(),
+          document_root: root.clone(),
+          php_version: Some(version),
+          enabled: true,
+          secured: false,
+          upstream_response_timeout_seconds: 120,
+        }
+      })
+      .collect();
+    (supervisor, sites, listener)
+  }
+
+  async fn accept_php_fpm_status_request(
+    listener: &tokio::net::TcpListener,
+  ) -> (tokio::net::TcpStream, String) {
+    let (mut stream, _) = listener.accept().await.unwrap();
+    let mut request = Vec::new();
+    let mut buffer = [0; 512];
+    while !request.ends_with(b"\r\n\r\n") {
+      let length = stream.read(&mut buffer).await.unwrap();
+      assert!(length > 0, "status request must contain complete headers");
+      request.extend_from_slice(&buffer[..length]);
+    }
+    (stream, String::from_utf8(request).unwrap())
+  }
+
+  fn php_fpm_status_response(active: usize) -> String {
+    format!(
+      "HTTP/1.0 200 OK\r\n\r\n{{\"active processes\":{active},\"idle processes\":5,\"total processes\":8,\"listen queue\":1,\"max listen queue\":2,\"max children reached\":4,\"slow requests\":6}}"
+    )
+  }
+
+  #[tokio::test]
+  async fn queries_php_fpm_pools_concurrently_and_keeps_version_order() {
+    let (mut supervisor, mut sites, listener) =
+      php_fpm_status_fixture(&["7.4", "8.2", "8.4", "8.5"]).await;
+    let domains = sites
+      .iter()
+      .map(|site| site.domain.clone())
+      .collect::<Vec<_>>();
+    let mut disabled = sites[0].clone();
+    disabled.enabled = false;
+    disabled.domain = "disabled.test".to_owned();
+    sites.insert(0, disabled);
+    let mut duplicate = sites[2].clone();
+    duplicate.domain = "duplicate.test".to_owned();
+    sites.push(duplicate);
+    supervisor
+      .expected_php_versions
+      .insert("8.3".parse().unwrap());
+    let server = async {
+      let mut connections = Vec::new();
+      for _ in 0..4 {
+        let (stream, request) = accept_php_fpm_status_request(&listener).await;
+        assert!(request.starts_with("GET /__fabdev/php-fpm-status?json HTTP/1.0\r\n"));
+        let index = domains
+          .iter()
+          .position(|domain| request.contains(&format!("Host: {domain}\r\n")))
+          .expect("only the first enabled Site for each expected version is queried");
+        connections.push((stream, index));
+      }
+      for (mut stream, index) in connections.into_iter().rev() {
+        stream
+          .write_all(php_fpm_status_response(index).as_bytes())
+          .await
+          .unwrap();
+      }
+    };
+    let (statuses, ()) = tokio::time::timeout(Duration::from_secs(3), async {
+      tokio::join!(supervisor.php_fpm_pool_statuses(&sites), server)
+    })
+    .await
+    .expect("all pool requests should be sent before waiting for responses");
+    assert_eq!(
+      statuses
+        .iter()
+        .map(|status| status.version.to_string())
+        .collect::<Vec<_>>(),
+      ["7.4", "8.2", "8.4", "8.5"]
+    );
+    assert_eq!(
+      statuses
+        .iter()
+        .map(|status| status.active_processes)
+        .collect::<Vec<_>>(),
+      [0, 1, 2, 3]
+    );
+    assert!(
+      tokio::time::timeout(Duration::from_millis(20), listener.accept())
+        .await
+        .is_err()
+    );
+  }
+
+  #[tokio::test]
+  async fn php_fpm_pool_status_retains_healthy_pools_when_others_fail_or_time_out() {
+    let (supervisor, sites, listener) =
+      php_fpm_status_fixture(&["7.4", "8.1", "8.2", "8.4", "8.5"]).await;
+    let server = async {
+      let mut clients = tokio::task::JoinSet::new();
+      for _ in 0..5 {
+        let (mut stream, request) = accept_php_fpm_status_request(&listener).await;
+        clients.spawn(async move {
+          if request.contains("Host: php-8-5.test\r\n") {
+            stream
+              .write_all(php_fpm_status_response(3).as_bytes())
+              .await
+              .unwrap();
+          } else if request.contains("Host: php-8-4.test\r\n") {
+            stream
+              .write_all(b"HTTP/1.0 200 OK\r\n\r\ninvalid JSON")
+              .await
+              .unwrap();
+          } else {
+            assert_eq!(stream.read(&mut [0]).await.unwrap(), 0);
+          }
+        });
+      }
+      while let Some(result) = clients.join_next().await {
+        result.unwrap();
+      }
+    };
+    let started = Instant::now();
+    let (statuses, ()) = tokio::time::timeout(Duration::from_secs(5), async {
+      tokio::join!(supervisor.php_fpm_pool_statuses(&sites), server)
+    })
+    .await
+    .unwrap();
+    eprintln!(
+      "PHP-FPM status fixture with three stalled pools: {:?}",
+      started.elapsed()
+    );
+    assert_eq!(statuses.len(), 1);
+    assert_eq!(statuses[0].version, "8.5".parse().unwrap());
+    assert_eq!(statuses[0].active_processes, 3);
+  }
+
+  #[tokio::test]
+  async fn php_fpm_pool_status_limits_connections_and_cleans_up_on_cancellation() {
+    let (supervisor, sites, listener) =
+      php_fpm_status_fixture(&["8.0", "8.1", "8.2", "8.3", "8.4", "8.5"]).await;
+    let mut queries = Box::pin(supervisor.php_fpm_pool_statuses(&sites));
+    let mut connections = Vec::new();
+    tokio::select! {
+      _ = &mut queries => panic!("queries must wait for the fixture responses"),
+      result = tokio::time::timeout(Duration::from_secs(3), async {
+        for _ in 0..4 {
+          connections.push(accept_php_fpm_status_request(&listener).await.0);
+        }
+        assert!(tokio::time::timeout(Duration::from_millis(20), listener.accept()).await.is_err());
+      }) => result.expect("the first batch of status connections should be ready")
+    }
+    drop(queries);
+    for mut stream in connections {
+      assert_eq!(
+        tokio::time::timeout(Duration::from_secs(1), stream.read(&mut [0]))
+          .await
+          .unwrap()
+          .unwrap(),
+        0,
+        "cancelling a status request must close each in-flight connection"
+      );
+    }
+    assert!(
+      tokio::time::timeout(Duration::from_millis(20), listener.accept())
+        .await
+        .is_err()
+    );
   }
 
   #[test]

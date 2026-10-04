@@ -7,6 +7,14 @@
 
 fabDev Desktop Community `v0.1.29` 已完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Windows-first Draft 與 Publish，並從相同 Tag Commit 補齊 macOS ARM64 Community DMG。Release ID `397957496`，9 個 App-only Assets 已完成匿名公開下載驗證；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
+## 2026-10-04 未發布：PHP-FPM 狀態查詢效能
+
+- 第六批確認 PHP-FPM pool 狀態原本逐版本查詢，忙碌／不回應的版本會累加等待時間，期間持有服務鎖。現在同一次查詢最多並行 4 個 pool，保留既有版本順序、每版本第一個啟用 Site、單次逾時、錯誤處理與服務鎖，不快取狀態或留下獨立背景工作。使用 workspace 已有的 `futures-util`，未新增套件版本。
+- 新增 3 項回歸測試，涵蓋並行與回應順序、停用／重複 Site、缺少 Site 的版本、逾時與無效 JSON、超過 4 個版本的連線限制，以及取消時關閉全部進行中的查詢。舊碼未通過並行案例；三個不回應 pool 的 fixture 從約 1.513 秒降到 0.505 秒。
+- macOS 修改前後使用相同 SHA-256 驗證通過的 PHP 7.4／8.2、Nginx 與 dnsmasq Archive，在隔離目錄量測實際 Agent。暫停本次 fixture 的兩組 PHP 程序時，三次狀態查詢的中位數由 1007.7 ms 降到 505.7 ms，約減少 50%；正常回應仍約 4～10 ms，此結果只代表多 pool 等待時的狀態查詢改善。恢復後兩版本狀態與 HTTP 200 正常，Start → HTTP/PHP → Stop → Shutdown 通過，無殘留服務程序、Port、PID 或 Socket。
+- 完整 `pnpm test` 通過 Desktop 161、Release 規則 21、Rust workspace 334、macOS Helper 10 項，共 526 項，另有 7 項既有外部環境測試維持 ignored；`pnpm lint`、Agent 建置、前端 production build 與 `git diff --check` 通過。前端基線為 JS 363,890 bytes、CSS 169,256 bytes；本批未修改前端或宣稱安裝包縮小。
+- 未變更版本、Agent Protocol、資料格式、UI、Runtime Archive 或啟停流程；Windows 維持既有略過 Unix PHP-FPM 狀態端點的行為。未打包、執行 Windows CI 或發布，Windows 實機流程未驗收。
+
 ## 2026-10-04 未發布：Proxy 與下載關閉邊界
 
 - 第五批先重現成功 Shutdown 後仍可重新啟動 Proxy、登記新下載，以及等待已取消下載清理的重試收不到關閉通知。Proxy 新增／修改／移除與啟停現在共用既有生命週期操作鎖；Runtime 下載管理器在同一登記鎖內停止接受新工作、通知等待中的重試，並取消既有下載，避免關閉與工作登記交錯。
