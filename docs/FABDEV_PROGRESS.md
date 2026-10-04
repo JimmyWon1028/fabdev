@@ -7,6 +7,14 @@
 
 fabDev Desktop Community `v0.1.29` 已完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Windows-first Draft 與 Publish，並從相同 Tag Commit 補齊 macOS ARM64 Community DMG。Release ID `397957496`，9 個 App-only Assets 已完成匿名公開下載驗證；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
+## 2026-10-04 未發布：Runtime 與服務操作協調
+
+- 第四批先重現 PHP Runtime 移除與 Site 切換的競態：Site 暫時改用另一版本、尚待套用設定時，原 Runtime 會被誤判為未使用而刪除；切換失敗後 Registry 雖已回復，Runtime 卻不存在。另重現 Shutdown 成功後，排隊的全域 PHP 切換仍可修改 `current`。
+- Agent 現在以既有操作鎖延伸協調 Site、Runtime 安裝／切換／移除、Terminal 整合，以及相關 PHP／MariaDB 設定與服務啟停，涵蓋完整操作與失敗回復。會產生 PHP 設定檔的讀取也納入協調，避免與 Runtime 交易交錯；成功 Shutdown 後拒絕後續這些操作，關閉失敗仍保留重試能力。Ping、狀態查詢、下載進度與取消不取得此生命週期鎖；狀態查詢仍沿用原有服務鎖。
+- 新增 2 項回歸測試，涵蓋失敗切換回復後保留使用中的 Runtime、移除已不使用的 Runtime，以及關閉後保留全域版本；既有操作鎖測試另改為驗證實際下載進度查詢與取消成功。完整 `pnpm test` 通過 Desktop 161、Release 規則 21、Rust workspace 327、macOS Helper 10 項，共 519 項，另有 7 項既有外部環境測試維持 ignored；`pnpm lint`、Agent 建置與 `git diff --check` 通過。
+- macOS 隔離實測使用 SHA-256 驗證通過的既有 PHP 7.4／8.2、Nginx 與 dnsmasq Archive。PHP-FPM 設定重啟故障期間，全域 PHP 切換會等待回復完成，Ping 仍回應；回復後切換成功，原 Site 持續回應 HTTP 200。PHP 安裝、切換、移除未使用版本與拒絕移除使用中版本均通過。同一 IPC 連線的 Shutdown 後，Runtime 切換、MariaDB 啟動與 StartAll 均被拒絕；Start → HTTP/PHP → Stop 後無殘留程序、Port、PID 或 Socket。
+- 本批只調整 Agent 操作協調與測試，保留既有 Runtime 安裝／回復步驟及 MariaDB Socket 自動切換邏輯；沒有變更版本、Agent Protocol、資料格式、UI 或 Runtime Archive，未打包、執行 Windows CI 或發布，Windows 實機流程未驗收。
+
 ## 2026-10-04 未發布：PHP-FPM 失敗回復與 Site Home 寫入減量
 
 - 第三批重現 PHP-FPM 逾時設定重啟失敗後，停止程序已清除「應啟動」狀態，導致回復原設定時跳過服務恢復。儲存流程現在保留操作前的啟動狀態；若已開始重啟，失敗後會還原原設定、重新清理並嘗試恢復該版本服務，同時保留套用與回復錯誤。未啟動的版本不因儲存而啟動，原本不存在的設定檔也不因失敗而留下。

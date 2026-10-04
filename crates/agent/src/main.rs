@@ -92,13 +92,13 @@ const fn default_https_port() -> u16 {
 }
 
 #[derive(Default)]
-struct SiteOperationState {
+struct LifecycleOperationState {
   shutting_down: bool,
 }
 
 struct AgentState {
   paths: AppPaths,
-  site_operations: Mutex<SiteOperationState>,
+  lifecycle_operations: Mutex<LifecycleOperationState>,
   sites: Mutex<SiteRepository>,
   services: Mutex<ServiceSupervisor>,
   lan_share: Mutex<LanShareState>,
@@ -641,7 +641,7 @@ async fn main() -> Result<()> {
     ProxyManager::new(proxy_connections).context("unable to initialize Proxy Manager")?;
   let state = Arc::new(AgentState {
     paths,
-    site_operations: Mutex::new(SiteOperationState::default()),
+    lifecycle_operations: Mutex::new(LifecycleOperationState::default()),
     sites: Mutex::new(repository),
     services: Mutex::new(supervisor),
     lan_share: Mutex::new(LanShareState::new(arguments.http_port)),
@@ -846,8 +846,8 @@ where
 }
 
 async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentResponse {
-  //2026.10.04 modify by codex, reason: keep Site registry, service config, and rollback within one operation across IPC clients.
-  let mut site_operation = match &request {
+  //2026.10.04 modify by codex, reason: coordinate Runtime changes with Site updates and service recovery across IPC clients.
+  let mut lifecycle_operation = match &request {
     AgentRequest::ListSites
     | AgentRequest::GetSiteHome
     | AgentRequest::SaveSiteHome(_)
@@ -859,12 +859,38 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
     | AgentRequest::StartLanShare { .. }
     | AgentRequest::StopLanShareSite { .. }
     | AgentRequest::StopLanShare
+    | AgentRequest::InstallDownloadedRuntime { .. }
+    | AgentRequest::InstallPhpRuntime { .. }
+    | AgentRequest::SetGlobalPhp { .. }
+    | AgentRequest::RemovePhpRuntime { .. }
+    | AgentRequest::EnableTerminalPhp
+    | AgentRequest::DisableTerminalPhp
+    | AgentRequest::GetPhpIni { .. }
+    | AgentRequest::SavePhpIni { .. }
+    | AgentRequest::SavePhpFpmSettings { .. }
+    | AgentRequest::SavePhpFastCgiSettings { .. }
+    | AgentRequest::GetDefaultPhpIni
+    | AgentRequest::SaveDefaultPhpIni { .. }
+    | AgentRequest::GetErpPhpIni { .. }
+    | AgentRequest::InstallNodeRuntime { .. }
+    | AgentRequest::SetGlobalNode { .. }
+    | AgentRequest::RemoveNodeRuntime { .. }
+    | AgentRequest::EnableTerminalNode
+    | AgentRequest::DisableTerminalNode
+    | AgentRequest::StartMariaDb
+    | AgentRequest::StopMariaDb
+    | AgentRequest::RestoreMariaDbLastState
+    | AgentRequest::SaveMariaDbSettings(_)
+    | AgentRequest::SaveMariaDbConfig { .. }
+    | AgentRequest::SetMariaDbRootPassword { .. }
+    | AgentRequest::InstallMariaDbRuntime { .. }
+    | AgentRequest::RemoveMariaDbRuntime
     | AgentRequest::StartAll
     | AgentRequest::StopAll
-    | AgentRequest::Shutdown => Some(state.site_operations.lock().await),
+    | AgentRequest::Shutdown => Some(state.lifecycle_operations.lock().await),
     _ => None,
   };
-  if site_operation
+  if lifecycle_operation
     .as_ref()
     .is_some_and(|operation| operation.shutting_down)
   {
@@ -2015,8 +2041,8 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
     }
     AgentRequest::Shutdown => match stop_for_shutdown(state).await {
       Ok(()) => {
-        //2026.10.04 modify by codex, reason: queued Site operations must not restart work after shutdown has stopped services.
-        if let Some(operation) = site_operation.as_mut() {
+        //2026.10.04 modify by codex, reason: queued lifecycle operations must not restart work after shutdown has stopped services.
+        if let Some(operation) = lifecycle_operation.as_mut() {
           operation.shutting_down = true;
         }
         state.runtime_updates.cancel_all().await;
@@ -3628,7 +3654,7 @@ mod tests {
     repository.save_site_home(&root.join("home")).unwrap();
     let state = Arc::new(AgentState {
       paths: paths.clone(),
-      site_operations: Mutex::new(SiteOperationState::default()),
+      lifecycle_operations: Mutex::new(LifecycleOperationState::default()),
       sites: Mutex::new(repository),
       services: Mutex::new(ServiceSupervisor::new(
         paths.clone(),
@@ -3710,6 +3736,120 @@ mod tests {
       writes, 0,
       "unchanged Site Home scans must not rewrite persisted rows"
     );
+  }
+
+  #[tokio::test]
+  async fn runtime_removal_waits_for_a_failed_site_switch_to_restore_its_usage() {
+    let (root, state) = isolated_agent_state();
+    let runtime = state.paths.runtimes.join("php/8.2.33");
+    let binary = php_runtime_binary(&state.paths.runtimes, "8.2.33");
+    std::fs::create_dir_all(binary.parent().unwrap()).unwrap();
+    std::fs::write(binary, "fixture").unwrap();
+    let site = create_site(SiteInput {
+      name: Some("runtime race".to_owned()),
+      domain: Some("runtime-race.test".to_owned()),
+      project_path: root.clone(),
+      document_root: None,
+      php_version: Some("8.2".parse().unwrap()),
+      upstream_response_timeout_seconds: None,
+    })
+    .unwrap();
+    state.sites.lock().await.insert(&site).unwrap();
+    std::fs::write(state.paths.sites.join("runtime-race.test.conf"), "original").unwrap();
+    let services = state.services.lock().await;
+    let change = handle_request(
+      AgentRequest::SetSitePhp {
+        site_id: site.id,
+        php_version: Some("7.4".parse().unwrap()),
+      },
+      &state,
+    );
+    let removal = handle_request(
+      AgentRequest::RemovePhpRuntime {
+        version: "8.2.33".to_owned(),
+      },
+      &state,
+    );
+    tokio::pin!(change, removal);
+    poll_pending(change.as_mut()).await;
+    //2026.10.04 modify by codex, reason: let removal inspect the pending Site edit without depending on filesystem task timing.
+    let early_removal = std::future::poll_fn(|context| {
+      std::task::Poll::Ready(match std::future::Future::poll(removal.as_mut(), context) {
+        std::task::Poll::Ready(response) => Some(response),
+        std::task::Poll::Pending => None,
+      })
+    })
+    .await;
+    drop(services);
+    let (changed, removed) = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+      let changed = change.await;
+      let removed = match early_removal {
+        Some(response) => response,
+        None => removal.await,
+      };
+      (changed, removed)
+    })
+    .await
+    .unwrap();
+    let registered = state.sites.lock().await.list().unwrap();
+    let runtime_exists = runtime.is_dir();
+    assert!(
+      matches!(changed, AgentResponse::Error { code, .. } if code == "site_php_switch_failed")
+    );
+    assert_eq!(registered, vec![site.clone()]);
+    assert!(
+      runtime_exists,
+      "rollback must not leave a Site pointing to a removed Runtime"
+    );
+    assert!(matches!(removed, AgentResponse::Error { code, .. } if code == "runtime_in_use"));
+    assert!(matches!(
+      handle_request(
+        AgentRequest::SetSitePhp {
+          site_id: site.id,
+          php_version: None,
+        },
+        &state,
+      )
+      .await,
+      AgentResponse::SitePhpChanged(_)
+    ));
+    assert!(matches!(
+      handle_request(
+        AgentRequest::RemovePhpRuntime {
+          version: "8.2.33".to_owned(),
+        },
+        &state,
+      )
+      .await,
+      AgentResponse::PhpRuntimeRemoved(_)
+    ));
+    assert!(!runtime.exists(), "an unused Runtime must remain removable");
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn runtime_selection_cannot_change_after_successful_shutdown() {
+    let (root, state) = isolated_agent_state();
+    for version in ["8.2.33", "8.4.24"] {
+      std::fs::create_dir_all(state.paths.runtimes.join("php").join(version)).unwrap();
+    }
+    set_active_version(&state.paths.runtimes, "php", "8.2.33").unwrap();
+    assert!(matches!(
+      handle_request(AgentRequest::Shutdown, &state).await,
+      AgentResponse::Stopped
+    ));
+    let switched = handle_request(
+      AgentRequest::SetGlobalPhp {
+        version: "8.4.24".to_owned(),
+      },
+      &state,
+    )
+    .await;
+    let selected = active_version(&state.paths.runtimes, "php").unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+    assert_eq!(selected.as_deref(), Some("8.2.33"));
+    assert!(matches!(switched, AgentResponse::Error { code, .. } if code == "agent_shutting_down"));
   }
 
   #[cfg(unix)]
@@ -3834,15 +3974,22 @@ mod tests {
   }
 
   #[tokio::test]
-  async fn site_operations_do_not_block_ping_status_or_download_cancellation() {
+  async fn lifecycle_operations_do_not_block_ping_status_or_download_cancellation() {
     let (root, state) = isolated_agent_state();
-    let operation = state.site_operations.lock().await;
+    let download = runtime_task_fixture(RuntimeUpdateOperationStatus::Downloading);
+    let operation_id = download.snapshot().operation_id;
+    state
+      .runtime_updates
+      .operations
+      .lock()
+      .await
+      .insert(operation_id, Arc::clone(&download));
+    let operation = state.lifecycle_operations.lock().await;
     for request in [
       AgentRequest::Ping,
       AgentRequest::GetStatus,
-      AgentRequest::CancelRuntimeDownload {
-        operation_id: Uuid::new_v4(),
-      },
+      AgentRequest::GetRuntimeUpdateOperation { operation_id },
+      AgentRequest::CancelRuntimeDownload { operation_id },
     ] {
       let response = tokio::time::timeout(
         std::time::Duration::from_secs(2),
@@ -3852,9 +3999,16 @@ mod tests {
       .unwrap();
       assert!(matches!(
         response,
-        AgentResponse::Pong { .. } | AgentResponse::Status(_) | AgentResponse::Error { .. }
+        AgentResponse::Pong { .. }
+          | AgentResponse::Status(_)
+          | AgentResponse::RuntimeUpdateOperation(_)
       ));
     }
+    assert!(download.is_cancelled());
+    assert_eq!(
+      download.snapshot().status,
+      RuntimeUpdateOperationStatus::Cancelled
+    );
     drop(operation);
     std::fs::remove_dir_all(root).unwrap();
   }
@@ -3896,7 +4050,7 @@ mod tests {
   #[tokio::test]
   async fn queued_site_changes_do_not_run_after_successful_shutdown() {
     let (root, state) = isolated_agent_state();
-    let operation = state.site_operations.lock().await;
+    let operation = state.lifecycle_operations.lock().await;
     let shutdown = handle_request(AgentRequest::Shutdown, &state);
     let addition = handle_request(
       AgentRequest::AddSite(SiteInput {
@@ -4037,7 +4191,7 @@ mod tests {
     std::fs::write(&index, "original project content").unwrap();
     let state = AgentState {
       paths: paths.clone(),
-      site_operations: Mutex::new(SiteOperationState::default()),
+      lifecycle_operations: Mutex::new(LifecycleOperationState::default()),
       sites: Mutex::new(SiteRepository::in_memory().unwrap()),
       services: Mutex::new(ServiceSupervisor::new(
         paths.clone(),
@@ -4173,7 +4327,7 @@ mod tests {
         .unwrap();
       let state = AgentState {
         paths: paths.clone(),
-        site_operations: Mutex::new(SiteOperationState::default()),
+        lifecycle_operations: Mutex::new(LifecycleOperationState::default()),
         sites: Mutex::new(repository),
         services: Mutex::new(ServiceSupervisor::new(
           paths.clone(),
@@ -4265,7 +4419,7 @@ mod tests {
     repository.insert(&site).unwrap();
     let state = AgentState {
       paths: paths.clone(),
-      site_operations: Mutex::new(SiteOperationState::default()),
+      lifecycle_operations: Mutex::new(LifecycleOperationState::default()),
       sites: Mutex::new(repository),
       services: Mutex::new(ServiceSupervisor::new(
         paths.clone(),
@@ -5279,7 +5433,7 @@ mod tests {
     repository.save_site_home(&home).unwrap();
     let state = AgentState {
       paths: paths.clone(),
-      site_operations: Mutex::new(SiteOperationState::default()),
+      lifecycle_operations: Mutex::new(LifecycleOperationState::default()),
       sites: Mutex::new(repository),
       services: Mutex::new(ServiceSupervisor::new(
         paths.clone(),
@@ -5864,7 +6018,7 @@ mod tests {
     let repository = SiteRepository::open(paths.database()).expect("open Site fixture database");
     let state = AgentState {
       paths: paths.clone(),
-      site_operations: Mutex::new(SiteOperationState::default()),
+      lifecycle_operations: Mutex::new(LifecycleOperationState::default()),
       sites: Mutex::new(repository),
       services: Mutex::new(ServiceSupervisor::new(
         paths.clone(),
