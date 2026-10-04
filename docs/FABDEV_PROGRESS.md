@@ -1,11 +1,37 @@
 # fabDev 穩定基線與 Roadmap
 
-> 更新日期：2026-09-28
+> 更新日期：2026-10-04
 > 目前階段：[`v0.1.29`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.29) 是公開 Latest Stable，依 Windows-first 順序先發布 Windows 11 x64 Community Installer 與 fabDev Connect，現已補齊同版 macOS ARM64 Community DMG。Agent Protocol 維持 `40`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
 
 ## 階段結論
 
 fabDev Desktop Community `v0.1.29` 已完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Windows-first Draft 與 Publish，並從相同 Tag Commit 補齊 macOS ARM64 Community DMG。Release ID `397957496`，9 個 App-only Assets 已完成匿名公開下載驗證；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
+
+## 2026-10-04 未發布：PHP-FPM 失敗回復與 Site Home 寫入減量
+
+- 第三批重現 PHP-FPM 逾時設定重啟失敗後，停止程序已清除「應啟動」狀態，導致回復原設定時跳過服務恢復。儲存流程現在保留操作前的啟動狀態；若已開始重啟，失敗後會還原原設定、重新清理並嘗試恢復該版本服務，同時保留套用與回復錯誤。未啟動的版本不因儲存而啟動，原本不存在的設定檔也不因失敗而留下。
+- Site Home 原本在比對內容前就刪除並重建資料列，且每次掃描都重寫相同目錄設定。回歸測試以 10 個 Home Site 連續掃描 10 次，重現 210 次不必要的資料列異動；現在相同內容跳過 Registry 替換，目錄設定只在值改變時更新，該案例降為 0 次異動。保留既有 LAN Share 同步、資料夾新增／移除、linked Site 與實際變更的服務套用流程。
+- 新增 4 項 Rust 回歸測試，先確認舊碼失敗再修正。完整 `pnpm test` 通過 Desktop 161、Release 規則 21、Rust workspace 325、macOS Helper 10 項，共 517 項，另有 7 項既有外部環境測試維持 ignored；`pnpm lint`、Agent 建置與 `git diff --check` 通過。
+- macOS 隔離實測使用已驗證 SHA-256 的既有 Runtime Archive，在暫存 PHP-FPM 執行入口注入只對新逾時值啟動失敗的故障；設定自動恢復為 180 秒且 HTTP 回到 200，不需手動啟動，之後重試 200 秒成功。實際 Agent 的 Site Home 重複掃描也確認零資料列異動，新增／移除資料夾與剩餘 PHP Site 正常。PHP 設定重啟、並行 Site 修改、關閉邊界與 Start → HTTP/PHP → Stop 通過，無殘留程序、Port、PID 或 Socket。
+- 本批未變更 UI、Agent Protocol、資料格式、Runtime Archive 或發布設定；未打包、執行 Windows CI 或發布，Windows 實機流程未驗收。
+
+## 2026-10-04 未發布：Site 操作一致性與背景 Log 維護
+
+- 第二批先以可控制交錯順序的測試重現 Site 修改競態：一個 PHP 切換失敗回復時，會覆蓋另一個已回報成功的修改，使 Registry 與 Nginx 設定不一致；同時進行的 Site 編輯也可能誤用尚未提交的 PHP 版本。Agent 現在將 Site Home 同步、Site 修改、相關 LAN Share 及 Web 服務啟停的完整操作序列化，涵蓋資料更新、套用設定及失敗回復。Ping、狀態查詢與下載取消不取得這個操作鎖。
+- 關閉邊界另重現 Shutdown 已成功，但排隊的 Site 請求仍繼續套用設定。現在成功 Shutdown 後會拒絕後續排隊的 Site／Web 服務操作；關閉失敗則保留原操作與重試能力，重複 Shutdown 仍可成功回應。
+- 原本 Log 輪替只由服務啟動或 `GetStatus` 觸發，沒有 Desktop 輪詢時可能持續增長。Agent 現在於 Unix Socket 與 Windows Named Pipe 服務迴圈使用共用背景維護，每 60 秒排程檢查，沿用既有節流、20 MiB 上限與 7 份保留設定。Log 檢查錯誤不終止 Agent；等待服務鎖時不阻塞 Ping 或 IPC listener 的關閉，維護工作也隨 Agent 結束。
+- 新增 8 項 Rust 回歸測試。完整 `pnpm test` 通過 Desktop 161、Release 規則 21、Rust workspace 321、macOS Helper 10 項，共 513 項，另有 7 項既有外部環境測試維持 ignored；`pnpm lint`、Agent 建置與 `git diff --check` 通過。
+- macOS 隔離實測同時送出失敗的 PHP 7.4 切換與成功的 Site 編輯，確認 Registry、設定與 PHP 8.2 HTTP 200 一致；沒有 `GetStatus` 輪詢時，啟動後建立的 20 MiB Log 在背景週期正常輪替，期間 PHP 持續回應 HTTP 200。最終版另通過同一 IPC 連線依序送出 Shutdown、StartAll，確認後者被拒絕；PHP 儲存／重啟、故障回復及 Start → HTTP/PHP → Stop 也通過，無殘留程序、Port、PID 或 Socket。
+- 本批只修改 Agent 操作協調與 Log 維護，不變更 Agent Protocol、資料格式、Runtime 內容或 UI；未打包、執行 Windows CI 或發布，Windows 實機流程未驗收。
+
+## 2026-10-04 未發布：設定儲存與編輯保護
+
+- 第一批穩定性改善限於已重現的問題。`save_php_ini` 在寫入、產生設定、驗證、停止或重啟失敗後，會嘗試還原原始及產生的設定檔；若已開始重啟，先重新清理該版本的服務，再恢復原設定。回復失敗時同時保留原始及回復錯誤，未啟動的 PHP 版本不會因儲存而啟動。
+- PHP 設定在關閉編輯器、切換版本、離開頁面或以 ERP 參數覆蓋未儲存內容前，要求確認放棄修改；PHP-FPM 逾時與 Windows FastCGI worker 設定各自追蹤儲存狀態。MariaDB 設定與設定檔在離開頁面、重新整理或套用 ERP 參數時同樣保護草稿，背景載入及延遲回應也不會覆蓋新的編輯。儲存失敗保留草稿，儲存其中一組設定不會清除另一組的未儲存狀態。
+- 新增 12 項前端回歸測試及 2 項 Rust 測試；舊碼已重現 PHP 停止失敗留下新設定，以及編輯內容被覆蓋的問題。完整 `pnpm test` 通過 Desktop 161、Release 規則 21、Rust workspace 313、macOS Helper 10 項，另有 7 項既有外部環境測試維持 ignored；`pnpm lint` 通過。最後的復原清理順序調整另通過 services 75 項測試、format、Clippy 與 Agent 建置。
+- macOS 使用 SHA-256 驗證通過的既有 PHP 8.2.33、Nginx 1.30.4 與 dnsmasq 2.93 Archive，在獨立暫存資料及非特權埠完成 Start → HTTP/PHP → 儲存重啟 → 停止清理故障注入與設定回復 → 移除故障後重新啟動 → HTTP/PHP → Stop。確認 256M 更新為 384M，故障時嘗試寫入的 512M 未保留，重新啟動仍回應 384M；停止後無殘留程序、Port、PID 或 Socket。此為受影響服務的隔離驗證，不代表 Windows 實機驗收。
+- 先前 LAN Share 平行測試曾出現 `AddrInUse`，本次 Agent 預設平行模式連續六輪及完整 workspace 測試均通過，尚未重現根因；保留原服務邏輯與平行測試方式，不宣稱已修復該偶發問題。
+- 本批沒有變更版本、Agent Protocol、資料契約、Runtime 內容或已確認的清單排版；未打包、執行 Windows CI 或發布。
 
 ## 2026-09-29 未發布：macOS PHP-FPM 請求逾時
 

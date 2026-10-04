@@ -1568,22 +1568,37 @@ impl ServiceSupervisor {
     generate_php_config(&self.paths, &self.runtimes, version)?;
     let managed_path = managed_php_ini_path(&self.paths, version);
     let previous = std::fs::read(&managed_path)?;
-    std::fs::write(&managed_path, contents)?;
-    let config = generate_php_config(&self.paths, &self.runtimes, version)?;
-    if let Err(error) = validate_php_config(&config) {
-      std::fs::write(&managed_path, &previous)?;
-      generate_php_config(&self.paths, &self.runtimes, version)?;
-      return Err(error.context("invalid php.ini"));
+    let should_restart = self.expected_php_versions.contains(version);
+    let mut restart_attempted = false;
+    let apply_result = async {
+      std::fs::write(&managed_path, contents)?;
+      let config = generate_php_config(&self.paths, &self.runtimes, version)?;
+      validate_php_config(&config).context("invalid php.ini")?;
+      if should_restart {
+        restart_attempted = true;
+        self.stop_php_version(version).await?;
+        self.ensure_php_version_running(&config).await?;
+      }
+      Ok::<(), anyhow::Error>(())
     }
+    .await;
 
-    if self.expected_php_versions.contains(version) {
-      self.stop_php_version(version).await?;
-      if let Err(error) = self.ensure_php_version_running(&config).await {
+    if let Err(error) = apply_result {
+      //2026.10.04 modify by codex, reason: restore both config copies after any failed apply stage and retain recovery errors.
+      let restore_result = async {
         std::fs::write(&managed_path, &previous)?;
         let restored_config = generate_php_config(&self.paths, &self.runtimes, version)?;
-        let _ = self.ensure_php_version_running(&restored_config).await;
-        return Err(error.context("unable to restart PHP-FPM with updated php.ini"));
+        if restart_attempted {
+          self.stop_php_version(version).await?;
+          self.ensure_php_version_running(&restored_config).await?;
+        }
+        Ok::<(), anyhow::Error>(())
       }
+      .await;
+      if let Err(restore_error) = restore_result {
+        bail!("unable to apply php.ini: {error:#}; unable to restore previous PHP configuration: {restore_error:#}");
+      }
+      bail!("unable to apply php.ini: {error:#}");
     }
     Ok(())
   }
@@ -1609,11 +1624,14 @@ impl ServiceSupervisor {
         })
       }
     };
-    save_php_fpm_request_timeout(&self.paths, version, request_terminate_timeout_seconds)?;
+    let should_restart = self.expected_php_versions.contains(version);
+    let mut restart_attempted = false;
     let apply_result = async {
+      save_php_fpm_request_timeout(&self.paths, version, request_terminate_timeout_seconds)?;
       let config = generate_php_config(&self.paths, &self.runtimes, version)?;
       validate_php_config(&config)?;
-      if self.expected_php_versions.contains(version) {
+      if should_restart {
+        restart_attempted = true;
         self.stop_php_version(version).await?;
         self.ensure_php_version_running(&config).await?;
       }
@@ -1621,12 +1639,21 @@ impl ServiceSupervisor {
     }
     .await;
     if let Err(error) = apply_result {
-      restore_optional_file(&settings_path, previous.as_deref())?;
-      let restored_config = generate_php_config(&self.paths, &self.runtimes, version)?;
-      if self.expected_php_versions.contains(version) {
-        let _ = self.ensure_php_version_running(&restored_config).await;
+      //2026.10.04 modify by codex, reason: retain the original running state after a failed restart and report recovery failures.
+      let restore_result = async {
+        restore_optional_file(&settings_path, previous.as_deref())?;
+        let restored_config = generate_php_config(&self.paths, &self.runtimes, version)?;
+        if restart_attempted {
+          self.stop_php_version(version).await?;
+          self.ensure_php_version_running(&restored_config).await?;
+        }
+        Ok::<(), anyhow::Error>(())
       }
-      return Err(error.context("unable to apply PHP-FPM request timeout"));
+      .await;
+      if let Err(restore_error) = restore_result {
+        bail!("unable to apply PHP-FPM request timeout: {error:#}; unable to restore previous PHP-FPM request timeout: {restore_error:#}");
+      }
+      bail!("unable to apply PHP-FPM request timeout: {error:#}");
     }
     Ok(())
   }
@@ -4822,6 +4849,163 @@ mod tests {
       .expect("write Imagick fixture");
     }
     runtime
+  }
+
+  #[cfg(unix)]
+  fn php_ini_save_fixture(script: &str) -> (PathBuf, ServiceSupervisor, PhpVersion) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = std::env::temp_dir().join(format!(
+      "fd-ini-{}",
+      &Uuid::new_v4().simple().to_string()[..8]
+    ));
+    let paths = AppPaths::from_root(root.join("data"));
+    paths.ensure().expect("create PHP settings fixture");
+    let runtimes = RuntimePaths::from_runtime_root(root.join("runtime"));
+    let runtime = add_php_runtime(&runtimes.php, "8.2.33");
+    let executable = php_server_binary(&runtime);
+    std::fs::write(&executable, script).expect("write PHP validator fixture");
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755))
+      .expect("make PHP validator executable");
+    let version = PhpVersion { major: 8, minor: 2 };
+    generate_php_config(&paths, &runtimes, &version).expect("initialize PHP settings");
+    std::fs::write(
+      managed_php_ini_path(&paths, &version),
+      "memory_limit = 256M\n",
+    )
+    .expect("write original PHP settings");
+    let supervisor = ServiceSupervisor::new(
+      paths,
+      runtimes,
+      ServicePorts {
+        dns: 53535,
+        http: 8080,
+        https: 8443,
+        mariadb: 3306,
+      },
+    );
+    (root, supervisor, version)
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn php_fpm_save_attempts_recovery_after_a_failed_restart() {
+    let (root, mut supervisor, version) = php_ini_save_fixture(
+      "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = \"-t\" ]; then exit 0; fi\ndone\nprintf 'start\\n' >> \"$(dirname \"$0\")/starts\"\nexit 1\n",
+    );
+    save_php_fpm_request_timeout(&supervisor.paths, &version, 180).unwrap();
+    let settings = php_fpm_settings_path(&supervisor.paths, &version);
+    let previous = std::fs::read(&settings).unwrap();
+    supervisor.expected_php_versions.insert(version.clone());
+    let result = supervisor.save_php_fpm_settings(&version, 240).await;
+    let restored = std::fs::read(&settings).unwrap();
+    let pool = std::fs::read_to_string(
+      php_service_path(&supervisor.paths, &version).join("php-fpm.d/www.conf"),
+    )
+    .unwrap();
+    let starts = std::fs::read_to_string(
+      supervisor
+        .runtimes
+        .resolve_php(&version)
+        .unwrap()
+        .join("sbin/starts"),
+    )
+    .unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+    assert!(result.is_err());
+    assert_eq!(restored, previous);
+    assert!(pool.contains("request_terminate_timeout = 180s"));
+    assert_eq!(
+      starts.lines().count(),
+      2,
+      "the previous PHP-FPM configuration must be restarted after an apply failure"
+    );
+    assert!(result
+      .unwrap_err()
+      .to_string()
+      .contains("unable to restore previous PHP-FPM request timeout"));
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn php_fpm_save_preserves_inactive_state_and_absent_settings_on_failure() {
+    let (root, mut supervisor, version) = php_ini_save_fixture("#!/bin/sh\nexit 1\n");
+    let settings = php_fpm_settings_path(&supervisor.paths, &version);
+    assert!(!settings.exists());
+    assert!(supervisor
+      .save_php_fpm_settings(&version, 240)
+      .await
+      .is_err());
+    assert!(!settings.exists());
+    assert!(!supervisor.expected_php_versions.contains(&version));
+    assert!(!supervisor.php_fpm.contains_key(&version));
+    let pool = std::fs::read_to_string(
+      php_service_path(&supervisor.paths, &version).join("php-fpm.d/www.conf"),
+    )
+    .unwrap();
+    assert!(pool.contains("request_terminate_timeout = 180s"));
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn php_ini_save_restores_contents_after_stop_cleanup_failure() {
+    let (root, mut supervisor, version) = php_ini_save_fixture("#!/bin/sh\nexit 0\n");
+    let service = php_service_path(&supervisor.paths, &version);
+    std::fs::create_dir(service.join("php-fpm.pid")).expect("force PID cleanup failure");
+    supervisor.expected_php_versions.insert(version.clone());
+
+    let result = supervisor
+      .save_php_ini(&version, "memory_limit = 384M\n")
+      .await;
+    let managed = std::fs::read_to_string(managed_php_ini_path(&supervisor.paths, &version))
+      .expect("read managed PHP settings");
+    let generated =
+      std::fs::read_to_string(service.join("php.ini")).expect("read generated PHP settings");
+    std::fs::remove_dir_all(root).expect("remove PHP settings fixture");
+
+    assert!(result.is_err());
+    let error = result.unwrap_err().to_string();
+    assert!(error.contains("unable to apply php.ini"), "{error}");
+    assert!(
+      error.contains("unable to restore previous PHP configuration"),
+      "{error}"
+    );
+    assert_eq!(managed, "memory_limit = 256M\n");
+    assert_eq!(generated, managed);
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn php_ini_save_keeps_inactive_php_stopped_after_success_or_validation_failure() {
+    for (script, succeeds) in [
+      ("#!/bin/sh\nexit 0\n", true),
+      ("#!/bin/sh\nexit 1\n", false),
+    ] {
+      let (root, mut supervisor, version) = php_ini_save_fixture(script);
+      let result = supervisor
+        .save_php_ini(&version, "memory_limit = 384M\n")
+        .await;
+      let managed = std::fs::read_to_string(managed_php_ini_path(&supervisor.paths, &version))
+        .expect("read managed PHP settings");
+      let generated =
+        std::fs::read_to_string(php_service_path(&supervisor.paths, &version).join("php.ini"))
+          .expect("read generated PHP settings");
+      std::fs::remove_dir_all(root).expect("remove PHP settings fixture");
+
+      assert_eq!(result.is_ok(), succeeds);
+      assert_eq!(
+        managed,
+        if succeeds {
+          "memory_limit = 384M\n"
+        } else {
+          "memory_limit = 256M\n"
+        }
+      );
+      assert_eq!(generated, managed);
+      assert!(!supervisor.expected_php_versions.contains(&version));
+      assert!(!supervisor.php_fpm.contains_key(&version));
+    }
   }
 
   #[test]

@@ -306,7 +306,8 @@ impl SiteRepository {
   pub fn save_site_home(&self, path: &Path) -> Result<(), StorageError> {
     self.connection.execute(
       "INSERT INTO app_settings (key, value) VALUES (?1, ?2)
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value
+       WHERE app_settings.value <> excluded.value",
       params![SITE_HOME_SETTING_KEY, path.to_string_lossy()],
     )?;
     Ok(())
@@ -483,6 +484,22 @@ fn parse_php_version(value: &str) -> Result<Option<PhpVersion>, StorageError> {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn saving_an_unchanged_site_home_does_not_write_the_database() {
+    let repository = SiteRepository::in_memory().unwrap();
+    let first = Path::new("/test/sites");
+    repository.save_site_home(first).unwrap();
+    let before = repository.connection.total_changes();
+    repository.save_site_home(first).unwrap();
+    assert_eq!(repository.connection.total_changes(), before);
+    assert_eq!(repository.site_home().unwrap(), Some(first.to_path_buf()));
+
+    let updated = Path::new("/test/updated-sites");
+    repository.save_site_home(updated).unwrap();
+    assert_eq!(repository.connection.total_changes(), before + 1);
+    assert_eq!(repository.site_home().unwrap(), Some(updated.to_path_buf()));
+  }
 
   #[test]
   fn persists_and_lists_sites() {

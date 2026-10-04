@@ -6,10 +6,12 @@ import type {
 } from '@fabdev/contracts'
 import { confirm, open } from '@tauri-apps/plugin-dialog'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 
 import { useAppStore } from '../stores/fabdev'
 import { useI18n } from '../utils/i18n'
 import { formatPathForDisplay, isWindowsPlatform } from '../utils/path'
+import { createDiscardChangesGuard } from '../utils/unsaved-changes'
 import {
   buildCatalogRuntimeRows,
   formatRuntimeBytes,
@@ -26,9 +28,32 @@ const phpIniSeries = ref<string | null>(null)
 const phpIniContents = ref('')
 const phpFastCgiWorkers = ref(4)
 const phpFpmRequestTimeoutSeconds = ref(180)
+const savedPhpIniContents = ref('')
+const savedPhpFastCgiWorkers = ref(4)
+const savedPhpFpmRequestTimeoutSeconds = ref(180)
 let mounted = true
 
 const isWindows = isWindowsPlatform()
+const editingBusy = computed(() => action.value !== null &&
+  /^(ini|erp-ini|save-ini|save-fpm|save-fastcgi):/.test(action.value)
+)
+const phpIniDirty = computed(() => phpIniSeries.value !== null &&
+  phpIniContents.value !== savedPhpIniContents.value
+)
+const hasUnsavedSettings = computed(() => phpIniSeries.value !== null && (
+  phpIniDirty.value || (isWindows
+    ? phpFastCgiWorkers.value !== savedPhpFastCgiWorkers.value
+    : phpFpmRequestTimeoutSeconds.value !== savedPhpFpmRequestTimeoutSeconds.value)
+))
+const canDiscardSettings = createDiscardChangesGuard(
+  () => hasUnsavedSettings.value,
+  () => editingBusy.value
+)
+const canReplacePhpIni = createDiscardChangesGuard(
+  () => phpIniDirty.value,
+  () => editingBusy.value
+)
+onBeforeRouteLeave(canDiscardSettings)
 const onlineArtifacts = computed(() =>
   store.runtimeUpdateCheck?.artifacts.filter((artifact) => artifact.name === 'php') ?? []
 )
@@ -309,6 +334,9 @@ async function removeRuntime(runtime: PhpRuntimeInfo) {
 }
 
 async function editPhpIni(runtime: PhpRuntimeInfo) {
+  if (!await canDiscardSettings()) {
+    return
+  }
   action.value = `ini:${runtime.series}`
   message.value = ''
   try {
@@ -318,17 +346,26 @@ async function editPhpIni(runtime: PhpRuntimeInfo) {
       isWindows ? Promise.resolve(null) : store.getPhpFpmSettings(runtime.series)
     ])
     phpIniContents.value = contents
+    savedPhpIniContents.value = contents
     if (fastCgiSettings) {
       phpFastCgiWorkers.value = fastCgiSettings.workers
+      savedPhpFastCgiWorkers.value = fastCgiSettings.workers
     }
     if (fpmSettings) {
       phpFpmRequestTimeoutSeconds.value = fpmSettings.requestTerminateTimeoutSeconds
+      savedPhpFpmRequestTimeoutSeconds.value = fpmSettings.requestTerminateTimeoutSeconds
     }
     phpIniSeries.value = runtime.series
   } catch (error) {
     message.value = error instanceof Error ? error.message : String(error)
   } finally {
     action.value = null
+  }
+}
+
+async function closePhpIni() {
+  if (await canDiscardSettings()) {
+    phpIniSeries.value = null
   }
 }
 
@@ -344,6 +381,7 @@ async function savePhpFastCgiSettings() {
       phpFastCgiWorkers.value
     )
     phpFastCgiWorkers.value = settings.workers
+    savedPhpFastCgiWorkers.value = settings.workers
     message.value = t('runtimes.fastCgiSaved', {
       version: phpIniSeries.value,
       workers: settings.workers
@@ -367,6 +405,7 @@ async function savePhpFpmSettings() {
       phpFpmRequestTimeoutSeconds.value
     )
     phpFpmRequestTimeoutSeconds.value = settings.requestTerminateTimeoutSeconds
+    savedPhpFpmRequestTimeoutSeconds.value = settings.requestTerminateTimeoutSeconds
     message.value = t('runtimes.fpmTimeoutSaved', {
       version: phpIniSeries.value,
       seconds: settings.requestTerminateTimeoutSeconds
@@ -384,8 +423,10 @@ async function savePhpIni() {
   }
   action.value = `save-ini:${phpIniSeries.value}`
   message.value = ''
+  const contents = phpIniContents.value
   try {
-    await store.savePhpIni(phpIniSeries.value, phpIniContents.value)
+    await store.savePhpIni(phpIniSeries.value, contents)
+    savedPhpIniContents.value = contents
     message.value = t('runtimes.iniSaved', { version: phpIniSeries.value })
   } catch (error) {
     message.value = error instanceof Error ? error.message : String(error)
@@ -395,7 +436,7 @@ async function savePhpIni() {
 }
 
 async function loadErpPhpIni() {
-  if (!phpIniSeries.value) {
+  if (!phpIniSeries.value || !await canReplacePhpIni()) {
     return
   }
   action.value = `erp-ini:${phpIniSeries.value}`
@@ -632,7 +673,7 @@ async function revealPhpIni() {
           <button class="secondary-button" :disabled="action !== null" @click="loadErpPhpIni">
             {{ t('runtimes.erpConfig') }}
           </button>
-          <button class="secondary-button" :disabled="action !== null" @click="phpIniSeries = null">
+          <button class="secondary-button" :disabled="action !== null" @click="closePhpIni">
             {{ t('runtimes.close') }}
           </button>
         </div>
@@ -692,6 +733,7 @@ async function revealPhpIni() {
       </div>
       <textarea
         v-model="phpIniContents"
+        :disabled="editingBusy"
         autocapitalize="none"
         autocorrect="off"
         spellcheck="false"

@@ -91,8 +91,14 @@ const fn default_https_port() -> u16 {
   8_443
 }
 
+#[derive(Default)]
+struct SiteOperationState {
+  shutting_down: bool,
+}
+
 struct AgentState {
   paths: AppPaths,
+  site_operations: Mutex<SiteOperationState>,
   sites: Mutex<SiteRepository>,
   services: Mutex<ServiceSupervisor>,
   lan_share: Mutex<LanShareState>,
@@ -635,6 +641,7 @@ async fn main() -> Result<()> {
     ProxyManager::new(proxy_connections).context("unable to initialize Proxy Manager")?;
   let state = Arc::new(AgentState {
     paths,
+    site_operations: Mutex::new(SiteOperationState::default()),
     sites: Mutex::new(repository),
     services: Mutex::new(supervisor),
     lan_share: Mutex::new(LanShareState::new(arguments.http_port)),
@@ -738,6 +745,18 @@ impl Drop for AgentSocketGuard {
   }
 }
 
+async fn maintain_logs(state: &AgentState) {
+  //2026.10.04 modify by codex, reason: rotate managed logs even when no Desktop page requests service status.
+  let mut timer = tokio::time::interval(std::time::Duration::from_secs(60));
+  timer.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+  loop {
+    timer.tick().await;
+    if let Err(error) = state.services.lock().await.rotate_logs_if_due() {
+      eprintln!("unable to rotate managed logs: {error:#}");
+    }
+  }
+}
+
 #[cfg(unix)]
 async fn serve(endpoint: AgentEndpoint, state: Arc<AgentState>) -> Result<()> {
   let AgentEndpoint::UnixSocket(socket_path) = endpoint;
@@ -750,9 +769,12 @@ async fn serve(endpoint: AgentEndpoint, state: Arc<AgentState>) -> Result<()> {
     env!("CARGO_PKG_VERSION"),
     socket_path.display()
   );
+  let maintenance = maintain_logs(&state);
+  tokio::pin!(maintenance);
 
   loop {
     tokio::select! {
+      () = &mut maintenance => {}
       accepted = listener.accept() => {
         let (stream, _) = accepted?;
         let state = Arc::clone(&state);
@@ -779,9 +801,12 @@ async fn serve(endpoint: AgentEndpoint, state: Arc<AgentState>) -> Result<()> {
     env!("CARGO_PKG_VERSION"),
     pipe_name
   );
+  let maintenance = maintain_logs(&state);
+  tokio::pin!(maintenance);
 
   loop {
     tokio::select! {
+      () = &mut maintenance => {}
       connected = server.connect() => {
         connected?;
         let connected_client = server;
@@ -821,6 +846,37 @@ where
 }
 
 async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentResponse {
+  //2026.10.04 modify by codex, reason: keep Site registry, service config, and rollback within one operation across IPC clients.
+  let mut site_operation = match &request {
+    AgentRequest::ListSites
+    | AgentRequest::GetSiteHome
+    | AgentRequest::SaveSiteHome(_)
+    | AgentRequest::AddSite(_)
+    | AgentRequest::UpdateSite { .. }
+    | AgentRequest::RemoveSite { .. }
+    | AgentRequest::SetSitePhp { .. }
+    | AgentRequest::SetSiteHttps { .. }
+    | AgentRequest::StartLanShare { .. }
+    | AgentRequest::StopLanShareSite { .. }
+    | AgentRequest::StopLanShare
+    | AgentRequest::StartAll
+    | AgentRequest::StopAll
+    | AgentRequest::Shutdown => Some(state.site_operations.lock().await),
+    _ => None,
+  };
+  if site_operation
+    .as_ref()
+    .is_some_and(|operation| operation.shutting_down)
+  {
+    return if matches!(request, AgentRequest::Shutdown) {
+      AgentResponse::Stopped
+    } else {
+      AgentResponse::Error {
+        code: "agent_shutting_down".to_owned(),
+        message: "fabDev Agent is shutting down".to_owned(),
+      }
+    };
+  }
   match request {
     AgentRequest::Ping => AgentResponse::Pong {
       protocol_version: PROTOCOL_VERSION,
@@ -1959,6 +2015,10 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
     }
     AgentRequest::Shutdown => match stop_for_shutdown(state).await {
       Ok(()) => {
+        //2026.10.04 modify by codex, reason: queued Site operations must not restart work after shutdown has stopped services.
+        if let Some(operation) = site_operation.as_mut() {
+          operation.shutting_down = true;
+        }
         state.runtime_updates.cancel_all().await;
         let shutdown = Arc::clone(&state.shutdown);
         tokio::spawn(async move {
@@ -3151,16 +3211,21 @@ async fn sync_home_sites(state: &AgentState) -> Result<Vec<Site>> {
     (existing_home, linked_sites, sites)
   };
   let desired_home = discover_home_sites(&home, default_php, &linked_sites, &existing_home)?;
+  //2026.10.04 modify by codex, reason: avoid rewriting unchanged Site Home rows while retaining LAN Share synchronization.
+  if existing_home == desired_home {
+    state
+      .lan_share
+      .lock()
+      .await
+      .sync_sites(&sites_before_update)
+      .await?;
+    return Ok(sites_before_update);
+  }
   let sites = {
     let mut repository = state.sites.lock().await;
     repository.replace_home_sites(&desired_home)?;
     repository.list()?
   };
-  if existing_home == desired_home {
-    state.lan_share.lock().await.sync_sites(&sites).await?;
-    return Ok(sites);
-  }
-
   let apply_result = {
     let mut services = state.services.lock().await;
     async {
@@ -3552,6 +3617,405 @@ mod tests {
 
   use super::*;
 
+  fn isolated_agent_state() -> (PathBuf, Arc<AgentState>) {
+    let root = std::env::temp_dir().join(format!(
+      "fd-agent-{}",
+      &Uuid::new_v4().simple().to_string()[..8]
+    ));
+    let paths = AppPaths::from_root(&root);
+    paths.ensure().unwrap();
+    let repository = SiteRepository::in_memory().unwrap();
+    repository.save_site_home(&root.join("home")).unwrap();
+    let state = Arc::new(AgentState {
+      paths: paths.clone(),
+      site_operations: Mutex::new(SiteOperationState::default()),
+      sites: Mutex::new(repository),
+      services: Mutex::new(ServiceSupervisor::new(
+        paths.clone(),
+        RuntimePaths::from_runtime_root(&paths.runtimes),
+        ServicePorts {
+          dns: 53535,
+          http: 8080,
+          https: 8443,
+          mariadb: 3306,
+        },
+      )),
+      lan_share: Mutex::new(LanShareState::new(8080)),
+      proxy_manager: Mutex::new(ProxyManager::new(Vec::new()).unwrap()),
+      runtime_updates: RuntimeUpdateManager::default(),
+      shutdown: Arc::new(Notify::new()),
+    });
+    (root, state)
+  }
+
+  async fn poll_pending<F: std::future::Future>(mut future: std::pin::Pin<&mut F>) {
+    std::future::poll_fn(|context| {
+      assert!(
+        future.as_mut().poll(context).is_pending(),
+        "operation must wait for the held lock"
+      );
+      std::task::Poll::Ready(())
+    })
+    .await;
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn unchanged_home_scans_do_not_rewrite_sites_or_settings() {
+    let (root, state) = isolated_agent_state();
+    let home = root.join("home");
+    for index in 0..10 {
+      std::fs::create_dir_all(home.join(format!("project-{index}"))).unwrap();
+    }
+    let repository = SiteRepository::open(state.paths.database()).unwrap();
+    repository.save_site_home(&home).unwrap();
+    let linked = create_site(SiteInput {
+      name: Some("linked fixture".to_owned()),
+      domain: Some("linked.test".to_owned()),
+      project_path: root.clone(),
+      document_root: None,
+      php_version: None,
+      upstream_response_timeout_seconds: None,
+    })
+    .unwrap();
+    repository.insert(&linked).unwrap();
+    *state.sites.lock().await = repository;
+    let initial = sync_home_sites(&state).await.unwrap();
+    let observer = rusqlite::Connection::open(state.paths.database()).unwrap();
+    observer.execute_batch("CREATE TABLE scan_writes (operation TEXT NOT NULL);
+      CREATE TRIGGER scan_insert AFTER INSERT ON sites BEGIN INSERT INTO scan_writes VALUES ('insert'); END;
+      CREATE TRIGGER scan_delete AFTER DELETE ON sites BEGIN INSERT INTO scan_writes VALUES ('delete'); END;
+      CREATE TRIGGER scan_setting AFTER UPDATE ON app_settings BEGIN INSERT INTO scan_writes VALUES ('setting'); END;")
+      .unwrap();
+    for _ in 0..10 {
+      assert_eq!(sync_home_sites(&state).await.unwrap(), initial);
+    }
+    let writes: u64 = observer
+      .query_row("SELECT COUNT(*) FROM scan_writes", [], |row| row.get(0))
+      .unwrap();
+    std::fs::create_dir(home.join("new-project")).unwrap();
+    std::fs::remove_dir(home.join("project-0")).unwrap();
+    let changed = sync_home_sites(&state).await.unwrap();
+    assert!(changed.iter().any(|site| site == &linked));
+    assert!(changed.iter().any(|site| site.domain == "new-project.test"));
+    assert!(!changed.iter().any(|site| site.domain == "project-0.test"));
+    let changes: u64 = observer
+      .query_row("SELECT COUNT(*) FROM scan_writes", [], |row| row.get(0))
+      .unwrap();
+    assert!(changes > writes);
+    drop(observer);
+    drop(state);
+    std::fs::remove_dir_all(root).unwrap();
+    assert_eq!(
+      writes, 0,
+      "unchanged Site Home scans must not rewrite persisted rows"
+    );
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn concurrent_site_changes_do_not_overwrite_a_successful_change_during_rollback() {
+    let (root, state) = isolated_agent_state();
+    let site = create_site(SiteInput {
+      name: Some("concurrent fixture".to_owned()),
+      domain: Some("concurrent.test".to_owned()),
+      project_path: root.clone(),
+      document_root: None,
+      php_version: Some("8.2".parse().unwrap()),
+      upstream_response_timeout_seconds: None,
+    })
+    .unwrap();
+    state.sites.lock().await.insert(&site).unwrap();
+    std::fs::write(
+      state.paths.sites.join("concurrent.test.conf"),
+      "original configuration",
+    )
+    .unwrap();
+    let services = state.services.lock().await;
+    let failed = handle_request(
+      AgentRequest::SetSitePhp {
+        site_id: site.id,
+        php_version: Some("7.4".parse().unwrap()),
+      },
+      &state,
+    );
+    let successful = handle_request(
+      AgentRequest::SetSitePhp {
+        site_id: site.id,
+        php_version: None,
+      },
+      &state,
+    );
+    tokio::pin!(failed, successful);
+    //2026.10.04 modify by codex, reason: force both requests to overlap without scheduler timing or real services.
+    poll_pending(failed.as_mut()).await;
+    poll_pending(successful.as_mut()).await;
+    drop(services);
+    let (failed, successful) = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+      tokio::join!(failed, successful)
+    })
+    .await
+    .unwrap();
+    assert!(
+      matches!(failed, AgentResponse::Error { code, .. } if code == "site_php_switch_failed")
+    );
+    let AgentResponse::SitePhpChanged(updated) = successful else {
+      panic!("expected static Site change to succeed: {successful:?}");
+    };
+    let registered = state.sites.lock().await.list().unwrap();
+    let configuration =
+      std::fs::read_to_string(state.paths.sites.join("concurrent.test.conf")).unwrap();
+    std::fs::remove_dir_all(root).unwrap();
+    assert!(updated.php_version.is_none());
+    assert!(!configuration.contains("fastcgi_pass"));
+    assert_eq!(registered, vec![updated]);
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn concurrent_site_edit_uses_the_committed_php_setting_after_a_failed_switch() {
+    let (root, state) = isolated_agent_state();
+    let response = handle_request(
+      AgentRequest::AddSite(SiteInput {
+        name: Some("static fixture".to_owned()),
+        domain: Some("static.test".to_owned()),
+        project_path: root.clone(),
+        document_root: None,
+        php_version: None,
+        upstream_response_timeout_seconds: None,
+      }),
+      &state,
+    )
+    .await;
+    let AgentResponse::SiteAdded(site) = response else {
+      panic!("unable to create static fixture: {response:?}");
+    };
+    let services = state.services.lock().await;
+    let failed = handle_request(
+      AgentRequest::SetSitePhp {
+        site_id: site.id,
+        php_version: Some("7.4".parse().unwrap()),
+      },
+      &state,
+    );
+    let edited = handle_request(
+      AgentRequest::UpdateSite {
+        site_id: site.id,
+        input: fabdev_core::SiteEditInput {
+          name: "renamed fixture".to_owned(),
+          domain: "renamed.test".to_owned(),
+          project_path: root.clone(),
+          document_root: None,
+          upstream_response_timeout_seconds: Some(180),
+        },
+      },
+      &state,
+    );
+    tokio::pin!(failed, edited);
+    poll_pending(failed.as_mut()).await;
+    poll_pending(edited.as_mut()).await;
+    drop(services);
+    let (failed, edited) = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+      tokio::join!(failed, edited)
+    })
+    .await
+    .unwrap();
+    assert!(matches!(failed, AgentResponse::Error { .. }));
+    let AgentResponse::SiteUpdated(updated) = edited else {
+      panic!("unrelated edit must not inherit the rejected PHP version: {edited:?}");
+    };
+    assert!(updated.php_version.is_none());
+    assert_eq!(state.sites.lock().await.list().unwrap(), vec![updated]);
+    assert!(!state.paths.sites.join("static.test.conf").exists());
+    let config = std::fs::read_to_string(state.paths.sites.join("renamed.test.conf")).unwrap();
+    assert!(config.contains("server_name renamed.test;"));
+    assert!(!config.contains("fastcgi_pass"));
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[tokio::test]
+  async fn site_operations_do_not_block_ping_status_or_download_cancellation() {
+    let (root, state) = isolated_agent_state();
+    let operation = state.site_operations.lock().await;
+    for request in [
+      AgentRequest::Ping,
+      AgentRequest::GetStatus,
+      AgentRequest::CancelRuntimeDownload {
+        operation_id: Uuid::new_v4(),
+      },
+    ] {
+      let response = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        handle_request(request, &state),
+      )
+      .await
+      .unwrap();
+      assert!(matches!(
+        response,
+        AgentResponse::Pong { .. } | AgentResponse::Status(_) | AgentResponse::Error { .. }
+      ));
+    }
+    drop(operation);
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn failed_shutdown_keeps_site_operations_available_for_retry() {
+    let (root, state) = isolated_agent_state();
+    let blocked_pid = state.paths.services.join("nginx/nginx.pid");
+    std::fs::create_dir_all(&blocked_pid).unwrap();
+    let failed = handle_request(AgentRequest::Shutdown, &state).await;
+    assert!(matches!(failed, AgentResponse::Error { .. }));
+    std::fs::remove_dir(&blocked_pid).unwrap();
+    let added = handle_request(
+      AgentRequest::AddSite(SiteInput {
+        name: Some("retry fixture".to_owned()),
+        domain: Some("retry.test".to_owned()),
+        project_path: root.clone(),
+        document_root: None,
+        php_version: None,
+        upstream_response_timeout_seconds: None,
+      }),
+      &state,
+    )
+    .await;
+    assert!(matches!(added, AgentResponse::SiteAdded(_)));
+    assert!(matches!(
+      handle_request(AgentRequest::Shutdown, &state).await,
+      AgentResponse::Stopped
+    ));
+    assert!(matches!(
+      handle_request(AgentRequest::Shutdown, &state).await,
+      AgentResponse::Stopped
+    ));
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn queued_site_changes_do_not_run_after_successful_shutdown() {
+    let (root, state) = isolated_agent_state();
+    let operation = state.site_operations.lock().await;
+    let shutdown = handle_request(AgentRequest::Shutdown, &state);
+    let addition = handle_request(
+      AgentRequest::AddSite(SiteInput {
+        name: Some("late fixture".to_owned()),
+        domain: Some("late.test".to_owned()),
+        project_path: root.clone(),
+        document_root: None,
+        php_version: None,
+        upstream_response_timeout_seconds: None,
+      }),
+      &state,
+    );
+    tokio::pin!(shutdown, addition);
+    poll_pending(shutdown.as_mut()).await;
+    poll_pending(addition.as_mut()).await;
+    drop(operation);
+    let (shutdown, addition) = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+      tokio::join!(shutdown, addition)
+    })
+    .await
+    .unwrap();
+    let sites = state.sites.lock().await.list().unwrap();
+    let config_exists = state.paths.sites.join("late.test.conf").exists();
+    std::fs::remove_dir_all(root).unwrap();
+    assert!(matches!(shutdown, AgentResponse::Stopped));
+    assert!(matches!(addition, AgentResponse::Error { code, .. } if code == "agent_shutting_down"));
+    assert!(sites.is_empty());
+    assert!(!config_exists);
+  }
+
+  #[tokio::test]
+  async fn log_maintenance_survives_an_unreadable_log_directory() {
+    let (root, state) = isolated_agent_state();
+    std::fs::remove_dir(&state.paths.logs).unwrap();
+    std::fs::write(&state.paths.logs, "not a directory").unwrap();
+    {
+      let maintenance = maintain_logs(&state);
+      tokio::pin!(maintenance);
+      tokio::select! {
+        biased;
+        () = &mut maintenance => panic!("a rotation error must not stop maintenance"),
+        () = tokio::time::sleep(std::time::Duration::from_millis(10)) => {}
+      }
+      assert!(
+        state.services.lock().await.rotate_logs_if_due().is_ok(),
+        "maintenance must have attempted the initial rotation before the throttled check"
+      );
+      assert!(matches!(
+        handle_request(AgentRequest::Ping, &state).await,
+        AgentResponse::Pong { .. }
+      ));
+    }
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn waiting_log_maintenance_does_not_block_ipc_or_agent_shutdown() {
+    let (root, state) = isolated_agent_state();
+    let services = state.services.lock().await;
+    let server = tokio::spawn(serve(state.paths.agent_endpoint(), Arc::clone(&state)));
+    let response = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+      while !state.paths.agent_socket().exists() {
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+      }
+      let mut client = UnixStream::connect(state.paths.agent_socket())
+        .await
+        .unwrap();
+      client.write_all(b"{\"type\":\"ping\"}\n").await.unwrap();
+      let mut lines = BufReader::new(client).lines();
+      let response = lines.next_line().await.unwrap().unwrap();
+      serde_json::from_str::<AgentResponse>(&response).unwrap()
+    })
+    .await;
+    state.shutdown.notify_one();
+    tokio::time::timeout(std::time::Duration::from_secs(2), server)
+      .await
+      .unwrap()
+      .unwrap()
+      .unwrap();
+    drop(services);
+    assert!(matches!(response.unwrap(), AgentResponse::Pong { .. }));
+    assert!(!state.paths.agent_socket().exists());
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
+  async fn idle_agent_rotates_logs_without_status_requests() {
+    let (root, state) = isolated_agent_state();
+    let log = state.paths.logs.join("nginx-access.log");
+    let size = 20 * 1024 * 1024;
+    std::fs::File::create(&log).unwrap().set_len(size).unwrap();
+    let endpoint = state.paths.agent_endpoint();
+    let server = tokio::spawn(serve(endpoint, Arc::clone(&state)));
+    let rotated = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+      while std::fs::metadata(&log).unwrap().len() != 0 {
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+      }
+    })
+    .await;
+    state.shutdown.notify_one();
+    tokio::time::timeout(std::time::Duration::from_secs(2), server)
+      .await
+      .unwrap()
+      .unwrap()
+      .unwrap();
+    let archive_size =
+      std::fs::metadata(state.paths.logs.join("nginx-access.log.1")).map(|value| value.len());
+    let socket_removed = !state.paths.agent_socket().exists();
+    std::fs::remove_dir_all(root).unwrap();
+    assert!(
+      rotated.is_ok(),
+      "an idle Agent must rotate logs without Desktop polling"
+    );
+    assert_eq!(archive_size.unwrap(), size);
+    assert!(socket_removed);
+  }
+
   #[cfg(unix)]
   #[tokio::test]
   async fn static_site_lifecycle_preserves_config_after_rejected_php_switch() {
@@ -3573,6 +4037,7 @@ mod tests {
     std::fs::write(&index, "original project content").unwrap();
     let state = AgentState {
       paths: paths.clone(),
+      site_operations: Mutex::new(SiteOperationState::default()),
       sites: Mutex::new(SiteRepository::in_memory().unwrap()),
       services: Mutex::new(ServiceSupervisor::new(
         paths.clone(),
@@ -3708,6 +4173,7 @@ mod tests {
         .unwrap();
       let state = AgentState {
         paths: paths.clone(),
+        site_operations: Mutex::new(SiteOperationState::default()),
         sites: Mutex::new(repository),
         services: Mutex::new(ServiceSupervisor::new(
           paths.clone(),
@@ -3799,6 +4265,7 @@ mod tests {
     repository.insert(&site).unwrap();
     let state = AgentState {
       paths: paths.clone(),
+      site_operations: Mutex::new(SiteOperationState::default()),
       sites: Mutex::new(repository),
       services: Mutex::new(ServiceSupervisor::new(
         paths.clone(),
@@ -4812,6 +5279,7 @@ mod tests {
     repository.save_site_home(&home).unwrap();
     let state = AgentState {
       paths: paths.clone(),
+      site_operations: Mutex::new(SiteOperationState::default()),
       sites: Mutex::new(repository),
       services: Mutex::new(ServiceSupervisor::new(
         paths.clone(),
@@ -5396,6 +5864,7 @@ mod tests {
     let repository = SiteRepository::open(paths.database()).expect("open Site fixture database");
     let state = AgentState {
       paths: paths.clone(),
+      site_operations: Mutex::new(SiteOperationState::default()),
       sites: Mutex::new(repository),
       services: Mutex::new(ServiceSupervisor::new(
         paths.clone(),

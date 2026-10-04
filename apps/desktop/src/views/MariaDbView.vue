@@ -6,11 +6,13 @@ import type {
 } from '@fabdev/contracts'
 import { confirm, open } from '@tauri-apps/plugin-dialog'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
 
 import { useAppStore } from '../stores/fabdev'
 import { translateError, useI18n } from '../utils/i18n'
 import { EMPTY_MARIADB_CONFIG, ERP_MARIADB_CONFIG } from '../utils/mariadb'
 import { formatPathForDisplay, isWindowsPlatform } from '../utils/path'
+import { createDiscardChangesGuard } from '../utils/unsaved-changes'
 import {
   catalogRuntimeState,
   formatRuntimeBytes,
@@ -34,10 +36,28 @@ const dataDir = ref('')
 const systemSocket = ref('/tmp/mysql.sock')
 const configFilename = ref('my.cnf')
 const configContents = ref(EMPTY_MARIADB_CONFIG)
+const savedConfigContents = ref(EMPTY_MARIADB_CONFIG)
+const savedSettings = ref(settingsSnapshot())
 const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
 let mounted = true
+
+function settingsSnapshot() {
+  return JSON.stringify({ port: port.value, dataDir: dataDir.value, systemSocket: systemSocket.value })
+}
+
+const settingsDirty = computed(() => settingsSnapshot() !== savedSettings.value)
+const configDirty = computed(() => configContents.value !== savedConfigContents.value)
+const canDiscardEdits = createDiscardChangesGuard(
+  () => settingsDirty.value || configDirty.value,
+  () => saving.value || configSaving.value || passwordSaving.value
+)
+const canReplaceConfig = createDiscardChangesGuard(
+  () => configDirty.value,
+  () => configSaving.value
+)
+onBeforeRouteLeave(canDiscardEdits)
 
 const mariaDbState = computed(() => store.status?.mariadb ?? 'notInstalled')
 const mariaDbRunning = computed(() => mariaDbState.value === 'running')
@@ -84,24 +104,41 @@ watch(
   }
 )
 
-async function loadSettings() {
+async function loadSettings(discard = false) {
+  if (settingsDirty.value && !discard) {
+    return
+  }
+  const before = settingsSnapshot()
   store.clearError()
   try {
     const settings = await store.loadMariaDbSettings()
+    //2026.10.04 modify by codex, reason: a delayed background response must not overwrite a newer local edit.
+    if (settingsSnapshot() !== before) {
+      return
+    }
     port.value = String(settings.port)
     dataDir.value = formatPathForDisplay(settings.dataDir, isWindows)
     systemSocket.value = settings.systemSocket || '/tmp/mysql.sock'
+    savedSettings.value = settingsSnapshot()
   } catch (error) {
     store.setError(error instanceof Error ? error.message : String(error))
   }
 }
 
-async function loadConfig() {
+async function loadConfig(discard = false) {
+  if (configDirty.value && !discard) {
+    return
+  }
+  const before = configContents.value
   store.clearError()
   try {
     const config = await store.loadMariaDbConfig()
+    if (configContents.value !== before) {
+      return
+    }
     configFilename.value = config.filename
     configContents.value = config.contents
+    savedConfigContents.value = config.contents
   } catch (error) {
     store.setError(error instanceof Error ? error.message : String(error))
   }
@@ -116,7 +153,10 @@ onBeforeUnmount(() => {
 })
 
 async function refreshPage() {
-  await Promise.all([store.refreshStatus(), loadSettings(), loadConfig()])
+  if (!await canDiscardEdits()) {
+    return
+  }
+  await Promise.all([store.refreshStatus(), loadSettings(true), loadConfig(true)])
   try {
     await store.checkRuntimeUpdates()
   } catch (error) {
@@ -314,6 +354,7 @@ async function saveSettings() {
     port.value = String(settings.port)
     dataDir.value = formatPathForDisplay(settings.dataDir, isWindows)
     systemSocket.value = settings.systemSocket || '/tmp/mysql.sock'
+    savedSettings.value = settingsSnapshot()
     message.value = t('dashboard.mariaDbSettingsSaved')
   } catch (error) {
     store.setError(error instanceof Error ? error.message : String(error))
@@ -330,6 +371,7 @@ async function saveConfig() {
     const config = await store.saveMariaDbConfig(configContents.value)
     configFilename.value = config.filename
     configContents.value = config.contents
+    savedConfigContents.value = config.contents
     message.value = t('mariadb.configSaved', { filename: config.filename })
   } catch (error) {
     store.setError(error instanceof Error ? error.message : String(error))
@@ -338,7 +380,10 @@ async function saveConfig() {
   }
 }
 
-function applyErpConfig() {
+async function applyErpConfig() {
+  if (!await canReplaceConfig()) {
+    return
+  }
   configContents.value = ERP_MARIADB_CONFIG
   message.value = t('mariadb.erpConfigLoaded')
   store.clearError()
