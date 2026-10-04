@@ -690,7 +690,13 @@ async function revealPhpIni() {
           </button>
         </div>
       </div>
-      <textarea v-model="phpIniContents" spellcheck="false" :aria-label="t('runtimes.iniContents')" />
+      <textarea
+        v-model="phpIniContents"
+        autocapitalize="none"
+        autocorrect="off"
+        spellcheck="false"
+        :aria-label="t('runtimes.iniContents')"
+      />
       <div class="php-ini-actions">
         <button class="primary-button" :disabled="action !== null" @click="savePhpIni">
           {{ action?.startsWith('save-ini:') ? t('runtimes.applying') : t('runtimes.saveApply') }}

@@ -535,6 +535,8 @@ async function openConnection(connection: ProxyConnectionInfo) {
             v-model="searchQuery"
             type="search"
             :placeholder="t('proxy.searchPlaceholder')"
+            autocapitalize="none"
+            autocorrect="off"
           >
         </label>
         <small>
@@ -716,6 +718,7 @@ async function openConnection(connection: ProxyConnectionInfo) {
             placeholder="erp-api"
             autocomplete="off"
             autocapitalize="none"
+            autocorrect="off"
             spellcheck="false"
             autofocus
           >
@@ -728,6 +731,8 @@ async function openConnection(connection: ProxyConnectionInfo) {
             required
             placeholder="erp-api.test"
             autocomplete="off"
+            autocapitalize="none"
+            autocorrect="off"
             spellcheck="false"
           >
         </label>
@@ -749,6 +754,8 @@ async function openConnection(connection: ProxyConnectionInfo) {
             type="url"
             placeholder="https://api.example.com"
             autocomplete="off"
+            autocapitalize="none"
+            autocorrect="off"
             spellcheck="false"
           >
           <small>{{ t('proxy.targetHelp') }}</small>
@@ -771,6 +778,8 @@ async function openConnection(connection: ProxyConnectionInfo) {
             v-model="allowedOriginsText"
             rows="3"
             :placeholder="t('proxy.allowedOriginsPlaceholder')"
+            autocapitalize="none"
+            autocorrect="off"
             spellcheck="false"
           />
           <small>{{ t('proxy.allowedOriginsHelp') }}</small>

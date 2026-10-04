@@ -508,7 +508,13 @@ async function changeRootPassword() {
         <label>
           {{ t('dashboard.mariaDbDataDir') }}
           <div class="input-action">
-            <input v-model="dataDir" readonly required />
+            <input
+              v-model="dataDir"
+              readonly
+              required
+              autocapitalize="none"
+              autocorrect="off"
+            />
             <button
               type="button"
               class="secondary-button"
@@ -541,6 +547,8 @@ async function changeRootPassword() {
             v-model="currentPassword"
             type="password"
             autocomplete="current-password"
+            autocapitalize="none"
+            autocorrect="off"
             :disabled="!mariaDbRunning || passwordSaving"
           />
         </label>
@@ -550,6 +558,8 @@ async function changeRootPassword() {
             v-model="newPassword"
             type="password"
             autocomplete="new-password"
+            autocapitalize="none"
+            autocorrect="off"
             minlength="1"
             maxlength="256"
             required
@@ -562,6 +572,8 @@ async function changeRootPassword() {
             v-model="confirmPassword"
             type="password"
             autocomplete="new-password"
+            autocapitalize="none"
+            autocorrect="off"
             minlength="1"
             maxlength="256"
             required
@@ -596,6 +608,8 @@ async function changeRootPassword() {
       </div>
       <textarea
         v-model="configContents"
+        autocapitalize="none"
+        autocorrect="off"
         spellcheck="false"
         :aria-label="t('mariadb.configContents', { filename: configFilename })"
         :disabled="mariaDbRunning || configSaving"

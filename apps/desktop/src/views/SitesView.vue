@@ -689,7 +689,13 @@ async function toggleLanShare(site: Site) {
         <div class="site-home-path-control">
           <label>
             {{ t('sites.homePath') }}
-            <input v-model="siteHomePath" required :placeholder="homePathPlaceholder" />
+            <input
+              v-model="siteHomePath"
+              required
+              :placeholder="homePathPlaceholder"
+              autocapitalize="none"
+              autocorrect="off"
+            />
           </label>
           <button type="button" class="secondary-button" @click="chooseSiteHome">
             {{ t('sites.choose') }}
@@ -725,6 +731,8 @@ async function toggleLanShare(site: Site) {
             v-model="searchQuery"
             type="search"
             :placeholder="t('sites.searchPlaceholder')"
+            autocapitalize="none"
+            autocorrect="off"
           />
         </label>
         <label class="site-sort-select">
@@ -985,7 +993,13 @@ async function toggleLanShare(site: Site) {
       <label>
         {{ t('sites.projectFolder') }}
         <div class="input-action">
-          <input v-model="form.projectPath" required :placeholder="projectPathPlaceholder" />
+          <input
+            v-model="form.projectPath"
+            required
+            :placeholder="projectPathPlaceholder"
+            autocapitalize="none"
+            autocorrect="off"
+          />
           <button type="button" class="secondary-button" @click="chooseProject">
             {{ t('sites.choose') }}
           </button>
@@ -993,11 +1007,22 @@ async function toggleLanShare(site: Site) {
       </label>
       <label>
         {{ t('sites.domain') }}
-        <input v-model="form.domain" required placeholder="erp-demo.test" />
+        <input
+          v-model="form.domain"
+          required
+          placeholder="erp-demo.test"
+          autocapitalize="none"
+          autocorrect="off"
+        />
       </label>
       <label>
         {{ t('sites.webRoot') }}
-        <input v-model="form.documentRoot" placeholder="public" />
+        <input
+          v-model="form.documentRoot"
+          placeholder="public"
+          autocapitalize="none"
+          autocorrect="off"
+        />
       </label>
       <label v-if="editingSiteId === null">
         {{ t('sites.phpRuntime') }}
