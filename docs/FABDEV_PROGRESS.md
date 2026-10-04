@@ -7,6 +7,14 @@
 
 fabDev Desktop Community `v0.1.29` 已完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Windows-first Draft 與 Publish，並從相同 Tag Commit 補齊 macOS ARM64 Community DMG。Release ID `397957496`，9 個 App-only Assets 已完成匿名公開下載驗證；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
+## 2026-10-04 未發布：Proxy 與下載關閉邊界
+
+- 第五批先重現成功 Shutdown 後仍可重新啟動 Proxy、登記新下載，以及等待已取消下載清理的重試收不到關閉通知。Proxy 新增／修改／移除與啟停現在共用既有生命週期操作鎖；Runtime 下載管理器在同一登記鎖內停止接受新工作、通知等待中的重試，並取消既有下載，避免關閉與工作登記交錯。
+- 新增 4 項回歸測試，涵蓋關閉後 Proxy 啟動、跨管理器副本的新下載、等待清理的重試，以及已排隊等待登記鎖的下載。另確認 Shutdown 失敗時仍可重試 Proxy 啟動、下載不被取消；成功關閉保留使用者已保存的 Proxy 啟動偏好。一般下載取消／重試、已驗證套件及安裝流程維持既有行為。
+- 完整 `pnpm test` 通過 Desktop 161、Release 規則 21、Rust workspace 331、macOS Helper 10 項，共 523 項，另有 7 項既有外部環境測試維持 ignored；`pnpm lint`、Agent 建置與 `git diff --check` 通過。
+- macOS 隔離實測使用 SHA-256 驗證通過的既有 PHP 8.2、Nginx 與 dnsmasq Archive，以及本機下載 fixture。PHP 回應 HTTP 200；Proxy Start → HTTP 200 → Stop → restart 通過，下載取消後可立即重試且開始傳輸。同一 IPC 連線的 Shutdown 取消進行中的下載，後續新下載、單一與全部 Proxy 啟動均被拒絕，沒有新增下載連線；結束後無殘留服務程序、Port、PID 或 Socket。
+- 本批只修改 Agent 關閉協調與測試，未變更版本、Agent Protocol、資料格式、UI 或 Runtime Archive；未打包、執行 Windows CI 或發布，Windows 實機流程未驗收。
+
 ## 2026-10-04 未發布：Runtime 與服務操作協調
 
 - 第四批先重現 PHP Runtime 移除與 Site 切換的競態：Site 暫時改用另一版本、尚待套用設定時，原 Runtime 會被誤判為未使用而刪除；切換失敗後 Registry 雖已回復，Runtime 卻不存在。另重現 Shutdown 成功後，排隊的全域 PHP 切換仍可修改 `current`。

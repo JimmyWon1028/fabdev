@@ -107,9 +107,19 @@ struct AgentState {
   shutdown: Arc<Notify>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct RuntimeUpdateManager {
   operations: Arc<Mutex<HashMap<uuid::Uuid, Arc<RuntimeDownloadTask>>>>,
+  shutting_down: watch::Sender<bool>,
+}
+
+impl Default for RuntimeUpdateManager {
+  fn default() -> Self {
+    Self {
+      operations: Arc::default(),
+      shutting_down: watch::channel(false).0,
+    }
+  }
 }
 
 struct RuntimeDownloadTask {
@@ -257,8 +267,13 @@ impl RuntimeUpdateManager {
       error: None,
     };
     let task = Arc::new(RuntimeDownloadTask::new(operation.clone()));
+    let mut shutting_down = self.shutting_down.subscribe();
     loop {
       let mut operations = self.operations.lock().await;
+      //2026.10.04 modify by codex, reason: synchronize admission with shutdown under the operation registry lock.
+      if *shutting_down.borrow() {
+        bail!("fabDev Agent is shutting down");
+      }
       let pending_cleanup = operations.values().find_map(|existing| {
         let snapshot = existing.snapshot();
         (snapshot.name == operation.name
@@ -271,10 +286,12 @@ impl RuntimeUpdateManager {
       });
       if let Some(mut finished) = pending_cleanup {
         drop(operations);
-        finished
-          .wait_for(|finished| *finished)
-          .await
-          .context("unable to wait for cancelled Runtime download cleanup")?;
+        tokio::select! {
+          _ = shutting_down.changed() => bail!("fabDev Agent is shutting down"),
+          result = finished.wait_for(|finished| *finished) => {
+            result.context("unable to wait for cancelled Runtime download cleanup")?;
+          }
+        }
         continue;
       }
       let duplicate_active = operations.values().any(|existing| {
@@ -402,8 +419,11 @@ impl RuntimeUpdateManager {
     Ok(operation.snapshot())
   }
 
-  async fn cancel_all(&self) {
-    for operation in self.operations.lock().await.values() {
+  async fn shutdown(&self) {
+    let operations = self.operations.lock().await;
+    //2026.10.04 modify by codex, reason: close download admission and wake pending retries before cancelling registered workers.
+    self.shutting_down.send_replace(true);
+    for operation in operations.values() {
       let _ = operation.cancel();
     }
   }
@@ -885,6 +905,13 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
     | AgentRequest::SetMariaDbRootPassword { .. }
     | AgentRequest::InstallMariaDbRuntime { .. }
     | AgentRequest::RemoveMariaDbRuntime
+    | AgentRequest::AddProxyConnection(_)
+    | AgentRequest::UpdateProxyConnection { .. }
+    | AgentRequest::RemoveProxyConnection { .. }
+    | AgentRequest::StartProxyConnection { .. }
+    | AgentRequest::StopProxyConnection { .. }
+    | AgentRequest::StartAllProxyConnections
+    | AgentRequest::StopAllProxyConnections
     | AgentRequest::StartAll
     | AgentRequest::StopAll
     | AgentRequest::Shutdown => Some(state.lifecycle_operations.lock().await),
@@ -2045,7 +2072,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
         if let Some(operation) = lifecycle_operation.as_mut() {
           operation.shutting_down = true;
         }
-        state.runtime_updates.cancel_all().await;
+        state.runtime_updates.shutdown().await;
         let shutdown = Arc::clone(&state.shutdown);
         tokio::spawn(async move {
           tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -3829,6 +3856,108 @@ mod tests {
 
   #[cfg(unix)]
   #[tokio::test]
+  async fn shutdown_prevents_a_proxy_listener_from_restarting() {
+    let (root, state) = isolated_agent_state();
+    let upstream = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let reservation = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let port = reservation.local_addr().unwrap().port();
+    drop(reservation);
+    let connection_id = "shutdown-fixture".to_owned();
+    let added = handle_request(
+      AgentRequest::AddProxyConnection(fabdev_core::ProxyConnectionInput {
+        id: connection_id.clone(),
+        domain: "shutdown-fixture.test".to_owned(),
+        listen_port: port,
+        target: format!("http://{}", upstream.local_addr().unwrap()),
+        allowed_origins: Vec::new(),
+        upstream_response_timeout_seconds: None,
+      }),
+      &state,
+    )
+    .await;
+    assert!(matches!(added, AgentResponse::ProxyManager(_)));
+    assert!(matches!(
+      handle_request(
+        AgentRequest::StartProxyConnection {
+          connection_id: connection_id.clone(),
+        },
+        &state,
+      )
+      .await,
+      AgentResponse::ProxyManager(_)
+    ));
+    let download = runtime_task_fixture(RuntimeUpdateOperationStatus::Downloading);
+    let operation_id = download.snapshot().operation_id;
+    state
+      .runtime_updates
+      .operations
+      .lock()
+      .await
+      .insert(operation_id, Arc::clone(&download));
+    let blocked_pid = state.paths.services.join("nginx/nginx.pid");
+    std::fs::create_dir_all(&blocked_pid).unwrap();
+    assert!(matches!(
+      handle_request(AgentRequest::Shutdown, &state).await,
+      AgentResponse::Error { .. }
+    ));
+    std::fs::remove_dir(&blocked_pid).unwrap();
+    assert_eq!(
+      download.snapshot().status,
+      RuntimeUpdateOperationStatus::Downloading
+    );
+    assert!(!*state.runtime_updates.shutting_down.borrow());
+    assert!(matches!(
+      handle_request(
+        AgentRequest::StartProxyConnection {
+          connection_id: connection_id.clone(),
+        },
+        &state,
+      )
+      .await,
+      AgentResponse::ProxyManager(_)
+    ));
+    assert_eq!(
+      state.proxy_manager.lock().await.running_ids(),
+      vec![connection_id.clone()]
+    );
+    assert!(matches!(
+      handle_request(AgentRequest::Shutdown, &state).await,
+      AgentResponse::Stopped
+    ));
+    assert_eq!(
+      download.snapshot().status,
+      RuntimeUpdateOperationStatus::Cancelled
+    );
+    let restarted = handle_request(
+      AgentRequest::StartProxyConnection {
+        connection_id: connection_id.clone(),
+      },
+      &state,
+    )
+    .await;
+    let running = state.proxy_manager.lock().await.running_ids();
+    let saved = state.sites.lock().await.proxy_running_ids().unwrap();
+    state.proxy_manager.lock().await.stop_all().await;
+    let reusable = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, port)).unwrap();
+    drop(reusable);
+    drop(upstream);
+    std::fs::remove_dir_all(root).unwrap();
+    assert!(
+      running.is_empty(),
+      "a stopped Agent must not restart its Proxy listener"
+    );
+    assert!(
+      matches!(restarted, AgentResponse::Error { code, .. } if code == "agent_shutting_down")
+    );
+    assert_eq!(
+      saved,
+      vec![connection_id],
+      "shutdown must retain the user's startup preference"
+    );
+  }
+
+  #[cfg(unix)]
+  #[tokio::test]
   async fn runtime_selection_cannot_change_after_successful_shutdown() {
     let (root, state) = isolated_agent_state();
     for version in ["8.2.33", "8.4.24"] {
@@ -4552,6 +4681,68 @@ mod tests {
       package_update_available: false,
       active_version: None,
     }
+  }
+
+  #[tokio::test]
+  async fn shutdown_rejects_download_admission_already_waiting_for_the_registry() {
+    let manager = RuntimeUpdateManager::default();
+    let task = runtime_task_fixture(RuntimeUpdateOperationStatus::Queued);
+    let registry = manager.operations.lock().await;
+    let stopping = manager.shutdown();
+    let cache = std::env::temp_dir().join(format!("fabdev-admission-shutdown-{}", Uuid::new_v4()));
+    let starting = manager.start(cache, runtime_artifact_fixture(&task));
+    tokio::pin!(stopping, starting);
+    poll_pending(stopping.as_mut()).await;
+    poll_pending(starting.as_mut()).await;
+    drop(registry);
+    let ((), result) = tokio::time::timeout(std::time::Duration::from_secs(1), async {
+      tokio::join!(stopping, starting)
+    })
+    .await
+    .unwrap();
+    assert!(result.unwrap_err().to_string().contains("shutting down"));
+    assert!(manager.operations.lock().await.is_empty());
+  }
+
+  #[tokio::test]
+  async fn shutdown_prevents_new_download_registration_across_manager_clones() {
+    let manager = RuntimeUpdateManager::default();
+    let task = runtime_task_fixture(RuntimeUpdateOperationStatus::Queued);
+    manager.clone().shutdown().await;
+    let cache = std::env::temp_dir().join(format!("fabdev-download-shutdown-{}", Uuid::new_v4()));
+    let result = manager.start(cache, runtime_artifact_fixture(&task)).await;
+    let registered = manager.operations.lock().await.len();
+    assert!(
+      result.is_err(),
+      "shutdown must reject a new download instead of queuing it"
+    );
+    assert_eq!(registered, 0);
+  }
+
+  #[tokio::test]
+  async fn shutdown_interrupts_download_retries_waiting_for_cancelled_cleanup() {
+    let manager = RuntimeUpdateManager::default();
+    let task = runtime_task_fixture(RuntimeUpdateOperationStatus::Queued);
+    task.cancel().unwrap();
+    let completion = RuntimeDownloadCompletion(Arc::clone(&task));
+    manager
+      .operations
+      .lock()
+      .await
+      .insert(task.snapshot().operation_id, Arc::clone(&task));
+    let cache = std::env::temp_dir().join(format!("fabdev-retry-shutdown-{}", Uuid::new_v4()));
+    let retry = manager.start(cache, runtime_artifact_fixture(&task));
+    tokio::pin!(retry);
+    poll_pending(retry.as_mut()).await;
+    manager.shutdown().await;
+    let result = tokio::time::timeout(std::time::Duration::from_secs(1), &mut retry).await;
+    let registered = manager.operations.lock().await.len();
+    drop(completion);
+    let error = result
+      .expect("shutdown must wake a retry before download cleanup finishes")
+      .expect_err("shutdown must not admit the waiting retry");
+    assert!(error.to_string().contains("shutting down"));
+    assert_eq!(registered, 1);
   }
 
   #[tokio::test]
