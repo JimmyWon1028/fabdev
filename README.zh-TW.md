@@ -48,9 +48,9 @@ open target/debug/bundle/macos/fabDev.app
 
 ### 目前發布狀態
 
-`v0.1.29` 是目前公開的 Latest Stable，依 Windows-first 順序先發布 Windows 11 x64 Community Installer 與 fabDev Connect，現已補齊同版 macOS ARM64 Community DMG。`0.1.29` 包含 Site、Proxy、Runtime、Windows 服務恢復與主題修正，詳見 [Release Notes](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.29)。Agent Protocol 維持 `40`。
+`v0.1.30` 是目前公開的 Latest Stable，依 Windows-first 順序提供 Windows 11 x64 Community Installer 與 fabDev Connect，尚未補齊同版 macOS ARM64 Community DMG。`0.1.30` 包含 HTTP／HTTPS 同時提供內容、Proxy 自訂 HTTPS Port，以及穩定性與效能改善，詳見 [Release Notes](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.30)。Agent Protocol 為 `44`。前一個已驗證的 macOS Installer 仍可由 [`v0.1.29`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.29) 下載；Latest Manifest 尚未加入 macOS Installer 的期間，macOS App 可能回報更新檢查錯誤。
 
-`0.1.29` 本機測試與 lint 通過。Windows 候選 Run [`36376697892`](https://github.com/JimmyWon1028/fabdev/actions/runs/36376697892) 與 Draft Run [`36377847967`](https://github.com/JimmyWon1028/fabdev/actions/runs/36377847967) 成功，Repository Owner 已確認 Windows 實機 Gate 通過。macOS DMG 從相同 Annotated Tag `v0.1.29` 的固定 Commit `6b1ad20` 建置並驗證。Release ID `397957496` 現有 9 個 App-only Assets，補齊後均已匿名下載驗證。Windows Setup SHA-256 為 `ee2ccfda6cddda3f2cbe490e81b2855fcb274de65eddbcd53c84d1ca12549f12`，fabDev Connect 為 `c8554dcb5253d28b55a72d5f76df1f903e0c30b1d9853f18bccc73d5645fd99e`，macOS DMG 為 `e430f4ed322b8500c59f868401444b1a280768a0929720e57887fc212e2aa2e7`。
+`0.1.30` 本機測試、lint 與 build 通過：544 項測試通過，7 項需外部環境的 Rust 測試維持 ignored。Windows 候選 Run [`38145308337`](https://github.com/JimmyWon1028/fabdev/actions/runs/38145308337) 成功，Repository Owner 已確認 Windows 實機 Gate 通過。Annotated Tag `v0.1.30` 固定於 Commit `199de77179fb6589d4147017c4dbf9ea55c98e2f`，Release 使用同一批已驗證的候選 Binary。Release ID `409718160` 現有 7 個 App-only Assets，Publish 後均已匿名下載驗證。Windows Setup SHA-256 為 `bd976db378981a2b49232f74623fd8ab74437815e76e141731cb9d78314f267f`，fabDev Connect 為 `65a905e87537eda345c3870b156611fc9df707b456a9fd93244ab9998ceef5fb`。
 
 ## Unsigned Community Build
 
@@ -64,7 +64,7 @@ pnpm run build:community:macos
 
 Community 安裝程式會驗證 DMG 內的 `SHA256SUMS`，再要求一次管理員權限安裝 `/Applications/fabDev.app` 與固定功能的 LaunchDaemon。更新會保留 Sites、Runtime 與 `php.ini`；移除程序預設保留資料，只有使用者再次確認才會把資料移到垃圾桶。完整操作說明在 [`distribution/macos/community/INSTALL.zh-TW.md`](distribution/macos/community/INSTALL.zh-TW.md)。
 
-App 公開下載使用 [fabdev GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；`v0.1.29` 已提供 Windows x64 與 macOS ARM64 App Installer，以及 fabDev Connect。`v0.1.21` 起 App Release 只提供 App Installer、fabDev Connect、App Manifest 與 SHA-256；Runtime Catalog 與 Package 改由 [fabdev-runtimes Releases](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish、同版平台補齊與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的 App 安裝包並產生 Manifest／Checksum，不會觸發打包或發布，也拒絕 Runtime Package 輸入。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
+App 公開下載使用 [fabdev GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；`v0.1.30` 目前提供 Windows x64 App Installer 與 fabDev Connect，macOS ARM64 Installer 仍由 `v0.1.29` 提供。`v0.1.21` 起 App Release 只提供 App Installer、fabDev Connect、App Manifest 與 SHA-256；Runtime Catalog 與 Package 改由 [fabdev-runtimes Releases](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish、同版平台補齊與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的 App 安裝包並產生 Manifest／Checksum，不會觸發打包或發布，也拒絕 Runtime Package 輸入。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
 
 公開發布分成兩個互不綁定版本的儲存庫：
 

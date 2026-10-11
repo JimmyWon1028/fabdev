@@ -4,7 +4,7 @@
 >
 > 適用範圍：macOS ARM64／Windows x64 Unsigned Community Build
 >
-> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 完成 App-only 與 Runtime Distribution 分離；`v0.1.29` 是目前 Latest Stable，已依 Windows-first 順序先發布 Windows x64 App 與 fabDev Connect，現已補齊同版 macOS ARM64 Community DMG。
+> 狀態：`v0.1.0` Draft 因 macOS 驗收阻擋問題不得 Publish；`v0.1.1` 建立公開發布基線；`v0.1.21` 完成 App-only 與 Runtime Distribution 分離；`v0.1.30` 是目前 Latest Stable，依 Windows-first 順序提供 Windows x64 App 與 fabDev Connect，尚未補齊同版 macOS ARM64 Community DMG。
 
 ## 1. 目標
 
@@ -499,6 +499,20 @@ https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.27
 - 上傳只新增 DMG 與其個別 checksum，並替換 `SHA256SUMS`、App／Stable Manifest 與 Release Notes。Windows Setup、Connect 及其個別 checksum 的 Asset ID、大小、digest 均未變；Release ID、Tag、Commit、`published_at` 與 Manifest `publishedAt=2026-09-24T03:28:16Z` 保持不變。
 - 最終 9 個 App-only Assets 共 150,370,187 bytes。Windows Setup 為 49,552,903 bytes、SHA-256 `ea809cd521e614282d02c7d407570f71029ee9c0ca6436e3d3f8f47a3e3c975e`；Connect 為 749,568 bytes、SHA-256 `32b97ddd35b800ec27f120601bd9b436b42ef034b47cb137d7defec0afd3459c`。跨平台 `SHA256SUMS` SHA-256 為 `57a831941239e3bdf736a0547980df66797945f609ae5ea4f35eaebb7db4ee2c`；兩份逐位元相同的 Manifest SHA-256 為 `50075f4383673165924d94203124bb030f21fd97e0ffee31bde39c58961a5f23`，同時且只列 Windows x64 與 macOS ARM64 Installer。
 - 全部 9 個 Assets 已從未登入公開 URL 重新下載並與上傳集合逐位元一致；GitHub size／digest、總表、三份個別 checksum、Latest Manifest、Release 頁 HTTP 200 與兩平台 Installer Range HTTP 206 均通過。安裝、啟動、更新與移除人工驗收依未變的既有程序結果沿用，由 Repository Owner 執行。
+
+### 9.9 `v0.1.30` Windows-first Stable Publish
+
+Repository Owner 回報 Windows 候選測試通過並明確核准發布後，Release ID `409718160` 於 `2026-10-11T14:34:52Z`，即 2026-10-11 22:34:52（Asia/Taipei，UTC+8）Publish 為 Latest Stable：
+
+```text
+https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.30
+```
+
+- Annotated Tag Object `20c2214220edf290fb42509dfa4191da2a196c6b` 固定指向 Commit `199de77179fb6589d4147017c4dbf9ea55c98e2f`，App `0.1.30`／Agent Protocol `44`。直接使用單次 Windows 候選 CI `38145308337` 已通過實機 Gate 的 Binary，未重建候選或移動 Tag。
+- 目前只先提供 Windows 11 x64 Installer 與 fabDev Connect，尚未補入 macOS。7 個 App-only Assets 共 50,699,626 bytes；Installer 為 49,949,738 bytes、SHA-256 `bd976db378981a2b49232f74623fd8ab74437815e76e141731cb9d78314f267f`，Connect 為 747,520 bytes、SHA-256 `65a905e87537eda345c3870b156611fc9df707b456a9fd93244ab9998ceef5fb`。
+- App／Stable Manifest 各為 968 bytes、逐位元一致，SHA-256 為 `1193e8c7556f950cd93027a8579c58f00cd538a406514584adb026e35d0aeb70`，只列 Windows x64 Installer；固定 `publishedAt=2026-10-11T14:27:27Z` 保持不變。macOS App 在 Latest Manifest 缺少對應 Installer 的期間可能回報更新檢查錯誤。
+- Draft 及 Publish 後均完成全部 7 個 Assets 下載驗證；公開驗證使用未登入 URL，GitHub digest、大小、逐位元、個別與總 SHA-256、兩份 Manifest 及 Latest Manifest 一致性均通過。Latest Release／Manifest 回應 HTTP 200，Installer Range 回應 HTTP 206。Publish 前後 Release ID、Tag、Commit 與全部 Asset ID／大小／digest 均未變。
+- NSIS 內容完整性、Installer／內部 Desktop 實際版本、Desktop／Agent／Helper／Connect x64 架構及 bundled Runtime manifest 已驗證。安裝／移除程序未變，沿用既有人工驗收；未打包 macOS、未重建或發布線上 Runtime Package／Catalog。
 
 ## 10. 撤回與回復
 
