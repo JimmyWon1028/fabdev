@@ -7,14 +7,17 @@
 
 fabDev Desktop Community `v0.1.29` 已完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Windows-first Draft 與 Publish，並從相同 Tag Commit 補齊 macOS ARM64 Community DMG。Release ID `397957496`，9 個 App-only Assets 已完成匿名公開下載驗證；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
-## 2026-10-11：0.1.30 Windows-first 候選準備
+## 2026-10-11：0.1.30 Windows-first 候選與 Draft
 
 - Repository Owner 要求打包及進版，接續工作區已保留的 `0.1.30` 版本修改；四個正式 App 版本來源與 13 個 Cargo workspace 套件版本一致，Rust 與 TypeScript Agent Protocol 同為 `44`。本次候選包含下列既有未發布的穩定性、效能及 HTTP／HTTPS 修改。
-- GitHub 即時查詢確認公開 Latest 仍為 `v0.1.29`，遠端 `main` 為 `8d1287257e4cac9719000f58f5ec10e4cf291f4c`，尚無 `v0.1.30` Tag；本機保留 5 個未推送提交及既有工作區修改。
+- 開始準備時，GitHub 即時查詢確認公開 Latest 為 `v0.1.29`，遠端 `main` 為 `8d1287257e4cac9719000f58f5ec10e4cf291f4c`，尚無 `v0.1.30` Tag；本機保留 5 個未推送提交及既有工作區修改。
 - 完整 `pnpm test` 通過 Desktop 171、Release 規則 21、Rust workspace 342、macOS Helper 10 項，共 544 項；7 項需外部環境的 Rust 測試維持 ignored。首次受限 sandbox 測試因無法綁定 fixture 的 loopback Port／Unix Socket 失敗，允許該操作後重跑完整測試通過。`pnpm lint`、`pnpm build` 與 `git diff --check` 通過；本機建置驗證不代表已產生 Windows Installer 或通過 Windows 實機驗收。
-- Repository Owner 已授權本次提交及推送，Windows x64 候選將由既有 GitHub CI 建置。此準備紀錄不代表候選 CI 已通過，尚未建立 Tag／Draft 或 Publish；macOS DMG、線上 Runtime Package 與 Catalog 均未重新打包或發布。
+- Repository Owner 已授權本次提交及推送，Windows x64 候選由既有 GitHub CI 建置；候選準備階段未建立 Tag／Draft 或 Publish。macOS DMG、線上 Runtime Package 與 Catalog 均未重新打包或發布。
 - 後續已完成提交並推送：候選來源 Commit `199de77179fb6589d4147017c4dbf9ea55c98e2f`，單次 [Windows x64 CI Run `38145308337`](https://github.com/JimmyWon1028/fabdev/actions/runs/38145308337) 全部通過，包括前端、發布契約／NSIS 靜態檢查、PHP FastCGI worker pool、Rust workspace 檢查與測試、Connect 及 NSIS 建置。實際安裝包為 `fabDev_0.1.30_x64-setup.exe`；[Installer Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/38145308337/artifacts/11704912236) 與 [Connect Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/38145308337/artifacts/11705061876) 已上傳並確認未過期。GitHub Artifact 壓縮包大小分別為 49,943,028 與 331,491 bytes，摘要分別為 `c21cfbc1f9ca6f68e096d73095fceb50b88564235c526893b15b3badc77c83c4` 與 `0a95f63279dce8873c46258923a456d75ec5a6f1db1e95a97a26b199befb4f97`；這些是 Artifact 壓縮包摘要，不是內部 EXE 的個別 checksum。
-- Repository Owner 於 2026-10-11 明確回報「測試通過」，Windows 候選實機 Gate 已通過。安裝／移除腳本及 Windows Helper 相較 `v0.1.29` 未變，既有安裝程序人工驗收依規則沿用，不重跑未受影響的完整 Runtime 流程。已確認後續僅修改進度文件，候選程式碼仍為 `199de77179fb6589d4147017c4dbf9ea55c98e2f`；尚未授權建立／推送 `v0.1.30` Tag、建立 Draft、上傳 Release Assets 或 Publish。
+- Repository Owner 於 2026-10-11 明確回報「測試通過」，Windows 候選實機 Gate 已通過。安裝／移除腳本及 Windows Helper 相較 `v0.1.29` 未變，既有安裝程序人工驗收依規則沿用，不重跑未受影響的完整 Runtime 流程。已確認後續僅修改進度文件，候選程式碼仍為 `199de77179fb6589d4147017c4dbf9ea55c98e2f`。
+- Repository Owner 隨後確認建立／推送 Tag、建立 Windows-first Draft 及上傳 7 個 App Assets。Annotated Tag `v0.1.30` 固定在已測試的 Commit `199de77179fb6589d4147017c4dbf9ea55c98e2f`，Tag Object 為 `20c2214220edf290fb42509dfa4191da2a196c6b`。直接使用同次 CI 已通過實機 Gate 的 Installer／Connect，未重跑 Windows CI、重建 Binary 或處理 Runtime Release。
+- [Windows-first Draft](https://github.com/JimmyWon1028/fabdev/releases/tag/untagged-8b11de1e5a162d1bfdfb) 已建立，Release ID `409718160`，保持 `draft=true`、`prerelease=false`、`published_at=null`。7 個 App-only Assets 共 50,699,626 bytes，已全部重新下載，並通過 GitHub digest、大小、逐位元比對、個別與總 SHA-256、兩份 Manifest 一致性，以及只列 Windows x64 Installer 的契約驗證。Installer／內部 Desktop 實際版本均為 `0.1.30`；Desktop、Agent、Helper 與 Connect 為 Windows x64，NSIS 內容完整性及 bundled Runtime manifest 均通過。
+- Installer SHA-256 為 `bd976db378981a2b49232f74623fd8ab74437815e76e141731cb9d78314f267f`，Connect 為 `65a905e87537eda345c3870b156611fc9df707b456a9fd93244ab9998ceef5fb`。App／Stable Manifest 的固定 `publishedAt` 為 `2026-10-11T14:27:27Z`（台北時間 2026-10-11 22:27:27）；此為 Manifest 時間，Draft 尚未 Publish。公開 Latest 仍為 `v0.1.29`，等待 Repository Owner 明確 Publish 授權。
 
 ## 2026-10-06 未發布：Sites 與 Proxy 同時提供 HTTP／HTTPS
 
