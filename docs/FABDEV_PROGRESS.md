@@ -13,6 +13,8 @@ fabDev Desktop Community `v0.1.29` 已完成 Windows x64 候選 CI、Repository 
 - GitHub 即時查詢確認公開 Latest 仍為 `v0.1.29`，遠端 `main` 為 `8d1287257e4cac9719000f58f5ec10e4cf291f4c`，尚無 `v0.1.30` Tag；本機保留 5 個未推送提交及既有工作區修改。
 - 完整 `pnpm test` 通過 Desktop 171、Release 規則 21、Rust workspace 342、macOS Helper 10 項，共 544 項；7 項需外部環境的 Rust 測試維持 ignored。首次受限 sandbox 測試因無法綁定 fixture 的 loopback Port／Unix Socket 失敗，允許該操作後重跑完整測試通過。`pnpm lint`、`pnpm build` 與 `git diff --check` 通過；本機建置驗證不代表已產生 Windows Installer 或通過 Windows 實機驗收。
 - Repository Owner 已授權本次提交及推送，Windows x64 候選將由既有 GitHub CI 建置。此準備紀錄不代表候選 CI 已通過，尚未建立 Tag／Draft 或 Publish；macOS DMG、線上 Runtime Package 與 Catalog 均未重新打包或發布。
+- 後續已完成提交並推送：候選來源 Commit `199de77179fb6589d4147017c4dbf9ea55c98e2f`，單次 [Windows x64 CI Run `38145308337`](https://github.com/JimmyWon1028/fabdev/actions/runs/38145308337) 全部通過，包括前端、發布契約／NSIS 靜態檢查、PHP FastCGI worker pool、Rust workspace 檢查與測試、Connect 及 NSIS 建置。實際安裝包為 `fabDev_0.1.30_x64-setup.exe`；[Installer Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/38145308337/artifacts/11704912236) 與 [Connect Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/38145308337/artifacts/11705061876) 已上傳並確認未過期。GitHub Artifact 壓縮包大小分別為 49,943,028 與 331,491 bytes，摘要分別為 `c21cfbc1f9ca6f68e096d73095fceb50b88564235c526893b15b3badc77c83c4` 與 `0a95f63279dce8873c46258923a456d75ec5a6f1db1e95a97a26b199befb4f97`；這些是 Artifact 壓縮包摘要，不是內部 EXE 的個別 checksum。
+- Windows 候選建置與自動測試完成不代表新增功能已通過 Repository Owner 實機 Gate；目前尚未回報該 Gate，亦未授權建立 Tag／Draft 或 Publish。安裝／移除腳本及 Windows Helper 相較 `v0.1.29` 未變，既有安裝程序人工驗收依規則沿用，不重跑未受影響的完整 Runtime 流程。
 
 ## 2026-10-06 未發布：Sites 與 Proxy 同時提供 HTTP／HTTPS
 
