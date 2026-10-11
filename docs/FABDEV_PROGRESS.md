@@ -1,13 +1,13 @@
 # fabDev 穩定基線與 Roadmap
 
 > 更新日期：2026-10-11
-> 目前階段：[`v0.1.30`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.30) 是公開 Latest Stable，依 Windows-first 順序提供 Windows 11 x64 Community Installer 與 fabDev Connect，尚未補入同版 macOS ARM64 Community DMG。Agent Protocol 為 `44`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
+> 目前階段：[`v0.1.30`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.30) 是公開 Latest Stable，依 Windows-first 順序提供 Windows 11 x64 Community Installer 與 fabDev Connect，現已補齊同版 macOS ARM64 Community DMG。Agent Protocol 為 `44`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
 
 ## 階段結論
 
-fabDev Desktop Community `v0.1.30` 已完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Windows-first Draft 與 Publish。Release ID `409718160`，7 個 App-only Assets 已完成匿名公開下載驗證；Latest Manifest 目前只列 Windows x64 Installer，macOS 同版尚未補齊。macOS App 在此期間可能因 Latest Manifest 缺少對應 Installer 而回報更新檢查錯誤。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
+fabDev Desktop Community `v0.1.30` 已完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Windows-first Draft 與 Publish。Release ID `409718160`，現已補齊同版 macOS ARM64 Community DMG；9 個 App-only Assets 共 151,349,949 bytes，均已完成匿名公開下載驗證。Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
-前版 `v0.1.29` 已補齊 macOS ARM64 Community DMG，Release ID `397957496` 的 9 個 App-only Assets 已完成匿名公開下載驗證；其 macOS Installer 仍可由該版本 Release 下載，不代表已提供 macOS `0.1.30`。
+前版 `v0.1.29` 已補齊 macOS ARM64 Community DMG，Release ID `397957496` 的 9 個 App-only Assets 已完成匿名公開下載驗證；其 macOS Installer 仍可由該版本 Release 下載；目前 Latest macOS Installer 已更新為 `0.1.30`。
 
 ## 2026-10-11：0.1.30 Windows-first 候選、Draft 與 Stable Publish
 
@@ -21,6 +21,15 @@ fabDev Desktop Community `v0.1.30` 已完成 Windows x64 候選 CI、Repository 
 - [Windows-first Release](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.30) 的 Draft 階段已完成，Release ID `409718160`，當時為 `draft=true`、`prerelease=false`、`published_at=null`。7 個 App-only Assets 共 50,699,626 bytes，已全部重新下載，並通過 GitHub digest、大小、逐位元比對、個別與總 SHA-256、兩份 Manifest 一致性，以及只列 Windows x64 Installer 的契約驗證。Installer／內部 Desktop 實際版本均為 `0.1.30`；Desktop、Agent、Helper 與 Connect 為 Windows x64，NSIS 內容完整性及 bundled Runtime manifest 均通過。
 - Installer SHA-256 為 `bd976db378981a2b49232f74623fd8ab74437815e76e141731cb9d78314f267f`，Connect 為 `65a905e87537eda345c3870b156611fc9df707b456a9fd93244ab9998ceef5fb`。App／Stable Manifest 的固定 `publishedAt` 為 `2026-10-11T14:27:27Z`（台北時間 2026-10-11 22:27:27），Publish 時維持不變。
 - Repository Owner 明確確認發布後，於 `2026-10-11T14:34:52Z`（台北時間 2026-10-11 22:34:52）Publish 為 Latest Stable；Release ID、Tag、Commit、7 個 Asset ID／大小／digest 及 Manifest 均未改變。全部 7 個 Assets 已從未登入公開 URL 重新下載，逐位元、GitHub digest、大小、個別與總 SHA-256、兩份 Manifest 與 Latest Manifest 一致性均通過；Latest Release／Manifest 為 HTTP 200，Installer Range 為 HTTP 206。此版只先提供 Windows x64，未補 macOS，也未重新打包或發布線上 Runtime Package／Catalog。發布完成後盤點確認沒有殘留 Draft Release。
+
+## 2026-10-11：0.1.30 macOS ARM64 同版補發布
+
+- Repository Owner 要求發布 macOS 並明確授權「重新打包」。從 Annotated Tag `v0.1.30` 的 Commit `199de77179fb6589d4147017c4dbf9ea55c98e2f` 建立隔離 detached worktree，未修改程式碼、版本或 Tag。
+- Bundled Runtime manifest、descriptor 模板、建置及封裝腳本相較 `v0.1.29` 未變。前版公開 DMG 的 GitHub digest 與 SHA-256 通過；dnsmasq 2.93、Nginx 1.30.4、PHP 7.4.33／8.2.33 的 descriptor SHA-256、大小及 Archive 均與該 DMG 逐位元一致，直接重用，未重新編譯 Runtime。
+- 固定 Tag 的完整測試通過 Desktop 171、Release 21、Rust 342、macOS Helper 10 項，共 544 項，7 項 Rust 維持 ignored；`pnpm lint`、`git diff --check` 及原始碼無差異檢查通過。首次建置缺少 SDK headers，明確指定既有 macOS 13.0 契約、Xcode SDK／clang 後建置成功，未改原始碼或封裝設定。
+- DMG 為 100,649,205 bytes，SHA-256 `ef7828793de64c48e408255984a068ebf225432faa745e21a7b958aeaca62759`。`hdiutil verify`、全部內部 checksum、App／CLI／Agent `0.1.30`、Desktop／Agent／CLI／Helper ARM64／macOS 13.0 相容性及 ad-hoc codesign 均通過，四份 bundled Runtime 與前版一致。
+- 補版只新增 DMG 與個別 checksum，替換 `SHA256SUMS`、App／Stable Manifest 並更新 Release Notes。Windows Setup／Connect 及其個別 checksum 的 Asset ID／大小／digest 未變；Release ID `409718160`、Tag／Commit、GitHub `published_at=2026-10-11T14:34:52Z` 與 Manifest `publishedAt=2026-10-11T14:27:27Z` 均保持不變。
+- 9 個 App-only Assets 共 151,349,949 bytes，已從未登入公開 URL 全部重新下載，逐位元、GitHub digest／大小、三份個別及總 SHA-256 全部通過。App／Stable Manifest 各為 1,421 bytes，逐位元相同，SHA-256 `bf1e7f75082ff949625ab3a178bfa62ad5f2617de9acee46b3dc8ee7b4df8e48`，同時且只列 Windows x64 與 macOS ARM64 Installer。Latest Release、Latest Manifest 與 DMG 均回應 HTTP 200。安裝／更新／移除程序未變，沿用既有人工驗收；未處理線上 Runtime Package／Catalog。
 
 ## 2026-10-06 未發布：Sites 與 Proxy 同時提供 HTTP／HTTPS
 
