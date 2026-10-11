@@ -1,3 +1,4 @@
+import { defaultProxyHttpsPort } from './proxy'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ProxyConnectionInfo } from '@fabdev/contracts'
@@ -9,6 +10,8 @@ const connections: ProxyConnectionInfo[] = [
     id: 'erp-api',
     name: 'ERP API',
     domain: 'erp-api.test',
+    secured: false,
+    httpsPort: null,
     listenHost: '127.0.0.1',
     listenPort: 3020,
     target: 'http://api.example.test',
@@ -21,6 +24,8 @@ const connections: ProxyConnectionInfo[] = [
     id: 'warehouse',
     name: 'Warehouse',
     domain: 'warehouse.test',
+    secured: false,
+    httpsPort: null,
     listenHost: '127.0.0.1',
     listenPort: 3030,
     target: 'http://192.168.1.20',
@@ -39,6 +44,8 @@ describe('filterProxyConnections', () => {
       .toEqual(['warehouse'])
     expect(filterProxyConnections(connections, '192.168.1.20').map((item) => item.id))
       .toEqual(['warehouse'])
+    expect(filterProxyConnections([{ ...connections[0], secured: true, httpsPort: 43010 }], 'https://erp-api.test').map((item) => item.id))
+      .toEqual(['erp-api'])
     expect(filterProxyConnections(connections, '8100').map((item) => item.id))
       .toEqual(['erp-api'])
   })
@@ -73,4 +80,10 @@ describe('removeProxyConnections', () => {
       failed: [{ id: 'broken', message: 'unable to release port' }]
     })
   })
+})
+
+it('derives HTTPS ports without overflowing and rejects invalid HTTP ports', () => {
+  expect(defaultProxyHttpsPort(3017)).toBe(43017)
+  expect(defaultProxyHttpsPort(9999)).toBe(49999)
+  for (const port of [10000, 65535, 0, 1023, 3017.5]) expect(defaultProxyHttpsPort(port)).toBeNull()
 })

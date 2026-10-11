@@ -383,8 +383,8 @@ fn open_site(domain: String, secured: bool) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_proxy_in_chrome(domain: String, listen_port: u16) -> Result<(), String> {
-  let url = proxy_url(&domain, listen_port)?;
+fn open_proxy_in_chrome(domain: String, listen_port: u16, secured: bool) -> Result<(), String> {
+  let url = proxy_url(&domain, listen_port, secured)?;
   open_url_in_chrome(&url).map_err(|error| error.to_string())
 }
 
@@ -512,12 +512,18 @@ fn site_url(domain: &str, secured: bool) -> Result<String, String> {
     .map_err(|error| error.to_string())
 }
 
-fn proxy_url(domain: &str, listen_port: u16) -> Result<String, String> {
+fn proxy_url(domain: &str, listen_port: u16, secured: bool) -> Result<String, String> {
   if !(1024..=65535).contains(&listen_port) {
     return Err("Proxy port must be between 1024 and 65535".to_owned());
   }
   normalize_domain(domain)
-    .map(|domain| format!("http://{domain}:{listen_port}/"))
+    .map(|domain| {
+      if secured {
+        format!("https://{domain}:{listen_port}/")
+      } else {
+        format!("http://{domain}:{listen_port}/")
+      }
+    })
     .map_err(|error| error.to_string())
 }
 
@@ -2668,11 +2674,15 @@ mod tests {
   #[test]
   fn builds_proxy_url_only_for_valid_test_domains_and_ports() {
     assert_eq!(
-      proxy_url("EXAMPLE.test.", 3010),
+      proxy_url("EXAMPLE.test.", 43017, true),
+      Ok("https://example.test:43017/".to_owned())
+    );
+    assert_eq!(
+      proxy_url("EXAMPLE.test.", 3010, false),
       Ok("http://example.test:3010/".to_owned())
     );
-    assert!(proxy_url("example.com", 3010).is_err());
-    assert!(proxy_url("example.test/path", 3010).is_err());
-    assert!(proxy_url("example.test", 80).is_err());
+    assert!(proxy_url("example.com", 3010, false).is_err());
+    assert!(proxy_url("example.test/path", 3010, false).is_err());
+    assert!(proxy_url("example.test", 80, false).is_err());
   }
 }

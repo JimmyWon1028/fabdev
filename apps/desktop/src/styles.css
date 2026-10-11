@@ -1754,6 +1754,7 @@ button:disabled {
 
 .proxy-add-fields {
   display: grid;
+  align-items: start;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 15px;
 }

@@ -1,3 +1,4 @@
+import { defaultProxyHttpsPort } from './proxy'
 import type {
   ProxyConnectionInfo,
   ProxyConnectionInput,
@@ -7,7 +8,7 @@ import type {
 
 const SITE_TRANSFER_VERSION = 2
 const LEGACY_SITE_TRANSFER_VERSION = 1
-const PROXY_TRANSFER_VERSION = 2
+const PROXY_TRANSFER_VERSION = 3
 const LEGACY_PROXY_TRANSFER_VERSION = 1
 const DEFAULT_PROXY_TIMEOUT_SECONDS = 120
 const DEFAULT_SITE_TIMEOUT_SECONDS = 120
@@ -97,6 +98,8 @@ export function serializeProxyConnections(connections: ProxyConnectionInfo[]): s
       id: connection.id,
       domain: connection.domain,
       listenPort: connection.listenPort,
+      secured: connection.secured,
+      httpsPort: connection.httpsPort,
       target: connection.target,
       allowedOrigins: [...connection.allowedOrigins],
       upstreamResponseTimeoutSeconds: connection.upstreamResponseTimeoutSeconds
@@ -110,6 +113,7 @@ export function parseProxyImport(contents: string): ProxyConnectionInput[] {
   if (
     document.format !== 'fabdev-proxy'
     || (document.version !== LEGACY_PROXY_TRANSFER_VERSION
+      && document.version !== 2
       && document.version !== PROXY_TRANSFER_VERSION)
   ) {
     throw new Error('Unsupported fabDev Proxy import format')
@@ -126,22 +130,28 @@ export function selectNewProxyConnections(
 ): ImportSelection<ProxyConnectionInput> {
   const ids = new Set(existing.map((connection) => normalizeId(connection.id)))
   const domains = new Set(existing.map((connection) => normalizeDomain(connection.domain)))
-  const ports = new Set(existing.map((connection) => connection.listenPort))
+  const ports = new Set(existing.flatMap(proxyPorts))
   const items: ProxyConnectionInput[] = []
   let skipped = 0
   for (const connection of imported) {
     const id = normalizeId(connection.id)
     const domain = normalizeDomain(connection.domain)
-    if (ids.has(id) || domains.has(domain) || ports.has(connection.listenPort)) {
+    if (ids.has(id) || domains.has(domain) || proxyPorts(connection).some((port) => ports.has(port))) {
       skipped += 1
       continue
     }
     ids.add(id)
     domains.add(domain)
-    ports.add(connection.listenPort)
+    for (const port of proxyPorts(connection)) {
+      ports.add(port)
+    }
     items.push(connection)
   }
   return { items, skipped }
+}
+
+function proxyPorts(connection: ProxyConnectionInput): number[] {
+  return [connection.listenPort, ...(connection.secured && connection.httpsPort ? [connection.httpsPort] : [])]
 }
 
 function parseDocument(contents: string): Record<string, unknown> {
@@ -208,10 +218,23 @@ function parseProxyEntry(value: unknown, index: number): ProxyConnectionInput {
     id: requiredString(value.id, `Proxy import entry ${index + 1} id`),
     domain: requiredString(value.domain, `Proxy import entry ${index + 1} domain`),
     listenPort: value.listenPort as number,
+    secured: optionalBoolean(value.secured, false, `Proxy import entry ${index + 1} secured`),
+    httpsPort: proxyHttpsPort(value, index),
     target: requiredString(value.target, `Proxy import entry ${index + 1} target`),
     allowedOrigins: [...value.allowedOrigins],
     upstreamResponseTimeoutSeconds: proxyTimeoutSeconds(value.upstreamResponseTimeoutSeconds, index)
   }
+}
+
+function proxyHttpsPort(value: Record<string, unknown>, index: number): number | null {
+  const port = value.httpsPort === 443 || value.httpsPort == null
+    ? (value.secured === true ? defaultProxyHttpsPort(value.listenPort as number) : null)
+    : value.httpsPort
+  if (port == null && value.secured !== true) return null
+  if (!Number.isInteger(port) || (port as number) < 1024 || (port as number) > 65535 || port === value.listenPort) {
+    throw new Error(`Proxy import entry ${index + 1} httpsPort must be between 1024 and 65535 and differ from listenPort`)
+  }
+  return port as number
 }
 
 function proxyTimeoutSeconds(value: unknown, index: number): number {

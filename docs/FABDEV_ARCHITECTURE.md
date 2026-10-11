@@ -151,7 +151,7 @@ Desktop App 若使用內建 Node.js，其 Runtime 只供 fabDev 自身使用，�
 
 ### 6.1 獨立 Proxy Manager
 
-Proxy Manager 是 Agent 管理的獨立本機服務，不屬於 Node.js Runtime 或一般 Site。全新安裝的 Proxy 清單必須為空，不得預載任何 Connection；使用者可自行新增及移除 Connection。每個 Connection 保存 Domain、固定 loopback Listen Host、非特權 Listen Port、HTTP Remote Target 與受控 CORS allowlist。UI 不接受任意 Script、路徑、Shell、Listen Host 或 HTTPS Target。
+Proxy Manager 是 Agent 管理的獨立本機服務，不屬於 Node.js Runtime 或一般 Site。全新安裝的 Proxy 清單必須為空，不得預載任何 Connection；使用者可自行新增及移除 Connection。每個 Connection 保存 Domain、固定 loopback Listen Host、非特權 Listen Port、HTTP／HTTPS Remote Target 與受控 CORS allowlist。UI 不接受任意 Script、路徑、Shell 或 Listen Host。
 
 每個 Connection 可單獨啟動、停止及重新啟動，並提供全部啟動／全部停止。所有 Listener 固定綁 `127.0.0.1`；單一 Port 衝突只讓該 Connection 進入 Failed，單一 Remote Target 連線錯誤或定期 TCP Health Check 失敗只讓該 Connection 進入 Degraded，不得影響其他 Connection、Web stack、MariaDB 或 Agent Protocol。
 
@@ -159,7 +159,9 @@ Proxy Manager 是 Agent 管理的獨立本機服務，不屬於 Node.js Runtime 
 
 完整 Connection 設定及使用者明確啟動的 Connection ID 保存在 SQLite。新增 Connection 預設停止；移除執行中的 Connection 時，Agent 先停止 Listener、drain 既有請求並釋放 Port，再移除設定。Agent 啟動時恢復保存的設定與啟動狀態；Proxy Manager 的單獨停止或全部停止會更新偏好，Web stack 的 Start All／Stop All 不影響 Proxy。App Quit、Agent Shutdown 或協定升級的暫時清理不得將偏好覆寫成停止。若其他程序已占用相同 Port，fabDev 只回報 Failed，不終止或接管外部程序。Desktop 可用版本化 JSON 匯出／匯入 Connection；匯入時 ID、Domain 或 Listen Port 任一重複即略過，且不匯入執行狀態。
 
-Agent Protocol 25 提供 Proxy Manager 查詢、新增／編輯／移除、單獨啟動／停止與全部啟動／停止。新增或編輯時必須驗證小寫且唯一的 ID、唯一的 `.test` Domain、唯一的 1024–65535 Port、完整 HTTP Remote Target，以及精確的 HTTP／HTTPS Credentials Origin；Listen Host 由 Agent 固定為 `127.0.0.1`。HTTPS upstream、WebSocket 與受控 LAN Share 需各自完成安全及相容性驗證後再開放。
+Agent Protocol 25 提供 Proxy Manager 查詢、新增／編輯／移除、單獨啟動／停止與全部啟動／停止。新增或編輯時必須驗證小寫且唯一的 ID、唯一的 `.test` Domain、唯一的 1024–65535 Port、完整 HTTP／HTTPS Remote Target，以及精確的 HTTP／HTTPS Credentials Origin；Listen Host 由 Agent 固定為 `127.0.0.1`。WebSocket 與受控 LAN Share 需各自完成安全及相容性驗證後再開放。
+
+2026-10-06 未發布原始碼以 Agent Protocol `44` 新增每 Connection 的 `secured` 與 `httpsPort`。HTTPS 預設關閉，舊資料缺少欄位時維持 HTTP；啟用後保留原 HTTP Port，HTTPS 使用獨立且可修改的非特權 Port，預設在 HTTP Port 前加上 4（3017 → 43017）。超過 65535 時需自行指定有效 Port，不截斷、不自動換號；HTTP／HTTPS Port 不可相同，也不可與其他 Proxy 啟用中的 Port 衝突。停用 HTTPS 保留自訂 Port，匯出入與重啟亦保留；舊開發資料的 443 會轉為新預設值。表單在 HTTP Port 右側顯示 HTTPS Port，兩欄頂端對齊。Nginx 在各自 loopback HTTPS Port 終結 TLS，再轉送到原 Proxy HTTP listener，兩種協定都直接回應內容。Sites 的既有 443 保持不變，同網域 Site／Proxy 可依不同 Port 共存；macOS、Windows 使用相同設定契約，不擴充 Helper 權限。Proxy HTTPS 需要 Web services 運行，使用與 Sites 相同的 fabDev CA，leaf certificate 分別保存在 `config/tls/proxies` 與 `config/tls/sites`。每次 Route 更新驗證 Nginx 設定並等待實際回應中的 Route revision 穩定，失敗恢復原設定。停止 Proxy 後 TLS 回應 503；停用 HTTPS／移除 Proxy 後移除 TLS Route。CLI 使用 `--https` 與選用 `--https-port`。匯出格式為版本 3，相容匯入版本 1、2、3。
 
 ## 7. 選用 MariaDB
 
@@ -407,7 +409,7 @@ Agent Protocol 15 將 Start All 改為冪等的服務狀態收斂：所需服務
 
 Agent Protocol 18 新增單一 LAN Site Share 的查詢、啟動與停止；Protocol 19 將狀態擴充為多 Site 清單，並支援逐一停止 Site。它只控制 Web 轉送，不公開 Agent Protocol 或 MariaDB。
 
-Agent Protocol 20 新增本機 CA 建立與每 Site HTTPS 切換。CA 與 Site 私鑰只存於 fabDev Application Support，Site 憑證 SAN 僅包含標準化 `.test` 網域；Nginx 以 8443 提供 TLS，System Helper 固定代理 443，HTTP Site 則回傳 301。Registry、Nginx reload 或憑證產生失敗時會回復 Site HTTPS 狀態與設定；停用 HTTPS 或移除 Site 只刪除該 Site leaf certificate，保留共用 CA。
+Agent Protocol 20 新增本機 CA 建立與每 Site HTTPS 切換。CA 與 Site 私鑰只存於 fabDev Application Support，Site 憑證 SAN 僅包含標準化 `.test` 網域；Nginx 以 8443 提供 TLS，System Helper 固定代理 443，HTTP 與 HTTPS 自 2026-10-06 未發布原始碼起均直接提供內容，不再強制 HTTP 301 轉址（Repository Owner 已明確指定 Sites、Proxy 採相同定義）。HTTP 的 `/__fabdev/https-status` 固定狀態端點用於確認 Nginx reload 已套用預期 HTTPS 設定，不依賴專案首頁的回應或轉址。Registry、Nginx reload 或憑證產生失敗時會回復 Site HTTPS 狀態與設定；停用 HTTPS 或移除 Site 只刪除該 Site leaf certificate，保留共用 CA。
 
 Agent Protocol 31 新增 MariaDB 的 PHP 連線來源與 System Socket 設定。Managed 模式維持 fabDev 專用 Socket；System／Homebrew 模式讓 PHP 的 `localhost` 連線使用指定 Socket。
 

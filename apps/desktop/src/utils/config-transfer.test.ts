@@ -27,6 +27,8 @@ const connection: ProxyConnectionInfo = {
   id: 'erp-api',
   name: 'ERP-API',
   domain: 'erp-api.test',
+  secured: false,
+  httpsPort: null,
   listenHost: '127.0.0.1',
   listenPort: 3020,
   target: 'http://api.example.test',
@@ -91,6 +93,8 @@ describe('Proxy configuration transfer', () => {
     const contents = serializeProxyConnections([connection])
     expect(contents).not.toContain('lastError')
     expect(parseProxyImport(contents)).toEqual([{
+      secured: false,
+      httpsPort: null,
       id: 'erp-api',
       domain: 'erp-api.test',
       listenPort: 3020,
@@ -157,4 +161,43 @@ describe('Proxy configuration transfer', () => {
       .toThrow('Unsupported fabDev Proxy import format')
     expect(() => parseSitesImport('{not-json')).toThrow('not valid JSON')
   })
+})
+
+
+it('round-trips HTTPS and rejects invalid secure flags', () => {
+  const document = serializeProxyConnections([{ ...connection, secured: true, httpsPort: 3443 }])
+  expect(JSON.parse(document).version).toBe(3)
+  expect(parseProxyImport(document)[0]).toMatchObject({ secured: true, target: connection.target })
+  expect(() => parseProxyImport(document.replace('"secured": true', '"secured": "true"'))).toThrow('secured')
+  for (const version of [1, 2]) {
+    const legacy = JSON.parse(document)
+    legacy.version = version
+    delete legacy.connections[0].secured
+    delete legacy.connections[0].httpsPort
+    expect(parseProxyImport(JSON.stringify(legacy))[0].secured).toBe(false)
+  }
+})
+
+
+it('preserves custom HTTPS ports and rejects collisions and invalid defaults', () => {
+  for (const httpsPort of [null, 3443, 3444, 443]) {
+    const document = JSON.parse(serializeProxyConnections([{ ...connection, secured: true }]))
+    document.connections[0].httpsPort = httpsPort
+    expect(parseProxyImport(JSON.stringify(document))[0]).toMatchObject({
+      secured: true, httpsPort: httpsPort == null || httpsPort === 443 ? Number(`4${connection.listenPort}`) : httpsPort
+    })
+  }
+  const existing = { ...connection, secured: true, httpsPort: 43010 }
+  const imported = [
+    { ...existing, id: 'one', domain: 'one.test', listenPort: 3021, httpsPort: 43021 },
+    { ...existing, id: 'two', domain: 'two.test', listenPort: 3022 },
+    { ...existing, id: 'conflict', domain: 'conflict.test', listenPort: 43010, httpsPort: 43022 }
+  ]
+  expect(selectNewProxyConnections(imported, [existing])).toMatchObject({ skipped: 2, items: [{ id: 'one' }] })
+  for (const port of [0, 1023, 65536, 3443.5, '3443', connection.listenPort]) {
+    const document = JSON.parse(serializeProxyConnections([{ ...existing, httpsPort: port as number }]))
+    expect(() => parseProxyImport(JSON.stringify(document))).toThrow('httpsPort')
+  }
+  const document = serializeProxyConnections([{ ...existing, listenPort: 10000, httpsPort: null }])
+  expect(() => parseProxyImport(document)).toThrow('httpsPort')
 })

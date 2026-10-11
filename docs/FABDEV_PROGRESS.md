@@ -1,11 +1,28 @@
 # fabDev 穩定基線與 Roadmap
 
-> 更新日期：2026-10-04
+> 更新日期：2026-10-11
 > 目前階段：[`v0.1.29`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.29) 是公開 Latest Stable，依 Windows-first 順序先發布 Windows 11 x64 Community Installer 與 fabDev Connect，現已補齊同版 macOS ARM64 Community DMG。Agent Protocol 維持 `40`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
 
 ## 階段結論
 
 fabDev Desktop Community `v0.1.29` 已完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Windows-first Draft 與 Publish，並從相同 Tag Commit 補齊 macOS ARM64 Community DMG。Release ID `397957496`，9 個 App-only Assets 已完成匿名公開下載驗證；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
+
+## 2026-10-11：0.1.30 Windows-first 候選準備
+
+- Repository Owner 要求打包及進版，接續工作區已保留的 `0.1.30` 版本修改；四個正式 App 版本來源與 13 個 Cargo workspace 套件版本一致，Rust 與 TypeScript Agent Protocol 同為 `44`。本次候選包含下列既有未發布的穩定性、效能及 HTTP／HTTPS 修改。
+- GitHub 即時查詢確認公開 Latest 仍為 `v0.1.29`，遠端 `main` 為 `8d1287257e4cac9719000f58f5ec10e4cf291f4c`，尚無 `v0.1.30` Tag；本機保留 5 個未推送提交及既有工作區修改。
+- 完整 `pnpm test` 通過 Desktop 171、Release 規則 21、Rust workspace 342、macOS Helper 10 項，共 544 項；7 項需外部環境的 Rust 測試維持 ignored。首次受限 sandbox 測試因無法綁定 fixture 的 loopback Port／Unix Socket 失敗，允許該操作後重跑完整測試通過。`pnpm lint`、`pnpm build` 與 `git diff --check` 通過；本機建置驗證不代表已產生 Windows Installer 或通過 Windows 實機驗收。
+- Repository Owner 已授權本次提交及推送，Windows x64 候選將由既有 GitHub CI 建置。此準備紀錄不代表候選 CI 已通過，尚未建立 Tag／Draft 或 Publish；macOS DMG、線上 Runtime Package 與 Catalog 均未重新打包或發布。
+
+## 2026-10-06 未發布：Sites 與 Proxy 同時提供 HTTP／HTTPS
+
+- Repository Owner 明確指定相同定義：未啟用 HTTPS 時提供 HTTP；啟用後 HTTP、HTTPS 都直接回應內容，不強制轉址。Sites 保留兩種協定相同的 PHP／靜態內容路由，移除既有 HTTP 301；設定套用與診斷不再以轉址判定成功。
+- Proxy 在清單「編輯」旁提供與 Sites 相同樣式及文案的「啟用 HTTPS／停用 HTTPS」按鈕。表單的「本機 HTTP Port」右側加入可修改的「本機 HTTPS Port」，預設在 HTTP Port 前加 4（3017 → 43017）；超過 65535 時需自行指定，已自訂的 Port 不隨 HTTP Port 修改而被覆蓋。左右標籤及輸入框頂端對齊，說明文字不拉伸另一欄輸入框。
+- Proxy TLS 沿用 Nginx，但使用各自的 loopback 非特權 HTTPS Port，不占用 Sites 的 443。同一網域的 Site／Proxy 可依不同 Port 共存；HTTP 與 HTTPS 都直接回應。HTTPS 需要 Web services 運行，沿用 fabDev CA，未修改 Helper、安裝程序或系統信任設定。
+- Agent Protocol 更新為 `44`，避免 Desktop 沿用先前固定 443 的 Agent。`httpsPort` 可自行設定，停用 HTTPS 仍保存，匯出入與重啟保留；舊開發資料的 443 轉為新預設值。HTTPS Port 限制 1024–65535，不可與本身 HTTP、其他 Proxy 啟用的 HTTP／HTTPS、Web service 入口衝突。CLI 提供 `--https` 與選用的 `--https-port`。匯出格式仍為版本 3，相容版本 1、2。
+- Nginx Route 更新先驗證設定，再等待實際 HTTP 回應中的 Route revision 穩定，避免新 Worker 第一次回應時舊 Worker 仍短暫接受 TLS。Proxy 停止時 TLS 回應 503；停用 HTTPS／移除時移除 Route。設定、憑證或資料保存失敗時回復原 Route／Proxy；保存錯誤不持有 Registry lock 等待 rollback。
+- 目前驗證：Desktop 171、Release 21、Rust workspace 與 macOS Helper 10 項通過，7 項外部環境 Rust 測試維持 ignored；`pnpm lint` 通過。瀏覽器已驗證 3017 → 43017、自訂 HTTPS Port 保留，以及左右輸入框相同頂端與高度。此瀏覽器檢查僅驗證前端表單，未視為 Tauri／Agent E2E；macOS 隔離 Agent／Nginx／PHP 實測通過同網域 Site／Proxy 不同 HTTPS Port、CA／網域驗證、HTTP／HTTPS 直接回應、已占用 Port／無效私鑰回復、停止／停用／重啟／批次移除與清理；全部測試 TCP／UDP Port 可重綁，無殘留 fixture 程序或 Socket。
+- 本次未進版 App、未重新打包、未推送、未執行 Windows CI 或發布，也未重建 Runtime Package／Catalog。工作區原有 `0.1.30` 版本修改保留；Windows 使用相同功能與契約，尚未實機驗證。
 
 ## 2026-10-04 未發布：PHP-FPM 狀態查詢效能
 

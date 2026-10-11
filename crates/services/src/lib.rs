@@ -10,19 +10,22 @@ use std::time::{Duration, Instant};
 use anyhow::{bail, Context, Result};
 use fabdev_core::{
   default_mariadb_system_socket, site::normalize_domain, AgentStatus, AppPaths,
-  MariaDbConnectionMode, MariaDbSettings, PhpFpmPoolStatus, PhpVersion, ServiceState, Site,
-  SiteDiagnosticCheck, SiteDiagnosticCheckKind, SiteDiagnosticLogEntry, SiteDiagnosticReport,
-  SiteDiagnosticStatus, PROTOCOL_VERSION,
+  MariaDbConnectionMode, MariaDbSettings, PhpFpmPoolStatus, PhpVersion, ProxyConnectionSettings,
+  ServiceState, Site, SiteDiagnosticCheck, SiteDiagnosticCheckKind, SiteDiagnosticLogEntry,
+  SiteDiagnosticReport, SiteDiagnosticStatus, PROTOCOL_VERSION,
 };
 use fabdev_sites::{render_nginx_site, FastCgiEndpoint, NginxSiteConfig, NginxTlsConfig};
 use futures_util::{stream, StreamExt};
+use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::{Child, Command};
 
 mod tls;
 
 use tls::ensure_site_certificate;
-pub use tls::{ensure_local_ca, remove_site_certificate, LocalSiteCertificate};
+pub use tls::{
+  ensure_local_ca, ensure_proxy_certificate, remove_site_certificate, LocalSiteCertificate,
+};
 
 const NGINX_CONFIG_TEMPLATE: &str = include_str!("../../../resources/nginx/nginx.conf");
 const PHP_INI_TEMPLATE: &str = include_str!("../../../resources/php/php.ini");
@@ -387,14 +390,6 @@ impl ServiceSupervisor {
           SiteDiagnosticCheckKind::Http,
           SiteDiagnosticStatus::Failed,
           Some(format!("HTTP {} · default server", probe.status_code)),
-        ),
-        Ok(probe) if site.secured && !probe.redirects_to_https => site_diagnostic_check(
-          SiteDiagnosticCheckKind::Http,
-          SiteDiagnosticStatus::Failed,
-          Some(format!(
-            "HTTP {} · HTTPS redirect missing",
-            probe.status_code
-          )),
         ),
         Ok(probe) => site_diagnostic_check(
           SiteDiagnosticCheckKind::Http,
@@ -1411,6 +1406,113 @@ impl ServiceSupervisor {
     Ok(())
   }
 
+  pub async fn sync_proxy_https(
+    &mut self,
+    connections: &[ProxyConnectionSettings],
+    running_ids: &[String],
+    _sites: &[Site],
+  ) -> Result<()> {
+    let directory = self.paths.services.join("nginx/proxies");
+    std::fs::create_dir_all(&directory)?;
+    let mut affected = std::fs::read_dir(&directory)?
+      .map(|entry| entry.map(|entry| entry.path()))
+      .collect::<std::io::Result<Vec<_>>>()?
+      .into_iter()
+      .filter(|path| {
+        path
+          .extension()
+          .is_some_and(|extension| extension == "conf")
+      })
+      .collect::<BTreeSet<_>>();
+    let mut rendered = Vec::new();
+    for connection in connections.iter().filter(|connection| connection.secured) {
+      let domain = normalize_domain(&connection.domain)?;
+      let https_port = connection
+        .https_port
+        .context("Proxy HTTPS port is missing")?;
+      if https_port < 1024
+        || [self.ports.http, self.ports.https].contains(&https_port)
+        || connections.iter().any(|other| {
+          other.listen_port == https_port
+            || (other.id != connection.id && other.secured && other.https_port == Some(https_port))
+        })
+      {
+        bail!("Proxy HTTPS port {https_port} conflicts with another listener or is privileged");
+      }
+      if connection.listen_host != "127.0.0.1" || connection.listen_port < 1024 {
+        bail!("Proxy HTTPS upstream must use a non-privileged loopback port");
+      }
+      if [self.ports.http, self.ports.https].contains(&connection.listen_port) {
+        bail!("Proxy HTTP port conflicts with the shared Web service ingress");
+      }
+      let certificate = ensure_proxy_certificate(&self.paths, &domain)?;
+      let location = if running_ids.contains(&connection.id) {
+        format!(
+          "    proxy_pass http://127.0.0.1:{};\n    proxy_http_version 1.1;\n    proxy_set_header Host $http_host;\n    proxy_set_header Connection \"\";\n    proxy_set_header X-Forwarded-Proto https;\n    proxy_request_buffering off;\n    proxy_buffering off;\n    proxy_redirect off;\n    proxy_read_timeout {}s;\n    proxy_send_timeout {}s;",
+          connection.listen_port,
+          connection.upstream_response_timeout_seconds,
+          connection.upstream_response_timeout_seconds,
+        )
+      } else {
+        "    return 503;".to_owned()
+      };
+      let contents = format!(
+        "server {{\n  listen 127.0.0.1:{} ssl;\n  server_name {};\n  ssl_certificate \"{}\";\n  ssl_certificate_key \"{}\";\n  client_max_body_size 0;\n  location / {{\n{}\n  }}\n}}\n",
+        https_port,
+        domain,
+        escape_nginx_quoted_value(&certificate.certificate.to_string_lossy()),
+        escape_nginx_quoted_value(&certificate.private_key.to_string_lossy()),
+        location,
+      );
+      let path = directory.join(format!("{domain}.conf"));
+      affected.insert(path.clone());
+      rendered.push((path, contents));
+    }
+    let revision = proxy_config_revision(&rendered);
+    let nginx_config = self.paths.services.join("nginx/nginx.conf");
+    if nginx_config.is_file() {
+      affected.insert(nginx_config.clone());
+      rendered.push((
+        nginx_config.clone(),
+        render_global_nginx_config(&self.paths, &self.runtimes, self.ports, &revision),
+      ));
+    }
+    if affected.len() == rendered.len()
+      && rendered.iter().all(|(path, contents)| {
+        std::fs::read_to_string(path).is_ok_and(|existing| existing == *contents)
+      })
+    {
+      return Ok(());
+    }
+    //2026.10.06 modify by codex, reason: apply independent loopback TLS ports and roll back failed route reloads.
+    let nginx_running = self.nginx_running();
+    let snapshots = affected
+      .iter()
+      .map(|path| {
+        let contents = match std::fs::read(path) {
+          Ok(contents) => Some(contents),
+          Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+          Err(error) => return Err(error.into()),
+        };
+        Ok((path.clone(), contents))
+      })
+      .collect::<Result<Vec<_>>>()?;
+    apply_site_config_files(&affected, &rendered, nginx_running, || {
+      validate_nginx_config(&self.runtimes, &nginx_config)?;
+      reload_nginx(&self.runtimes, &nginx_config)
+    })?;
+    if nginx_running {
+      if let Err(error) = wait_for_proxy_revision(self.ports.http, &revision).await {
+        for (path, contents) in snapshots {
+          restore_site_config(&path, contents)?;
+        }
+        reload_nginx(&self.runtimes, &nginx_config)?;
+        return Err(error);
+      }
+    }
+    Ok(())
+  }
+
   pub async fn update_site_https_config(&mut self, previous: &Site, updated: &Site) -> Result<()> {
     if previous.secured == updated.secured {
       return Ok(());
@@ -1819,6 +1921,43 @@ impl ServiceSupervisor {
   }
 }
 
+fn proxy_config_revision(configs: &[(PathBuf, String)]) -> String {
+  let mut digest = Sha256::new();
+  for (path, contents) in configs
+    .iter()
+    .map(|(path, contents)| (path.file_name(), contents))
+    .collect::<BTreeMap<_, _>>()
+  {
+    if let Some(path) = path {
+      digest.update(path.to_string_lossy().as_bytes());
+    }
+    digest.update([0]);
+    digest.update(contents.as_bytes());
+    digest.update([0]);
+  }
+  format!("{:x}", digest.finalize())
+}
+
+fn render_global_nginx_config(
+  paths: &AppPaths,
+  runtimes: &RuntimePaths,
+  ports: ServicePorts,
+  proxy_revision: &str,
+) -> String {
+  NGINX_CONFIG_TEMPLATE
+    .replace(
+      "@FABDEV_ROOT@",
+      &escape_nginx_quoted_value(&paths.root.to_string_lossy()),
+    )
+    .replace(
+      "@NGINX_ROOT@",
+      &escape_nginx_quoted_value(&runtimes.nginx.to_string_lossy()),
+    )
+    .replace("@HTTP_PORT@", &ports.http.to_string())
+    .replace("@HTTPS_PORT@", &ports.https.to_string())
+    .replace("@PROXY_REVISION@", proxy_revision)
+}
+
 pub fn generate_configs(
   paths: &AppPaths,
   runtimes: &RuntimePaths,
@@ -1831,6 +1970,7 @@ pub fn generate_configs(
   paths.ensure()?;
   let nginx_service = paths.services.join("nginx");
   std::fs::create_dir_all(&nginx_service)?;
+  std::fs::create_dir_all(nginx_service.join("proxies"))?;
   #[cfg(windows)]
   ensure_windows_nginx_work_directories(&runtimes.nginx)?;
 
@@ -1845,17 +1985,19 @@ pub fn generate_configs(
     .map(|version| generate_php_config(paths, runtimes, version))
     .collect::<Result<Vec<_>>>()?;
 
-  let global_nginx = NGINX_CONFIG_TEMPLATE
-    .replace(
-      "@FABDEV_ROOT@",
-      &escape_nginx_quoted_value(&paths.root.to_string_lossy()),
-    )
-    .replace(
-      "@NGINX_ROOT@",
-      &escape_nginx_quoted_value(&runtimes.nginx.to_string_lossy()),
-    )
-    .replace("@HTTP_PORT@", &ports.http.to_string())
-    .replace("@HTTPS_PORT@", &ports.https.to_string());
+  let proxy_configs = std::fs::read_dir(nginx_service.join("proxies"))?
+    .map(|entry| {
+      let path = entry?.path();
+      let contents = std::fs::read_to_string(&path)?;
+      Ok((path, contents))
+    })
+    .collect::<Result<Vec<_>>>()?;
+  let global_nginx = render_global_nginx_config(
+    paths,
+    runtimes,
+    ports,
+    &proxy_config_revision(&proxy_configs),
+  );
   std::fs::write(&nginx_config, global_nginx)?;
   for site in sites {
     let (config_path, rendered_config) = render_site_config(paths, runtimes, ports, site)?;
@@ -3422,7 +3564,6 @@ async fn resolve_site_domain(domain: &str) -> Result<Vec<std::net::IpAddr>> {
 struct SiteHttpProbe {
   status_code: u16,
   default_server: bool,
-  redirects_to_https: bool,
 }
 
 async fn probe_site_http(port: u16, domain: &str) -> Result<SiteHttpProbe> {
@@ -3449,8 +3590,6 @@ async fn probe_site_http(port: u16, domain: &str) -> Result<SiteHttpProbe> {
   Ok(SiteHttpProbe {
     status_code,
     default_server: headers_lower.contains("\r\nx-fabdev-default: 1\r\n"),
-    redirects_to_https: headers_lower
-      .contains(&format!("\r\nlocation: https://{domain}/\r\n").to_ascii_lowercase()),
   })
 }
 
@@ -3770,6 +3909,42 @@ async fn wait_for_default_server(port: u16, domain: &str, timeout: Duration) -> 
   bail!("Nginx default server did not become active for {domain}")
 }
 
+//2026.10.06 modify by codex, reason: a new worker PID can precede the requested reload; verify the applied route contents.
+async fn wait_for_proxy_revision(port: u16, revision: &str) -> Result<()> {
+  let expected = format!("\r\nx-fabdev-proxy-revision: {revision}\r\n");
+  let started = tokio::time::Instant::now();
+  let mut stable_since = None;
+  while started.elapsed() < Duration::from_secs(3) {
+    let probe = async {
+      let mut stream = tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, port)).await?;
+      stream
+        .write_all(b"GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
+        .await?;
+      let mut response = Vec::new();
+      (&mut stream).take(8192).read_to_end(&mut response).await?;
+      Ok::<_, std::io::Error>(
+        String::from_utf8_lossy(&response)
+          .to_ascii_lowercase()
+          .contains(&expected),
+      )
+    };
+    if matches!(
+      tokio::time::timeout(Duration::from_millis(250), probe).await,
+      Ok(Ok(true))
+    ) {
+      //2026.10.06 modify by codex, reason: old workers can briefly accept TLS after the first new HTTP response.
+      let since = stable_since.get_or_insert_with(tokio::time::Instant::now);
+      if since.elapsed() >= Duration::from_millis(250) {
+        return Ok(());
+      }
+    } else {
+      stable_since = None;
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+  }
+  bail!("Nginx did not finish applying the Proxy HTTPS routes")
+}
+
 async fn wait_for_site_http_config(
   port: u16,
   domain: &str,
@@ -3779,17 +3954,21 @@ async fn wait_for_site_http_config(
   let started = tokio::time::Instant::now();
   while started.elapsed() < timeout {
     if let Ok(mut stream) = tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, port)).await {
-      let request = format!("GET / HTTP/1.1\r\nHost: {domain}\r\nConnection: close\r\n\r\n");
+      let request = format!(
+        "GET /__fabdev/https-status HTTP/1.1\r\nHost: {domain}\r\nConnection: close\r\n\r\n"
+      );
       if stream.write_all(request.as_bytes()).await.is_ok() {
         let mut response = vec![0_u8; 2048];
         if let Ok(Ok(length)) =
           tokio::time::timeout(Duration::from_millis(250), stream.read(&mut response)).await
         {
           let headers = String::from_utf8_lossy(&response[..length]);
-          let is_default = headers.contains("\r\nX-fabDev-Default: 1\r\n");
-          let redirects_to_https = headers.starts_with("HTTP/1.1 301 ")
-            && headers.contains(&format!("\r\nLocation: https://{domain}/\r\n"));
-          if !is_default && redirects_to_https == secured {
+          let expected = if secured { "enabled" } else { "disabled" };
+          if headers.starts_with("HTTP/1.1 204 ")
+            && headers
+              .to_ascii_lowercase()
+              .contains(&format!("\r\nx-fabdev-https: {expected}\r\n"))
+          {
             return Ok(());
           }
         }
@@ -6712,7 +6891,13 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     let php_82_ini =
       std::fs::read_to_string(paths.config.join("php/8.2/php.ini")).expect("read PHP 8.2 ini");
     assert!(nginx_site.contains("listen 127.0.0.1:8080;"));
-    assert!(nginx_site.contains("return 301 https://$host$request_uri;"));
+    assert!(!nginx_site.contains("return 301"));
+    assert_eq!(
+      nginx_site
+        .matches("try_files $uri $uri/ /index.php?$query_string;")
+        .count(),
+      2
+    );
     assert!(nginx_site.contains("listen 127.0.0.1:8443 ssl;"));
     assert!(nginx_site.contains("ssl_certificate"));
     #[cfg(unix)]
@@ -7172,6 +7357,159 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     );
     assert!(!added.exists());
     std::fs::remove_dir_all(root).expect("remove fixture");
+  }
+
+  #[tokio::test]
+  async fn waits_for_the_requested_proxy_revision_instead_of_an_older_reload() {
+    let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+      .await
+      .unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let task = tokio::spawn(async move {
+      for revision in ["old", "current", "old"]
+        .into_iter()
+        .chain(std::iter::repeat("current"))
+      {
+        let (mut stream, _) = listener.accept().await.unwrap();
+        let mut buffer = [0; 1024];
+        let length = stream.read(&mut buffer).await.unwrap();
+        assert!(String::from_utf8_lossy(&buffer[..length]).contains("Host: 127.0.0.1"));
+        stream.write_all(format!(
+          "HTTP/1.1 404 Not Found\r\nX-fabDev-Proxy-Revision: {revision}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        ).as_bytes()).await.unwrap();
+      }
+    });
+    let started = tokio::time::Instant::now();
+    wait_for_proxy_revision(port, "current").await.unwrap();
+    assert!(started.elapsed() >= Duration::from_millis(350));
+    task.abort();
+    let _ = task.await;
+    let first = (PathBuf::from("one.conf"), "first".to_owned());
+    let second = (PathBuf::from("two.conf"), "second".to_owned());
+    assert_eq!(
+      proxy_config_revision(&[first.clone(), second.clone()]),
+      proxy_config_revision(&[second, first.clone()])
+    );
+    assert_ne!(proxy_config_revision(&[first]), proxy_config_revision(&[]));
+  }
+
+  #[tokio::test]
+  async fn separates_proxy_https_ports_from_sites_and_removes_disabled_routes() {
+    let root = std::env::temp_dir().join(format!("fabdev-proxy-ingress-{}", Uuid::new_v4()));
+    let paths = AppPaths::from_root(root.join("data"));
+    paths.ensure().unwrap();
+    let runtimes = RuntimePaths::from_runtime_root(&paths.runtimes);
+    let connection = |id: &str, port| ProxyConnectionSettings {
+      id: id.to_owned(),
+      name: id.to_owned(),
+      domain: format!("{id}.test"),
+      listen_host: "127.0.0.1".to_owned(),
+      listen_port: port,
+      secured: true,
+      https_port: Some(port + 40000),
+      target: "https://remote.test".to_owned(),
+      allowed_origins: vec![],
+      upstream_response_timeout_seconds: 300,
+    };
+    let mut connections = vec![connection("one", 3010), connection("two", 3011)];
+    for ingress in [8443, 443] {
+      let mut supervisor = ServiceSupervisor::new(
+        paths.clone(),
+        runtimes.clone(),
+        ServicePorts {
+          https: ingress,
+          ..ServicePorts::system()
+        },
+      );
+      supervisor
+        .sync_proxy_https(&connections, &["one".to_owned(), "two".to_owned()], &[])
+        .await
+        .unwrap();
+      for connection in &connections {
+        let config = std::fs::read_to_string(
+          paths
+            .services
+            .join(format!("nginx/proxies/{}.conf", connection.domain)),
+        )
+        .unwrap();
+        assert!(config.contains(&format!(
+          "listen 127.0.0.1:{} ssl;",
+          connection.https_port.unwrap()
+        )));
+        assert!(config.contains(&format!("server_name {};", connection.domain)));
+        assert!(config.contains(&format!(
+          "proxy_pass http://127.0.0.1:{};",
+          connection.listen_port
+        )));
+        assert!(config.contains("proxy_read_timeout 300s;"));
+        assert!(config.contains("proxy_request_buffering off;"));
+        assert!(!config.contains("return 301"));
+      }
+    }
+    let mut supervisor =
+      ServiceSupervisor::new(paths.clone(), runtimes.clone(), ServicePorts::system());
+    let first_path = paths.services.join("nginx/proxies/one.test.conf");
+    let existing = std::fs::read(&first_path).unwrap();
+    let conflict = Site {
+      id: Uuid::new_v4(),
+      name: "One".to_owned(),
+      domain: "one.test".to_owned(),
+      project_path: root.clone(),
+      document_root: root.clone(),
+      php_version: None,
+      enabled: true,
+      secured: true,
+      upstream_response_timeout_seconds: 120,
+    };
+    supervisor
+      .sync_proxy_https(
+        &connections,
+        &["one".to_owned(), "two".to_owned()],
+        std::slice::from_ref(&conflict),
+      )
+      .await
+      .unwrap();
+    assert_eq!(std::fs::read(&first_path).unwrap(), existing);
+    assert!(render_site_config(&paths, &runtimes, ServicePorts::system(), &conflict).is_ok());
+    for port in [
+      443,
+      supervisor.ports.http,
+      supervisor.ports.https,
+      connections[1].listen_port,
+      43011,
+    ] {
+      let mut invalid = connections.clone();
+      invalid[0].https_port = Some(port);
+      assert!(supervisor
+        .sync_proxy_https(&invalid, &[], &[])
+        .await
+        .is_err());
+      assert_eq!(std::fs::read(&first_path).unwrap(), existing);
+    }
+    let mut invalid = connections[0].clone();
+    invalid.listen_host = "0.0.0.0".to_owned();
+    assert!(supervisor
+      .sync_proxy_https(&[invalid], &[], &[])
+      .await
+      .is_err());
+    connections[0].secured = false;
+    supervisor
+      .sync_proxy_https(&connections, &[], &[])
+      .await
+      .unwrap();
+    assert!(!first_path.exists());
+    let stopped =
+      std::fs::read_to_string(paths.services.join("nginx/proxies/two.test.conf")).unwrap();
+    assert!(stopped.contains("return 503;"));
+    assert!(!stopped.contains("proxy_pass"));
+    supervisor.sync_proxy_https(&[], &[], &[]).await.unwrap();
+    assert_eq!(
+      std::fs::read_dir(paths.services.join("nginx/proxies"))
+        .unwrap()
+        .count(),
+      0
+    );
+    std::fs::remove_dir_all(root).unwrap();
   }
 
   #[tokio::test]

@@ -821,6 +821,9 @@ export const useAppStore = defineStore('fabdev', {
       })
     },
     async addProxyConnection(input: ProxyConnectionInput) {
+      if (input.secured) {
+        await this.ensureTrustedLocalCa()
+      }
       const response = await sendRequest({ type: 'addProxyConnection', payload: input })
       if (response.type === 'proxyManager') {
         applyProxyManager(this, response.payload)
@@ -832,6 +835,9 @@ export const useAppStore = defineStore('fabdev', {
       throw new Error('Agent returned an unexpected response')
     },
     async updateProxyConnection(connectionId: string, input: ProxyConnectionInput) {
+      if (input.secured) {
+        await this.ensureTrustedLocalCa()
+      }
       const response = await sendRequest({
         type: 'updateProxyConnection',
         payload: { connectionId, input }
@@ -919,8 +925,8 @@ export const useAppStore = defineStore('fabdev', {
     async openSite(domain: string, secured: boolean) {
       return invoke<void>('open_site', { domain, secured })
     },
-    async openProxyInChrome(domain: string, listenPort: number) {
-      return invoke<void>('open_proxy_in_chrome', { domain, listenPort })
+    async openProxyInChrome(domain: string, listenPort: number, secured: boolean) {
+      return invoke<void>('open_proxy_in_chrome', { domain, listenPort, secured })
     },
     async addSite(input: SiteInput) {
       const response = await sendRequest({ type: 'addSite', payload: input })
@@ -992,18 +998,21 @@ export const useAppStore = defineStore('fabdev', {
       }
       throw new Error('Agent returned an unexpected response')
     },
+    async ensureTrustedLocalCa() {
+      const caResponse = await sendRequest({ type: 'ensureLocalCa' })
+      if (caResponse.type === 'error') {
+        throw new Error(caResponse.payload.message)
+      }
+      if (caResponse.type !== 'localCaReady') {
+        throw new Error('Agent returned an unexpected response')
+      }
+      await invoke<void>('trust_local_ca', {
+        certificatePath: caResponse.payload.certificatePath
+      })
+    },
     async setSiteHttps(siteId: string, secured: boolean) {
       if (secured) {
-        const caResponse = await sendRequest({ type: 'ensureLocalCa' })
-        if (caResponse.type === 'error') {
-          throw new Error(caResponse.payload.message)
-        }
-        if (caResponse.type !== 'localCaReady') {
-          throw new Error('Agent returned an unexpected response')
-        }
-        await invoke<void>('trust_local_ca', {
-          certificatePath: caResponse.payload.certificatePath
-        })
+        await this.ensureTrustedLocalCa()
       }
       const response = await sendRequest({
         type: 'setSiteHttps',

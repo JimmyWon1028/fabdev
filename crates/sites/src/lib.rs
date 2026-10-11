@@ -111,12 +111,24 @@ pub fn render_nginx_site(config: &NginxSiteConfig) -> Result<String, SiteDriverE
       String::new(),
     ),
   };
+  //2026.10.06 modify by codex, reason: keep HTTP serving content while HTTPS is optionally enabled.
+  let https_enabled = if config.tls.is_some() {
+    "enabled"
+  } else {
+    "disabled"
+  };
   let application_server = format!(
     r#"server {{
   listen 127.0.0.1:{listen_port};
   server_name {domain};
   root {root};
   index {index};
+
+  location = /__fabdev/https-status {{
+    access_log off;
+    add_header X-fabDev-Https {https_enabled} always;
+    return 204;
+  }}
 
   location / {{
     try_files $uri $uri/ {fallback};
@@ -137,15 +149,7 @@ pub fn render_nginx_site(config: &NginxSiteConfig) -> Result<String, SiteDriverE
   let certificate = quote_path(&tls.certificate);
   let private_key = quote_path(&tls.private_key);
   Ok(format!(
-    r#"server {{
-  listen 127.0.0.1:{listen_port};
-  server_name {domain};
-  location / {{
-    return 301 https://$host$request_uri;
-  }}
-{php_status_location}
-}}
-
+    r#"{application_server}
 server {{
   listen 127.0.0.1:{https_listen_port} ssl;
   http2 on;
@@ -167,7 +171,6 @@ server {{
 }}
 "#,
     domain = config.site.domain,
-    listen_port = config.listen_port,
     https_listen_port = config.https_listen_port,
   ))
 }
@@ -347,7 +350,7 @@ mod tests {
   }
 
   #[test]
-  fn renders_https_redirect_and_tls_server() {
+  fn renders_http_and_https_content_without_redirect() {
     let mut secured_site = site();
     secured_site.secured = true;
     let certificate = std::env::temp_dir().join("fabdev/tls/erp.test.crt");
@@ -365,7 +368,14 @@ mod tests {
     })
     .expect("render secure config");
 
-    assert!(output.contains("return 301 https://$host$request_uri;"));
+    assert!(!output.contains("return 301"));
+    assert_eq!(
+      output
+        .matches("try_files $uri $uri/ /index.php?$query_string;")
+        .count(),
+      2
+    );
+    assert!(output.contains("add_header X-fabDev-Https enabled always;"));
     assert_eq!(
       output
         .matches("location = /__fabdev/php-fpm-status")

@@ -115,6 +115,10 @@ enum Command {
     allowed_origins: Vec<String>,
     #[arg(long)]
     timeout: Option<u16>,
+    #[arg(long)]
+    https: bool,
+    #[arg(long)]
+    https_port: Option<u16>,
   },
   UpdateProxy {
     id: String,
@@ -128,6 +132,10 @@ enum Command {
     allowed_origins: Vec<String>,
     #[arg(long)]
     timeout: Option<u16>,
+    #[arg(long)]
+    https: bool,
+    #[arg(long)]
+    https_port: Option<u16>,
   },
   RemoveProxy {
     id: String,
@@ -217,7 +225,12 @@ async fn main() -> Result<()> {
     .pipe
     .map(AgentEndpoint::NamedPipe)
     .unwrap_or_else(|| paths.agent_endpoint());
-  if let Command::Secure { id } = &arguments.command {
+  if matches!(
+    &arguments.command,
+    Command::Secure { .. }
+      | Command::AddProxy { https: true, .. }
+      | Command::UpdateProxy { https: true, .. }
+  ) {
     let ca_response = send_request(&endpoint, AgentRequest::EnsureLocalCa).await?;
     let AgentResponse::LocalCaReady(ca) = ca_response else {
       println!("{}", serde_json::to_string_pretty(&ca_response)?);
@@ -227,6 +240,8 @@ async fn main() -> Result<()> {
       anyhow::bail!("fabDev Agent returned an unexpected response");
     };
     trust_local_ca(&ca.certificate_path)?;
+  }
+  if let Command::Secure { id } = &arguments.command {
     let response = send_request(
       &endpoint,
       AgentRequest::SetSiteHttps {
@@ -305,7 +320,11 @@ async fn main() -> Result<()> {
       target,
       allowed_origins,
       timeout,
+      https,
+      https_port,
     } => AgentRequest::AddProxyConnection(ProxyConnectionInput {
+      secured: https,
+      https_port,
       id,
       domain,
       listen_port: port,
@@ -320,9 +339,13 @@ async fn main() -> Result<()> {
       target,
       allowed_origins,
       timeout,
+      https,
+      https_port,
     } => AgentRequest::UpdateProxyConnection {
       connection_id: id.clone(),
       input: ProxyConnectionInput {
+        secured: https,
+        https_port,
         id,
         domain,
         listen_port: port,
@@ -490,6 +513,40 @@ async fn connect_named_pipe(pipe_name: &str) -> Result<NamedPipeClient> {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn proxy_https_accepts_an_optional_custom_port() {
+    let args = [
+      "fabdev",
+      "add-proxy",
+      "api",
+      "--domain",
+      "api.test",
+      "--port",
+      "3010",
+      "--target",
+      "http://remote.test",
+      "--https",
+    ];
+    let parsed = Arguments::try_parse_from(args).unwrap();
+    assert!(matches!(
+      Arguments::try_parse_from(args.into_iter().chain(["--https-port", "3443"]))
+        .unwrap()
+        .command,
+      Command::AddProxy {
+        https_port: Some(3443),
+        ..
+      }
+    ));
+    assert!(matches!(
+      parsed.command,
+      Command::AddProxy {
+        https: true,
+        port: 3010,
+        ..
+      }
+    ));
+  }
 
   #[test]
   fn seeds_only_one_demo_site_into_an_empty_registry() {

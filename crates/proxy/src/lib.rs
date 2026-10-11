@@ -388,6 +388,16 @@ impl ProxyManager {
     self.connections.insert(id.to_owned(), settings);
     if was_running {
       self.start(id).await?;
+      if let Some(error) = self.failed.get(id).cloned() {
+        self.connections.insert(id.to_owned(), previous.clone());
+        self.start(id).await?;
+        let rollback = self
+          .failed
+          .get(id)
+          .map(|error| format!("; rollback failed: {error}"))
+          .unwrap_or_default();
+        bail!("unable to apply Proxy settings: {error}{rollback}");
+      }
     }
     Ok((previous, was_running))
   }
@@ -442,14 +452,17 @@ impl ProxyManager {
     if self.connections.contains_key(&settings.id) && replacing_id != Some(settings.id.as_str()) {
       bail!("duplicate Proxy connection id: {}", settings.id);
     }
+    let ports = connection_ports(settings);
     if let Some(existing) = self.connections.values().find(|connection| {
-      replacing_id != Some(connection.id.as_str()) && connection.listen_port == settings.listen_port
+      replacing_id != Some(connection.id.as_str())
+        && connection_ports(connection)
+          .iter()
+          .any(|port| ports.contains(port))
     }) {
       bail!(
-        "Proxy connections {} and {} both use port {}",
+        "Proxy connections {} and {} have conflicting HTTP or HTTPS ports",
         existing.id,
-        settings.id,
-        settings.listen_port
+        settings.id
       );
     }
     if let Some(existing) = self.connections.values().find(|connection| {
@@ -486,6 +499,8 @@ impl ProxyManager {
         (ProxyConnectionState::Stopped, None)
       };
       connections.push(ProxyConnectionInfo {
+        secured: settings.secured,
+        https_port: settings.https_port,
         id: settings.id.clone(),
         name: settings.name.clone(),
         domain: settings.domain.clone(),
@@ -614,6 +629,8 @@ fn connection(
   target: &str,
 ) -> ProxyConnectionSettings {
   ProxyConnectionSettings {
+    secured: false,
+    https_port: None,
     id: id.to_owned(),
     name: name.to_owned(),
     domain: domain.to_owned(),
@@ -637,6 +654,13 @@ fn connection_from_input(input: ProxyConnectionInput) -> Result<ProxyConnectionS
     input.listen_port,
     &target,
   );
+  settings.secured = input.secured;
+  settings.https_port = input.https_port.or_else(|| {
+    input
+      .secured
+      .then(|| default_https_port(input.listen_port))
+      .flatten()
+  });
   settings.allowed_origins = normalize_allowed_origins(input.allowed_origins, &domain)?;
   settings.upstream_response_timeout_seconds = input
     .upstream_response_timeout_seconds
@@ -647,6 +671,10 @@ fn connection_from_input(input: ProxyConnectionInput) -> Result<ProxyConnectionS
 }
 
 fn normalize_connection_settings(settings: &mut ProxyConnectionSettings) {
+  //2026.10.06 modify by codex, reason: migrate the unpublished shared ingress and default missing secure ports.
+  if settings.https_port == Some(443) || (settings.secured && settings.https_port.is_none()) {
+    settings.https_port = default_https_port(settings.listen_port);
+  }
   if settings.upstream_response_timeout_seconds == 0 {
     settings.upstream_response_timeout_seconds = DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS;
   }
@@ -686,6 +714,10 @@ fn normalize_allowed_origins(origins: Vec<String>, domain: &str) -> Result<Vec<S
   Ok(normalized)
 }
 
+fn default_https_port(http_port: u16) -> Option<u16> {
+  format!("4{http_port}").parse().ok()
+}
+
 fn validate_connection(settings: &ProxyConnectionSettings) -> Result<()> {
   if settings.id.is_empty()
     || !settings.id.chars().all(|character| {
@@ -696,6 +728,14 @@ fn validate_connection(settings: &ProxyConnectionSettings) -> Result<()> {
   }
   if settings.listen_port < 1024 {
     bail!("Proxy listen port must be between 1024 and 65535");
+  }
+  if settings.secured && settings.https_port.is_none() {
+    bail!("Default Proxy HTTPS port exceeds 65535; set an explicit HTTPS port");
+  }
+  if let Some(port) = settings.https_port {
+    if port < 1024 || port == settings.listen_port {
+      bail!("Proxy HTTPS port must be between 1024 and 65535 and differ from the HTTP port");
+    }
   }
   if settings.upstream_response_timeout_seconds > MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS {
     bail!(
@@ -720,6 +760,14 @@ fn validate_connection(settings: &ProxyConnectionSettings) -> Result<()> {
     );
   }
   Ok(())
+}
+
+fn connection_ports(settings: &ProxyConnectionSettings) -> Vec<u16> {
+  let mut ports = vec![settings.listen_port];
+  if settings.secured {
+    ports.extend(settings.https_port);
+  }
+  ports
 }
 
 fn proxy_listen_address(settings: &ProxyConnectionSettings) -> Result<SocketAddr> {
@@ -906,6 +954,7 @@ async fn run_proxy_with_health_check<F, Check>(
     }
   }
 
+  drop(listener);
   drop(health_checks);
   let drain = async { while connections.join_next().await.is_some() {} };
   if tokio::time::timeout(CONNECTION_DRAIN_TIMEOUT, drain)
@@ -955,12 +1004,14 @@ async fn check_upstream(
   }
 }
 
-async fn serve_client(
-  stream: TcpStream,
+async fn serve_client<S>(
+  stream: S,
   clients: Arc<ProxyClientPool>,
   settings: ProxyConnectionSettings,
   health: Arc<ConnectionHealth>,
-) {
+) where
+  S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
   let service = service_fn(move |request| {
     proxy_request(
       request,
@@ -1214,6 +1265,8 @@ mod tests {
 
   fn test_connection(id: &str, port: u16, target: String) -> ProxyConnectionSettings {
     ProxyConnectionSettings {
+      secured: false,
+      https_port: None,
       id: id.to_owned(),
       name: id.to_uppercase(),
       domain: format!("{id}.test"),
@@ -1225,12 +1278,206 @@ mod tests {
     }
   }
 
+  fn input_for(settings: &ProxyConnectionSettings, secured: bool) -> ProxyConnectionInput {
+    ProxyConnectionInput {
+      secured,
+      https_port: settings.https_port,
+      id: settings.id.clone(),
+      domain: settings.domain.clone(),
+      listen_port: settings.listen_port,
+      target: settings.target.clone(),
+      allowed_origins: settings.allowed_origins.clone(),
+      upstream_response_timeout_seconds: Some(settings.upstream_response_timeout_seconds),
+    }
+  }
+
+  async fn fixture_request<S>(stream: S, method: Method) -> (StatusCode, hyper::HeaderMap, Bytes)
+  where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+  {
+    let (mut sender, connection) = hyper::client::conn::http1::handshake(TokioIo::new(stream))
+      .await
+      .unwrap();
+    let task = tokio::spawn(connection);
+    let request = Request::builder()
+      .method(method)
+      .uri("/api?test=1")
+      .header(HOST, "secure.test")
+      .header(ORIGIN, "https://app.test")
+      .header(ACCESS_CONTROL_REQUEST_METHOD, "GET")
+      .body(Full::new(Bytes::new()))
+      .unwrap();
+    let response = tokio::time::timeout(Duration::from_secs(3), sender.send_request(request))
+      .await
+      .unwrap()
+      .unwrap();
+    let (parts, body) = response.into_parts();
+    let body = body.collect().await.unwrap().to_bytes();
+    task.abort();
+    let _ = task.await;
+    (parts.status, parts.headers, body)
+  }
+
+  #[test]
+  fn defaults_and_validates_independent_https_ports() {
+    assert_eq!(default_https_port(3017), Some(43017));
+    assert_eq!(default_https_port(9999), Some(49999));
+    assert_eq!(default_https_port(10000), None);
+    let base = test_connection("secure", 3017, "http://remote.test".to_owned());
+    let input = input_for(&base, true);
+    assert_eq!(
+      connection_from_input(input.clone()).unwrap().https_port,
+      Some(43017)
+    );
+    for port in [1024, 65535] {
+      let mut custom = input.clone();
+      custom.https_port = Some(port);
+      assert_eq!(
+        connection_from_input(custom).unwrap().https_port,
+        Some(port)
+      );
+    }
+    for port in [0, 443, 1023, 3017] {
+      let mut invalid = input.clone();
+      invalid.https_port = Some(port);
+      assert!(connection_from_input(invalid).is_err());
+    }
+    let mut overflow = input.clone();
+    overflow.listen_port = 10000;
+    assert!(connection_from_input(overflow).is_err());
+    let mut migrated = base.clone();
+    migrated.secured = true;
+    migrated.https_port = Some(443);
+    let mut manager = ProxyManager::new(vec![migrated]).unwrap();
+    assert_eq!(manager.connections()[0].https_port, Some(43017));
+    let mut other = input;
+    other.id = "other".to_owned();
+    other.domain = "other.test".to_owned();
+    other.listen_port = 3018;
+    for port in [3017, 43017] {
+      other.https_port = Some(port);
+      assert!(manager.add(other.clone()).is_err());
+    }
+    other.secured = false;
+    other.listen_port = 43017;
+    other.https_port = None;
+    assert!(manager.add(other).is_err());
+  }
+
+  #[tokio::test]
+  async fn custom_https_settings_preserve_http_and_explicit_ports() {
+    let upstream = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let upstream_address = upstream.local_addr().unwrap();
+    let upstream_task = tokio::spawn(async move {
+      loop {
+        let (stream, _) = upstream.accept().await.unwrap();
+        tokio::spawn(async move {
+          let service = service_fn(|request: Request<Incoming>| async move {
+            assert_eq!(
+              request.uri().path_and_query().unwrap().as_str(),
+              "/api?test=1"
+            );
+            Ok::<_, Infallible>(error_response(StatusCode::OK, "http target reached"))
+          });
+          let _ = http1::Builder::new()
+            .serve_connection(TokioIo::new(stream), service)
+            .await;
+        });
+      }
+    });
+    let mut first = test_connection(
+      "secure",
+      reserve_port(),
+      format!("http://{upstream_address}"),
+    );
+    first.secured = true;
+    first.https_port = Some(3443);
+    first.allowed_origins = vec!["https://app.test".to_owned()];
+    let mut second = test_connection(
+      "other",
+      reserve_port(),
+      format!("http://{upstream_address}"),
+    );
+    second.secured = true;
+    second.https_port = Some(3444);
+    let mut manager = ProxyManager::new(vec![first.clone(), second.clone()]).unwrap();
+    manager.start_all().await;
+    assert_eq!(manager.running_ids().len(), 2);
+    assert_eq!(
+      manager
+        .connections()
+        .iter()
+        .find(|item| item.id == "secure")
+        .unwrap()
+        .https_port,
+      Some(3443)
+    );
+    assert_eq!(
+      manager
+        .connections()
+        .iter()
+        .find(|item| item.id == "other")
+        .unwrap()
+        .https_port,
+      Some(3444)
+    );
+    for method in [Method::GET, Method::OPTIONS] {
+      let stream = TcpStream::connect((Ipv4Addr::LOCALHOST, first.listen_port))
+        .await
+        .unwrap();
+      let (status, headers, body) = fixture_request(stream, method.clone()).await;
+      assert_eq!(headers[ACCESS_CONTROL_ALLOW_ORIGIN], "https://app.test");
+      if method == Method::GET {
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, "http target reached");
+      } else {
+        assert_eq!(status, StatusCode::NO_CONTENT);
+      }
+    }
+    manager
+      .update("secure", input_for(&first, false))
+      .await
+      .unwrap();
+    let stream = TcpStream::connect((Ipv4Addr::LOCALHOST, first.listen_port))
+      .await
+      .unwrap();
+    assert_eq!(fixture_request(stream, Method::GET).await.0, StatusCode::OK);
+    let saved = manager.connections();
+    manager.stop_all().await;
+    let mut restored = ProxyManager::new(saved).unwrap();
+    restored.start_all().await;
+    assert_eq!(restored.running_ids().len(), 2);
+    restored.stop_all().await;
+    StdTcpListener::bind((Ipv4Addr::LOCALHOST, first.listen_port)).unwrap();
+    StdTcpListener::bind((Ipv4Addr::LOCALHOST, second.listen_port)).unwrap();
+    upstream_task.abort();
+    let _ = upstream_task.await;
+  }
+
+  #[test]
+  fn legacy_proxy_settings_default_to_http() {
+    let settings = test_connection("legacy", 3010, "https://remote.test".to_owned());
+    let mut value = serde_json::to_value(settings).unwrap();
+    value.as_object_mut().unwrap().remove("secured");
+    value.as_object_mut().unwrap().remove("httpsPort");
+    let restored: ProxyConnectionSettings = serde_json::from_value(value.clone()).unwrap();
+    assert!(!restored.secured);
+    let input: ProxyConnectionInput = serde_json::from_value(value).unwrap();
+    assert!(!input.secured);
+    assert_eq!(
+      connection_from_input(input).unwrap().target,
+      "https://remote.test"
+    );
+  }
+
   #[tokio::test]
   async fn adds_and_removes_a_persistent_connection_safely() {
     let port = reserve_port();
     let mut manager = ProxyManager::new(Vec::new()).expect("create Proxy Manager");
     let id = manager
       .add(ProxyConnectionInput {
+        secured: false,
+        https_port: None,
         id: " Custom-Api ".to_owned(),
         domain: "Custom-Api.test.".to_owned(),
         listen_port: port,
@@ -1499,6 +1746,8 @@ mod tests {
     let mut manager = ProxyManager::new(Vec::new()).expect("create Proxy Manager");
     let id = manager
       .add(ProxyConnectionInput {
+        secured: false,
+        https_port: None,
         id: "example-edit".to_owned(),
         domain: "example-edit.test".to_owned(),
         listen_port: original_port,
@@ -1513,6 +1762,8 @@ mod tests {
       .update(
         &id,
         ProxyConnectionInput {
+          secured: false,
+          https_port: None,
           id: id.clone(),
           domain: "example-edit.test".to_owned(),
           listen_port: updated_port,
@@ -1561,6 +1812,8 @@ mod tests {
     let mut manager = ProxyManager::new(Vec::new()).expect("create Proxy Manager");
     manager
       .add(ProxyConnectionInput {
+        secured: false,
+        https_port: None,
         id: "default-timeout".to_owned(),
         domain: "default-timeout.test".to_owned(),
         listen_port: 31_100,
@@ -1571,6 +1824,8 @@ mod tests {
       .expect("accept zero as the default timeout");
     manager
       .add(ProxyConnectionInput {
+        secured: false,
+        https_port: None,
         id: "maximum-timeout".to_owned(),
         domain: "maximum-timeout.test".to_owned(),
         listen_port: 31_101,
@@ -1594,6 +1849,8 @@ mod tests {
     let mut manager = ProxyManager::new(Vec::new()).expect("create Proxy Manager");
     manager
       .add(ProxyConnectionInput {
+        secured: false,
+        https_port: None,
         id: "custom".to_owned(),
         domain: "custom.test".to_owned(),
         listen_port: port,
@@ -1606,6 +1863,8 @@ mod tests {
     for (input, expected) in [
       (
         ProxyConnectionInput {
+          secured: false,
+          https_port: None,
           id: "custom".to_owned(),
           domain: "other.test".to_owned(),
           listen_port: reserve_port(),
@@ -1617,6 +1876,8 @@ mod tests {
       ),
       (
         ProxyConnectionInput {
+          secured: false,
+          https_port: None,
           id: "other".to_owned(),
           domain: "other.test".to_owned(),
           listen_port: port,
@@ -1624,10 +1885,12 @@ mod tests {
           allowed_origins: Vec::new(),
           upstream_response_timeout_seconds: None,
         },
-        "both use port",
+        "conflicting HTTP or HTTPS ports",
       ),
       (
         ProxyConnectionInput {
+          secured: false,
+          https_port: None,
           id: "same-domain".to_owned(),
           domain: "custom.test".to_owned(),
           listen_port: reserve_port(),
@@ -1639,6 +1902,8 @@ mod tests {
       ),
       (
         ProxyConnectionInput {
+          secured: false,
+          https_port: None,
           id: "invalid".to_owned(),
           domain: "example.com".to_owned(),
           listen_port: reserve_port(),
@@ -1650,6 +1915,8 @@ mod tests {
       ),
       (
         ProxyConnectionInput {
+          secured: false,
+          https_port: None,
           id: "invalid-scheme".to_owned(),
           domain: "invalid-scheme.test".to_owned(),
           listen_port: reserve_port(),
@@ -1661,6 +1928,8 @@ mod tests {
       ),
       (
         ProxyConnectionInput {
+          secured: false,
+          https_port: None,
           id: "origin".to_owned(),
           domain: "origin.test".to_owned(),
           listen_port: reserve_port(),
@@ -1672,6 +1941,8 @@ mod tests {
       ),
       (
         ProxyConnectionInput {
+          secured: false,
+          https_port: None,
           id: "timeout".to_owned(),
           domain: "timeout.test".to_owned(),
           listen_port: reserve_port(),

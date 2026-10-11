@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Site, SiteEditInput, SiteInput};
 
-pub const PROTOCOL_VERSION: u16 = 41;
+pub const PROTOCOL_VERSION: u16 = 44;
 pub const DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 120;
 pub const MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS: u16 = 360;
 
@@ -474,6 +474,11 @@ pub enum RuntimeUpdateOperationStatus {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProxyConnectionSettings {
+  #[serde(default)]
+  pub secured: bool,
+  #[serde(default)]
+  //2026.10.06 modify by codex, reason: keep the configurable HTTPS port independent from the enabled flag.
+  pub https_port: Option<u16>,
   pub id: String,
   pub name: String,
   pub domain: String,
@@ -488,6 +493,11 @@ pub struct ProxyConnectionSettings {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProxyConnectionInput {
+  #[serde(default)]
+  pub secured: bool,
+  #[serde(default)]
+  //2026.10.06 modify by codex, reason: keep the configurable HTTPS port independent from the enabled flag.
+  pub https_port: Option<u16>,
   pub id: String,
   pub domain: String,
   pub listen_port: u16,
@@ -506,6 +516,11 @@ pub struct ProxyManagerState {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProxyConnectionInfo {
+  #[serde(default)]
+  pub secured: bool,
+  #[serde(default)]
+  //2026.10.06 modify by codex, reason: keep the configurable HTTPS port independent from the enabled flag.
+  pub https_port: Option<u16>,
   pub id: String,
   pub name: String,
   pub domain: String,
@@ -818,6 +833,8 @@ mod tests {
   #[test]
   fn serializes_proxy_connection_management_with_camel_case_fields() {
     let add = AgentRequest::AddProxyConnection(ProxyConnectionInput {
+      secured: false,
+      https_port: None,
       id: "custom".to_owned(),
       domain: "custom.test".to_owned(),
       listen_port: 3020,
@@ -831,6 +848,8 @@ mod tests {
         "type": "addProxyConnection",
         "payload": {
           "id": "custom",
+          "secured": false,
+          "httpsPort": null,
           "domain": "custom.test",
           "listenPort": 3020,
           "target": "http://api.example.test",
@@ -844,6 +863,8 @@ mod tests {
       serde_json::to_value(AgentRequest::UpdateProxyConnection {
         connection_id: "custom".to_owned(),
         input: ProxyConnectionInput {
+          secured: false,
+          https_port: None,
           id: "custom".to_owned(),
           domain: "custom.test".to_owned(),
           listen_port: 3021,
@@ -859,6 +880,8 @@ mod tests {
           "connectionId": "custom",
           "input": {
             "id": "custom",
+            "secured": false,
+            "httpsPort": null,
             "domain": "custom.test",
             "listenPort": 3021,
             "target": "http://api.changed.test",

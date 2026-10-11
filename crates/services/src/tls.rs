@@ -39,10 +39,12 @@ pub fn ensure_local_ca(paths: &AppPaths) -> Result<LocalCaInfo> {
   remove_if_exists(&certificate_path)?;
   remove_if_exists(&private_key_path)?;
   remove_if_exists(&fingerprint_path)?;
-  let sites = directory.join("sites");
-  if sites.exists() {
-    std::fs::remove_dir_all(&sites)
-      .context("unable to clear certificates from an incomplete CA")?;
+  for name in ["sites", "proxies"] {
+    let certificates = directory.join(name);
+    if certificates.exists() {
+      std::fs::remove_dir_all(&certificates)
+        .context("unable to clear certificates from an incomplete CA")?;
+    }
   }
 
   let key_pair = KeyPair::generate().context("unable to generate local CA private key")?;
@@ -65,9 +67,21 @@ pub fn ensure_local_ca(paths: &AppPaths) -> Result<LocalCaInfo> {
 }
 
 pub fn ensure_site_certificate(paths: &AppPaths, domain: &str) -> Result<LocalSiteCertificate> {
+  ensure_domain_certificate(paths, domain, "sites")
+}
+
+pub fn ensure_proxy_certificate(paths: &AppPaths, domain: &str) -> Result<LocalSiteCertificate> {
+  ensure_domain_certificate(paths, domain, "proxies")
+}
+
+fn ensure_domain_certificate(
+  paths: &AppPaths,
+  domain: &str,
+  group: &str,
+) -> Result<LocalSiteCertificate> {
   let domain = normalize_domain(domain).context("invalid Site domain for certificate")?;
   ensure_local_ca(paths)?;
-  let directory = tls_directory(paths).join("sites");
+  let directory = tls_directory(paths).join(group);
   std::fs::create_dir_all(&directory)?;
   set_directory_permissions(&directory)?;
   let certificate = directory.join(format!("{domain}.crt"));
@@ -237,6 +251,22 @@ mod tests {
     assert!(!certificate.certificate.exists());
     assert!(!certificate.private_key.exists());
     std::fs::remove_dir_all(root).expect("remove TLS fixture");
+  }
+
+  #[test]
+  fn proxy_certificates_share_ca_but_survive_site_certificate_removal() {
+    let root = std::env::temp_dir().join(format!("fabdev-proxy-cert-{}", uuid::Uuid::new_v4()));
+    let paths = AppPaths::from_root(&root);
+    let ca = ensure_local_ca(&paths).unwrap();
+    let site = ensure_site_certificate(&paths, "same.test").unwrap();
+    let proxy = ensure_proxy_certificate(&paths, "same.test").unwrap();
+    assert_ne!(site.certificate, proxy.certificate);
+    remove_site_certificate(&paths, "same.test").unwrap();
+    assert!(proxy.certificate.is_file());
+    assert!(proxy.private_key.is_file());
+    assert_eq!(ca, ensure_local_ca(&paths).unwrap());
+    assert!(ensure_proxy_certificate(&paths, "../escape.test").is_err());
+    std::fs::remove_dir_all(root).unwrap();
   }
 
   #[test]

@@ -840,6 +840,8 @@ mod tests {
       None
     );
     let connection = |id: &str, port: u16| ProxyConnectionSettings {
+      secured: false,
+      https_port: None,
       id: id.to_owned(),
       name: id.to_ascii_uppercase(),
       domain: format!("{id}.test"),
@@ -849,7 +851,9 @@ mod tests {
       allowed_origins: vec![format!("http://{id}.test")],
       upstream_response_timeout_seconds: crate::DEFAULT_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
     };
-    let expected = vec![connection("first", 3020), connection("second", 3021)];
+    let mut expected = vec![connection("first", 3020), connection("second", 3021)];
+    expected[1].secured = true;
+    expected[1].https_port = Some(443);
 
     repository
       .save_proxy_connections(&[expected[1].clone(), expected[0].clone()])
@@ -865,6 +869,8 @@ mod tests {
 
   fn proxy_state_fixture(id: &str, port: u16) -> ProxyConnectionSettings {
     ProxyConnectionSettings {
+      secured: false,
+      https_port: None,
       id: id.to_owned(),
       name: id.to_ascii_uppercase(),
       domain: format!("{id}.test"),

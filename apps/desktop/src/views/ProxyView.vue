@@ -15,7 +15,7 @@ import {
   serializeProxyConnections
 } from '../utils/config-transfer'
 import { useI18n } from '../utils/i18n'
-import { filterProxyConnections, removeProxyConnections } from '../utils/proxy'
+import { defaultProxyHttpsPort, filterProxyConnections, removeProxyConnections } from '../utils/proxy'
 
 const store = useAppStore()
 const { t } = useI18n()
@@ -28,6 +28,8 @@ const allowedOriginsText = ref('')
 const searchQuery = ref('')
 const selectedConnectionIds = ref(new Set<string>())
 const newConnection = reactive<ProxyConnectionInput>({
+  secured: false,
+  httpsPort: null,
   id: '',
   domain: '',
   listenPort: 3000,
@@ -128,9 +130,11 @@ function clearSearch() {
   searchQuery.value = ''
 }
 
-function nextAvailablePort() {
-  const usedPorts = new Set(connections.value.map((connection) => connection.listenPort))
-  for (let port = 3000; port <= 65535; port += 1) {
+function nextAvailablePort(start = 3000) {
+  const usedPorts = new Set(connections.value.flatMap((connection) =>
+    [connection.listenPort]
+  ))
+  for (let port = start; port <= 65535; port += 1) {
     if (!usedPorts.has(port)) {
       return port
     }
@@ -138,11 +142,19 @@ function nextAvailablePort() {
   return 3000
 }
 
+watch(() => newConnection.listenPort, (port, previous) => {
+  if (newConnection.httpsPort == null || newConnection.httpsPort === defaultProxyHttpsPort(previous)) {
+    newConnection.httpsPort = defaultProxyHttpsPort(port)
+  }
+}, { flush: 'sync' })
+
 function openAddForm() {
   editingConnectionId.value = null
   newConnection.id = ''
   newConnection.domain = ''
   newConnection.listenPort = nextAvailablePort()
+  newConnection.httpsPort = defaultProxyHttpsPort(newConnection.listenPort)
+  newConnection.secured = false
   newConnection.target = ''
   newConnection.allowedOrigins = []
   newConnection.upstreamResponseTimeoutSeconds = null
@@ -157,6 +169,8 @@ function openEditForm(connection: ProxyConnectionInfo) {
   newConnection.id = connection.id
   newConnection.domain = connection.domain
   newConnection.listenPort = connection.listenPort
+  newConnection.httpsPort = connection.httpsPort ?? defaultProxyHttpsPort(connection.listenPort)
+  newConnection.secured = connection.secured
   newConnection.target = connection.target
   newConnection.allowedOrigins = [...connection.allowedOrigins]
   newConnection.upstreamResponseTimeoutSeconds = connection.upstreamResponseTimeoutSeconds
@@ -174,6 +188,8 @@ function closeAddForm() {
 
 function proxyFormState() {
   return JSON.stringify({
+    secured: newConnection.secured,
+    httpsPort: Number(newConnection.httpsPort) || null,
     id: newConnection.id,
     domain: newConnection.domain,
     listenPort: newConnection.listenPort,
@@ -305,11 +321,41 @@ async function stopAll() {
   }
 }
 
+async function toggleHttps(connection: ProxyConnectionInfo) {
+  if (action.value !== null) {
+    return
+  }
+  action.value = `https:${connection.id}`
+  message.value = ''
+  const secured = !connection.secured
+  try {
+    await store.updateProxyConnection(connection.id, {
+      id: connection.id,
+      domain: connection.domain,
+      listenPort: connection.listenPort,
+      secured,
+      httpsPort: connection.httpsPort ?? defaultProxyHttpsPort(connection.listenPort),
+      target: connection.target,
+      allowedOrigins: [...connection.allowedOrigins],
+      upstreamResponseTimeoutSeconds: connection.upstreamResponseTimeoutSeconds
+    })
+    message.value = secured
+      ? t('sites.httpsEnabled', { domain: connection.domain })
+      : t('sites.httpsDisabled', { domain: connection.domain })
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    action.value = null
+  }
+}
+
 async function saveConnection() {
   const connectionId = editingConnectionId.value
   action.value = connectionId ? `edit:${connectionId}` : 'add'
   formMessage.value = ''
   const input: ProxyConnectionInput = {
+    secured: newConnection.secured,
+    httpsPort: Number(newConnection.httpsPort) || null,
     id: newConnection.id,
     domain: newConnection.domain,
     listenPort: newConnection.listenPort,
@@ -451,8 +497,9 @@ async function openConnection(connection: ProxyConnectionInfo) {
     if (!isActive(updated)) {
       throw new Error(updated.lastError ?? t('proxy.startFailed', { name: connection.name }))
     }
-    await store.openProxyInChrome(updated.domain, updated.listenPort)
-    message.value = t('proxy.opened', { domain: updated.domain, port: updated.listenPort })
+    const port = updated.secured ? updated.httpsPort! : updated.listenPort
+    await store.openProxyInChrome(updated.domain, port, updated.secured)
+    message.value = t('proxy.opened', { url: updated.secured ? `https://${updated.domain}:${port}/` : `http://${updated.domain}:${port}/` })
   } catch (error) {
     message.value = error instanceof Error ? error.message : String(error)
   } finally {
@@ -628,7 +675,8 @@ async function openConnection(connection: ProxyConnectionInfo) {
         <div class="proxy-addresses">
           <div class="proxy-endpoint">
             <small>{{ t('proxy.localEndpoint') }}</small>
-            <code>{{ connection.listenHost }}:{{ connection.listenPort }}</code>
+            <code>http://{{ connection.domain }}:{{ connection.listenPort }}</code>
+            <code v-if="connection.secured">https://{{ connection.domain }}:{{ connection.httpsPort }}</code>
           </div>
 
           <div class="proxy-target">
@@ -656,6 +704,20 @@ async function openConnection(connection: ProxyConnectionInfo) {
             @click="openEditForm(connection)"
           >
             {{ t('proxy.edit') }}
+          </button>
+          <button
+            type="button"
+            :class="connection.secured ? 'share-stop-button' : 'secondary-button'"
+            :disabled="action !== null"
+            :aria-pressed="connection.secured"
+            :title="t('proxy.httpsHelp')"
+            @click="toggleHttps(connection)"
+          >
+            {{ action === `https:${connection.id}`
+              ? t('sites.httpsWorking')
+              : connection.secured
+                ? t('sites.httpsDisable')
+                : t('sites.httpsEnable') }}
           </button>
           <button
             v-if="!isActive(connection)"
@@ -745,6 +807,18 @@ async function openConnection(connection: ProxyConnectionInfo) {
             min="1024"
             max="65535"
           >
+        </label>
+        <label>
+          {{ t('proxy.httpsPort') }}
+          <input
+            v-model.number="newConnection.httpsPort"
+            :required="newConnection.secured"
+            type="number"
+            min="1024"
+            max="65535"
+            :placeholder="String(defaultProxyHttpsPort(newConnection.listenPort) ?? '')"
+          >
+          <small>{{ t('proxy.httpsPortHelp') }}</small>
         </label>
         <label class="proxy-target-field">
           {{ t('proxy.target') }}

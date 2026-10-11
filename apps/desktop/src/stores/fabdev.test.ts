@@ -28,7 +28,7 @@ function status(nginx: AgentStatus['nginx']): AgentResponse {
 function proxies(name: string): AgentResponse {
   const payload: ProxyManagerState = {
     connections: [{
-      id: 'demo', name, domain: 'demo.test', listenHost: '127.0.0.1',
+      secured: false, httpsPort: null, id: 'demo', name, domain: 'demo.test', listenHost: '127.0.0.1',
       listenPort: 18090, target: 'http://127.0.0.1:18091', allowedOrigins: [],
       upstreamResponseTimeoutSeconds: 60, state: 'running', lastError: null
     }]
@@ -239,5 +239,39 @@ describe('theme mode preferences', () => {
     expect(() => store.setThemeMode('dark')).toThrow('Storage unavailable')
     expect(store.themeMode).toBe('light')
     expect(document.documentElement.dataset.colorMode).toBe('light')
+  })
+})
+
+
+describe('Proxy HTTPS', () => {
+  const input = { id: 'demo', domain: 'demo.test', listenPort: 3010, target: 'http://remote.test', allowedOrigins: [], secured: true, httpsPort: 43010 }
+  const ca = { type: 'localCaReady', payload: { certificatePath: '/managed/ca.crt', fingerprintSha256: 'a'.repeat(64) } }
+
+  it('trusts the managed CA before saving HTTPS with an HTTP target', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(ca).mockResolvedValueOnce(undefined).mockResolvedValueOnce(proxies('demo'))
+    await useAppStore().addProxyConnection(input)
+    expect(vi.mocked(invoke).mock.calls).toEqual([
+      ['agent_request', { request: { type: 'ensureLocalCa' } }],
+      ['trust_local_ca', { certificatePath: '/managed/ca.crt' }],
+      ['agent_request', { request: { type: 'addProxyConnection', payload: input } }]
+    ])
+  })
+
+  it('does not save if the CA trust operation fails', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(ca).mockRejectedValueOnce(new Error('trust cancelled'))
+    await expect(useAppStore().updateProxyConnection('demo', input)).rejects.toThrow('trust cancelled')
+    expect(invoke).toHaveBeenCalledTimes(2)
+  })
+
+  it('can disable HTTPS without another trust operation and opens the selected scheme', async () => {
+    vi.mocked(invoke).mockResolvedValueOnce(proxies('demo'))
+    const store = useAppStore()
+    await store.updateProxyConnection('demo', { ...input, secured: false })
+    expect(invoke).toHaveBeenCalledOnce()
+    expect(invoke).toHaveBeenCalledWith('agent_request', {
+      request: { type: 'updateProxyConnection', payload: { connectionId: 'demo', input: { ...input, secured: false } } }
+    })
+    await store.openProxyInChrome('demo.test', 43010, true)
+    expect(invoke).toHaveBeenLastCalledWith('open_proxy_in_chrome', { domain: 'demo.test', listenPort: 43010, secured: true })
   })
 })

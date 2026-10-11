@@ -1,4 +1,4 @@
-export const protocolVersion = 41
+export const protocolVersion = 44
 
 export type ServiceState =
   | 'notInstalled'
@@ -209,6 +209,9 @@ export type ProxyConnectionState =
   | 'failed'
 
 export interface ProxyConnectionInfo {
+  secured: boolean
+  //2026.10.06 modify by codex, reason: retain a configured HTTPS port even while HTTPS is disabled.
+  httpsPort: number | null
   id: string
   name: string
   domain: string
@@ -222,6 +225,9 @@ export interface ProxyConnectionInfo {
 }
 
 export interface ProxyConnectionInput {
+  secured?: boolean
+  //2026.10.06 modify by codex, reason: default omitted HTTPS ports by prefixing the HTTP port with 4.
+  httpsPort?: number | null
   id: string
   domain: string
   listenPort: number

@@ -676,6 +676,9 @@ async fn main() -> Result<()> {
         eprintln!("unable to restore Proxy connection {connection_id}: {error:#}");
       }
     }
+    if let Err(error) = sync_proxy_https_routes(&state, &manager).await {
+      eprintln!("unable to restore Proxy routing: {error:#}");
+    }
     if !manager.running_ids().is_empty() {
       if let Err(error) = sync_windows_proxy_domains(&manager).await {
         eprintln!("unable to restore Windows Proxy domains: {error:#}");
@@ -683,6 +686,21 @@ async fn main() -> Result<()> {
     }
   }
   serve(endpoint, state).await
+}
+
+async fn sync_proxy_https_routes(state: &AgentState, manager: &ProxyManager) -> Result<()> {
+  let sites = state.sites.lock().await.list()?;
+  state
+    .services
+    .lock()
+    .await
+    .sync_proxy_https(&manager.connections(), &manager.running_ids(), &sites)
+    .await
+}
+
+async fn sync_proxy_routing(state: &AgentState, manager: &ProxyManager) -> Result<()> {
+  sync_proxy_https_routes(state, manager).await?;
+  sync_windows_proxy_domains(manager).await
 }
 
 async fn sync_windows_proxy_domains(manager: &ProxyManager) -> Result<()> {
@@ -1862,13 +1880,22 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       let mut manager = state.proxy_manager.lock().await;
       match manager.add(input) {
         Ok(connection_id) => {
-          if let Err(error) = state
+          if let Err(error) = sync_proxy_https_routes(state, &manager).await {
+            let _ = manager.remove(&connection_id).await;
+            let _ = sync_proxy_https_routes(state, &manager).await;
+            return AgentResponse::Error {
+              code: "proxy_routing_failed".to_owned(),
+              message: error.to_string(),
+            };
+          }
+          let persistence_result = state
             .sites
             .lock()
             .await
-            .save_proxy_connections(&manager.connections())
-          {
+            .save_proxy_connections(&manager.connections());
+          if let Err(error) = persistence_result {
             let _ = manager.remove(&connection_id).await;
+            let _ = sync_proxy_https_routes(state, &manager).await;
             return AgentResponse::Error {
               code: "proxy_save_failed".to_owned(),
               message: error.to_string(),
@@ -1889,9 +1916,9 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       let mut manager = state.proxy_manager.lock().await;
       match manager.update(&connection_id, input).await {
         Ok((previous, was_running)) => {
-          if let Err(error) = sync_windows_proxy_domains(&manager).await {
+          if let Err(error) = sync_proxy_routing(state, &manager).await {
             let rollback = manager.restore_update(previous, was_running).await;
-            let _ = sync_windows_proxy_domains(&manager).await;
+            let _ = sync_proxy_routing(state, &manager).await;
             let message = match rollback {
               Ok(()) => error.to_string(),
               Err(rollback_error) => {
@@ -1899,7 +1926,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
               }
             };
             return AgentResponse::Error {
-              code: "proxy_hosts_sync_failed".to_owned(),
+              code: "proxy_routing_failed".to_owned(),
               message,
             };
           }
@@ -1909,7 +1936,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
           };
           if let Err(error) = persistence_result {
             let _ = manager.restore_update(previous, was_running).await;
-            let _ = sync_windows_proxy_domains(&manager).await;
+            let _ = sync_proxy_routing(state, &manager).await;
             let repository = state.sites.lock().await;
             let _ = repository.save_proxy_state(&manager.connections(), &manager.running_ids());
             return AgentResponse::Error {
@@ -1930,12 +1957,12 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       let was_running = manager.running_ids().contains(&connection_id);
       match manager.remove(&connection_id).await {
         Ok(settings) => {
-          if let Err(error) = sync_windows_proxy_domains(&manager).await {
+          if let Err(error) = sync_proxy_routing(state, &manager).await {
             let rollback = manager.restore(settings);
             if rollback.is_ok() && was_running {
               let _ = manager.start(&connection_id).await;
             }
-            let _ = sync_windows_proxy_domains(&manager).await;
+            let _ = sync_proxy_routing(state, &manager).await;
             let message = match rollback {
               Ok(()) => error.to_string(),
               Err(rollback_error) => {
@@ -1943,7 +1970,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
               }
             };
             return AgentResponse::Error {
-              code: "proxy_hosts_sync_failed".to_owned(),
+              code: "proxy_routing_failed".to_owned(),
               message,
             };
           }
@@ -1956,7 +1983,7 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
             if was_running {
               let _ = manager.start(&connection_id).await;
             }
-            let _ = sync_windows_proxy_domains(&manager).await;
+            let _ = sync_proxy_routing(state, &manager).await;
             let repository = state.sites.lock().await;
             let _ = repository.save_proxy_state(&manager.connections(), &manager.running_ids());
             return AgentResponse::Error {
@@ -1978,12 +2005,13 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       match manager.start(&connection_id).await {
         Ok(()) => {
           if manager.running_ids().contains(&connection_id) {
-            if let Err(error) = sync_windows_proxy_domains(&manager).await {
+            if let Err(error) = sync_proxy_routing(state, &manager).await {
               if !was_running {
                 let _ = manager.stop(&connection_id).await;
               }
+              let _ = sync_proxy_routing(state, &manager).await;
               return AgentResponse::Error {
-                code: "proxy_hosts_sync_failed".to_owned(),
+                code: "proxy_routing_failed".to_owned(),
                 message: error.to_string(),
               };
             }
@@ -2009,8 +2037,19 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
     }
     AgentRequest::StopProxyConnection { connection_id } => {
       let mut manager = state.proxy_manager.lock().await;
+      let was_running = manager.running_ids().contains(&connection_id);
       match manager.stop(&connection_id).await {
         Ok(()) => {
+          if let Err(error) = sync_proxy_https_routes(state, &manager).await {
+            if was_running {
+              let _ = manager.start(&connection_id).await;
+            }
+            let _ = sync_proxy_https_routes(state, &manager).await;
+            return AgentResponse::Error {
+              code: "proxy_routing_failed".to_owned(),
+              message: error.to_string(),
+            };
+          }
           if let Err(error) = state
             .sites
             .lock()
@@ -2034,11 +2073,12 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       let mut manager = state.proxy_manager.lock().await;
       let proxy_state = manager.start_all().await;
       if !manager.running_ids().is_empty() {
-        if let Err(error) = sync_windows_proxy_domains(&manager).await {
+        if let Err(error) = sync_proxy_routing(state, &manager).await {
           manager.stop_all().await;
+          let _ = sync_proxy_routing(state, &manager).await;
           let _ = state.sites.lock().await.save_proxy_running_ids(&[]);
           return AgentResponse::Error {
-            code: "proxy_hosts_sync_failed".to_owned(),
+            code: "proxy_routing_failed".to_owned(),
             message: error.to_string(),
           };
         }
@@ -2057,7 +2097,19 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       AgentResponse::ProxyManager(proxy_state)
     }
     AgentRequest::StopAllProxyConnections => {
-      let proxy_state = state.proxy_manager.lock().await.stop_all().await;
+      let mut manager = state.proxy_manager.lock().await;
+      let running_ids = manager.running_ids();
+      let proxy_state = manager.stop_all().await;
+      if let Err(error) = sync_proxy_https_routes(state, &manager).await {
+        for id in running_ids {
+          let _ = manager.start(&id).await;
+        }
+        let _ = sync_proxy_https_routes(state, &manager).await;
+        return AgentResponse::Error {
+          code: "proxy_routing_failed".to_owned(),
+          message: error.to_string(),
+        };
+      }
       if let Err(error) = state.sites.lock().await.save_proxy_running_ids(&[]) {
         return AgentResponse::Error {
           code: "proxy_state_save_failed".to_owned(),
@@ -3137,8 +3189,11 @@ async fn stop_all(state: &AgentState) -> Result<()> {
 
 async fn stop_for_shutdown(state: &AgentState) -> Result<()> {
   stop_with_cleanup(async { state.lan_share.lock().await.stop().await }, async {
-    state.proxy_manager.lock().await.stop_all().await;
-    state.services.lock().await.shutdown().await
+    let mut manager = state.proxy_manager.lock().await;
+    manager.stop_all().await;
+    let routing = sync_proxy_https_routes(state, &manager).await;
+    let shutdown = state.services.lock().await.shutdown().await;
+    routing.and(shutdown)
   })
   .await
 }
@@ -3865,6 +3920,8 @@ mod tests {
     let connection_id = "shutdown-fixture".to_owned();
     let added = handle_request(
       AgentRequest::AddProxyConnection(fabdev_core::ProxyConnectionInput {
+        secured: false,
+        https_port: None,
         id: connection_id.clone(),
         domain: "shutdown-fixture.test".to_owned(),
         listen_port: port,
@@ -4410,6 +4467,63 @@ mod tests {
       std::fs::read_to_string(index).unwrap(),
       "original project content"
     );
+    drop(state);
+    std::fs::remove_dir_all(root).unwrap();
+  }
+
+  #[tokio::test]
+  async fn proxy_save_failure_rolls_back_https_routes_without_holding_the_registry_lock() {
+    let (root, state) = isolated_agent_state();
+    *state.sites.lock().await = SiteRepository::open(state.paths.database()).unwrap();
+    let observer = rusqlite::Connection::open(state.paths.database()).unwrap();
+    observer
+      .execute_batch(
+        "CREATE TRIGGER deny_proxy_save BEFORE INSERT ON app_settings
+       WHEN NEW.key = 'proxy_connections' BEGIN SELECT RAISE(FAIL, 'proxy write denied'); END;",
+      )
+      .unwrap();
+    let input = fabdev_core::ProxyConnectionInput {
+      id: "secure".to_owned(),
+      domain: "secure.test".to_owned(),
+      listen_port: 3010,
+      target: "http://remote.test".to_owned(),
+      allowed_origins: vec![],
+      secured: true,
+      https_port: None,
+      upstream_response_timeout_seconds: None,
+    };
+    let response = tokio::time::timeout(
+      std::time::Duration::from_secs(2),
+      handle_request(AgentRequest::AddProxyConnection(input.clone()), &state),
+    )
+    .await
+    .expect("Proxy persistence failure must not deadlock route rollback");
+    assert!(matches!(response, AgentResponse::Error { code, .. } if code == "proxy_save_failed"));
+    assert!(state.proxy_manager.lock().await.connections().is_empty());
+    assert!(!state
+      .paths
+      .services
+      .join("nginx/proxies/secure.test.conf")
+      .exists());
+    observer
+      .execute_batch("DROP TRIGGER deny_proxy_save;")
+      .unwrap();
+    assert!(matches!(
+      handle_request(AgentRequest::AddProxyConnection(input), &state).await,
+      AgentResponse::ProxyManager(_)
+    ));
+    assert_eq!(
+      state
+        .sites
+        .lock()
+        .await
+        .proxy_connections()
+        .unwrap()
+        .unwrap()[0]
+        .https_port,
+      Some(43010)
+    );
+    drop(observer);
     drop(state);
     std::fs::remove_dir_all(root).unwrap();
   }

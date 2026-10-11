@@ -60,7 +60,7 @@ const manuals: Record<Language, OperationManual> = {
           'Use Add Site for a project outside Site Home. A linked Site takes precedence if its domain conflicts with a scanned Site.',
           'Use Edit to change the name, project path, domain, or Web Root. Select the PHP Runtime directly on the Site row.',
           'Use Diagnose to check the Site, project paths, DNS, Nginx, HTTP, HTTPS, PHP, and MariaDB, then copy a masked report when needed.',
-          'Secure enables HTTPS for that Site. Trust the fabDev CA when prompted before expecting browsers to accept the certificate.',
+          'Secure adds HTTPS while keeping HTTP available; both serve content without redirects. Trust the fabDev CA when prompted.',
           'Share to LAN exposes selected Sites through fabDev Connect for short, trusted-network testing.',
           'Import and Export transfer Site configuration. Duplicate entries are skipped.'
         ],
@@ -118,7 +118,7 @@ const manuals: Record<Language, OperationManual> = {
         title: 'Proxy Manager',
         summary: 'Create independent loopback proxies for remote ERP HTTP APIs.',
         steps: [
-          'Add a connection with a unique ID, local .test domain, port, and absolute http:// target.',
+          'Add a connection with a unique ID, local .test domain, HTTP port, and HTTP/HTTPS target. Use Secure / Unsecure in the list, just like Sites; HTTPS uses a separate editable port, defaulting to 4 prefixed to the HTTP port (3017 → 43017). Both protocols serve content without redirects.',
           'List exact Credential Origins when browser requests need CORS credentials. Leaving the field blank allows the Proxy domain over HTTP and HTTPS.',
           'Start, Stop, or Restart one connection, or use the page-wide Start All and Stop All controls.',
           'Editing a running connection restarts it automatically. Import and Export transfer connection definitions, not running state.'
@@ -197,7 +197,7 @@ const manuals: Record<Language, OperationManual> = {
           '不在 Site Home 內的專案可用「新增 Site」加入；網域衝突時，手動加入的 linked Site 優先。',
           '按「編輯」可修改名稱、專案路徑、網域與 Web Root；PHP Runtime 可直接在 Site 列上切換。',
           '按「診斷」可檢查 Site、專案路徑、DNS、Nginx、HTTP、HTTPS、PHP 與 MariaDB，並可複製已遮罩的報告。',
-          '按「啟用 HTTPS」為該 Site 建立憑證；瀏覽器要正確認可，還需依提示信任 fabDev CA。',
+          '按「啟用 HTTPS」後，HTTP 與 HTTPS 都直接回應、不轉址；請依提示信任 fabDev CA。',
           '按「局網分享」可透過 fabDev Connect 讓受信任區網內的裝置短時間測試。',
           '匯入／匯出可轉移 Site 設定；重複項目會略過。'
         ],
@@ -255,7 +255,7 @@ const manuals: Record<Language, OperationManual> = {
         title: 'Proxy Manager',
         summary: '為遠端 ERP HTTP API 建立彼此獨立、只綁 loopback 的本機 Proxy。',
         steps: [
-          '新增連線時填入唯一 ID、本機 `.test` 網域、Port 與完整 `http://` Target。',
+          '新增連線時填入唯一 ID、本機 `.test` 網域、HTTP Port 與 HTTP／HTTPS Target；與 Sites 相同，在清單按「啟用 HTTPS／停用 HTTPS」，HTTPS 使用獨立 Port，預設在 HTTP Port 前加 4（3017 → 43017），可於 HTTP Port 右側修改，兩種協定都直接回應、不轉址。',
           '瀏覽器請求需要 CORS Credentials 時，逐行列出允許的精確 Origin；留空則允許此 Proxy 網域的 HTTP 與 HTTPS。',
           '可單獨啟動、停止、重新啟動，也可使用頁面上的「全部啟動／全部停止」。',
           '修改運行中的連線會自動重新啟動；匯入／匯出只轉移定義，不匯入運行狀態。'
@@ -334,7 +334,7 @@ const manuals: Record<Language, OperationManual> = {
           '不在 Site Home 内的项目可用“新增 Site”加入；域名冲突时，手动加入的 linked Site 优先。',
           '按“编辑”可修改名称、项目路径、域名与 Web Root；PHP Runtime 可直接在 Site 行上切换。',
           '按“诊断”可检查 Site、项目路径、DNS、Nginx、HTTP、HTTPS、PHP 与 MariaDB，并可复制已遮罩的报告。',
-          '按“启用 HTTPS”为该 Site 建立证书；浏览器要正确认可，还需依提示信任 fabDev CA。',
+          '按“启用 HTTPS”后，HTTP 与 HTTPS 都直接响应、不跳转；请依提示信任 fabDev CA。',
           '按“局域网共享”可通过 fabDev Connect 让受信任局域网内的设备短时间测试。',
           '导入／导出可转移 Site 设置；重复项目会跳过。'
         ],
@@ -390,7 +390,7 @@ const manuals: Record<Language, OperationManual> = {
         title: 'Proxy Manager',
         summary: '为远端 ERP HTTP API 建立彼此独立、只绑定 loopback 的本地 Proxy。',
         steps: [
-          '新增连接时填写唯一 ID、本地 `.test` 域名、Port 与完整 `http://` Target。',
+          '新增连接时填写唯一 ID、本地 `.test` 域名、HTTP Port 与 HTTP／HTTPS Target；与 Sites 相同，在列表按“启用 HTTPS／停用 HTTPS”，HTTPS 使用独立 Port，默认在 HTTP Port 前加 4（3017 → 43017），可于 HTTP Port 右侧修改，两种协议都直接响应、不跳转。',
           '浏览器请求需要 CORS Credentials 时，逐行列出允许的精确 Origin；留空则允许此 Proxy 域名的 HTTP 与 HTTPS。',
           '可单独启动、停止、重新启动，也可使用页面上的“全部启动／全部停止”。',
           '修改运行中的连接会自动重新启动；导入／导出只转移定义，不导入运行状态。'

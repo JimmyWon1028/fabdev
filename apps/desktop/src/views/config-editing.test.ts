@@ -2,7 +2,9 @@ import { createRenderer, reactive, ssrContextKey, type Component } from 'vue'
 import { beforeEach, expect, test, vi } from 'vitest'
 
 import { ERP_MARIADB_CONFIG } from '../utils/mariadb'
+import type { ProxyConnectionInfo, ProxyConnectionInput } from '@fabdev/contracts'
 import MariaDbView from './MariaDbView.vue'
+import ProxyView from './ProxyView.vue'
 import RuntimesView from './RuntimesView.vue'
 
 const mocks = vi.hoisted(() => ({
@@ -12,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   windows: false
 }))
 
-vi.mock('@tauri-apps/plugin-dialog', () => ({ confirm: mocks.confirm, open: vi.fn() }))
+vi.mock('@tauri-apps/plugin-dialog', () => ({ confirm: mocks.confirm, open: vi.fn(), save: vi.fn() }))
 vi.mock('vue-router', () => ({ onBeforeRouteLeave: mocks.leave }))
 vi.mock('../stores/fabdev', () => ({ useAppStore: () => mocks.store }))
 vi.mock('../utils/path', () => ({
@@ -312,4 +314,129 @@ test('PHP ignores a second discard action while its confirmation is open', async
   await closing
   expect(editor.phpIniContents).toBe('draft')
   unmount()
+})
+
+
+interface ProxyEditor {
+  action: string | null
+  message: string
+  newConnection: ProxyConnectionInput
+  showAddForm: boolean
+  formMessage: string
+  openAddForm(): void
+  openEditForm(connection: ProxyConnectionInfo): void
+  requestCloseAddForm(): Promise<void>
+  saveConnection(): Promise<void>
+  openConnection(connection: ProxyConnectionInfo): Promise<void>
+  toggleHttps(connection: ProxyConnectionInfo): Promise<void>
+}
+
+function proxyFixture(): ProxyConnectionInfo {
+  return {
+    id: 'api', name: 'API', domain: 'api.test', listenHost: '127.0.0.1', listenPort: 3010,
+    secured: true, httpsPort: 43010, target: 'http://remote.test', allowedOrigins: [],
+    upstreamResponseTimeoutSeconds: 120, state: 'running', lastError: null
+  }
+}
+
+function prepareProxyStore() {
+  Object.assign(mocks.store, {
+    proxyManager: { connections: [proxyFixture()] },
+    loadProxyManager: vi.fn().mockResolvedValue(undefined),
+    addProxyConnection: vi.fn().mockResolvedValue(undefined),
+    updateProxyConnection: vi.fn().mockResolvedValue(undefined),
+    openProxyInChrome: vi.fn().mockResolvedValue(undefined)
+  })
+}
+
+test('Proxy HTTPS row action preserves settings and defaults to prefix 4 for older entries', async () => {
+  prepareProxyStore()
+  const { editor, unmount } = await mount<ProxyEditor>(ProxyView)
+  try {
+    const connection = { ...proxyFixture(), secured: false, httpsPort: null, allowedOrigins: ['http://app.test:8100'] }
+    await editor.toggleHttps(connection)
+    expect(mocks.store.updateProxyConnection).toHaveBeenLastCalledWith('api', {
+      id: 'api', domain: 'api.test', listenPort: 3010, secured: true, httpsPort: 43010,
+      target: 'http://remote.test', allowedOrigins: ['http://app.test:8100'],
+      upstreamResponseTimeoutSeconds: 120
+    })
+    expect(connection.secured).toBe(false)
+    expect(editor.showAddForm).toBe(false)
+    await editor.toggleHttps(proxyFixture())
+    expect(mocks.store.updateProxyConnection).toHaveBeenLastCalledWith('api', expect.objectContaining({
+      secured: false, httpsPort: 43010, listenPort: 3010
+    }))
+    expect(editor.action).toBeNull()
+  } finally {
+    unmount()
+  }
+})
+
+test('Proxy HTTPS row action blocks duplicate clicks and keeps failed changes retryable', async () => {
+  prepareProxyStore()
+  const { editor, unmount } = await mount<ProxyEditor>(ProxyView)
+  try {
+    let rejectUpdate!: (error: Error) => void
+    vi.mocked(mocks.store.updateProxyConnection as () => Promise<void>).mockImplementationOnce(
+      () => new Promise<void>((_resolve, reject) => { rejectUpdate = reject })
+    )
+    const connection = proxyFixture()
+    const pending = editor.toggleHttps(connection)
+    expect(editor.action).toBe('https:api')
+    await editor.toggleHttps(connection)
+    expect(mocks.store.updateProxyConnection).toHaveBeenCalledOnce()
+    rejectUpdate(new Error('port unavailable'))
+    await pending
+    expect(editor.message).toBe('port unavailable')
+    expect(editor.action).toBeNull()
+    expect(connection.secured).toBe(true)
+    await editor.toggleHttps(connection)
+    expect(mocks.store.updateProxyConnection).toHaveBeenCalledTimes(2)
+  } finally {
+    unmount()
+  }
+})
+
+test('Proxy preserves HTTPS while editing the HTTP port and protects unsaved edits', async () => {
+  prepareProxyStore()
+  const { editor, unmount } = await mount<ProxyEditor>(ProxyView)
+  try {
+    editor.openEditForm(proxyFixture())
+    expect(editor.newConnection).toMatchObject({ listenPort: 3010, secured: true, httpsPort: 43010 })
+    editor.newConnection.listenPort = 3011
+    await editor.requestCloseAddForm()
+    expect(mocks.confirm).toHaveBeenCalledOnce()
+    expect(editor.showAddForm).toBe(true)
+    await editor.saveConnection()
+    expect(mocks.store.updateProxyConnection).toHaveBeenCalledWith('api', expect.objectContaining({
+      listenPort: 3011, secured: true, httpsPort: 43011, target: 'http://remote.test'
+    }))
+    expect(editor.showAddForm).toBe(false)
+    await editor.openConnection(proxyFixture())
+    expect(mocks.store.openProxyInChrome).toHaveBeenCalledWith('api.test', 43010, true)
+    mocks.store.proxyManager = { connections: [{ ...proxyFixture(), secured: false }] }
+    await editor.openConnection({ ...proxyFixture(), secured: false })
+    expect(mocks.store.openProxyInChrome).toHaveBeenLastCalledWith('api.test', 3010, false)
+  } finally {
+    unmount()
+  }
+})
+
+test('Proxy keeps a failed HTTPS save editable and defaults new entries to HTTP', async () => {
+  prepareProxyStore()
+  const { editor, unmount } = await mount<ProxyEditor>(ProxyView)
+  try {
+    editor.openAddForm()
+    expect(editor.newConnection.secured).toBe(false)
+    expect(editor.newConnection.httpsPort).toBe(Number(`4${editor.newConnection.listenPort}`))
+    editor.openEditForm(proxyFixture())
+    editor.newConnection.target = 'http://changed.test'
+    vi.mocked(mocks.store.updateProxyConnection as () => Promise<void>).mockRejectedValueOnce(new Error('port unavailable'))
+    await editor.saveConnection()
+    expect(editor.showAddForm).toBe(true)
+    expect(editor.formMessage).toBe('port unavailable')
+    expect(editor.newConnection.secured).toBe(true)
+  } finally {
+    unmount()
+  }
 })
