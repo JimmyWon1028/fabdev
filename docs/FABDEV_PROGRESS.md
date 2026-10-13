@@ -1,6 +1,6 @@
 # fabDev 穩定基線與 Roadmap
 
-> 更新日期：2026-10-11
+> 更新日期：2026-10-13
 > 目前階段：[`v0.1.30`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.30) 是公開 Latest Stable，依 Windows-first 順序提供 Windows 11 x64 Community Installer 與 fabDev Connect，現已補齊同版 macOS ARM64 Community DMG。Agent Protocol 為 `44`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v4`。
 
 ## 階段結論
@@ -8,6 +8,15 @@
 fabDev Desktop Community `v0.1.30` 已完成 Windows x64 候選 CI、Repository Owner 實機 Gate、Annotated Tag、Windows-first Draft 與 Publish。Release ID `409718160`，現已補齊同版 macOS ARM64 Community DMG；9 個 App-only Assets 共 151,349,949 bytes，均已完成匿名公開下載驗證。Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
 前版 `v0.1.29` 已補齊 macOS ARM64 Community DMG，Release ID `397957496` 的 9 個 App-only Assets 已完成匿名公開下載驗證；其 macOS Installer 仍可由該版本 Release 下載；目前 Latest macOS Installer 已更新為 `0.1.30`。
+
+## 2026-10-13：0.1.31 Windows-first 候選準備
+
+- 修正 Windows Sites 啟用 HTTPS 時，Helper 錯誤查找 `FabDev/config/tls/ca.crt` 的問題；與 Core 的 Windows Application Data 路徑一致，改為 `FabDev/data/config/tls/ca.crt`。保留受管路徑、憑證格式與 Subject 驗證，Sites 操作與排版未變。
+- Windows x64 Helper 11 項測試與 Clippy 通過；新增正確受管路徑及拒絕受管目錄外憑證的兩項回歸測試。將生產程式碼回復舊路徑時，正確路徑測試確實失敗。
+- Repository Owner 在 Windows 11 VM 透過 App 啟用 HTTPS 成功，`adminer.test` 與 `lysm.test` 的 HTTP／HTTPS 均實際回應 200。Windows curl 使用 `--ssl-revoke-best-effort` 容許本機 CA 缺少 CRL distribution point，仍驗證 CA 與網域。後續再次確認 `adminer.test` HTTP／HTTPS 200；依 Repository Owner 指示保留 VM 測試程式、修正版 Helper、CA 信任與已啟用的 `adminer.test`。
+- Repository Owner 要求打包及進版，四個正式 App 版本來源與 Cargo lock 的 13 個 fabDev 套件已同步為 `0.1.31`，Agent Protocol 維持 `44`。目前公開 Latest 仍是 `v0.1.30`；`0.1.31` 尚未提交、推送、建立 Windows CI 候選、Tag、Draft 或 Publish。
+- `0.1.31` 完整 `pnpm test` 通過 Desktop 171、Release 規則 21、Rust workspace 342、macOS Helper 10 項，共 544 項；7 項 Rust 外部環境測試維持 ignored。首次受限 sandbox 執行因測試 Socket 綁定被拒絕而失敗，允許該操作後重跑相同完整測試通過。`pnpm lint`、四個版本來源／13 個 Cargo 套件版本一致性及 `git diff --check` 通過。
+- 本次僅處理 Windows-first App 候選準備；未修改安裝／更新程序，未重新打包 macOS、線上 Runtime Package 或 Catalog。
 
 ## 2026-10-11：0.1.30 Windows-first 候選、Draft 與 Stable Publish
 

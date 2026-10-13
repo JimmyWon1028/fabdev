@@ -142,7 +142,12 @@ fn elevate(arguments: Vec<OsString>) -> Result<()> {
 
 fn validate_certificate_path(path: &Path) -> Result<PathBuf> {
   let local_app_data = std::env::var_os("LOCALAPPDATA").context("LOCALAPPDATA is not defined")?;
-  let expected = PathBuf::from(local_app_data).join("FabDev/config/tls/ca.crt");
+  validate_certificate_path_in(path, Path::new(&local_app_data))
+}
+
+fn validate_certificate_path_in(path: &Path, local_app_data: &Path) -> Result<PathBuf> {
+  //2026.10.13 modify by codex, match the Windows application data directory used by Core.
+  let expected = local_app_data.join("FabDev/data/config/tls/ca.crt");
   let requested = path
     .canonicalize()
     .with_context(|| format!("unable to resolve local CA certificate: {}", path.display()))?;
@@ -455,6 +460,36 @@ YmRPX/wo6j63
     fn drop(&mut self) {
       let _ = std::fs::remove_dir_all(&self.0);
     }
+  }
+
+  #[test]
+  fn validates_ca_in_the_windows_application_data_directory() {
+    let fixture = TestDirectory::create("managed-ca-path");
+    let certificate = fixture.0.join("FabDev/data/config/tls/ca.crt");
+    std::fs::create_dir_all(certificate.parent().expect("certificate directory"))
+      .expect("create managed certificate directory");
+    std::fs::write(&certificate, TEST_CA_PEM).expect("write public certificate fixture");
+
+    assert_eq!(
+      validate_certificate_path_in(&certificate, &fixture.0).expect("validate managed CA"),
+      certificate.canonicalize().expect("resolve managed CA")
+    );
+  }
+
+  #[test]
+  fn rejects_ca_outside_the_windows_application_data_directory() {
+    let fixture = TestDirectory::create("unmanaged-ca-path");
+    let managed = fixture.0.join("FabDev/data/config/tls/ca.crt");
+    let outside = fixture.0.join("FabDev/config/tls/ca.crt");
+    for certificate in [&managed, &outside] {
+      std::fs::create_dir_all(certificate.parent().expect("certificate directory"))
+        .expect("create certificate directory");
+      std::fs::write(certificate, TEST_CA_PEM).expect("write public certificate fixture");
+    }
+
+    let error = validate_certificate_path_in(&outside, &fixture.0)
+      .expect_err("reject certificate outside managed storage");
+    assert!(error.to_string().contains("outside fabDev managed storage"));
   }
 
   #[test]
