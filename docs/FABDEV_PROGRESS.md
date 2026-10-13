@@ -9,13 +9,16 @@ fabDev Desktop Community `v0.1.30` 已完成 Windows x64 候選 CI、Repository 
 
 前版 `v0.1.29` 已補齊 macOS ARM64 Community DMG，Release ID `397957496` 的 9 個 App-only Assets 已完成匿名公開下載驗證；其 macOS Installer 仍可由該版本 Release 下載；目前 Latest macOS Installer 已更新為 `0.1.30`。
 
-## 2026-10-13：0.1.31 Windows-first 候選準備
+## 2026-10-13：0.1.31 Windows-first 候選與 Repository Owner Gate
 
 - 修正 Windows Sites 啟用 HTTPS 時，Helper 錯誤查找 `FabDev/config/tls/ca.crt` 的問題；與 Core 的 Windows Application Data 路徑一致，改為 `FabDev/data/config/tls/ca.crt`。保留受管路徑、憑證格式與 Subject 驗證，Sites 操作與排版未變。
 - Windows x64 Helper 11 項測試與 Clippy 通過；新增正確受管路徑及拒絕受管目錄外憑證的兩項回歸測試。將生產程式碼回復舊路徑時，正確路徑測試確實失敗。
 - Repository Owner 在 Windows 11 VM 透過 App 啟用 HTTPS 成功，`adminer.test` 與 `lysm.test` 的 HTTP／HTTPS 均實際回應 200。Windows curl 使用 `--ssl-revoke-best-effort` 容許本機 CA 缺少 CRL distribution point，仍驗證 CA 與網域。後續再次確認 `adminer.test` HTTP／HTTPS 200；依 Repository Owner 指示保留 VM 測試程式、修正版 Helper、CA 信任與已啟用的 `adminer.test`。
-- Repository Owner 要求打包及進版，四個正式 App 版本來源與 Cargo lock 的 13 個 fabDev 套件已同步為 `0.1.31`，Agent Protocol 維持 `44`。目前公開 Latest 仍是 `v0.1.30`；`0.1.31` 尚未提交、推送、建立 Windows CI 候選、Tag、Draft 或 Publish。
+- Repository Owner 要求打包及進版，四個正式 App 版本來源與 Cargo lock 的 13 個 fabDev 套件已同步為 `0.1.31`，Agent Protocol 維持 `44`。Repository Owner 已明確授權提交及推送，候選來源 Commit `827c6d371d9afe7250290c00ee331f6076a75339` 已推送至 `main`。目前公開 Latest 仍是 `v0.1.30`；`0.1.31` 尚未建立 Tag、Draft 或 Publish。
 - `0.1.31` 完整 `pnpm test` 通過 Desktop 171、Release 規則 21、Rust workspace 342、macOS Helper 10 項，共 544 項；7 項 Rust 外部環境測試維持 ignored。首次受限 sandbox 執行因測試 Socket 綁定被拒絕而失敗，允許該操作後重跑相同完整測試通過。`pnpm lint`、四個版本來源／13 個 Cargo 套件版本一致性及 `git diff --check` 通過。
+- 單次 [Windows x64 CI Run `38400023307`](https://github.com/JimmyWon1028/fabdev/actions/runs/38400023307) 於 2026-10-13 20:48:23～20:56:05（Asia/Taipei，UTC+8）全部通過，包含前端、發布契約／NSIS 靜態檢查、PHP FastCGI worker pool、MSVC workspace、兩項新增回歸測試、Connect 及 NSIS 建置。實際安裝包為 `fabDev_0.1.31_x64-setup.exe`；[Installer Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/38400023307/artifacts/11815410797) 與 [Connect Artifact](https://github.com/JimmyWon1028/fabdev/actions/runs/38400023307/artifacts/11815255984) 已上傳且未過期，保留至 2027-01-11 20:48:21（Asia/Taipei，UTC+8）。Artifact 壓縮包大小分別為 49,954,760 與 331,544 bytes，摘要分別為 `c875731509a746b38a4bedeed9176b713507b97d99074570f9221dbe51269f9f` 與 `c8932c3d31e4a727ca72de8226037fff93598a38859c91fec5f418a29d9cf0e5`；這些是 Artifact 壓縮包摘要，不是內部 EXE 的個別 checksum。
+- Repository Owner 於 2026-10-13 回報此候選「結果ＯＫ」，`0.1.31` Windows CI Installer 的 Repository Owner Gate 已通過。後續發布準備沿用同次已測試 CI 的 Installer／Connect，不重新建置 Binary；候選程式碼固定為 `827c6d371d9afe7250290c00ee331f6076a75339`。
+- Windows-first Draft 的 7 個 App-only 資產已在本機準備完成；原始 CI ZIP 的 GitHub digest／大小、個別與總 SHA-256、兩份 Manifest 逐位元一致性及 Windows x64 平台邊界均通過。Installer 為 49,961,469 bytes、SHA-256 `ef6f86ce1277a9762057efafb678b66ef341ac4b888645be3bd0e5208704ae0e`；Connect 為 747,520 bytes、SHA-256 `f6808bb01999b92f379484d7644d99128054444224abe7521dc6ee793253b37e`。固定 Manifest `publishedAt=2026-10-13T14:10:47Z`（台北時間 2026-10-13 22:10:47）；Installer 內 Desktop FileVersion 為 `0.1.31.0`，Desktop／Agent／Helper／Connect 均為 x64，Helper 含正確 CA 路徑。Repository Owner 已明確要求 Publish，後續依發布規格完成 Gate 紀錄提交／推送、固定候選 Tag、Draft、資產驗證與 Windows-first Stable 發布。
 - 本次僅處理 Windows-first App 候選準備；未修改安裝／更新程序，未重新打包 macOS、線上 Runtime Package 或 Catalog。
 
 ## 2026-10-11：0.1.30 Windows-first 候選、Draft 與 Stable Publish
