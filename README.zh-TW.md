@@ -34,7 +34,7 @@ cargo run -p fabdev-cli -- status
 FABDEV_DATA_DIR=/tmp/fabdev-local-test pnpm dev
 ```
 
-Desktop 開啟時會先補齊內建的 Nginx 1.30.4、PHP 7.4.33 與 PHP 8.2.33，macOS 另補齊 dnsmasq 2.93；只安裝缺少的版本，不覆蓋既有 Runtime、Site、`php.ini` 或其他開發資料。Site Registry 完全空白時會建立唯一的 `demo.test` 與 fabDev 自有 Demo 專案；只要已有任何 Site 就不新增或覆蓋。接著 Desktop 自行啟動同版本的內建 Agent 與全部開發服務。可在「設定」關閉「App 開啟時自動啟動服務」。若服務已全數運行則保持原狀，部分運行或異常時會先清理再啟動。若發現失效的 Agent IPC 端點，會先安全清理再重連。正式資料仍沿用原本的 Application Support 目錄；Agent 啟動記錄位於其中的 `logs/agent-process.log`。關閉主視窗只會隱藏 Desktop，不會停止服務；從 menu bar 或系統匣選擇 `Quit fabDev` 時會依序停止 Web 全部服務與 MariaDB、清理受管孤兒程序、關閉 Agent，確認 IPC 端點消失後才退出 Desktop。
+Desktop 開啟時會先補齊內建的 Nginx 1.30.4、PHP 7.4.33 與 PHP 8.2.35，macOS 另補齊 dnsmasq 2.93；只安裝缺少的版本，不覆蓋既有 Runtime、Site、`php.ini` 或其他開發資料。Site Registry 完全空白時會建立唯一的 `demo.test` 與 fabDev 自有 Demo 專案；只要已有任何 Site 就不新增或覆蓋。接著 Desktop 自行啟動同版本的內建 Agent 與全部開發服務。可在「設定」關閉「App 開啟時自動啟動服務」。若服務已全數運行則保持原狀，部分運行或異常時會先清理再啟動。若發現失效的 Agent IPC 端點，會先安全清理再重連。正式資料仍沿用原本的 Application Support 目錄；Agent 啟動記錄位於其中的 `logs/agent-process.log`。關閉主視窗只會隱藏 Desktop，不會停止服務；從 menu bar 或系統匣選擇 `Quit fabDev` 時會依序停止 Web 全部服務與 MariaDB、清理受管孤兒程序、關閉 Agent，確認 IPC 端點消失後才退出 Desktop。
 
 建立內含 Agent 的本機 macOS App：
 
@@ -48,9 +48,9 @@ open target/debug/bundle/macos/fabDev.app
 
 ### 目前發布狀態
 
-`v0.1.31` 是目前公開的 Latest Stable，依 Windows-first 順序發布 Windows 11 x64 Community Installer 與 fabDev Connect，現已補齊同版 macOS 13+ ARM64 Community DMG。本版使用正確的受管 CA 路徑，修正 Windows Sites 無法啟用 HTTPS，詳見 [Release Notes](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.31)。Agent Protocol 維持 `44`，Latest Manifest 現在同時且只列 Windows x64 與 macOS ARM64 Installer。
+`v0.1.32` 是目前公開的 Latest Stable，依 Windows-first 順序發布 Windows 11 x64 Community Installer，現已從相同 Tag Commit 補齊同版 macOS 13+ ARM64 Community DMG。本版將內建 PHP 8.2 更新為 8.2.35、修正 Windows PHP 8.5 OPcache 預設設定、Sites 改用單一專案路徑並移除局網分享，詳見 [Release Notes](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.32)。Agent Protocol 維持 `44`，Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。
 
-`0.1.31` 本機測試與 lint 通過：544 項測試通過，7 項需外部環境的 Rust 測試維持 ignored。Windows 候選 Run [`38400023307`](https://github.com/JimmyWon1028/fabdev/actions/runs/38400023307) 全部成功，包含兩項新增 Windows Helper 回歸測試；Repository Owner 已確認候選 Gate 通過。Annotated Tag `v0.1.31` 固定於 Commit `827c6d371d9afe7250290c00ee331f6076a75339`，Installer／Connect 使用同一批已測試 CI Binary。Release ID `411755050` 現有 9 個 App-only Assets，macOS 補齊後均已匿名下載驗證。Windows Setup SHA-256 維持 `ef6f86ce1277a9762057efafb678b66ef341ac4b888645be3bd0e5208704ae0e`，Connect 維持 `f6808bb01999b92f379484d7644d99128054444224abe7521dc6ee793253b37e`。macOS DMG 使用相同 Tag Commit 建置，Disk Image、內外 checksum、ARM64、版本與 ad-hoc 簽章驗證通過；四份 bundled Runtime Archive 與前版已驗證 DMG 逐位元相同，DMG SHA-256 為 `b3133c04a80df8fa7683be436efe508bcd3240d64158afd33d3060cd67d2bf9d`。
+固定 Tag 的完整本機測試 558 項與 lint 通過，另 7 項 Rust 外部環境測試 ignored。Windows 候選 [Run `40156449901`](https://github.com/JimmyWon1028/fabdev/actions/runs/40156449901) 全部成功；macOS 補版沿用 Annotated Tag `v0.1.32` 與 Commit `d902d92dea123413232e52036ae1c8430b765aad`，未修改程式碼或版本。Release ID `423122317` 現有 7 個 App-only Assets、167,216,189 bytes，均已匿名公開下載驗證。DMG 通過 Disk Image、28 份內部 checksum、ARM64／macOS 13、App／CLI／Agent 版本、既有 ad-hoc 簽章與 bundled Runtime 完整性檢查；SHA-256 為 `a53dc1d75fffb1e1fe04cd92a8d041c76a72c623bcad887b9c2528808882fc7d`。Windows Installer SHA-256 維持 `dd6af533bde28b72dce9588ba4aa6570b941436cf6a33607a0294ef3b31c90f7`，Installer 的 Asset ID、位元組與個別 checksum 均未改變。已撤下停用的獨立 Connect.exe 與其個別 checksum，兩份 App Manifest 不變。安裝程序未變，人工驗收沿用既有結果；未更新本機 App、Runtime、設定或服務。
 
 ## Unsigned Community Build
 
@@ -60,24 +60,24 @@ open target/debug/bundle/macos/fabDev.app
 pnpm run build:community:macos
 ```
 
-產物位於 `artifacts/fabDev-Community-<version>-macos-arm64.dmg`，並附有同名 `.sha256`。Community DMG 內建 PHP 7.4.33、PHP 8.2.33、Nginx 1.30.4 與 dnsmasq 2.93，另包含唯一的 `demo.test` 範例及可雙擊的安裝與移除程序。PHP 8.4.24／8.5.10、MariaDB 12.3.2 與 Node.js 20／24 是由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes) 獨立發布的選裝 Runtime Package，需由主控台另外安裝，不放入 App Release。內建 PHP 以目前確認的設定作為初始 `php.ini`，其中 `upload_max_filesize` 與 `post_max_size` 均為 64M；首次啟動會依使用者目錄產生正確的 Runtime、Log 與 Session 路徑，不包含建置電腦的絕對路徑。本機候選包與 GitHub Actions Release Assets 都會依發布流程完成完整性驗證。
+產物位於 `artifacts/fabDev-Community-<version>-macos-arm64.dmg`，並附有同名 `.sha256`。目前 macOS Community DMG 為 v0.1.32，內建 PHP 7.4.33、PHP 8.2.35、Nginx 1.30.4 與 dnsmasq 2.93，另包含唯一的 `demo.test` 範例及可雙擊的安裝與移除程序。PHP 8.4.27／8.5.12、MariaDB 12.3.2 與 Node.js 20／24 是由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes) 獨立發布的選裝 Runtime Package，需由主控台另外安裝，不放入 App Release。內建 PHP 以目前確認的設定作為初始 `php.ini`，其中 `upload_max_filesize` 與 `post_max_size` 均為 64M；首次啟動會依使用者目錄產生正確的 Runtime、Log 與 Session 路徑，不包含建置電腦的絕對路徑。本機候選包與 GitHub Actions Release Assets 都會依發布流程完成完整性驗證。
 
 Community 安裝程式會驗證 DMG 內的 `SHA256SUMS`，再要求一次管理員權限安裝 `/Applications/fabDev.app` 與固定功能的 LaunchDaemon。更新會保留 Sites、Runtime 與 `php.ini`；移除程序預設保留資料，只有使用者再次確認才會把資料移到垃圾桶。完整操作說明在 [`distribution/macos/community/INSTALL.zh-TW.md`](distribution/macos/community/INSTALL.zh-TW.md)。
 
-App 公開下載使用 [fabdev GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；`v0.1.31` 現已同時提供 Windows x64 App Installer、macOS ARM64 Community DMG 與 fabDev Connect。`v0.1.21` 起 App Release 只提供 App Installer、fabDev Connect、App Manifest 與 SHA-256；Runtime Catalog 與 Package 改由 [fabdev-runtimes Releases](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish、同版平台補齊與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的 App 安裝包並產生 Manifest／Checksum，不會觸發打包或發布，也拒絕 Runtime Package 輸入。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
+App 公開下載使用 [fabdev GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；`v0.1.32` 現已同時提供 Windows x64 Installer、macOS ARM64 Community DMG。`v0.1.21` 起 App 與 Runtime 分離；`v0.1.32` 取消 Connect 後，App Release 只提供 App Installer、App Manifest 與 SHA-256；Runtime Catalog 與 Package 改由 [fabdev-runtimes Releases](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish、同版平台補齊與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的 App 安裝包並產生 Manifest／Checksum，不會觸發打包或發布，也拒絕 Runtime Package 輸入。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
 
 公開發布分成兩個互不綁定版本的儲存庫：
 
 | 儲存庫 | 管理內容 | 版本生命週期 |
 | --- | --- | --- |
-| [`JimmyWon1028/fabdev`](https://github.com/JimmyWon1028/fabdev) | Desktop App、macOS DMG、Windows Setup、fabDev Connect、App Manifest | 使用 App SemVer 與 `v<version>` Tag |
+| [`JimmyWon1028/fabdev`](https://github.com/JimmyWon1028/fabdev) | Desktop App、macOS DMG、Windows Setup、App Manifest | 使用 App SemVer 與 `v<version>` Tag |
 | [`JimmyWon1028/fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes) | Runtime Catalog、選裝 Runtime Package 及 checksum | 使用單調遞增的 `catalog-vN`，不跟隨 App 版號 |
 
-目前 Runtime Latest 是 `catalog-v4`：`fabdev-runtime-v2.json` 的 `catalogSequence=4`、最低 App `0.1.21`、最低 Agent Protocol `37`，共列出 Windows x64 7 項與 macOS ARM64 5 項。新增項目為 macOS PHP 8.5.10，原有 11 個項目的 URL、大小與 SHA-256 均未改變。Catalog 換版只更新可安裝清單，不會把所有 Package 重新打包。
+目前 Runtime Latest 是 `catalog-v5`：`fabdev-runtime-v2.json` 的 `catalogSequence=5`、最低 App `0.1.32`、最低 Agent Protocol `37`，共列出 Windows x64 與 macOS ARM64 各 7 項。兩平台同步提供 PHP 7.4.33／8.2.35／8.4.27／8.5.12，6 個 MariaDB／Node.js 項目的資料保持不變。Catalog 換版只更新可安裝清單，不會重打未變更的 Package。
 
 Windows x64 使用 Current User NSIS 單檔安裝程式；完整的建置環境、Runtime／sidecar 準備、Windows 11 驗收及除錯經驗整理在 [`docs/WINDOWS_X64_PACKAGING.md`](docs/WINDOWS_X64_PACKAGING.md)。
 
-Windows x64 的 PHP 7.4.33／8.2.33／8.4.24／8.5.10、MariaDB 12.3.2 與 Node.js 20.20.2／24.20.0，以及 macOS ARM64 的 PHP 8.4.24／8.5.10、MariaDB 12.3.2 與 Node.js 20.20.2／24.20.0，均由 Runtime Catalog 管理為獨立選裝套件。Windows 套件可由 `./scripts/build-windows-runtime-packages.sh` 建立，輸出為 `artifacts/windows-x64/runtimes/` 下配對的 Release JSON 與 `.tar.gz`。新建或替換 Package 必須發布到 `fabdev-runtimes` 的新 Release，再由下一個 `catalog-vN` 引用，不得混入 App Release；單純修改安裝清單時只發布新 Catalog，不重打未變更的 Package。MariaDB 與 Node.js 來源除了固定 SHA-256，也會驗證官方 PGP 簽章與完整 Fingerprint。
+Windows x64 與 macOS ARM64 的 PHP 7.4.33／8.2.35／8.4.27／8.5.12、MariaDB 12.3.2 與 Node.js 20.20.2／24.20.0，均由 Runtime Catalog 管理為獨立選裝套件。Windows 套件可由 `./scripts/build-windows-runtime-packages.sh` 建立，輸出為 `artifacts/windows-x64/runtimes/` 下配對的 Release JSON 與 `.tar.gz`。新建或替換 Package 必須發布到 `fabdev-runtimes` 的新 Release，再由下一個 `catalog-vN` 引用，不得混入 App Release；單純修改安裝清單時只發布新 Catalog，不重打未變更的 Package。MariaDB 與 Node.js 來源除了固定 SHA-256，也會驗證官方 PGP 簽章與完整 Fingerprint。
 
 ## Runtime 建置與安裝
 
@@ -176,7 +176,7 @@ cargo run -p fabdev-cli -- stop-all-proxies
 
 ## LAN Site Share
 
-2026-10-19 的未發布原始碼已取消局網分享。Sites 不再提供分享按鈕、狀態、Connect 位址、分享篩選與排序，CLI 分享指令亦已移除。Agent 拒絕舊版啟動請求且不建立 LAN Listener，保留查詢／停止的相容性。既有 Stable 下載與 fabDev Connect 發布資產維持原值。正式區網用途仍屬獨立的 `fabDev Server` 規劃，見 [`docs/FABDEV_ARCHITECTURE.md`](docs/FABDEV_ARCHITECTURE.md) 第 15 節。
+`v0.1.32` 已在 macOS 與 Windows 同步取消局網分享。Sites 不再提供分享按鈕、狀態、Connect 位址、分享篩選與排序，CLI 分享指令亦已移除。Agent 拒絕舊版啟動請求且不建立 LAN Listener，保留查詢／停止的相容性。Windows Installer 不包含 Connect.exe；`v0.1.32` 的獨立 Connect.exe 與個別 checksum 已撤下，舊版 Release 保持不變。正式區網用途仍屬獨立的 `fabDev Server` 規劃，見 [`docs/FABDEV_ARCHITECTURE.md`](docs/FABDEV_ARCHITECTURE.md) 第 15 節。
 
 53/80/443 埠由 macOS System Helper 固定代理至一般使用者權限的 53535/8080/8443；所有 listener 只綁 `127.0.0.1`。Helper 只接受固定服務控制，不執行 Runtime binary、憑證操作或任意命令。Helper 僅管理固定的 `/etc/resolver/test`，如果檔案不是 fabDev 建立便拒絕覆蓋或刪除。開發測試可執行 `helpers/macos/.build/debug/fabdev-system-helper --development`，使用 15353/18080/18443 作為入口，不修改系統設定。
 

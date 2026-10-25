@@ -198,7 +198,7 @@ test('pins Windows CI actions to Node.js 24 compatible releases', async () => {
     windowsWorkflow.match(
       /actions\/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7\.0\.1/g
     )?.length,
-    2
+    1
   )
   assert.doesNotMatch(
     windowsWorkflow,
@@ -212,14 +212,11 @@ test('prepares canonical App-only release assets, checksums, and manifests', asy
 
   const macContents = Buffer.from('macOS installer fixture')
   const windowsContents = Buffer.from('Windows installer fixture')
-  const connectContents = Buffer.from('fabDev Connect fixture')
   const macSource = join(testRoot, 'input.dmg')
   const windowsSource = join(testRoot, 'input-setup.exe')
-  const connectSource = join(testRoot, 'input-connect.exe')
   const outputDir = join(testRoot, 'release')
   await writeFile(macSource, macContents)
   await writeFile(windowsSource, windowsContents)
-  await writeFile(connectSource, connectContents)
 
   const result = await prepareAppRelease({
     repoRoot,
@@ -227,8 +224,7 @@ test('prepares canonical App-only release assets, checksums, and manifests', asy
     publishedAt: '2026-08-28T12:34:56Z',
     outputDir,
     macosArm64: macSource,
-    windowsX64: windowsSource,
-    windowsConnectX64: connectSource
+    windowsX64: windowsSource
   })
 
   const macName = `fabDev-Community-${projectVersion}-macos-arm64.dmg`
@@ -238,8 +234,6 @@ test('prepares canonical App-only release assets, checksums, and manifests', asy
     'SHA256SUMS',
     'fabdev-app-v1.json',
     'fabdev-stable-v1.json',
-    connectName,
-    `${connectName}.sha256`,
     macName,
     `${macName}.sha256`,
     windowsName,
@@ -248,7 +242,6 @@ test('prepares canonical App-only release assets, checksums, and manifests', asy
 
   assert.equal(await readFile(join(outputDir, macName), 'utf8'), macContents.toString())
   assert.equal(await readFile(join(outputDir, windowsName), 'utf8'), windowsContents.toString())
-  assert.equal(await readFile(join(outputDir, connectName), 'utf8'), connectContents.toString())
 
   const manifest = JSON.parse(await readFile(join(outputDir, 'fabdev-app-v1.json'), 'utf8'))
   const stableManifest = JSON.parse(
@@ -270,8 +263,7 @@ test('prepares canonical App-only release assets, checksums, and manifests', asy
   assert.equal(
     await readFile(join(outputDir, 'SHA256SUMS'), 'utf8'),
     `${digest(macContents)}  ${macName}\n` +
-      `${digest(windowsContents)}  ${windowsName}\n` +
-      `${digest(connectContents)}  ${connectName}\n`
+      `${digest(windowsContents)}  ${windowsName}\n`
   )
   assert.equal(
     await readFile(join(outputDir, `${macName}.sha256`), 'utf8'),
@@ -302,29 +294,59 @@ test('prepares Windows-first App assets without Runtime packages', async (contex
   const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-windows-test-'))
   context.after(async () => rm(testRoot, { force: true, recursive: true }))
   const windowsSource = join(testRoot, 'input-setup.exe')
-  const connectSource = join(testRoot, 'input-connect.exe')
   const outputDir = join(testRoot, 'release')
   await writeFile(windowsSource, 'Windows installer fixture')
-  await writeFile(connectSource, 'fabDev Connect fixture')
 
   const result = await prepareAppRelease({
     repoRoot,
     version: projectVersion,
     publishedAt: '2026-08-30T12:34:56Z',
     outputDir,
-    windowsX64: windowsSource,
-    windowsConnectX64: connectSource
+    windowsX64: windowsSource
   })
 
   assert.equal(result.manifest.artifacts.length, 1)
   assert.equal(result.manifest.artifacts[0].platform, 'windows')
-  assert.equal(result.files.length, 7)
+  assert.equal(result.files.length, 5)
   assert.equal(result.files.some((fileName) => fileName.endsWith('.tar.gz')), false)
   assert.equal(result.files.includes('fabdev-runtime-v1.json'), false)
   assert.equal(
     result.files.some((fileName) => fileName.includes('macos')),
     false
   )
+})
+
+//2026.10.25 by codex, prevent retired Connect assets from returning through API or CLI inputs.
+test('rejects retired Connect inputs without creating release output', async (context) => {
+  const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-release-connect-test-'))
+  context.after(async () => rm(testRoot, { force: true, recursive: true }))
+  const outputDir = join(testRoot, 'release')
+  const options = {
+    repoRoot,
+    version: projectVersion,
+    publishedAt: '2026-10-25T00:00:00Z',
+    outputDir,
+    windowsX64: join(testRoot, 'installer.exe'),
+    windowsConnectX64: join(testRoot, 'connect.exe')
+  }
+  await assert.rejects(prepareAppRelease(options), /fabDev Connect has been retired/)
+  await assert.rejects(readFile(outputDir), { code: 'ENOENT' })
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      join(scriptDir, 'generate-app-release-manifest.mjs'),
+      '--windows-connect-x64', options.windowsConnectX64,
+      '--output-dir', outputDir
+    ]),
+    /Unknown option: --windows-connect-x64/
+  )
+  await assert.rejects(readFile(outputDir), { code: 'ENOENT' })
+})
+
+test('omits retired Connect build and upload steps from Windows distribution', async () => {
+  for (const name of ['windows-x64.yml', 'release-draft.yml']) {
+    const workflow = await readFile(join(repoRoot, '.github/workflows', name), 'utf8')
+    assert.doesNotMatch(workflow, /cargo build -p fabdev-connect|fabdev-connect\.exe|fabDev-Connect-|--windows-connect-x64/)
+  }
 })
 
 test('rejects Runtime package inputs from the App Release API', async (context) => {
@@ -454,12 +476,12 @@ test('keeps the Draft Release workflow manual and unable to publish', async () =
   assert.match(workflow, /Existing Draft state will be verified by the write-scoped final job/)
   assert.match(workflow, /test "\$is_draft" = "true"/)
   assert.match(workflow, /test "\$is_unpublished" = "true"/)
-  assert.match(workflow, /7\|9\) ;;/)
-  assert.match(workflow, /Expected 7 Windows-first or 9 supplemented Draft assets/)
+  assert.match(workflow, /5\|7\) ;;/)
+  assert.match(workflow, /Expected 5 Windows-first or 7 supplemented Draft assets/)
   assert.match(workflow, /existing-windows/)
   assert.match(workflow, /-name '\*-windows-x64\*'/)
   assert.match(workflow, /test "\$checksum_count" = "2"/)
-  assert.match(workflow, /test "\$checksum_count" = "3"/)
+  assert.match(workflow, /test "\$checksum_count" = "1"/)
   assert.match(workflow, /gh release download/)
   assert.match(workflow, /gh release upload/)
   assert.match(workflow, /--clobber/)

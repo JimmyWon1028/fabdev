@@ -43,7 +43,6 @@ pnpm -r --if-present test
 node scripts/build-desktop-bundle-assets.mjs
 ./scripts/prepare-windows-runtimes.ps1
 cargo check --workspace --all-targets --target x86_64-pc-windows-msvc
-cargo build -p fabdev-connect --release --target x86_64-pc-windows-msvc
 pnpm --filter @fabdev/desktop exec tauri build --target x86_64-pc-windows-msvc --bundles nsis --config src-tauri/tauri.windows.conf.json
 ```
 

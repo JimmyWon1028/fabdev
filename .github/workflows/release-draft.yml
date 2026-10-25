@@ -305,9 +305,6 @@ jobs:
       - name: Run Rust workspace tests
         run: cargo test --workspace --target x86_64-pc-windows-msvc
 
-      - name: Build fabDev Connect
-        run: cargo build -p fabdev-connect --release --target x86_64-pc-windows-msvc
-
       - name: Build unsigned NSIS installer
         run: pnpm --filter @fabdev/desktop exec tauri build --target x86_64-pc-windows-msvc --bundles nsis --config src-tauri/tauri.windows.conf.json
 
@@ -322,7 +319,6 @@ jobs:
           }
           New-Item -ItemType Directory -Force -Path "release-input" | Out-Null
           Copy-Item $installers[0].FullName "release-input/windows-installer.exe"
-          Copy-Item "target/x86_64-pc-windows-msvc/release/fabdev-connect.exe" "release-input/fabdev-connect.exe"
 
       - name: Upload Windows assets
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -330,7 +326,6 @@ jobs:
           name: draft-windows-x64
           path: |
             release-input/windows-installer.exe
-            release-input/fabdev-connect.exe
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
@@ -416,23 +411,23 @@ jobs:
             cmp fabdev-app-v1.json fabdev-stable-v1.json
             test "$(jq '[.artifacts[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-app-v1.json)" = "1"
             case "$asset_count" in
-              7)
-                test "$checksum_count" = "2"
+              5)
+                test "$checksum_count" = "1"
                 test "$(jq '[.artifacts[] | select(.platform != "windows")] | length' fabdev-app-v1.json)" = "0"
                 ;;
-              9)
-                test "$checksum_count" = "3"
+              7)
+                test "$checksum_count" = "2"
                 test "$(jq '[.artifacts[] | select(.platform == "macos" and .architecture == "arm64")] | length' fabdev-app-v1.json)" = "1"
                 ;;
               *)
-                echo "Expected 7 Windows-first or 9 supplemented Draft assets, found $asset_count" >&2
+                echo "Expected 5 Windows-first or 7 supplemented Draft assets, found $asset_count" >&2
                 exit 1
                 ;;
             esac
             mkdir -p ../existing-windows
             find . -maxdepth 1 -type f -name '*-windows-x64*' \
               -exec cp {} ../existing-windows/ \;
-            test "$(find ../existing-windows -maxdepth 1 -type f | wc -l | tr -d ' ')" = "4"
+            test "$(find ../existing-windows -maxdepth 1 -type f | wc -l | tr -d ' ')" = "2"
           )
 
       - name: Generate cross-platform release assets and manifests
@@ -442,25 +437,22 @@ jobs:
           set -euo pipefail
           if [[ "$RELEASE_SCOPE" == "macos" ]]; then
             windows_installer="$GITHUB_WORKSPACE/release-input/existing-windows/fabDev-Community-$VERSION-windows-x64-setup.exe"
-            windows_connect="$GITHUB_WORKSPACE/release-input/existing-windows/fabDev-Connect-$VERSION-windows-x64.exe"
           else
             windows_installer="$GITHUB_WORKSPACE/release-input/windows/windows-installer.exe"
-            windows_connect="$GITHUB_WORKSPACE/release-input/windows/fabdev-connect.exe"
           fi
           node scripts/generate-app-release-manifest.mjs \
             --version "$VERSION" \
             --published-at "$PUBLISHED_AT" \
             --output-dir "$GITHUB_WORKSPACE/release-assets" \
             --macos-arm64 "$GITHUB_WORKSPACE/release-input/macos/macos-installer.dmg" \
-            --windows-x64 "$windows_installer" \
-            --windows-connect-x64 "$windows_connect"
+            --windows-x64 "$windows_installer"
           (
             cd release-assets
             sha256sum --check SHA256SUMS
             checksum_entries="$(awk 'NF { count += 1 } END { print count + 0 }' SHA256SUMS)"
             expected_file_count="$((checksum_entries * 2 + 3))"
             test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "$expected_file_count"
-            test "$checksum_entries" = "3"
+            test "$checksum_entries" = "2"
             test "$(jq '[.artifacts[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-app-v1.json)" = "1"
             test "$(jq '[.artifacts[] | select(.platform == "macos" and .architecture == "arm64")] | length' fabdev-app-v1.json)" = "1"
             test ! -e fabdev-runtime-v1.json
@@ -475,15 +467,14 @@ jobs:
             --version "$VERSION" \
             --published-at "$PUBLISHED_AT" \
             --output-dir "$GITHUB_WORKSPACE/release-assets" \
-            --windows-x64 "$GITHUB_WORKSPACE/release-input/windows/windows-installer.exe" \
-            --windows-connect-x64 "$GITHUB_WORKSPACE/release-input/windows/fabdev-connect.exe"
+            --windows-x64 "$GITHUB_WORKSPACE/release-input/windows/windows-installer.exe"
           (
             cd release-assets
             sha256sum --check SHA256SUMS
             checksum_entries="$(awk 'NF { count += 1 } END { print count + 0 }' SHA256SUMS)"
             expected_file_count="$((checksum_entries * 2 + 3))"
             test "$(find . -maxdepth 1 -type f | wc -l | tr -d ' ')" = "$expected_file_count"
-            test "$checksum_entries" = "2"
+            test "$checksum_entries" = "1"
             test "$(jq '[.artifacts[] | select(.platform == "windows" and .architecture == "x64")] | length' fabdev-app-v1.json)" = "1"
             test "$(jq '[.artifacts[] | select(.platform != "windows")] | length' fabdev-app-v1.json)" = "0"
             test ! -e fabdev-runtime-v1.json
@@ -571,9 +562,9 @@ jobs:
             test "$is_prerelease" = "false"
             test "$is_unpublished" = "true"
             case "$asset_count" in
-              7|9) ;;
+              5|7) ;;
               *)
-                echo "Expected 7 Windows-first or 9 supplemented Draft assets, found $asset_count" >&2
+                echo "Expected 5 Windows-first or 7 supplemented Draft assets, found $asset_count" >&2
                 exit 1
                 ;;
             esac
@@ -620,12 +611,12 @@ jobs:
             test "$(
               gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
                 --jq ".[] | select(.tag_name == \"$tag\") | (.assets | length)"
-            )" = "9"
+            )" = "7"
             mkdir -p post-upload
             gh release download "$tag" \
               --repo "$GITHUB_REPOSITORY" \
               --dir post-upload
-            test "$(find post-upload -maxdepth 1 -type f | wc -l | tr -d ' ')" = "9"
+            test "$(find post-upload -maxdepth 1 -type f | wc -l | tr -d ' ')" = "7"
             for expected in release-assets/*; do
               cmp "$expected" "post-upload/$(basename "$expected")"
             done

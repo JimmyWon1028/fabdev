@@ -28,8 +28,7 @@ function parseArgs(argv) {
     ['--output-dir', 'outputDir'],
     ['--repository', 'repository'],
     ['--macos-arm64', 'macosArm64'],
-    ['--windows-x64', 'windowsX64'],
-    ['--windows-connect-x64', 'windowsConnectX64']
+    ['--windows-x64', 'windowsX64']
   ])
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -64,8 +63,7 @@ function printHelp() {
     --output-dir <new-directory> \\
     [--repository <owner/repository>] \\
     [--macos-arm64 <dmg>] \\
-    [--windows-x64 <setup.exe>] \\
-    [--windows-connect-x64 <fabdev-connect.exe>]
+    [--windows-x64 <setup.exe>]
 
 At least one App installer must be provided. The output directory must not exist.
 `)
@@ -194,16 +192,6 @@ function installerDefinitions(version, options) {
   ].filter((definition) => definition.source)
 }
 
-function optionalToolDefinitions(version, options) {
-  return [
-    {
-      source: options.windowsConnectX64,
-      label: 'fabDev Connect Windows x64',
-      fileName: `fabDev-Connect-${version}-windows-x64.exe`
-    }
-  ].filter((definition) => definition.source)
-}
-
 export async function prepareAppRelease(options) {
   const repoRoot = resolve(options.repoRoot ?? defaultRepoRoot)
   const version = requireString(options.version, '--version')
@@ -218,6 +206,11 @@ export async function prepareAppRelease(options) {
     throw new Error('Runtime packages must be published from the fabdev-runtimes repository')
   }
 
+  //2026.10.25 by codex, reject retired Connect inputs before staging any release files.
+  if (options.windowsConnectX64 !== undefined) {
+    throw new Error('fabDev Connect has been retired and cannot be included in App Releases')
+  }
+
   const projectMetadata = await readProjectMetadata(repoRoot)
   if (version !== projectMetadata.version) {
     throw new Error(
@@ -229,8 +222,7 @@ export async function prepareAppRelease(options) {
   if (installers.length === 0) {
     throw new Error('At least one App installer is required')
   }
-  const optionalTools = optionalToolDefinitions(version, options)
-  const definitions = [...installers, ...optionalTools]
+  const definitions = installers
   for (const definition of definitions) {
     definition.source = await validateSource(resolve(repoRoot, definition.source), definition.label)
   }

@@ -1,21 +1,47 @@
 # fabDev 穩定基線與 Roadmap
 
 > 更新日期：2026-10-25
-> 目前階段：[`v0.1.31`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.31) 是公開 Latest Stable，依 Windows-first 順序提供 Windows 11 x64 Community Installer 與 fabDev Connect，現已補齊同版 macOS ARM64 Community DMG。Agent Protocol 為 `44`。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v5`（最低 App `0.1.32`）。
+> 目前階段：[`v0.1.32`](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.32) 是公開 Latest Stable，依 Windows-first 順序發布 Windows 11 x64 Community Installer，現已補齊同版 macOS 13+ ARM64 Community DMG。Agent Protocol 為 `44`；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。選裝 Runtime 由 [`fabdev-runtimes`](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理，Latest Catalog 為 `catalog-v5`（最低 App `0.1.32`）。
 
 ## 階段結論
 
-fabDev Desktop Community `v0.1.31` 已完成 Windows x64 候選 CI、Repository Owner Gate、Annotated Tag、Windows-first Draft 與 Publish，現已補齊同版 macOS ARM64。Release ID `411755050`；9 個 App-only Assets 共 151,351,876 bytes，均已完成匿名公開下載驗證。Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
+fabDev Desktop Community `v0.1.32` 已完成 Windows-first Publish 與同版 macOS ARM64 補發布。Release ID `423122317` 的 7 個 App-only Assets 共 167,216,189 bytes，已全部匿名公開下載驗證；Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。Windows Binary 及個別 checksum 的 Asset ID／大小／digest／位元組、Annotated Tag／Commit、Release 與 Manifest 的固定時間均未改變。專案目前以穩定維護為優先，下方未完成項目不得描述為已完成。
 
-前版 `v0.1.30` 已補齊 macOS ARM64 Community DMG，Release ID `409718160` 的 9 個 App-only Assets 已完成匿名公開下載驗證；其 macOS Installer 仍可由該版本 Release 下載，目前最新 macOS Installer 已更新為 `0.1.31`。
+前版 `v0.1.31` 的跨平台 Assets 保持可用；目前最新 Windows 與 macOS Installer 均為 `0.1.32`。
 
-## 2026-10-25：App 0.1.32 Windows-first 打包上傳候選
+## 2026-10-25：撤下 0.1.32 遺留的 Connect 下載附件（本機未更新）
 
-- Repository Owner 明確要求「fabDev 0.1.32 也打包上傳，本機不要更新」。沿用隔離的 `codex/php-runtimes-0.1.32` 候選來源；依 Windows-first 順序建置 Windows x64 Installer 與 Connect，上傳 App-only Draft，不 Publish、不更新本機 App／Runtime／設定或重啟既有服務。候選提交／推送使用隔離分支，保留原 main 工作區。
+- Repository Owner 指出已取消 Connect 且「Release 還提供 Connect.exe」。Windows 0.1.32 的分享入口與 CLI 分享命令已移除、Agent 拒絕 `StartLanShare`；公開 Installer 的 SHA-256 與既有已解包候選一致，安裝內容不含 Connect.exe，Agent Binary 包含停用回應。問題限於獨立 Release 附件，未重建 Windows。
+- 只刪除 `fabDev-Connect-0.1.32-windows-x64.exe` 與個別 checksum，替換只列兩個 Installer 的總 `SHA256SUMS` 並更新 Release Notes。Windows Installer、macOS DMG、兩份個別 checksum、兩份 Manifest 的 Asset ID／大小／digest／位元組均保持不變；Tag／Commit、Release ID `423122317`、Release 與 Manifest 固定時間均不變。舊版 Release 與 Runtime catalog-v5 未改動。
+- 最終 7 個 App-only Assets 共 167,216,189 bytes，已全部從未登入公開 URL 重新下載，GitHub 大小／digest、逐位元、兩份個別與總 SHA-256、兩份 Manifest 逐位元及 Windows x64／macOS ARM64 平台清單驗證通過。Latest Release 保持 0.1.32；Connect.exe 與其 checksum 的原下載 URL 均為 HTTP 404。
+- 隔離的 `codex/retire-connect-distribution` 分支移除 Windows 候選與 Draft 的 Connect 建置／上傳，產生器明確拒絕舊 Connect 輸入，更新 Windows-first 5 個／跨平台 7 個附件驗證。針對性 Release 測試 26 項通過，含拒絕 Connect 且不建立輸出目錄；Repository Owner 後續明確授權「提交並推送發布流程修正，本機不要更新」，本次提交納入流程修正與相關發布文件，推送至隔離分支。未手動觸發 CI 或打包；原 main 工作區與本機 App／Runtime／設定／服務不更新。
+
+## 2026-10-25：macOS 0.1.32 同版補發布（本機未更新）
+
+- Repository Owner 明確授權「重新打包並補發布 macOS 0.1.32，本機不要更新」。從已發布 Annotated Tag `v0.1.32` 的 Commit `d902d92dea123413232e52036ae1c8430b765aad` 建立獨立 detached worktree，建置前後工作樹乾淨；未修改 Tag 程式碼、共用設定、版本或 Tag，也未重建 Windows Binary。
+- 前版公開 macOS 0.1.31 DMG 的 GitHub digest、大小、SHA-256 與 `hdiutil verify` 通過；從該 DMG 抽出的 dnsmasq／Nginx Archive 與 descriptor 雜湊相符，但逐檔最低版本檢查發現 dnsmasq 及 Nginx／相依庫宣告 macOS 26，因此拒絕重用。只重建實際受影響的 bundled dnsmasq 2.93／Nginx 1.30.4，沿用 Tag 的官方來源、SHA／PGP 與功能選項，以固定來源相依及 macOS 13 部署目標構建；未改動產品來源。PHP 7.4.33／8.2.35 重用同批已驗證的 macOS 13 Archive，來源雜湊／PGP Fingerprint 與 Tag manifest 一致，未重新編譯 PHP 或重建線上 Runtime Package／Catalog。
+- 四個 bundled Runtime 的 descriptor、大小、SHA-256、66 個 ARM64 Mach-O、macOS 13 最低版本與可搬移相依全部通過。獨立高埠 DNS 查詢、Nginx → PHP 7.4.33／8.2.35 HTTP 回應、停止後 Port 清理均通過；未改動既有 Helper、resolver、CA 信任或原本服務。
+- 固定 Tag 的完整 `pnpm test` 通過 Desktop 178、Release 24、Rust workspace 346、macOS Helper 10 項，共 558 項，另 7 項 Rust 外部環境測試 ignored；`pnpm lint` 通過，來源工作樹保持乾淨。未執行 App 安裝／啟動／更新／移除，安裝程序人工驗收依規則沿用既有結果。
+- 新 DMG 為 117,120,171 bytes，SHA-256 `a53dc1d75fffb1e1fe04cd92a8d041c76a72c623bcad887b9c2528808882fc7d`。`hdiutil verify`、外部 checksum、唯讀掛載後 28 份內部 checksum、App／CLI／Agent 0.1.32、主要 Binary ARM64／macOS 13、App／CLI／Helper 的既有 ad-hoc 簽章及四個 bundled Archive 一致性通過，預設 PHP 8.2.35。驗證完成已卸載測試映像，未執行 App 或安裝程序。
+- 補入前重新下載並驗證全部 7 個既有 App Assets。依序只新增 DMG 與個別 checksum，再替換跨平台 `SHA256SUMS`、`fabdev-app-v1.json`、`fabdev-stable-v1.json` 與 Release Notes。Windows Setup／Connect／兩份個別 checksum 的 ID、大小、digest、位元組不變；Release ID `423122317`、Tag Object `ad722873482518a042e38fb400b3922950fbaa22`、Tag Commit、Release `published_at=2026-10-25T03:30:28Z` 與 Manifest `publishedAt=2026-10-25T03:19:16Z` 保持不變。
+- 補齊後全部 9 個 App-only Assets 共 167,963,917 bytes 已從未登入公開 URL 重新下載，大小、GitHub digest、逐位元、三份個別與總 SHA-256、兩份 Manifest 與 Latest 固定入口一致性均通過；公開 Release／Latest 頁回應 HTTP 200，Latest Manifest 同時且只列 Windows x64 與 macOS ARM64 Installer。Runtime catalog-v5 的 Release ID／既有 Asset ID／大小／digest 不變，沒有殘留 Draft。原 main 工作區、本機已安裝 App／Runtime、全域 PHP、設定與服務均不更新；README／發布紀錄只保留隔離工作樹文件修改，未提交或推送。
+
+## 2026-10-25：App 0.1.32 Windows-first Stable Publish
+
+- Repository Owner 明確要求「fabDev 0.1.32 也打包上傳，本機不要更新」。沿用隔離的 `codex/php-runtimes-0.1.32` 候選來源；依 Windows-first 順序建置 Windows x64 Installer 與 Connect，先上傳 App-only Draft，當時不 Publish；後續依下列明確授權完成 Publish，仍不更新本機 App／Runtime／設定或重啟既有服務。候選提交／推送使用隔離分支，保留原 main 工作區。
 - 候選包含先前已測試的 PHP 8.2.35 bundled 升級、Windows PHP 8.5 內建 OPcache 設定、Sites 單一專案路徑、取消局網分享、既有清單版面修正與 macOS dev SDK 工具鏈修正；App 四個版本來源及 13 個 Cargo 套件維持 `0.1.32`，Protocol `44` 不變。已發布的 Runtime catalog-v5 與其套件不重新建置或上傳到 App Release。
 - Windows VM 以 TEMP 中的獨立 Node 執行發布契約測試，重現兩個 macOS Shell fixture 因無 Bash 而回報 `spawn bash ENOENT`。這兩項只在 POSIX Host 執行，Windows 保留其餘發布契約。修正後 Windows 22 項通過、2 項略過，macOS 24 項全數通過；臨時工具及來源已清理，未修改 PATH 或已安裝 Runtime。
 - 提交候選前重新執行完整 `pnpm test`：Desktop 178、Release 24、Rust workspace 346、macOS Helper 10 項，共 558 項通過，另 7 項 Rust 外部環境測試 ignored；`pnpm lint` 與 `git diff --check` 通過。
 - 安裝／更新程序、Windows Helper、NSIS template／hooks 與 updater 相較 v0.1.31 未變，依 Repository Owner 規則沿用既有安裝程序人工驗收；不重跑安裝／啟動／移除、完整 Runtime／HTTPS 流程或 Windows 實機 smoke test。候選 CI 與靜態驗證不描述為新的實機啟動驗收。
+
+- 已測試候選 Commit `d902d92dea123413232e52036ae1c8430b765aad` 已推送至隔離分支。單次 [Windows x64 CI Run `40156449901`](https://github.com/JimmyWon1028/fabdev/actions/runs/40156449901) 於台北時間 2026-10-25 10:58:08～11:17:14 全部成功，包含前端、發布契約／NSIS 靜態檢查、PHP 8.2.35 FastCGI worker pool、MSVC workspace／Rust 測試、Connect 及 NSIS 建置；沒有重跑候選 CI 或製作 macOS DMG。
+- 同次 CI 的 Installer／Connect Artifact ZIP 已經 GitHub digest、大小及完整性驗證。Installer 內外實際版本為 `0.1.32.0`，Desktop／Agent／Helper／Connect 為 x64，bundled PHP `7.4.33`／`8.2.35` 逐檔與固定 SHA-256 的官方 ZIP 相同，預設 PHP `8.2.35`，兩個 receipt 與來源 manifest 一致。未執行安裝或 App 啟動。
+- Annotated Tag `v0.1.32` 的 Tag Object `ad722873482518a042e38fb400b3922950fbaa22` 固定指向上述候選 Commit。[0.1.32 Windows-first Release](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.32) 的 Release ID 為 `423122317`，Draft 階段為 `draft=true`、`prerelease=false`、`published_at=null`，後續 Publish 見下列紀錄。
+- Draft 共 7 個 App-only Assets、50,842,628 bytes：Windows x64 Installer、Connect、兩份個別 checksum、總 SHA256SUMS 及兩份 App Manifest。全部重新下載，GitHub digest／大小、逐位元、個別與總 SHA-256、兩份 Manifest 逐位元一致及只列 Windows x64 Installer 的契約均通過；沿用同次 CI Binary，未重新建置。
+- Installer SHA-256 `dd6af533bde28b72dce9588ba4aa6570b941436cf6a33607a0294ef3b31c90f7`；Connect SHA-256 `9f572923367b940f0855766a1f0244109a6a0609a8844caf6ae74387438f920e`。Manifest 固定 `publishedAt=2026-10-25T03:19:16Z`（台北時間 2026-10-25 11:19:16）、Protocol `44`。Draft 階段公開 App Latest `v0.1.31` 與 Runtime Latest `catalog-v5` 的 Release ID／既有 Asset ID／大小／digest 保持不變；當時尚未 Publish App 0.1.32。本機 App／Runtime／設定與服務均未更新；macOS Installer 依 Windows-first 流程待後續處理。
+
+- Repository Owner 後續明確要求「Publish fabDev 0.1.32，本機不要更新」。同一 Release ID `423122317` 於 `2026-10-25T03:30:28Z`（Asia/Taipei 2026-10-25 11:30:28）發布為 `draft=false`、`prerelease=false` 的 Windows-first Latest Stable；版本、Annotated Tag／Commit、Manifest 固定 `publishedAt` 與 7 個 Asset ID／大小／digest 均與已驗證 Draft 相同，未重建 Binary。
+- Publish 後全部 7 個 Assets 由未登入公開 URL 重新下載並回應 HTTP 200，通過逐位元、GitHub size／digest、個別與總 SHA-256、兩份 Manifest 與 Latest 固定入口一致性驗證。Release／Latest 頁為 HTTP 200，Latest Manifest 只列 Windows x64；前版 v0.1.31 Assets 與獨立 Runtime catalog-v5 的 Release ID／Asset ID／大小／digest 均不變，沒有殘留 Draft。安裝／更新程序未變，沿用既有人工驗收，本機 App／Runtime／設定／服務不更新；macOS 0.1.32 尚未打包或發布。
 
 ## 2026-10-25：PHP 四系列最新 Runtime 與 App 0.1.32 候選（Runtime 已發布）
 
