@@ -2,7 +2,6 @@ import {
   type AgentRequest,
   type AgentResponse,
   type AgentStatus,
-  type LanShareInfo,
   type MariaDbConfig,
   type MariaDbSettings,
   type NodeRuntimeState,
@@ -78,7 +77,6 @@ interface StoreState {
   appUpdateDownloadRemainingSeconds: number | null
   downloadedAppUpdate: DownloadedAppUpdate | null
   status: AgentStatus | null
-  lanShare: LanShareInfo | null
   mariaDbConfig: MariaDbConfig | null
   mariaDbSettings: MariaDbSettings | null
   siteHome: SiteHomeSettings | null
@@ -200,7 +198,6 @@ export const useAppStore = defineStore('fabdev', {
     appUpdateDownloadRemainingSeconds: null,
     downloadedAppUpdate: null,
     status: null,
-    lanShare: null,
     mariaDbConfig: null,
     mariaDbSettings: null,
     siteHome: null,
@@ -948,13 +945,6 @@ export const useAppStore = defineStore('fabdev', {
         this.sites = this.sites.map((site) =>
           site.id === response.payload.id ? response.payload : site
         )
-        if (this.lanShare) {
-          this.lanShare.sites = this.lanShare.sites.map((site) =>
-            site.siteId === response.payload.id
-              ? { ...site, domain: response.payload.domain }
-              : site
-          )
-        }
         return response.payload
       }
       if (response.type === 'error') {
@@ -966,14 +956,6 @@ export const useAppStore = defineStore('fabdev', {
       const response = await sendRequest({ type: 'removeSite', payload: { siteId } })
       if (response.type === 'siteRemoved') {
         this.sites = this.sites.filter((site) => site.id !== response.payload.id)
-        if (this.lanShare) {
-          this.lanShare.sites = this.lanShare.sites.filter(
-            (site) => site.siteId !== response.payload.id
-          )
-          if (this.lanShare.sites.length === 0) {
-            this.lanShare = null
-          }
-        }
         return response.payload
       }
       if (response.type === 'error') {
@@ -1022,53 +1004,6 @@ export const useAppStore = defineStore('fabdev', {
         this.sites = this.sites.map((site) =>
           site.id === response.payload.id ? response.payload : site
         )
-        return response.payload
-      }
-      if (response.type === 'error') {
-        throw new Error(response.payload.message)
-      }
-      throw new Error('Agent returned an unexpected response')
-    },
-    async loadLanShare() {
-      const response = await sendRequest({ type: 'getLanShare' })
-      if (response.type === 'lanShare') {
-        this.lanShare = response.payload
-        return response.payload
-      }
-      if (response.type === 'error') {
-        throw new Error(response.payload.message)
-      }
-      throw new Error('Agent returned an unexpected response')
-    },
-    async startLanShare(siteId: string, port = 18080) {
-      const response = await sendRequest({
-        type: 'startLanShare',
-        payload: { siteId, port }
-      })
-      if (response.type === 'lanShare') {
-        this.lanShare = response.payload
-        return response.payload
-      }
-      if (response.type === 'error') {
-        throw new Error(response.payload.message)
-      }
-      throw new Error('Agent returned an unexpected response')
-    },
-    async stopLanShare() {
-      const response = await sendRequest({ type: 'stopLanShare' })
-      if (response.type === 'lanShare') {
-        this.lanShare = response.payload
-        return
-      }
-      if (response.type === 'error') {
-        throw new Error(response.payload.message)
-      }
-      throw new Error('Agent returned an unexpected response')
-    },
-    async stopLanShareSite(siteId: string) {
-      const response = await sendRequest({ type: 'stopLanShareSite', payload: { siteId } })
-      if (response.type === 'lanShare') {
-        this.lanShare = response.payload
         return response.payload
       }
       if (response.type === 'error') {
@@ -1183,7 +1118,6 @@ export const useAppStore = defineStore('fabdev', {
         if (response.type !== 'stopped') {
           throw new Error('Agent returned an unexpected response')
         }
-        this.lanShare = null
         await this.refreshStatus()
       } catch (error) {
         this.error = error instanceof Error ? error.message : String(error)

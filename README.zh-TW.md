@@ -48,9 +48,9 @@ open target/debug/bundle/macos/fabDev.app
 
 ### 目前發布狀態
 
-`v0.1.30` 是目前公開的 Latest Stable，依 Windows-first 順序先發布 Windows 11 x64 Community Installer 與 fabDev Connect，現已補齊同版 macOS 13+ ARM64 Community DMG。`0.1.30` 包含 HTTP／HTTPS 同時提供內容、Proxy 自訂 HTTPS Port，以及穩定性與效能改善，詳見 [Release Notes](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.30)。Agent Protocol 為 `44`，Latest Manifest 同時提供 Windows x64 與 macOS ARM64 Installer。
+`v0.1.31` 是目前公開的 Latest Stable，依 Windows-first 順序發布 Windows 11 x64 Community Installer 與 fabDev Connect，現已補齊同版 macOS 13+ ARM64 Community DMG。本版使用正確的受管 CA 路徑，修正 Windows Sites 無法啟用 HTTPS，詳見 [Release Notes](https://github.com/JimmyWon1028/fabdev/releases/tag/v0.1.31)。Agent Protocol 維持 `44`，Latest Manifest 現在同時且只列 Windows x64 與 macOS ARM64 Installer。
 
-`0.1.30` 本機測試、lint 與 build 通過：544 項測試通過，7 項需外部環境的 Rust 測試維持 ignored。Windows 候選 Run [`38145308337`](https://github.com/JimmyWon1028/fabdev/actions/runs/38145308337) 成功，Repository Owner 已確認 Windows 實機 Gate 通過。Annotated Tag `v0.1.30` 固定於 Commit `199de77179fb6589d4147017c4dbf9ea55c98e2f`，Windows Installer／Connect 使用同一批已驗證的候選 Binary。Release ID `409718160` 現有 9 個 App-only Assets，同版補齊後均已匿名下載驗證。Windows Setup SHA-256 為 `bd976db378981a2b49232f74623fd8ab74437815e76e141731cb9d78314f267f`，fabDev Connect 為 `65a905e87537eda345c3870b156611fc9df707b456a9fd93244ab9998ceef5fb`。macOS DMG 由相同固定 Tag Commit 建置，Disk Image、內外 checksum、ARM64、版本與 ad-hoc 簽章驗證通過；四份 bundled Runtime Archive 與前版已驗證 DMG 逐位元相同。macOS DMG SHA-256 為 `ef7828793de64c48e408255984a068ebf225432faa745e21a7b958aeaca62759`。
+`0.1.31` 本機測試與 lint 通過：544 項測試通過，7 項需外部環境的 Rust 測試維持 ignored。Windows 候選 Run [`38400023307`](https://github.com/JimmyWon1028/fabdev/actions/runs/38400023307) 全部成功，包含兩項新增 Windows Helper 回歸測試；Repository Owner 已確認候選 Gate 通過。Annotated Tag `v0.1.31` 固定於 Commit `827c6d371d9afe7250290c00ee331f6076a75339`，Installer／Connect 使用同一批已測試 CI Binary。Release ID `411755050` 現有 9 個 App-only Assets，macOS 補齊後均已匿名下載驗證。Windows Setup SHA-256 維持 `ef6f86ce1277a9762057efafb678b66ef341ac4b888645be3bd0e5208704ae0e`，Connect 維持 `f6808bb01999b92f379484d7644d99128054444224abe7521dc6ee793253b37e`。macOS DMG 使用相同 Tag Commit 建置，Disk Image、內外 checksum、ARM64、版本與 ad-hoc 簽章驗證通過；四份 bundled Runtime Archive 與前版已驗證 DMG 逐位元相同，DMG SHA-256 為 `b3133c04a80df8fa7683be436efe508bcd3240d64158afd33d3060cd67d2bf9d`。
 
 ## Unsigned Community Build
 
@@ -64,7 +64,7 @@ pnpm run build:community:macos
 
 Community 安裝程式會驗證 DMG 內的 `SHA256SUMS`，再要求一次管理員權限安裝 `/Applications/fabDev.app` 與固定功能的 LaunchDaemon。更新會保留 Sites、Runtime 與 `php.ini`；移除程序預設保留資料，只有使用者再次確認才會把資料移到垃圾桶。完整操作說明在 [`distribution/macos/community/INSTALL.zh-TW.md`](distribution/macos/community/INSTALL.zh-TW.md)。
 
-App 公開下載使用 [fabdev GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；`v0.1.30` 已同時提供 Windows x64 App Installer、macOS ARM64 Community DMG 與 fabDev Connect。`v0.1.21` 起 App Release 只提供 App Installer、fabDev Connect、App Manifest 與 SHA-256；Runtime Catalog 與 Package 改由 [fabdev-runtimes Releases](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish、同版平台補齊與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的 App 安裝包並產生 Manifest／Checksum，不會觸發打包或發布，也拒絕 Runtime Package 輸入。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
+App 公開下載使用 [fabdev GitHub Releases](https://github.com/JimmyWon1028/fabdev/releases)；`v0.1.31` 現已同時提供 Windows x64 App Installer、macOS ARM64 Community DMG 與 fabDev Connect。`v0.1.21` 起 App Release 只提供 App Installer、fabDev Connect、App Manifest 與 SHA-256；Runtime Catalog 與 Package 改由 [fabdev-runtimes Releases](https://github.com/JimmyWon1028/fabdev-runtimes/releases) 獨立管理。Stable 版的版本、Asset 命名、Manifest、SHA-256、Draft／Publish、同版平台補齊與回復契約見 [`docs/PUBLIC_RELEASE_SPEC.md`](docs/PUBLIC_RELEASE_SPEC.md)。`pnpm run release:prepare -- ...` 只整理已存在的 App 安裝包並產生 Manifest／Checksum，不會觸發打包或發布，也拒絕 Runtime Package 輸入。`.github/workflows/release-draft.yml` 只接受手動雙重確認與既有 Tag，且只能建立或補齊 Draft；Stable Publish 仍需 Repository Owner 另行明確核准。
 
 公開發布分成兩個互不綁定版本的儲存庫：
 
@@ -176,20 +176,7 @@ cargo run -p fabdev-cli -- stop-all-proxies
 
 ## LAN Site Share
 
-需要讓同一局網的另一台 Windows 電腦或 Parallels VM 用瀏覽器開啟 `http://site-one.test` 時，可先啟動 Web 服務，再到 Sites 畫面對需要的各個 Site 按「局網分享」。所有已選 Site 共用例如 `192.168.1.10:18080`，由 Nginx 依瀏覽器的 `.test` 網域分流；停止某個 Site 不影響其他分享，Stop All、Agent Shutdown 或 App Quit 則停止全部分享。
-
-Windows 執行獨立的 `fabdev-connect.exe`，輸入畫面顯示的主機 `IP:Port`，並以空白或逗號分隔輸入 `site-one.test, site-two.test` 後按「連線」。程式會要求 UAC，自動新增及清除自己管理的 Windows `hosts` 區塊，並只監聽 Client 的 `127.0.0.1:80`，因此不需手動修改 hosts。若 IIS 或其他程式占用 Client Port 80，程式會拒絕啟動並顯示錯誤。
-
-CLI 也可控制主機分享：
-
-```bash
-cargo run -p fabdev-cli -- share <site-id> --port 18080
-cargo run -p fabdev-cli -- unshare <site-id>
-cargo run -p fabdev-cli -- lan-share
-cargo run -p fabdev-cli -- stop-share
-```
-
-這是無 TLS、無登入、只供 1–2 台 Client 短時間瀏覽器測試的開發便利功能，不適用於網際網路、10 人使用或正式 ERP。正式產品用途的 `fabDev Server` 架構及驗收目標記錄於 [`docs/FABDEV_ARCHITECTURE.md`](docs/FABDEV_ARCHITECTURE.md) 第 15 節。
+2026-10-19 的未發布原始碼已取消局網分享。Sites 不再提供分享按鈕、狀態、Connect 位址、分享篩選與排序，CLI 分享指令亦已移除。Agent 拒絕舊版啟動請求且不建立 LAN Listener，保留查詢／停止的相容性。既有 Stable 下載與 fabDev Connect 發布資產維持原值。正式區網用途仍屬獨立的 `fabDev Server` 規劃，見 [`docs/FABDEV_ARCHITECTURE.md`](docs/FABDEV_ARCHITECTURE.md) 第 15 節。
 
 53/80/443 埠由 macOS System Helper 固定代理至一般使用者權限的 53535/8080/8443；所有 listener 只綁 `127.0.0.1`。Helper 只接受固定服務控制，不執行 Runtime binary、憑證操作或任意命令。Helper 僅管理固定的 `/etc/resolver/test`，如果檔案不是 fabDev 建立便拒絕覆蓋或刪除。開發測試可執行 `helpers/macos/.build/debug/fabdev-system-helper --development`，使用 15353/18080/18443 作為入口，不修改系統設定。
 

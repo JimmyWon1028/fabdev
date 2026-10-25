@@ -2166,7 +2166,7 @@ mod tests {
     let php_85 = catalog
       .runtimes
       .iter()
-      .find(|runtime| runtime.name == "php" && runtime.version == "8.5.10")
+      .find(|runtime| runtime.name == "php" && runtime.version == "8.5.12")
       .expect("find PHP 8.5 Runtime");
     let mariadb = catalog
       .runtimes

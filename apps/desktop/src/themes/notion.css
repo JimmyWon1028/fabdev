@@ -220,7 +220,6 @@ html[data-theme="notion"] .help-section + .help-section {
   border-color: rgb(55 53 47 / 12%);
 }
 
-html[data-theme="notion"] .site-row.is-shared,
 html[data-theme="notion"] .site-row.selected,
 html[data-theme="notion"] .proxy-row.selected,
 html[data-theme="notion"] .proxy-selection-toolbar,

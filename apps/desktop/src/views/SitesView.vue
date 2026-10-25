@@ -45,7 +45,6 @@ const refreshingHome = ref(false)
 const removingSiteId = ref<string | null>(null)
 const switchingSiteId = ref<string | null>(null)
 const securingSiteId = ref<string | null>(null)
-const sharingSiteId = ref<string | null>(null)
 const showAddForm = ref(false)
 const editingSiteId = ref<string | null>(null)
 const siteFormMessage = ref('')
@@ -65,7 +64,6 @@ const form = reactive({
   name: '',
   projectPath: '',
   domain: '',
-  documentRoot: '',
   phpVersion: '',
   upstreamResponseTimeoutSeconds: 120
 })
@@ -86,16 +84,12 @@ const diagnosticCheckKeys: Record<SiteDiagnosticCheckKind, TranslationKey> = {
 const installedPhpSeries = computed(() => listInstalledPhpSeries(store.phpRuntimes.installed))
 const homeSiteIds = computed(() => new Set(store.siteHome?.siteIds ?? []))
 const symbolicLinkSiteIds = computed(() => new Set(store.siteHome?.symbolicLinkSiteIds ?? []))
-const sharedSiteIds = computed(() => new Set(
-  store.lanShare?.sites.map((shared) => shared.siteId) ?? []
-))
 const siteFilterOptions = computed<Array<{
   value: SiteListFilter
   label: string
   count: number
 }>>(() => [
   { value: 'all', label: t('sites.filterAll'), count: store.sites.length },
-  { value: 'shared', label: t('sites.filterShared'), count: sharedSiteIds.value.size },
   { value: 'home', label: t('sites.filterHome'), count: homeSiteIds.value.size },
   {
     value: 'linked',
@@ -107,8 +101,7 @@ const visibleSites = computed(() => filterAndSortSites(store.sites, {
   query: searchQuery.value,
   filter: siteFilter.value,
   sort: siteSort.value,
-  homeSiteIds: homeSiteIds.value,
-  sharedSiteIds: sharedSiteIds.value
+  homeSiteIds: homeSiteIds.value
 }))
 const hasActiveSiteListFilter = computed(() => searchQuery.value.trim() !== '' || siteFilter.value !== 'all')
 const selectableVisibleSites = computed(() =>
@@ -147,8 +140,7 @@ onMounted(() => {
     .then((siteHome) => Promise.all([
       Promise.resolve(siteHome),
       store.loadSites(),
-      store.loadPhpRuntimes(),
-      store.loadLanShare()
+      store.loadPhpRuntimes()
     ]))
     .then(([siteHome]) => {
       siteHomePath.value = formatPathForDisplay(siteHome.path, isWindows)
@@ -168,10 +160,6 @@ function isHomeSite(site: Site) {
 
 function isSymbolicLinkSite(site: Site) {
   return symbolicLinkSiteIds.value.has(site.id)
-}
-
-function isLanShared(site: Site) {
-  return store.lanShare?.sites.some((shared) => shared.siteId === site.id) ?? false
 }
 
 function isSiteSelectable(site: Site) {
@@ -216,7 +204,6 @@ function resetSiteForm() {
   form.name = ''
   form.projectPath = ''
   form.domain = ''
-  form.documentRoot = ''
   form.phpVersion = globalPhpSeries() ?? installedPhpSeries.value[0] ?? ''
   form.upstreamResponseTimeoutSeconds = 120
 }
@@ -226,7 +213,6 @@ function siteFormState() {
     name: form.name,
     projectPath: form.projectPath,
     domain: form.domain,
-    documentRoot: form.documentRoot,
     phpVersion: form.phpVersion,
     upstreamResponseTimeoutSeconds: form.upstreamResponseTimeoutSeconds
   })
@@ -271,7 +257,6 @@ function editSite(site: Site) {
   form.name = site.name
   form.projectPath = formatPathForDisplay(site.projectPath, isWindows)
   form.domain = site.domain
-  form.documentRoot = formatPathForDisplay(site.documentRoot, isWindows)
   form.phpVersion = site.phpVersion ?? ''
   form.upstreamResponseTimeoutSeconds = site.upstreamResponseTimeoutSeconds
   initialSiteFormState = siteFormState()
@@ -396,9 +381,6 @@ async function chooseProject() {
     title: t('sites.chooseProject')
   })
   if (typeof selected === 'string') {
-    if (form.projectPath && form.projectPath !== selected) {
-      form.documentRoot = ''
-    }
     form.projectPath = formatPathForDisplay(selected, isWindows)
     if (!form.domain) {
       form.domain = inferDomain(selected)
@@ -450,7 +432,6 @@ async function importSites() {
         name: site.name,
         domain: site.domain,
         projectPath: site.projectPath,
-        documentRoot: site.documentRoot,
         phpVersion: site.phpVersion,
         upstreamResponseTimeoutSeconds: site.upstreamResponseTimeoutSeconds
       })
@@ -477,7 +458,6 @@ async function submit() {
         name: form.name,
         projectPath: form.projectPath,
         domain: form.domain,
-        documentRoot: form.documentRoot || undefined,
         upstreamResponseTimeoutSeconds: form.upstreamResponseTimeoutSeconds
       })
       message.value = t('sites.updated', { name: updated.name, domain: updated.domain })
@@ -486,7 +466,6 @@ async function submit() {
         name: form.name || undefined,
         projectPath: form.projectPath,
         domain: form.domain || undefined,
-        documentRoot: form.documentRoot || undefined,
         phpVersion: form.phpVersion || null,
         upstreamResponseTimeoutSeconds: form.upstreamResponseTimeoutSeconds
       })
@@ -504,8 +483,7 @@ async function removeSite(site: Site) {
   const approved = await confirm(
     t('sites.removeConfirm', {
       domain: site.domain,
-      projectPath: formatPathForDisplay(site.projectPath, isWindows),
-      documentRoot: formatPathForDisplay(site.documentRoot, isWindows)
+      projectPath: formatPathForDisplay(site.projectPath, isWindows)
     }),
     {
       title: t('sites.removeTitle'),
@@ -620,31 +598,6 @@ async function toggleHttps(site: Site) {
     securingSiteId.value = null
   }
 }
-
-async function toggleLanShare(site: Site) {
-  sharingSiteId.value = site.id
-  message.value = ''
-  try {
-    if (isLanShared(site)) {
-      await store.stopLanShareSite(site.id)
-      message.value = t('sites.lanShareStopped', { domain: site.domain })
-      return
-    }
-    const share = await store.startLanShare(site.id)
-    if (!share) {
-      throw new Error('Agent returned an unexpected response')
-    }
-    message.value = t('sites.lanShareStarted', {
-      domain: site.domain,
-      host: share.host,
-      port: share.port
-    })
-  } catch (error) {
-    message.value = error instanceof Error ? error.message : String(error)
-  } finally {
-    sharingSiteId.value = null
-  }
-}
 </script>
 
 <template>
@@ -741,7 +694,6 @@ async function toggleLanShare(site: Site) {
             <option value="domainAsc">{{ t('sites.sortDomainAsc') }}</option>
             <option value="domainDesc">{{ t('sites.sortDomainDesc') }}</option>
             <option value="php">{{ t('sites.sortPhp') }}</option>
-            <option value="shared">{{ t('sites.sortShared') }}</option>
           </select>
         </label>
       </div>
@@ -797,10 +749,7 @@ async function toggleLanShare(site: Site) {
         v-for="site in visibleSites"
         :key="site.id"
         class="site-row"
-        :class="{
-          'is-shared': isLanShared(site),
-          selected: isSiteSelected(site.id)
-        }"
+        :class="{ selected: isSiteSelected(site.id) }"
       >
         <label class="site-select" :title="isHomeSite(site) ? t('sites.homeManaged') : undefined">
           <input
@@ -840,16 +789,9 @@ async function toggleLanShare(site: Site) {
               {{ formatPathForDisplay(site.projectPath, isWindows) }}
             </code>
           </div>
-          <div>
-            <small>{{ t('sites.webRootColumn') }}</small>
-            <code :title="formatPathForDisplay(site.documentRoot, isWindows)">
-              {{ formatPathForDisplay(site.documentRoot, isWindows) }}
-            </code>
-          </div>
         </div>
 
         <div class="site-runtime">
-          <small>{{ t('sites.phpRuntime') }}</small>
           <div class="site-runtime-controls">
             <label class="site-php-select">
               <span class="visually-hidden">{{ site.domain }} PHP Runtime</span>
@@ -885,18 +827,7 @@ async function toggleLanShare(site: Site) {
               {{ t('sites.symbolicLinkBadge') }}
             </span>
             <span v-if="site.secured" class="state-pill" data-state="running">HTTPS</span>
-            <span class="state-pill" :data-state="isLanShared(site) ? 'running' : undefined">
-              {{ isLanShared(site) ? t('sites.lanShareActive') : t('sites.lanShareInactive') }}
-            </span>
           </div>
-          <small :class="['site-share-address', { 'is-inactive': !isLanShared(site) }]">
-            {{ isLanShared(site) && store.lanShare
-              ? t('sites.lanShareAddress', {
-                  host: store.lanShare.host,
-                  port: store.lanShare.port
-                })
-              : t('sites.lanShareUnavailable') }}
-          </small>
         </div>
 
         <div class="site-actions">
@@ -930,19 +861,6 @@ async function toggleLanShare(site: Site) {
               : site.secured
                 ? t('sites.httpsDisable')
                 : t('sites.httpsEnable') }}
-          </button>
-          <button
-            type="button"
-            :class="isLanShared(site) ? 'share-stop-button' : 'secondary-button'"
-            :disabled="sharingSiteId !== null || removingSiteId !== null || switchingSiteId !== null || securingSiteId !== null"
-            :aria-pressed="isLanShared(site)"
-            @click="toggleLanShare(site)"
-          >
-            {{ sharingSiteId === site.id
-              ? t('sites.lanShareWorking')
-              : isLanShared(site)
-                ? t('sites.lanShareStop')
-                : t('sites.lanShareStart') }}
           </button>
           <button
             v-if="!isHomeSite(site)"
@@ -1011,15 +929,6 @@ async function toggleLanShare(site: Site) {
           v-model="form.domain"
           required
           placeholder="erp-demo.test"
-          autocapitalize="none"
-          autocorrect="off"
-        />
-      </label>
-      <label>
-        {{ t('sites.webRoot') }}
-        <input
-          v-model="form.documentRoot"
-          placeholder="public"
           autocapitalize="none"
           autocorrect="off"
         />

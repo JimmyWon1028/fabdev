@@ -16,12 +16,12 @@
     },
     {
       "name": "php",
-      "version": "8.2.33",
-      "archiveUrl": "https://downloads.php.net/~windows/releases/archives/php-8.2.33-nts-Win32-vs16-x64.zip",
-      "archiveSha256": "d0bd189522fa50255ee94ed4b340ed4330f5ae33a90a74205275b0f0b221d388",
-      "packageSha256": "dc277feea7286980b412b6be43b7fbb74843192b21a5e124c10c233e4d01905c",
-      "catalogSequence": 1,
-      "destination": "php/8.2.33",
+      "version": "8.2.35",
+      "archiveUrl": "https://downloads.php.net/~windows/releases/archives/php-8.2.35-nts-Win32-vs16-x64.zip",
+      "archiveSha256": "798ffa4b9ce22a820d57048e9695df7245bf917ed067917f256942a10918a8cc",
+      "packageSha256": "626836e3bad5cae2517c407379948c76aa9832793ef148a8e00e64cecc643144",
+      "catalogSequence": 5,
+      "destination": "php/8.2.35",
       "stripRoot": false,
       "default": true
     },

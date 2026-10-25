@@ -18,10 +18,10 @@
     },
     {
       "name": "php",
-      "version": "8.2.33",
+      "version": "8.2.35",
       "source": {
-        "archiveUrl": "https://windows.php.net/downloads/releases/archives/php-8.2.33-nts-Win32-vs16-x64.zip",
-        "archiveSha256": "d0bd189522fa50255ee94ed4b340ed4330f5ae33a90a74205275b0f0b221d388",
+        "archiveUrl": "https://downloads.php.net/~windows/releases/archives/php-8.2.35-nts-Win32-vs16-x64.zip",
+        "archiveSha256": "798ffa4b9ce22a820d57048e9695df7245bf917ed067917f256942a10918a8cc",
         "verification": {
           "method": "official-sha256"
         }
@@ -30,10 +30,22 @@
     },
     {
       "name": "php",
-      "version": "8.4.24",
+      "version": "8.4.27",
       "source": {
-        "archiveUrl": "https://windows.php.net/downloads/releases/archives/php-8.4.24-nts-Win32-vs17-x64.zip",
-        "archiveSha256": "86470a30cbbaeafb259e727dfa5cd336f2f3f0a462cd6f8e3eac00fdbded13cb",
+        "archiveUrl": "https://downloads.php.net/~windows/releases/archives/php-8.4.27-nts-Win32-vs17-x64.zip",
+        "archiveSha256": "93bd8a815a52156606fb906d0573437908c61f96e2cc52c03a51e36a41bf5236",
+        "verification": {
+          "method": "official-sha256"
+        }
+      },
+      "healthCheckProfile": "php-runtime-v1"
+    },
+    {
+      "name": "php",
+      "version": "8.5.12",
+      "source": {
+        "archiveUrl": "https://downloads.php.net/~windows/releases/archives/php-8.5.12-nts-Win32-vs17-x64.zip",
+        "archiveSha256": "2ab242af38d76bdf417cde5ec048b1bcd76a5a40f39a3d15d5f046f38571c477",
         "verification": {
           "method": "official-sha256"
         }

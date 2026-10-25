@@ -281,7 +281,6 @@ html[data-theme="glassmorphism"] .proxy-search-toolbar {
   background: rgb(255 255 255 / 8%);
 }
 
-html[data-theme="glassmorphism"] .site-row.is-shared,
 html[data-theme="glassmorphism"] .site-row.selected,
 html[data-theme="glassmorphism"] .proxy-row.selected,
 html[data-theme="glassmorphism"] .proxy-selection-toolbar,

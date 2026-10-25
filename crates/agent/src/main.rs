@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
-use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
+#[cfg(test)]
+use std::net::{Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex as StdMutex};
@@ -430,15 +431,13 @@ impl RuntimeUpdateManager {
 }
 
 struct LanShareState {
-  upstream: SocketAddr,
   server: Option<ShareServer>,
   info: Option<LanShareInfo>,
 }
 
 impl LanShareState {
-  fn new(http_port: u16) -> Self {
+  fn new() -> Self {
     Self {
-      upstream: SocketAddr::from((Ipv4Addr::LOCALHOST, http_port)),
       server: None,
       info: None,
     }
@@ -453,53 +452,6 @@ impl LanShareState {
       .info
       .as_ref()
       .is_some_and(|info| info.sites.iter().any(|site| site.site_id == site_id))
-  }
-
-  async fn start(&mut self, site: &Site, port: u16) -> Result<LanShareInfo> {
-    if port < 1024 {
-      bail!("LAN Site Share must use an unprivileged port");
-    }
-    if let Some(info) = self.info.as_mut() {
-      if info.port != port {
-        bail!(
-          "LAN Site Share is already running on port {}; stop all shared Sites before changing the port",
-          info.port
-        );
-      }
-      if !info.sites.iter().any(|shared| shared.site_id == site.id) {
-        info.sites.push(LanShareSiteInfo {
-          site_id: site.id,
-          domain: site.domain.clone(),
-        });
-        info
-          .sites
-          .sort_by(|left, right| left.domain.cmp(&right.domain));
-      }
-      let info = info.clone();
-      if let Some(server) = self.server.as_ref() {
-        server
-          .set_allowed_domains(info.sites.iter().map(|site| site.domain.clone()).collect())
-          .await?;
-      }
-      return Ok(info);
-    }
-    let server = ShareServer::start_restricted(
-      SocketAddr::from((Ipv4Addr::UNSPECIFIED, port)),
-      self.upstream,
-      vec![site.domain.clone()],
-    )
-    .await?;
-    let info = LanShareInfo {
-      host: discover_lan_ipv4()?.to_string(),
-      port: server.local_addr().port(),
-      sites: vec![LanShareSiteInfo {
-        site_id: site.id,
-        domain: site.domain.clone(),
-      }],
-    };
-    self.server = Some(server);
-    self.info = Some(info.clone());
-    Ok(info)
   }
 
   async fn stop_site(&mut self, site_id: uuid::Uuid) -> Result<Option<LanShareInfo>> {
@@ -664,7 +616,7 @@ async fn main() -> Result<()> {
     lifecycle_operations: Mutex::new(LifecycleOperationState::default()),
     sites: Mutex::new(repository),
     services: Mutex::new(supervisor),
-    lan_share: Mutex::new(LanShareState::new(arguments.http_port)),
+    lan_share: Mutex::new(LanShareState::new()),
     proxy_manager: Mutex::new(proxy_manager),
     runtime_updates: RuntimeUpdateManager::default(),
     shutdown: Arc::new(Notify::new()),
@@ -1348,37 +1300,11 @@ async fn handle_request(request: AgentRequest, state: &AgentState) -> AgentRespo
       AgentResponse::SiteHttpsChanged(updated)
     }
     AgentRequest::GetLanShare => AgentResponse::LanShare(state.lan_share.lock().await.info()),
-    AgentRequest::StartLanShare { site_id, port } => {
-      let site = match state.sites.lock().await.list() {
-        Ok(sites) => sites.into_iter().find(|site| site.id == site_id),
-        Err(error) => return internal_error(error),
-      };
-      let Some(site) = site else {
-        return AgentResponse::Error {
-          code: "site_not_found".to_owned(),
-          message: "Site not found".to_owned(),
-        };
-      };
-      if !site.enabled {
-        return AgentResponse::Error {
-          code: "site_disabled".to_owned(),
-          message: "enable the Site before sharing it over LAN".to_owned(),
-        };
-      }
-      if state.services.lock().await.status().nginx != ServiceState::Running {
-        return AgentResponse::Error {
-          code: "nginx_not_running".to_owned(),
-          message: "start fabDev Web services before sharing a Site".to_owned(),
-        };
-      }
-      match state.lan_share.lock().await.start(&site, port).await {
-        Ok(info) => AgentResponse::LanShare(Some(info)),
-        Err(error) => AgentResponse::Error {
-          code: "lan_share_start_failed".to_owned(),
-          message: error.to_string(),
-        },
-      }
-    }
+    //2026.10.19 by codex, reject retired sharing requests while preserving legacy status and cleanup commands.
+    AgentRequest::StartLanShare { .. } => AgentResponse::Error {
+      code: "lan_share_removed".to_owned(),
+      message: "LAN Site Share is no longer available".to_owned(),
+    },
     AgentRequest::StopLanShareSite { site_id } => {
       match state.lan_share.lock().await.stop_site(site_id).await {
         Ok(info) => AgentResponse::LanShare(info),
@@ -3217,21 +3143,6 @@ async fn stop_with_cleanup(
   Ok(())
 }
 
-fn discover_lan_ipv4() -> Result<Ipv4Addr> {
-  let socket =
-    UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).context("unable to create LAN address probe")?;
-  socket
-    .connect((Ipv4Addr::new(192, 0, 2, 1), 9))
-    .context("unable to select a LAN network route")?;
-  let address = socket.local_addr()?.ip();
-  match address {
-    std::net::IpAddr::V4(address) if !address.is_loopback() && !address.is_unspecified() => {
-      Ok(address)
-    }
-    _ => bail!("unable to discover a usable LAN IPv4 address"),
-  }
-}
-
 async fn ensure_site_home(state: &AgentState) -> Result<PathBuf> {
   let configured = state.sites.lock().await.site_home()?;
   let path = configured
@@ -3432,6 +3343,8 @@ fn discover_home_sites(
     }
     if let Some(existing) = existing_by_path.get(&site.project_path) {
       site.id = existing.id;
+      //2026.10.19 by codex, keep saved roots when rescanning existing Sites after changing the default.
+      site.document_root = existing.document_root.clone();
       site.php_version = existing.php_version.clone();
       site.enabled = existing.enabled;
       site.secured = existing.secured;
@@ -3748,7 +3661,7 @@ mod tests {
           mariadb: 3306,
         },
       )),
-      lan_share: Mutex::new(LanShareState::new(8080)),
+      lan_share: Mutex::new(LanShareState::new()),
       proxy_manager: Mutex::new(ProxyManager::new(Vec::new()).unwrap()),
       runtime_updates: RuntimeUpdateManager::default(),
       shutdown: Arc::new(Notify::new()),
@@ -3765,6 +3678,47 @@ mod tests {
       std::task::Poll::Ready(())
     })
     .await;
+  }
+
+  #[tokio::test]
+  async fn retired_lan_share_requests_never_open_a_listener() {
+    let (root, state) = isolated_agent_state();
+    let site = Site {
+      id: Uuid::new_v4(),
+      name: "ERP".to_owned(),
+      domain: "erp.test".to_owned(),
+      project_path: root.clone(),
+      document_root: root.clone(),
+      php_version: None,
+      enabled: true,
+      secured: false,
+      upstream_response_timeout_seconds: 120,
+    };
+    state.sites.lock().await.insert(&site).unwrap();
+    for site_id in [site.id, Uuid::new_v4()] {
+      for port in [80, 18080] {
+        let response = handle_request(AgentRequest::StartLanShare { site_id, port }, &state).await;
+        assert!(matches!(
+          response,
+          AgentResponse::Error { code, message }
+            if code == "lan_share_removed" && message == "LAN Site Share is no longer available"
+        ));
+        let share = state.lan_share.lock().await;
+        assert!(share.server.is_none());
+        assert!(share.info().is_none());
+      }
+    }
+    for request in [
+      AgentRequest::GetLanShare,
+      AgentRequest::StopLanShareSite { site_id: site.id },
+      AgentRequest::StopLanShare,
+    ] {
+      assert!(matches!(
+        handle_request(request, &state).await,
+        AgentResponse::LanShare(None)
+      ));
+    }
+    std::fs::remove_dir_all(root).unwrap();
   }
 
   #[cfg(unix)]
@@ -4389,7 +4343,7 @@ mod tests {
           mariadb: 3306,
         },
       )),
-      lan_share: Mutex::new(LanShareState::new(8080)),
+      lan_share: Mutex::new(LanShareState::new()),
       proxy_manager: Mutex::new(ProxyManager::new(Vec::new()).unwrap()),
       runtime_updates: RuntimeUpdateManager::default(),
       shutdown: Arc::new(Notify::new()),
@@ -4582,7 +4536,7 @@ mod tests {
             mariadb: 3306,
           },
         )),
-        lan_share: Mutex::new(LanShareState::new(8080)),
+        lan_share: Mutex::new(LanShareState::new()),
         proxy_manager: Mutex::new(ProxyManager::new(Vec::new()).unwrap()),
         runtime_updates: RuntimeUpdateManager::default(),
         shutdown: Arc::new(Notify::new()),
@@ -4674,7 +4628,7 @@ mod tests {
           mariadb: 3306,
         },
       )),
-      lan_share: Mutex::new(LanShareState::new(8080)),
+      lan_share: Mutex::new(LanShareState::new()),
       proxy_manager: Mutex::new(ProxyManager::new(Vec::new()).unwrap()),
       runtime_updates: RuntimeUpdateManager::default(),
       shutdown: Arc::new(Notify::new()),
@@ -5017,7 +4971,7 @@ mod tests {
     .await
     .unwrap();
     let address = server.local_addr();
-    let mut state = LanShareState::new(8080);
+    let mut state = LanShareState::new();
     state.server = Some(server);
     state.info = Some(LanShareInfo {
       host: "127.0.0.1".to_owned(),
@@ -5069,7 +5023,7 @@ mod tests {
 
   #[tokio::test]
   async fn clears_share_info_even_when_stop_fails() {
-    let mut state = LanShareState::new(8080);
+    let mut state = LanShareState::new();
     state.info = Some(LanShareInfo {
       host: "127.0.0.1".to_owned(),
       port: 18080,
@@ -5661,7 +5615,7 @@ mod tests {
   async fn removes_one_shared_site_without_stopping_the_others() {
     let first = Uuid::new_v4();
     let second = Uuid::new_v4();
-    let mut state = LanShareState::new(8080);
+    let mut state = LanShareState::new();
     state.info = Some(LanShareInfo {
       host: "192.168.1.10".to_owned(),
       port: 18080,
@@ -5699,7 +5653,7 @@ mod tests {
   #[tokio::test]
   async fn updates_the_domain_of_an_existing_shared_site() {
     let site_id = Uuid::new_v4();
-    let mut state = LanShareState::new(8080);
+    let mut state = LanShareState::new();
     state.info = Some(LanShareInfo {
       host: "192.168.1.10".to_owned(),
       port: 18080,
@@ -5750,7 +5704,7 @@ mod tests {
           mariadb: 3306,
         },
       )),
-      lan_share: Mutex::new(LanShareState::new(8080)),
+      lan_share: Mutex::new(LanShareState::new()),
       proxy_manager: Mutex::new(ProxyManager::new(Vec::new()).unwrap()),
       runtime_updates: RuntimeUpdateManager::default(),
       shutdown: Arc::new(Notify::new()),
@@ -6335,7 +6289,7 @@ mod tests {
           mariadb: 3_306,
         },
       )),
-      lan_share: Mutex::new(LanShareState::new(8_080)),
+      lan_share: Mutex::new(LanShareState::new()),
       proxy_manager: Mutex::new(ProxyManager::new(Vec::new()).expect("create Proxy fixture")),
       runtime_updates: RuntimeUpdateManager::default(),
       shutdown: Arc::new(Notify::new()),
@@ -6500,10 +6454,7 @@ mod tests {
     assert_eq!(sites[1].domain, "site1.test");
     assert_eq!(
       sites[1].document_root,
-      home
-        .join("site1/public")
-        .canonicalize()
-        .expect("resolve public")
+      home.join("site1").canonicalize().expect("resolve project")
     );
     assert!(sites.iter().all(|site| site.domain != "site2.test"));
     assert!(symbolic_link_site_ids(&home, &sites)
@@ -6543,10 +6494,7 @@ mod tests {
     );
     assert_eq!(
       sites[0].document_root,
-      target
-        .join("public")
-        .canonicalize()
-        .expect("resolve linked Site document root")
+      target.canonicalize().expect("resolve linked Site project")
     );
     assert_eq!(
       symbolic_link_site_ids(&home, &sites).expect("derive symbolic link Site IDs"),
@@ -6559,12 +6507,12 @@ mod tests {
   fn preserves_home_site_settings_and_gives_linked_sites_domain_priority() {
     let home = std::env::temp_dir().join(format!("fabdev-site-home-{}", Uuid::new_v4()));
     std::fs::create_dir_all(home.join("erp")).expect("create ERP project");
-    std::fs::create_dir_all(home.join("site1")).expect("create Site project");
+    std::fs::create_dir_all(home.join("site1/public")).expect("create Site project");
     let existing = create_site(SiteInput {
       name: None,
       domain: None,
       project_path: home.join("site1"),
-      document_root: None,
+      document_root: Some(home.join("site1/public")),
       php_version: Some("7.4".parse().expect("parse PHP")),
       upstream_response_timeout_seconds: None,
     })
@@ -6592,6 +6540,7 @@ mod tests {
     assert_eq!(sites.len(), 1);
     assert_eq!(sites[0].id, existing.id);
     assert_eq!(sites[0].php_version, existing.php_version);
+    assert_eq!(sites[0].document_root, existing.document_root);
     assert_eq!(sites[0].domain, "site1.test");
     std::fs::remove_dir_all(home).expect("remove Site Home fixture");
   }

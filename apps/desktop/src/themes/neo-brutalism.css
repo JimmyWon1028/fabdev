@@ -212,7 +212,6 @@ html[data-theme="neo-brutalism"] .help-section + .help-section {
   border-color: #111;
 }
 
-html[data-theme="neo-brutalism"] .site-row.is-shared,
 html[data-theme="neo-brutalism"] .site-row.selected,
 html[data-theme="neo-brutalism"] .proxy-row.selected,
 html[data-theme="neo-brutalism"] .proxy-selection-toolbar,

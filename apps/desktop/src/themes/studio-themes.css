@@ -207,7 +207,6 @@ html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="por
   border-color: var(--studio-line);
 }
 
-html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-row.is-shared,
 html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-row.selected,
 html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-row.selected,
 html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .proxy-selection-toolbar,
@@ -444,13 +443,7 @@ html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="por
   color: var(--studio-danger);
 }
 
-html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-share-address {
-  color: var(--studio-success) !important;
-}
 
-html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .site-share-address.is-inactive {
-  color: var(--studio-muted) !important;
-}
 
 html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-contents a:hover,
 html:is([data-theme="graphite"], [data-theme="retro-terminal"], [data-theme="porcelain"], [data-theme="blueprint"]) .help-contents a:focus-visible {

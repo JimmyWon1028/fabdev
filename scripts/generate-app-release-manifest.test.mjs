@@ -19,6 +19,64 @@ function digest(contents) {
   return createHash('sha256').update(contents).digest('hex')
 }
 
+//2026.10.25 by codex, run macOS shell fixtures only on POSIX hosts.
+test('aligns the macOS dev SDK and native compilers while preserving explicit overrides', { skip: process.platform === 'win32' }, async (context) => {
+  const testRoot = await mkdtemp(join(tmpdir(), 'fabdev-dev-toolchain-'))
+  context.after(async () => rm(testRoot, { force: true, recursive: true }))
+  const bin = join(testRoot, 'bin')
+  await mkdir(bin)
+  const snapshot = 'printf "%s\\n" "${SDKROOT-}" "${CC-}" "${CXX-}" "${MACOSX_DEPLOYMENT_TARGET-}" > "$FABDEV_TEST_ENV_FILE"\nexit 87\n'
+  for (const [name, contents] of Object.entries({
+    rustup: 'printf "%s\\n" "$FABDEV_TEST_CARGO"\n',
+    uname: 'printf "%s\\n" "$FABDEV_TEST_PLATFORM"\n',
+    node: 'exit 0\n',
+    cargo: snapshot,
+    pnpm: snapshot,
+    xcrun: 'printf "%s\\n" "$*" >> "$FABDEV_TEST_XCRUN_LOG"\ncase "$*" in\n  "--sdk macosx --show-sdk-path") printf "%s\\n" "$FABDEV_TEST_SDK" ;;\n  "--sdk macosx --find clang") printf "%s/clang\\n" "$FABDEV_TEST_TOOLCHAIN" ;;\n  "--sdk macosx --find clang++") printf "%s/clang++\\n" "$FABDEV_TEST_TOOLCHAIN" ;;\n  *) exit 1 ;;\nesac\n'
+  })) {
+    await writeFile(join(bin, name), `#!/bin/sh\n${contents}`, { mode: 0o755 })
+  }
+  const baseEnv = {
+    ...process.env,
+    PATH: `${bin}:${process.env.PATH}`,
+    FABDEV_TEST_CARGO: join(bin, 'cargo'),
+    FABDEV_TEST_SDK: join(testRoot, 'Selected Xcode.app/SDK'),
+    FABDEV_TEST_TOOLCHAIN: join(testRoot, 'Selected Xcode.app/Toolchain')
+  }
+  for (const key of ['SDKROOT', 'CC', 'CXX', 'MACOSX_DEPLOYMENT_TARGET']) {
+    delete baseEnv[key]
+  }
+  const cases = [
+    { platform: 'Darwin', mode: 'dev', overrides: {}, expected: [
+      baseEnv.FABDEV_TEST_SDK,
+      `${baseEnv.FABDEV_TEST_TOOLCHAIN}/clang`,
+      `${baseEnv.FABDEV_TEST_TOOLCHAIN}/clang++`,
+      '13.0'
+    ], xcrunCalls: 3 },
+    { platform: 'Darwin', mode: 'dev', overrides: {
+      SDKROOT: '/custom SDK', CC: '/custom clang', CXX: '/custom clang++',
+      MACOSX_DEPLOYMENT_TARGET: '14.0'
+    }, expected: ['/custom SDK', '/custom clang', '/custom clang++', '14.0'], xcrunCalls: 0 },
+    { platform: 'Linux', mode: 'dev', overrides: {}, expected: ['', '', '', ''], xcrunCalls: 0 },
+    { platform: 'MINGW_NT', mode: 'dev', overrides: {}, expected: ['', '', '', ''], xcrunCalls: 0 },
+    { platform: 'Darwin', mode: 'build', overrides: {}, expected: ['', '', '', ''], xcrunCalls: 0 }
+  ]
+  for (const [index, entry] of cases.entries()) {
+    const envFile = join(testRoot, `env-${index}`)
+    const xcrunLog = join(testRoot, `xcrun-${index}`)
+    await assert.rejects(execFileAsync('bash', [join(repoRoot, 'scripts/run-tauri.sh'), entry.mode], {
+      env: { ...baseEnv, ...entry.overrides, FABDEV_TEST_PLATFORM: entry.platform,
+        FABDEV_TEST_ENV_FILE: envFile, FABDEV_TEST_XCRUN_LOG: xcrunLog }
+    }), (error) => error.code === 87)
+    assert.deepEqual((await readFile(envFile, 'utf8')).split('\n').slice(0, 4), entry.expected)
+    if (entry.xcrunCalls > 0) {
+      assert.equal((await readFile(xcrunLog, 'utf8')).trim().split('\n').length, entry.xcrunCalls)
+    } else {
+      await assert.rejects(readFile(xcrunLog), (error) => error.code === 'ENOENT')
+    }
+  }
+})
+
 test('blocks Windows installation until the x64 Visual C++ Runtime is complete', async () => {
   const hooks = await readFile(
     join(repoRoot, 'apps/desktop/src-tauri/windows/installer-hooks.nsh'),
@@ -479,6 +537,68 @@ test('wires Windows update download cancellation through the desktop command', a
   assert.match(settingsSource, /store\.appUpdateDownloading && canCancelAppUpdate/)
 })
 
+test('pins PHP 8.2.35 sources consistently for both bundled platforms and Windows online builds', async () => {
+  const readManifest = async (name) => JSON.parse(
+    await readFile(join(repoRoot, `resources/runtime-packages/${name}.json`), 'utf8')
+  )
+  const [macos, windows, online] = await Promise.all([
+    readManifest('macos-arm64-bundled'),
+    readManifest('windows-x64-bundled'),
+    readManifest('windows-x64')
+  ])
+  const php82 = (manifest) => manifest.packages.filter(
+    (entry) => entry.name === 'php' && entry.version.startsWith('8.2.')
+  )
+  for (const manifest of [macos, windows, online]) {
+    assert.deepEqual(php82(manifest).map((entry) => entry.version), ['8.2.35'])
+  }
+  const [macPhp] = php82(macos)
+  const [winPhp] = php82(windows)
+  const [onlinePhp] = php82(online)
+  assert.equal(macPhp.default, true)
+  assert.equal(winPhp.default, true)
+  assert.equal(macPhp.buildProfile, 'php-modern')
+  assert.equal(macPhp.source.archiveSha256, '5737b98601fe5ab1b8c5db0c82ed3158acb9283ed3081ffe2faffb9ac81455e6')
+  assert.equal(macPhp.source.verification.fingerprint, 'E60913E4DF209907D8E30D96659A97C9CF2A795A')
+  assert.equal(winPhp.archiveUrl, 'https://downloads.php.net/~windows/releases/archives/php-8.2.35-nts-Win32-vs16-x64.zip')
+  assert.equal(winPhp.archiveSha256, '798ffa4b9ce22a820d57048e9695df7245bf917ed067917f256942a10918a8cc')
+  assert.equal(winPhp.destination, 'php/8.2.35')
+  assert.equal(onlinePhp.source.archiveUrl, winPhp.archiveUrl)
+  assert.equal(onlinePhp.source.archiveSha256, winPhp.archiveSha256)
+  assert.match(winPhp.packageSha256, /^[0-9a-f]{64}$/)
+  assert.equal(winPhp.catalogSequence, 5)
+  const prepare = await readFile(join(repoRoot, 'scripts/prepare-windows-runtimes.ps1'), 'utf8')
+  assert.match(prepare, /if \(\$runtime\.packageSha256 -notmatch '\^\[0-9a-f\]\{64\}\$'\) \{\s*throw/)
+})
+
+test('selects the pinned PHP 8.2.35 build profile and rejects an unverified version', { skip: process.platform === 'win32' }, async () => {
+  const script = await readFile(join(repoRoot, 'scripts/build-php-runtime.sh'), 'utf8')
+  const profileStart = script.indexOf('PHP_VERSION=')
+  const profileEnd = script.indexOf('\nBUILD_ROOT=')
+  assert.ok(profileStart > 0 && profileEnd > profileStart)
+  const profile = `set -euo pipefail\n${script.slice(profileStart, profileEnd)}\nprintf '%s\\n' "$PHP_VERSION" "$PHP_SHA256" "$PHP_RELEASE_FINGERPRINT" "$PHP_BUILD_PROFILE" "$PHP_OPCACHE_MODE"`
+  const env = {
+    ...process.env,
+    PROJECT_DIR: repoRoot,
+    PHP_VERSION: '',
+    PHP_SHA256: '',
+    PHP_RELEASE_FINGERPRINT: '',
+    FABDEV_PHP_BUILD_PROFILE: ''
+  }
+  const { stdout } = await execFileAsync('bash', ['-c', profile], { env })
+  assert.deepEqual(stdout.trim().split('\n'), [
+    '8.2.35',
+    '5737b98601fe5ab1b8c5db0c82ed3158acb9283ed3081ffe2faffb9ac81455e6',
+    'E60913E4DF209907D8E30D96659A97C9CF2A795A',
+    'php-modern',
+    'shared'
+  ])
+  await assert.rejects(
+    execFileAsync('bash', ['-c', profile], { env: { ...env, PHP_VERSION: '8.2.999' } }),
+    (error) => error.code === 1 && error.stderr.includes('Unsupported PHP version: 8.2.999')
+  )
+})
+
 test('loads and verifies every Windows online PHP Runtime from the package manifest', async () => {
   const [script, manifestContents] = await Promise.all([
     readFile(join(repoRoot, 'scripts/build-windows-php-runtime.ps1'), 'utf8'),
@@ -489,8 +609,9 @@ test('loads and verifies every Windows online PHP Runtime from the package manif
 
   assert.deepEqual(phpPackages.map((runtimePackage) => runtimePackage.version), [
     '7.4.33',
-    '8.2.33',
-    '8.4.24'
+    '8.2.35',
+    '8.4.27',
+    '8.5.12'
   ])
   assert.equal(
     phpPackages.every(
@@ -589,7 +710,7 @@ test('prepares bundled macOS Runtimes and their default PHP from a manifest', as
     )
   }
 
-  await execFileAsync(process.execPath, [join(repoRoot, 'scripts/prepare-bundled-runtime-assets.mjs')], {
+  const prepareOptions = {
     env: {
       ...process.env,
       FABDEV_BUNDLED_RUNTIME_SOURCE: sourceRoot,
@@ -597,7 +718,13 @@ test('prepares bundled macOS Runtimes and their default PHP from a manifest', as
       FABDEV_BUNDLED_RUNTIME_MANIFEST: manifestPath,
       FABDEV_ALLOW_CROSS_PLATFORM_RUNTIME_PREPARATION: '1'
     }
-  })
+  }
+  const prepare = () => execFileAsync(
+    process.execPath,
+    [join(repoRoot, 'scripts/prepare-bundled-runtime-assets.mjs')],
+    prepareOptions
+  )
+  await prepare()
 
   const bundledManifest = JSON.parse(await readFile(join(outputRoot, 'manifest.json'), 'utf8'))
   assert.deepEqual(
@@ -617,6 +744,17 @@ test('prepares bundled macOS Runtimes and their default PHP from a manifest', as
       (runtimePackage) => runtimePackage.name === 'php' && runtimePackage.default
     ).length,
     1
+  )
+
+  const phpDescriptorPath = join(sourceRoot, 'php-8.2.35-macos-arm64-dev.json')
+  const phpDescriptor = JSON.parse(await readFile(phpDescriptorPath, 'utf8'))
+  await writeFile(phpDescriptorPath, JSON.stringify({ ...phpDescriptor, version: '8.2.33' }))
+  await assert.rejects(prepare(), (error) =>
+    error.stderr.includes('Bundled Runtime descriptor does not match php 8.2.35')
+  )
+  await writeFile(phpDescriptorPath, JSON.stringify({ ...phpDescriptor, sha256: '0'.repeat(64) }))
+  await assert.rejects(prepare(), (error) =>
+    error.stderr.includes('Bundled Runtime SHA-256 does not match')
   )
 })
 
@@ -682,8 +820,10 @@ test('pins and prepares every macOS ARM64 online Runtime package', async () => {
   assert.deepEqual(
     manifest.packages.map((runtimePackage) => [runtimePackage.name, runtimePackage.version]),
     [
-      ['php', '8.5.10'],
-      ['php', '8.4.24'],
+      ['php', '8.5.12'],
+      ['php', '8.4.27'],
+      ['php', '8.2.35'],
+      ['php', '7.4.33'],
       ['mariadb', '12.3.2'],
       ['node', '20.20.2'],
       ['node', '24.20.0']
@@ -698,7 +838,7 @@ test('pins and prepares every macOS ARM64 online Runtime package', async () => {
       ['dnsmasq', '2.93'],
       ['nginx', '1.30.4'],
       ['php', '7.4.33'],
-      ['php', '8.2.33']
+      ['php', '8.2.35']
     ]
   )
   assert.match(packageBuild, /jq -c '\.packages\[\]'/)

@@ -276,7 +276,6 @@ html[data-theme="cyberpunk-city"] .proxy-search-toolbar {
   background: rgb(9 10 34 / 30%);
 }
 
-html[data-theme="cyberpunk-city"] .site-row.is-shared,
 html[data-theme="cyberpunk-city"] .site-row.selected,
 html[data-theme="cyberpunk-city"] .proxy-row.selected,
 html[data-theme="cyberpunk-city"] .proxy-selection-toolbar,
@@ -285,7 +284,6 @@ html[data-theme="cyberpunk-city"] .site-selection-toolbar {
   box-shadow: inset 3px 0 0 #fb78e6;
 }
 
-html[data-theme="cyberpunk-city"] .site-row.is-shared,
 html[data-theme="cyberpunk-city"] .site-row.selected,
 html[data-theme="cyberpunk-city"] .proxy-row.selected {
   background: rgb(60 34 94 / 40%);

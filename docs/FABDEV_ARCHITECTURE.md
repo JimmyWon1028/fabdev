@@ -14,7 +14,7 @@ fabDev 本身不是 ERP 系統或 ERP Runtime，也不是低程式碼設計器�
 
 目前這個專案只提供單機、單人使用的本機開發環境。資料庫、管理 API、Agent Protocol 與特權 Helper 必須維持本機安全邊界，也不把 Desktop 開發模式宣稱為 Production Server。
 
-為方便開發者用另一台電腦或 VM 驗證瀏覽器相容性，Desktop 可以由使用者明確選擇多個 Site，暫時共用一個高位 Port 的 `LAN Site Share`。這是最多 1–2 台 Client 的無驗證 HTTP 開發預覽，不是多人產品功能；不得公開到網際網路，也不得開放 MariaDB、Agent 或管理介面。
+2026-10-19 未發布原始碼已依 Repository Owner 指示取消 `LAN Site Share`。Desktop 與 CLI 不再提供分享入口，Agent 拒絕啟動分享；多人與區網服務規劃仍以第 15 節的獨立 `fabDev Server` 為準。
 
 區域網路多人使用與正式 ERP 承載屬於未來獨立產品 `fabDev Server`。其技術架構記錄於第 15 節，僅作為未來產品規劃，不納入目前 fabDev Desktop 的實作範圍。
 
@@ -57,7 +57,6 @@ Desktop 主程式保持一般使用者權限。只有 DNS、系統服務、受�
 - Site Manager
 - Log、健康檢查與錯誤診斷
 - Runtime 更新偵測與通知
-- 選用的 LAN Site Share 與 Windows `fabdev-connect`
 
 PHP 8.4、Node.js、MariaDB 及未來的 Redis 等服務都是選用元件，不能成為 fabDev Core 的啟動依賴。
 
@@ -65,7 +64,7 @@ Desktop 首次啟動若 Site Registry 完全空白，必須從 App 內建 fixtur
 
 ## 4. Site 與本機網域
 
-第一個里程碑只實作單一 linked site；不匯入 Herd Site，也不實作 Park。新增 Site 時由使用者選擇專案資料夾，網域依資料夾名稱自動產生並可修改。若存在 `public/index.php`，自動使用 `public/` 作為 Web Root；否則使用專案根目錄，並允許手動調整。
+新增 Site 時由使用者選擇專案資料夾，網域依資料夾名稱自動產生並可修改。2026-10-19 未發布原始碼已移除 Sites 表單與清單的獨立 Web Root 欄位；新增、編輯及由 Desktop 匯入時直接以專案路徑作為網站根目錄。Core 在未指定相容性欄位 `documentRoot` 時也直接使用專案路徑，不再偵測 `public/index.php` 或 `public/index.html`。新掃描的 Site Home 項目採同一預設；既有儲存設定與重新掃描的既有 Site 保留原網站根目錄，不做批次遷移。Protocol／SQLite／匯出入格式仍保留 `documentRoot` 以相容既有資料與 CLI。
 
 fabDev 同時管理 Site Home parked path 與 linked sites：
 
@@ -86,23 +85,13 @@ site.test
   → ERP 專案
 ```
 
-### 4.1 LAN Site Share 開發預覽
+### 4.1 已取消的 LAN Site Share
 
-LAN Site Share 只在使用者於 Sites 畫面按下分享時啟動，預設使用主機 `0.0.0.0:18080`，將 HTTP 流量轉送到 fabDev Nginx 的 `127.0.0.1:8080`。多個已選 Site 共用同一 Listener；分享入口先以動態 HTTP `Host` 白名單拒絕未選 Site，再由 Nginx 依原始 `Host` 分流。停止或移除某個 Site 會立即更新白名單，最後一個 Site 停止、Stop All、Agent Shutdown 或 App Quit 才關閉 Listener 並釋放 Port。
+2026-10-19 的未發布修改移除 Sites 分享按鈕、分享狀態、Connect 位址、分享篩選／排序，以及 CLI 的 `share`、`unshare`、`lan-share`、`stop-share` 指令。Desktop 不再查詢或保存分享狀態，三種語言的操作說明同步移除此功能。
 
-Windows Client 使用獨立的 `fabdev-connect.exe`：程式要求 UAC 後只在 Client 的 `127.0.0.1:80` 監聽，建立受標記的 `hosts` 區塊，把使用者輸入的多個 `.test` 網域指向 `127.0.0.1`，再以非同步雙向代理把瀏覽器 TCP 流量送到主機的 `18080`。中斷或正常結束時會移除自己管理的 `hosts` 區塊，且不覆寫既有同名紀錄。
+為保持 Agent Protocol `44` 的線路相容性，保留既有 request／response 格式：`StartLanShare` 固定回覆 `lan_share_removed`，不建立 LAN Listener；舊版查詢與停止請求仍可回覆狀態或清理。既有停止、移除 Site、Stop All 與 Shutdown 清理邏輯保持有效。
 
-```text
-Windows 瀏覽器：http://site-one.test
-  → Windows hosts：site-one.test = 127.0.0.1
-  → fabdev-connect：127.0.0.1:80
-  → LAN：fabDev 主機 IP:18080
-  → fabdev-share：127.0.0.1:8080
-  → Nginx（依 Host: site-one.test 路由）
-  → PHP-FPM／ERP 專案
-```
-
-此路徑沒有 TLS、登入、Client 授權、流量限制或 Site 隔離保證，主機高位 Port 也會被區域網路看見。因此它的驗收範圍只包含 Windows 11 瀏覽器可用、正常中斷後清理 `hosts` 與 Port，以及 1–2 台 Client 的短時間開發測試；10 人、長時間穩定運行與正式 ERP 承載仍屬第 15 節的 `fabDev Server`。
+此變更尚未發布；既有 Stable App、fabDev Connect 資產與發布規格維持原值。
 
 ## 5. PHP 多版本管理
 

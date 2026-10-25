@@ -33,6 +33,8 @@ const PHP_74_INI_TEMPLATE: &str = include_str!("../../../resources/php/php-7.4.i
 const PHP_82_INI_TEMPLATE: &str = include_str!("../../../resources/php/php-8.2.ini");
 const PHP_85_INI_TEMPLATE: &str = include_str!("../../../resources/php/php-8.5.ini");
 const PHP_WINDOWS_INI_TEMPLATE: &str = include_str!("../../../resources/php/php-windows.ini");
+const PHP_WINDOWS_85_INI_TEMPLATE: &str =
+  include_str!("../../../resources/php/php-windows-8.5.ini");
 const PHP_FPM_TEMPLATE: &str = include_str!("../../../resources/php/php-fpm.conf");
 const PHP_POOL_TEMPLATE: &str = include_str!("../../../resources/php/www.conf");
 const MARIADB_CONFIG_TEMPLATE: &str = include_str!("../../../resources/mariadb/my.cnf");
@@ -2797,8 +2799,17 @@ fn generate_php_config(
 }
 
 fn php_ini_template(version: &PhpVersion) -> &'static str {
-  if cfg!(windows) {
-    return PHP_WINDOWS_INI_TEMPLATE;
+  php_ini_template_for_platform(version, cfg!(windows))
+}
+
+fn php_ini_template_for_platform(version: &PhpVersion, windows: bool) -> &'static str {
+  if windows {
+    //2026.10.25 by codex, PHP 8.5 includes OPcache in the Windows executable.
+    return if version.major == 8 && version.minor == 5 {
+      PHP_WINDOWS_85_INI_TEMPLATE
+    } else {
+      PHP_WINDOWS_INI_TEMPLATE
+    };
   }
   match version.to_string().as_str() {
     "7.4" => PHP_74_INI_TEMPLATE,
@@ -7106,7 +7117,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       php: root.join("runtimes/php"),
       mariadb: root.join("runtimes/mariadb"),
     };
-    add_php_runtime(&runtimes.php, "8.2.33");
+    add_php_runtime(&runtimes.php, "8.2.35");
     add_php_runtime(&runtimes.php, "8.4.24");
     for version in ["8.2", "8.4"] {
       generate_php_config(
@@ -7934,7 +7945,8 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       mariadb: root.join("mariadb/current"),
     };
     add_php_runtime(&runtimes.php, "8.2.31");
-    let latest = add_php_runtime(&runtimes.php, "8.2.33");
+    add_php_runtime(&runtimes.php, "8.2.33");
+    let latest = add_php_runtime(&runtimes.php, "8.2.35");
     add_php_runtime(&runtimes.php, "8.3.20");
 
     assert_eq!(
@@ -7967,6 +7979,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       PHP_82_INI_TEMPLATE,
       PHP_85_INI_TEMPLATE,
       PHP_WINDOWS_INI_TEMPLATE,
+      PHP_WINDOWS_85_INI_TEMPLATE,
     ] {
       assert!(template.contains("memory_limit = 256M"));
     }
@@ -7987,11 +8000,28 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
 
     assert!(contents.contains("opcache.enable = 1"));
     if cfg!(windows) {
-      assert!(contents.contains("zend_extension = opcache"));
+      assert!(!contents.contains("zend_extension"));
       assert!(!contents.contains("imagick.so"));
     } else {
       assert!(!contents.contains("zend_extension"));
       assert!(contents.contains("@PHP_EXTENSION_API@/imagick.so"));
+    }
+  }
+
+  #[test]
+  fn windows_php_85_uses_builtin_opcache_without_changing_older_series_defaults() {
+    for series in ["7.4", "8.2", "8.4", "8.5"] {
+      let version: PhpVersion = series.parse().expect("parse PHP version");
+      let contents = php_ini_template_for_platform(&version, true);
+      assert_eq!(
+        contents.contains("zend_extension = opcache"),
+        series != "8.5"
+      );
+      assert!(contents.contains("opcache.enable = 1"));
+      assert!(contents.contains("extension = @GD_EXTENSION@"));
+      assert!(contents.contains("extension = mysqli"));
+      assert!(contents.contains("extension = pdo_mysql"));
+      assert!(!contents.contains("imagick.so"));
     }
   }
 
@@ -8127,7 +8157,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     std::fs::write(
       &managed,
       format!(
-        "zend_extension = \"{}/runtimes/php/{previous_version}/lib/php/extensions/{previous_extension_api}/opcache.so\"\n",
+        "memory_limit = 384M\nzend_extension = \"{}/runtimes/php/{previous_version}/lib/php/extensions/{previous_extension_api}/opcache.so\"\n",
         paths.root.display(),
       ),
     )
@@ -8140,6 +8170,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
       .replace('\\', "/");
     let expected_runtime = runtime.to_string_lossy().replace('\\', "/");
 
+    assert!(contents.contains("memory_limit = 384M"));
     assert!(contents.contains(&format!(
       "{expected_runtime}/lib/php/extensions/no-debug-non-zts-fixture/opcache.so"
     )));
@@ -8153,7 +8184,7 @@ plugin-dir=C:\\Users\\jimmywon\\AppData\\Local\\FabDev\\data\\runtimes\\mariadb\
     assert_migrates_managed_extension_paths_after_php_patch_update(
       "8.2",
       "8.2.33",
-      "8.2.34",
+      "8.2.35",
       "no-debug-non-zts-20220829",
     );
   }

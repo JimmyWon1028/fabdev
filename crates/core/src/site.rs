@@ -1,5 +1,5 @@
 use std::fmt::{Display, Formatter};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
@@ -166,7 +166,8 @@ pub fn create_site(input: SiteInput) -> Result<Site, SiteError> {
       }
       candidate
     }
-    None => detect_document_root(&project_path),
+    //2026.10.19 by codex, use the selected project directory without inferring a public subdirectory.
+    None => project_path.clone(),
   };
   let upstream_response_timeout_seconds = input
     .upstream_response_timeout_seconds
@@ -208,15 +209,6 @@ pub fn edit_site(previous: &Site, input: SiteEditInput) -> Result<Site, SiteErro
   updated.enabled = previous.enabled;
   updated.secured = previous.secured;
   Ok(updated)
-}
-
-pub fn detect_document_root(project_path: &Path) -> PathBuf {
-  let public = project_path.join("public");
-  if public.join("index.php").is_file() || public.join("index.html").is_file() {
-    public
-  } else {
-    project_path.to_path_buf()
-  }
 }
 
 pub fn normalize_domain(value: &str) -> Result<String, SiteError> {
@@ -288,19 +280,38 @@ mod tests {
   }
 
   #[test]
-  fn detects_public_front_controller() {
+  fn uses_project_path_even_with_a_public_php_entry_point() {
     let root = temp_project();
-    assert_eq!(detect_document_root(&root), root.join("public"));
+    let site = create_site(SiteInput {
+      name: None,
+      domain: None,
+      project_path: root.clone(),
+      document_root: None,
+      php_version: None,
+      upstream_response_timeout_seconds: None,
+    })
+    .expect("create Site without inferring public");
+    assert_eq!(site.document_root, site.project_path);
+    assert_eq!(site.project_path, root.canonicalize().unwrap());
     std::fs::remove_dir_all(root).expect("remove test project");
   }
 
   #[test]
-  fn detects_static_public_document_root() {
+  fn uses_project_path_even_with_a_public_html_entry_point() {
     let root = std::env::temp_dir().join(format!("fabdev-static-site-{}", Uuid::new_v4()));
     std::fs::create_dir_all(root.join("public")).expect("create static project");
     std::fs::write(root.join("public/index.html"), "static")
       .expect("write static front controller");
-    assert_eq!(detect_document_root(&root), root.join("public"));
+    let site = create_site(SiteInput {
+      name: None,
+      domain: None,
+      project_path: root.clone(),
+      document_root: None,
+      php_version: None,
+      upstream_response_timeout_seconds: None,
+    })
+    .expect("create static Site without inferring public");
+    assert_eq!(site.document_root, site.project_path);
     std::fs::remove_dir_all(root).expect("remove static project");
   }
 
@@ -320,7 +331,7 @@ mod tests {
     assert!(site.domain.ends_with(".test"));
     assert_eq!(
       site.document_root,
-      root.canonicalize().expect("canonical root").join("public")
+      root.canonicalize().expect("canonical root")
     );
     std::fs::remove_dir_all(root).expect("remove test project");
   }
@@ -378,6 +389,35 @@ mod tests {
       Err(SiteError::EmptyName)
     ));
     std::fs::remove_dir_all(root).expect("remove test project");
+  }
+
+  #[test]
+  fn editing_without_a_separate_root_uses_the_selected_project_path() {
+    let root = temp_project();
+    let previous = create_site(SiteInput {
+      name: Some("ERP".to_owned()),
+      domain: Some("erp.test".to_owned()),
+      project_path: root.clone(),
+      document_root: Some(root.join("public")),
+      php_version: None,
+      upstream_response_timeout_seconds: None,
+    })
+    .expect("create legacy Site");
+    let updated = edit_site(
+      &previous,
+      SiteEditInput {
+        name: previous.name.clone(),
+        domain: previous.domain.clone(),
+        project_path: root.clone(),
+        document_root: None,
+        upstream_response_timeout_seconds: None,
+      },
+    )
+    .expect("edit Site with one path");
+    assert_eq!(updated.id, previous.id);
+    assert_eq!(updated.document_root, updated.project_path);
+    assert_ne!(updated.document_root, previous.document_root);
+    std::fs::remove_dir_all(root).unwrap();
   }
 
   #[test]

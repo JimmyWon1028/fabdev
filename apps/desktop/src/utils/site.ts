@@ -1,14 +1,13 @@
 import type { Site } from '@fabdev/contracts'
 
-export type SiteListFilter = 'all' | 'shared' | 'home' | 'linked'
-export type SiteListSort = 'domainAsc' | 'domainDesc' | 'php' | 'shared'
+export type SiteListFilter = 'all' | 'home' | 'linked'
+export type SiteListSort = 'domainAsc' | 'domainDesc' | 'php'
 
 export interface SiteListOptions {
   query: string
   filter: SiteListFilter
   sort: SiteListSort
   homeSiteIds: Set<string>
-  sharedSiteIds: Set<string>
 }
 
 export interface SiteRemovalFailure {
@@ -55,9 +54,6 @@ export function inferDomain(projectPath: string): string {
 export function filterAndSortSites(sites: Site[], options: SiteListOptions): Site[] {
   const query = options.query.trim().toLocaleLowerCase()
   const matchesFilter = (site: Site) => {
-    if (options.filter === 'shared') {
-      return options.sharedSiteIds.has(site.id)
-    }
     if (options.filter === 'home') {
       return options.homeSiteIds.has(site.id)
     }
@@ -74,7 +70,6 @@ export function filterAndSortSites(sites: Site[], options: SiteListOptions): Sit
       site.domain,
       site.name,
       site.projectPath,
-      site.documentRoot,
       site.phpVersion ?? ''
     ]
       .some((value) => value.toLocaleLowerCase().includes(query))
@@ -95,11 +90,6 @@ export function filterAndSortSites(sites: Site[], options: SiteListOptions): Sit
         const leftPhp = left.phpVersion ?? '\uffff'
         const rightPhp = right.phpVersion ?? '\uffff'
         return leftPhp.localeCompare(rightPhp, undefined, { numeric: true }) || compareDomain(left, right)
-      }
-      if (options.sort === 'shared') {
-        const shareOrder = Number(options.sharedSiteIds.has(right.id))
-          - Number(options.sharedSiteIds.has(left.id))
-        return shareOrder || compareDomain(left, right)
       }
       return compareDomain(left, right)
     })

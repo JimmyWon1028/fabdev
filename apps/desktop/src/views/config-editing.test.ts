@@ -2,10 +2,11 @@ import { createRenderer, reactive, ssrContextKey, type Component } from 'vue'
 import { beforeEach, expect, test, vi } from 'vitest'
 
 import { ERP_MARIADB_CONFIG } from '../utils/mariadb'
-import type { ProxyConnectionInfo, ProxyConnectionInput } from '@fabdev/contracts'
+import type { ProxyConnectionInfo, ProxyConnectionInput, Site } from '@fabdev/contracts'
 import MariaDbView from './MariaDbView.vue'
 import ProxyView from './ProxyView.vue'
 import RuntimesView from './RuntimesView.vue'
+import SitesView from './SitesView.vue'
 
 const mocks = vi.hoisted(() => ({
   confirm: vi.fn(),
@@ -130,6 +131,81 @@ beforeEach(() => {
     saveMariaDbConfig: vi.fn(async (contents: string) => ({ filename: 'my.cnf', contents })),
     saveMariaDbSettings: vi.fn(async (settings: unknown) => settings)
   })
+})
+
+interface SiteEditor {
+  form: {
+    name: string
+    projectPath: string
+    domain: string
+    phpVersion: string
+    upstreamResponseTimeoutSeconds: number
+  }
+  showAddForm: boolean
+  siteFormMessage: string
+  openAddSiteForm(): void
+  editSite(site: Site): void
+  submit(): Promise<void>
+}
+
+function prepareSiteStore(windows: boolean) {
+  mocks.windows = windows
+  const projectPath = windows ? 'C:\\Sites\\erp' : '/Users/dev/Sites/erp'
+  const site: Site = {
+    id: 'erp', name: 'ERP', domain: 'erp.test', projectPath,
+    documentRoot: `${projectPath}${windows ? '\\' : '/'}public`,
+    phpVersion: '8.2', enabled: true, secured: false, upstreamResponseTimeoutSeconds: 120
+  }
+  const home = { path: windows ? 'C:\\Sites' : '/Users/dev/Sites', siteIds: [], symbolicLinkSiteIds: [] }
+  Object.assign(mocks.store, {
+    sites: [site], siteHome: home,
+    loadSiteHome: vi.fn().mockResolvedValue(home),
+    loadSites: vi.fn().mockResolvedValue([site]),
+    addSite: vi.fn().mockResolvedValue({ ...site, documentRoot: projectPath }),
+    updateSite: vi.fn().mockResolvedValue({ ...site, documentRoot: projectPath })
+  })
+  return site
+}
+
+test.each([false, true])('Sites creates with the project path as the website root (Windows: %s)', async (windows) => {
+  const site = prepareSiteStore(windows)
+  const { editor, unmount } = await mount<SiteEditor>(SitesView)
+  try {
+    editor.openAddSiteForm()
+    Object.assign(editor.form, { name: site.name, projectPath: site.projectPath, domain: site.domain })
+    expect(editor.form).not.toHaveProperty('documentRoot')
+    await editor.submit()
+    expect(mocks.store.addSite).toHaveBeenCalledWith(expect.objectContaining({
+      projectPath: site.projectPath
+    }))
+    const addSite = vi.mocked(mocks.store.addSite as (input: Record<string, unknown>) => Promise<Site>)
+    expect(addSite.mock.calls[0][0]).not.toHaveProperty('documentRoot')
+    expect(editor.showAddForm).toBe(false)
+  } finally {
+    unmount()
+  }
+})
+
+test.each([false, true])('Sites edits a legacy public root using the project path and keeps failed saves editable (Windows: %s)', async (windows) => {
+  const site = prepareSiteStore(windows)
+  const { editor, unmount } = await mount<SiteEditor>(SitesView)
+  try {
+    editor.editSite(site)
+    vi.mocked(mocks.store.updateSite as () => Promise<void>).mockRejectedValueOnce(new Error('save failed'))
+    await editor.submit()
+    expect(editor.showAddForm).toBe(true)
+    expect(editor.siteFormMessage).toBe('save failed')
+    expect(editor.form.projectPath).toBe(site.projectPath)
+    expect(mocks.store.updateSite).toHaveBeenCalledWith(site.id, expect.objectContaining({
+      projectPath: site.projectPath
+    }))
+    const updateSite = vi.mocked(mocks.store.updateSite as (id: string, input: Record<string, unknown>) => Promise<Site>)
+    expect(updateSite.mock.calls[0][1]).not.toHaveProperty('documentRoot')
+    await editor.submit()
+    expect(editor.showAddForm).toBe(false)
+  } finally {
+    unmount()
+  }
 })
 
 test('PHP keeps a draft when switching versions or loading ERP parameters is cancelled', async () => {

@@ -18,7 +18,7 @@ const en = {
   'agent.connected': 'Agent connected',
   'agent.disconnected': 'Agent disconnected',
   'agent.waiting': 'Waiting for background service',
-  'dashboard.serviceScope': 'Controls DNS, Nginx and PHP-FPM. Stopping also ends LAN sharing. MariaDB and Proxy are controlled separately.',
+  'dashboard.serviceScope': 'Controls DNS, Nginx and PHP-FPM. MariaDB and Proxy are controlled separately.',
   'dashboard.eyebrow': 'Local environment',
   'dashboard.title': 'Development services',
   'dashboard.description': 'Manage `.test` domains, Nginx, PHP runtimes, and remote proxies.',
@@ -206,14 +206,12 @@ const en = {
   'sites.searchLabel': 'Search Sites',
   'sites.searchPlaceholder': 'Search domain, path, or PHP version…',
   'sites.filterAll': 'All',
-  'sites.filterShared': 'Shared',
   'sites.filterHome': 'Site Home',
   'sites.filterLinked': 'Linked',
   'sites.sortLabel': 'Sort Sites',
   'sites.sortDomainAsc': 'Domain A–Z',
   'sites.sortDomainDesc': 'Domain Z–A',
   'sites.sortPhp': 'PHP version',
-  'sites.sortShared': 'Sharing status',
   'sites.resultsCount': 'Showing {visible} of {total} Sites',
   'sites.noResults': 'No matching Sites',
   'sites.clearSearch': 'Clear search and filters',
@@ -223,8 +221,6 @@ const en = {
   'sites.projectFolder': 'Project folder',
   'sites.choose': 'Choose',
   'sites.domain': 'Domain',
-  'sites.webRoot': 'Web Root (leave blank to detect automatically)',
-  'sites.webRootColumn': 'Web Root',
   'sites.phpRuntime': 'PHP Runtime',
   'sites.timeout': 'PHP response timeout (seconds)',
   'sites.timeoutHelp': 'The default is 120 seconds. Maximum 360 seconds (6 minutes).',
@@ -238,7 +234,7 @@ const en = {
   'sites.chooseProject': 'Choose project',
   'sites.added': '{domain} was added to the Site Registry',
   'sites.updated': '{name} ({domain}) was updated',
-  'sites.removeConfirm': 'Remove {domain} from fabDev?\n\nProject: {projectPath}\nWeb Root: {documentRoot}\n\nThis only removes the fabDev configuration. Project files will not be deleted.',
+  'sites.removeConfirm': 'Remove {domain} from fabDev?\n\nProject: {projectPath}\n\nThis only removes the fabDev configuration. Project files will not be deleted.',
   'sites.removeTitle': 'Remove Site',
   'sites.remove': 'Remove',
   'sites.selectVisible': 'Select visible',
@@ -264,15 +260,6 @@ const en = {
   'sites.httpsWorking': 'Updating HTTPS…',
   'sites.httpsEnabled': 'HTTPS is enabled for {domain}',
   'sites.httpsDisabled': 'HTTPS is disabled for {domain}',
-  'sites.lanShareStart': 'Share to LAN',
-  'sites.lanShareStop': 'Stop sharing',
-  'sites.lanShareWorking': 'Updating…',
-  'sites.lanShareActive': 'Shared',
-  'sites.lanShareInactive': 'Not shared',
-  'sites.lanShareUnavailable': 'fabDev Connect is not shared',
-  'sites.lanShareAddress': 'fabDev Connect: {host}:{port}',
-  'sites.lanShareStarted': '{domain} is available to fabDev Connect at {host}:{port}',
-  'sites.lanShareStopped': '{domain} is no longer shared to LAN',
   'runtimes.eyebrow': 'Runtime manager',
   'runtimes.description': 'Install, switch, and remove available PHP packages; each Site can keep its own version.',
   'runtimes.installLocal': 'Install package',
@@ -535,7 +522,7 @@ type TranslationTable = Record<TranslationKey, string>
 
 const zhTW: TranslationTable = {
   ...en,
-  'dashboard.serviceScope': '控制 DNS、Nginx 與 PHP-FPM；停止時也會結束局網分享。MariaDB 與 Proxy 請於各自頁面控制。',
+  'dashboard.serviceScope': '控制 DNS、Nginx 與 PHP-FPM。MariaDB 與 Proxy 請於各自頁面控制。',
   'app.tagline': 'ERP Development', 'app.quittingTitle': '正在關閉 fabDev…', 'app.quittingDescription': '正在停止受管服務並清理背景程序，可能需要幾秒鐘。', 'app.updateAvailableTitle': '有新版可以更新', 'app.updateAvailableDescription': 'fabDev {version} 已可下載。', 'app.viewUpdate': '查看更新', 'nav.label': '主要導覽', 'nav.dashboard': '總覽', 'nav.mariadb': 'MariaDB', 'nav.sites': 'Sites', 'nav.runtimes': 'PHP 設定', 'nav.nodejs': 'Node.js', 'nav.proxy': 'Proxy', 'nav.settings': '設定',
   'agent.connected': 'Agent 已連線', 'agent.disconnected': 'Agent 未連線', 'agent.waiting': '等待背景服務',
   'dashboard.eyebrow': 'Local environment', 'dashboard.title': '開發服務總覽', 'dashboard.description': '管理內建 DNS、Nginx、PHP Runtime、`.test` 網域與遠端 Proxy。', 'dashboard.startAll': '啟動 Web 服務', 'dashboard.stopAll': '停止 Web 服務', 'dashboard.startMariaDb': '啟動 MariaDB', 'dashboard.stopMariaDb': '停止 MariaDB', 'common.refresh': '重新整理', 'dashboard.notReady': '開發服務尚未就緒', 'dashboard.serviceStatus': '服務狀態', 'dashboard.phpNotInstalled': '尚未安裝 PHP', 'dashboard.phpFpmPoolMetrics': '運行 {active} · 閒置 {idle} · 排隊 {queue} · 慢請求 {slow}', 'dashboard.phpFpmMetricsUnavailable': '等待 PHP-FPM 指標', 'dashboard.phpFpmSaturated': 'PHP-FPM 容量警告', 'dashboard.phpFpmSaturatedDescription': '{versions} 有請求排隊或曾達到 Worker 上限；請先檢查 Slow Log，再決定是否增加容量。', 'dashboard.nodeRuntimeDetail': 'Node.js {version} LTS', 'dashboard.nodeRuntimeAvailable': 'Node.js {version} LTS', 'dashboard.proxyDetail': '運行 {running}／{total} · 異常 {issues}', 'dashboard.multiplePhp': '多版本 PHP Runtime', 'dashboard.multiplePhpDescription': '可並存多個 PHP 版本；全域版本與各 Site 指定版本互不影響。',
@@ -561,7 +548,6 @@ const zhTW: TranslationTable = {
   'proxy.resultsCount': '顯示 {visible}／{total} 個',
   'proxy.clearSearch': '清除搜尋',
   'proxy.noResults': '找不到符合條件的 Proxy 連接',
-  'sites.webRootColumn': 'Web Root',
   'sites.selectVisible': '選取目前項目',
   'sites.clearSelection': '取消目前選取',
   'sites.selectedCount': '已選取 {count} 個',
@@ -574,11 +560,10 @@ const zhTW: TranslationTable = {
   'runtimes.builtIn': '內建',
   'dashboard.addSiteBeforeStart': '請先新增並啟用 Site，再啟動服務',
   'sites.import': '匯入', 'sites.export': '匯出', 'sites.importTitle': '匯入 Sites', 'sites.exportTitle': '匯出 Sites', 'sites.transferFilter': 'fabDev Sites 設定', 'sites.imported': '已匯入 {added} 個 Site；略過 {skipped} 個重複項目', 'sites.exported': '已匯出 {count} 個 Site',
-  'sites.eyebrow': 'Site registry', 'sites.description': '使用 Site Home 自動建立 `.test` 網域，並保留原有個別 linked site。', 'sites.addTitle': '新增 Site', 'sites.editTitle': '編輯 Site', 'sites.name': '名稱', 'sites.projectFolder': '專案資料夾', 'sites.choose': '選擇', 'sites.domain': '網域', 'sites.webRoot': 'Web Root（留空自動偵測）', 'sites.phpRuntime': 'PHP Runtime', 'sites.noRuntime': '尚未安裝 PHP Runtime', 'sites.globalSuffix': '（全域）', 'sites.add': '加入 Site', 'sites.edit': '編輯', 'sites.editLabel': '編輯 {name}', 'sites.saveChanges': '儲存修改', 'sites.chooseProject': '選擇專案', 'sites.added': '{domain} 已加入 Site Registry', 'sites.updated': '{name}（{domain}）已更新', 'sites.removeConfirm': '確定要從 fabDev 移除 {domain}？\n\n專案：{projectPath}\nWeb Root：{documentRoot}\n\n只會移除 fabDev 設定，不會刪除專案檔案。', 'sites.removeTitle': '移除 Site', 'sites.remove': '移除', 'sites.cancel': '取消', 'sites.removed': '{domain} 已從 Site Registry 移除；專案檔案未變更', 'sites.switched': '{domain} 已切換至 PHP {version}', 'sites.switchedNoPhp': '{domain} 已設為不使用 PHP', 'sites.switching': '切換中…', 'sites.removing': '移除中…', 'sites.removeLabel': '移除 {domain}', 'sites.open': '開啟', 'sites.openLabel': '開啟 {domain}', 'sites.httpsEnable': '啟用 HTTPS', 'sites.httpsDisable': '停用 HTTPS', 'sites.httpsWorking': '正在更新 HTTPS…', 'sites.httpsEnabled': '{domain} 已啟用 HTTPS', 'sites.httpsDisabled': '{domain} 已停用 HTTPS',
-  'sites.lanShareStart': '局網分享', 'sites.lanShareStop': '停止分享', 'sites.lanShareWorking': '處理中…', 'sites.lanShareAddress': 'fabDev Connect：{host}:{port}', 'sites.lanShareStarted': '{domain} 已提供 fabDev Connect 連線：{host}:{port}', 'sites.lanShareStopped': '{domain} 已停止局網分享',
+  'sites.eyebrow': 'Site registry', 'sites.description': '使用 Site Home 自動建立 `.test` 網域，並保留原有個別 linked site。', 'sites.addTitle': '新增 Site', 'sites.editTitle': '編輯 Site', 'sites.name': '名稱', 'sites.projectFolder': '專案資料夾', 'sites.choose': '選擇', 'sites.domain': '網域', 'sites.phpRuntime': 'PHP Runtime', 'sites.noRuntime': '尚未安裝 PHP Runtime', 'sites.globalSuffix': '（全域）', 'sites.add': '加入 Site', 'sites.edit': '編輯', 'sites.editLabel': '編輯 {name}', 'sites.saveChanges': '儲存修改', 'sites.chooseProject': '選擇專案', 'sites.added': '{domain} 已加入 Site Registry', 'sites.updated': '{name}（{domain}）已更新', 'sites.removeConfirm': '確定要從 fabDev 移除 {domain}？\n\n專案：{projectPath}\n\n只會移除 fabDev 設定，不會刪除專案檔案。', 'sites.removeTitle': '移除 Site', 'sites.remove': '移除', 'sites.cancel': '取消', 'sites.removed': '{domain} 已從 Site Registry 移除；專案檔案未變更', 'sites.switched': '{domain} 已切換至 PHP {version}', 'sites.switchedNoPhp': '{domain} 已設為不使用 PHP', 'sites.switching': '切換中…', 'sites.removing': '移除中…', 'sites.removeLabel': '移除 {domain}', 'sites.open': '開啟', 'sites.openLabel': '開啟 {domain}', 'sites.httpsEnable': '啟用 HTTPS', 'sites.httpsDisable': '停用 HTTPS', 'sites.httpsWorking': '正在更新 HTTPS…', 'sites.httpsEnabled': '{domain} 已啟用 HTTPS', 'sites.httpsDisabled': '{domain} 已停用 HTTPS',
   'sites.homeTitle': 'Site Home', 'sites.homeDescription': '第一層資料夾會自動建立為同名 `.test` Site。', 'sites.homePath': 'Home 路徑', 'sites.chooseHome': '選擇 Site Home', 'sites.saveHome': '儲存 Home 路徑', 'sites.savingHome': '儲存中…', 'sites.refreshHome': '掃描資料夾', 'sites.refreshingHome': '掃描中…', 'sites.homeHelp': '預設為 {path}。隱藏資料夾與第二層以下資料夾不會建立站台；既有 linked site 會保留，網域衝突時以 linked site 為準。', 'sites.homeSaved': 'Site Home 已儲存為 {path}', 'sites.homeRefreshed': 'Site Home 資料夾已重新掃描', 'sites.homeBadge': 'Home', 'sites.symbolicLinkBadge': 'Symlink', 'sites.symbolicLinkDescription': '此 Site 是從 Site Home 內的 symbolic link 掃描建立。', 'sites.homeManaged': '由 Site Home 管理',
-  'sites.closeAdd': '收合表單', 'sites.lanShareActive': '分享中', 'sites.lanShareInactive': '未分享', 'sites.lanShareUnavailable': '尚未提供 fabDev Connect 連線',
-  'sites.listToolsLabel': 'Site 搜尋、篩選與排序', 'sites.searchLabel': '搜尋 Sites', 'sites.searchPlaceholder': '搜尋網域、路徑或 PHP 版本…', 'sites.filterAll': '全部', 'sites.filterShared': '分享中', 'sites.filterHome': 'Site Home', 'sites.filterLinked': '手動加入', 'sites.sortLabel': 'Site 排序', 'sites.sortDomainAsc': '網域 A–Z', 'sites.sortDomainDesc': '網域 Z–A', 'sites.sortPhp': 'PHP 版本', 'sites.sortShared': '分享狀態', 'sites.resultsCount': '顯示 {visible}／{total} 個 Site', 'sites.noResults': '找不到符合條件的 Site', 'sites.clearSearch': '清除搜尋與篩選',
+  'sites.closeAdd': '收合表單',
+  'sites.listToolsLabel': 'Site 搜尋、篩選與排序', 'sites.searchLabel': '搜尋 Sites', 'sites.searchPlaceholder': '搜尋網域、路徑或 PHP 版本…', 'sites.filterAll': '全部', 'sites.filterHome': 'Site Home', 'sites.filterLinked': '手動加入', 'sites.sortLabel': 'Site 排序', 'sites.sortDomainAsc': '網域 A–Z', 'sites.sortDomainDesc': '網域 Z–A', 'sites.sortPhp': 'PHP 版本', 'sites.resultsCount': '顯示 {visible}／{total} 個 Site', 'sites.noResults': '找不到符合條件的 Site', 'sites.clearSearch': '清除搜尋與篩選',
   'runtimes.onlineEyebrow': '已驗證線上套件', 'runtimes.onlineTitle': 'PHP Runtime 線上安裝', 'runtimes.onlineDescription': '從固定 GitHub Runtime Catalog 檢查，並以 Side-by-side 方式下載與安裝選用 PHP。', 'runtimes.onlineCheck': '檢查線上版本', 'runtimes.onlineChecking': '檢查中…', 'runtimes.onlineAvailable': '線上有 PHP {version} 可用', 'runtimes.onlineNone': '目前沒有符合平台的線上 PHP Runtime', 'runtimes.unsignedCommunity': 'Unsigned Community', 'runtimes.unsignedWarning': '此 Community 套件沒有發布者簽章。fabDev 會驗證 Catalog、大小與 SHA-256，但這不能證明發布者身分。', 'runtimes.onlinePlatform': '平台', 'runtimes.onlineSize': '套件大小', 'runtimes.onlineDownload': '下載套件', 'runtimes.onlineDownloadTitle': '下載未簽章 PHP Runtime', 'runtimes.onlineDownloadConfirm': '要從 fabDev 固定 GitHub Release 下載 PHP {version}（{size}）嗎？\n\nSHA-256：{sha256}\n\n這是 Unsigned Community 套件。', 'runtimes.onlineDownloading': '正在下載並驗證 PHP Runtime…', 'runtimes.onlineVerified': 'PHP {version} 已下載並驗證；安裝仍需另行確認', 'runtimes.onlineCancelled': 'Runtime 下載已取消', 'runtimes.onlineDownloadFailed': 'Runtime 下載失敗', 'runtimes.onlineCancelDownload': '取消下載', 'runtimes.onlineInstall': '並存安裝', 'runtimes.onlineInstallTitle': '安裝未簽章 PHP Runtime', 'runtimes.onlineInstallConfirm': '要以 Side-by-side 方式安裝 PHP {version}（{size}）嗎？\n\nSHA-256：{sha256}\n\n將再次驗證此 Unsigned Community 套件；不會切換既有全域 PHP、Site 或 Runtime 設定。', 'runtimes.onlineInstalling': '正在重新驗證、安裝並執行固定 PHP 健康檢查…', 'runtimes.onlineInstalled': 'PHP {version} 已並存安裝；全域 PHP 與 Sites 均未變更', 'runtimes.onlineInstallFailed': 'Runtime 安裝失敗', 'runtimes.onlineStatus.queued': '等待下載', 'runtimes.onlineStatus.downloading': '下載中', 'runtimes.onlineStatus.verified': '已驗證，可安裝', 'runtimes.onlineStatus.installing': '安裝與健康檢查中', 'runtimes.onlineStatus.completed': '已安裝', 'runtimes.onlineStatus.failed': '失敗', 'runtimes.onlineStatus.cancelled': '已取消',
   'runtimes.eyebrow': 'Runtime manager', 'runtimes.description': '安裝、切換及移除 fabDev 管理的 PHP；每個 Site 仍可指定自己的版本。', 'runtimes.installLocal': '安裝本機套件', 'runtimes.globalPhp': '全域 PHP', 'runtimes.notSet': '尚未設定', 'runtimes.existingSitesIndependent': '既有 Site 維持各自設定。', 'runtimes.listLabel': 'PHP Runtime 清單', 'runtimes.siteCount': ' · {count} 個 Site 使用中', 'runtimes.noSites': ' · 尚無 Site 使用', 'runtimes.notInstalledDescription': '尚未安裝；請選擇對應的 fabDev Runtime Package。', 'runtimes.globalVersion': '全域版本', 'runtimes.switching': '切換中…', 'runtimes.setGlobal': '設為全域', 'runtimes.switchGlobalFirst': '請先切換全域 PHP', 'runtimes.usedBySite': '仍有 Site 使用此 PHP 系列', 'runtimes.removeRuntime': '移除 Runtime', 'runtimes.removing': '移除中…', 'runtimes.remove': '移除', 'runtimes.choosePackage': '選擇套件…', 'runtimes.showInFinder': '在 Finder 顯示', 'runtimes.showInExplorer': '在檔案總管顯示', 'runtimes.erpConfig': 'ERP 參數', 'runtimes.erpConfigLoaded': '已將 ERP 參數填入編輯區；請儲存後套用', 'runtimes.close': '關閉', 'runtimes.iniContents': 'php.ini 內容', 'runtimes.applying': '驗證與套用中…', 'runtimes.saveApply': '儲存並套用', 'runtimes.iniHelp': '儲存前會用對應版本 PHP-FPM 驗證；失敗時保留原設定。', 'runtimes.footnote': '套件清單由 Runtime Catalog 提供；安裝時會核對平台、架構、檔案大小與 SHA-256。', 'runtimes.chooseRelease': '選擇 fabDev Runtime 描述檔', 'runtimes.releaseFilter': 'Runtime Release', 'runtimes.chooseArtifact': '選擇對應的 PHP Runtime 套件', 'runtimes.packageFilter': 'Runtime Package', 'runtimes.installing': '正在驗證並安裝 Runtime 套件…', 'runtimes.installedCount': 'Runtime 已安裝；目前共有 {count} 個 PHP Runtime', 'runtimes.globalChanged': '全域 PHP 已切換為 {version}；Site 指定版本不受影響', 'runtimes.removeConfirm': '確定要移除 PHP {version}？\n\n只會刪除 fabDev 管理的 Runtime，不會刪除 Site 或專案檔案。', 'runtimes.removeTitle': '移除 PHP Runtime', 'runtimes.cancel': '取消', 'runtimes.removed': 'PHP {version} 已移除', 'runtimes.iniSaved': 'PHP {version} php.ini 已驗證並套用', 'runtimes.revealed': '已在 Finder 顯示 {path}', 'runtimes.revealedInExplorer': '已在檔案總管顯示 {path}',
   'node.eyebrow': 'Optional runtime', 'node.description': '安裝或移除 fabDev 獨立管理的穩定版 Node.js LTS；預設不安裝。', 'node.listLabel': 'Node.js Runtime', 'node.notInstalledDescription': '預設未安裝；專案需要 Node.js 時再安裝對應的 fabDev Runtime Package。', 'node.installedDescription': '已安裝，可作為 fabDev 獨立管理的 Node.js Runtime 使用。', 'node.chooseRelease': '選擇 Node.js Runtime 描述檔', 'node.chooseArtifact': '選擇對應的 Node.js Runtime 套件', 'node.install': '安裝穩定 LTS', 'node.installing': '正在驗證並安裝 Node.js Runtime…', 'node.installingShort': '安裝中…', 'node.installed': 'Node.js {version} LTS 已安裝', 'node.remove': '移除', 'node.removing': '移除中…', 'node.removeTitle': '移除 Node.js Runtime', 'node.removeConfirm': '確定要移除 fabDev 管理的 Node.js Runtime？\n\n只會刪除 Runtime，不會刪除 Site 或專案檔案。', 'node.removed': 'Node.js {version} 已移除', 'node.isolationNote': '此 Runtime 僅儲存在 fabDev 內，不會取代或修改 Homebrew、nvm、Herd 或系統 Node.js。',
@@ -592,7 +577,7 @@ const zhTW: TranslationTable = {
 
 const zhCN: TranslationTable = {
   ...zhTW,
-  'dashboard.serviceScope': '控制 DNS、Nginx 与 PHP-FPM；停止时也会结束局网分享。MariaDB 与 Proxy 请在各自页面控制。',
+  'dashboard.serviceScope': '控制 DNS、Nginx 与 PHP-FPM。MariaDB 与 Proxy 请在各自页面控制。',
   'app.quittingTitle': '正在关闭 fabDev…', 'app.quittingDescription': '正在停止托管服务并清理后台进程，可能需要几秒钟。',
   'proxy.edit': '编辑', 'proxy.editTitle': '编辑 Proxy 连接', 'proxy.editDescription': '修改本机域名、端口、远程 Target 与 Credentials Origin；运行中的 Proxy 会自动重新启动。', 'proxy.allowedOrigins': 'Credentials Origins', 'proxy.allowedOriginsPlaceholder': '每行一个 Origin，例如 http://app.test:8100', 'proxy.allowedOriginsHelp': '只有列出的 HTTP／HTTPS Origin 可以使用 CORS Credentials；留空时自动允许此 Proxy 域名的 HTTP 与 HTTPS。', 'proxy.saveChanges': '保存修改', 'proxy.updated': '{id} Proxy 连接已更新', 'proxy.open': '打开', 'proxy.openLabel': '在 Google Chrome 打开 {domain}', 'proxy.opened': '已在 Google Chrome 打开 {url}', 'proxy.selectAll': '全部选择', 'proxy.clearSelection': '取消全选', 'proxy.selectLabel': '选择 {id}', 'proxy.selectedCount': '已选择 {count} 个', 'proxy.removeSelected': '删除已选', 'proxy.removeSelectedConfirm': '确定要删除已选择的 {count} 个 Proxy 连接？\n\n连接：{ids}\n\n若正在运行，fabDev 会先停止并释放端口。', 'proxy.removeSelectedCompleted': '已删除 {count} 个 Proxy 连接', 'proxy.removeSelectedPartial': '已删除 {removed} 个 Proxy 连接；{failed} 个失败：{details}',
   'nav.label': '主要导航', 'nav.dashboard': '总览', 'nav.mariadb': 'MariaDB', 'nav.runtimes': 'PHP 设置', 'nav.settings': '设置',
@@ -606,7 +591,7 @@ const zhCN: TranslationTable = {
   'runtimes.builtIn': '内置',
   'runtimes.onlineEyebrow': '已验证在线包', 'runtimes.onlineTitle': 'PHP Runtime 在线安装', 'runtimes.onlineDescription': '从固定 GitHub Runtime Catalog 检查，并以 Side-by-side 方式下载与安装可选 PHP。', 'runtimes.onlineCheck': '检查在线版本', 'runtimes.onlineChecking': '检查中…', 'runtimes.onlineAvailable': '在线有 PHP {version} 可用', 'runtimes.onlineNone': '目前没有符合平台的在线 PHP Runtime', 'runtimes.unsignedWarning': '此 Community 包没有发布者签名。fabDev 会验证 Catalog、大小与 SHA-256，但这不能证明发布者身份。', 'runtimes.onlinePlatform': '平台', 'runtimes.onlineSize': '包大小', 'runtimes.onlineDownload': '下载包', 'runtimes.onlineDownloadTitle': '下载未签名 PHP Runtime', 'runtimes.onlineDownloadConfirm': '要从 fabDev 固定 GitHub Release 下载 PHP {version}（{size}）吗？\n\nSHA-256：{sha256}\n\n这是 Unsigned Community 包。', 'runtimes.onlineDownloading': '正在下载并验证 PHP Runtime…', 'runtimes.onlineVerified': 'PHP {version} 已下载并验证；安装仍需另行确认', 'runtimes.onlineCancelled': 'Runtime 下载已取消', 'runtimes.onlineDownloadFailed': 'Runtime 下载失败', 'runtimes.onlineCancelDownload': '取消下载', 'runtimes.onlineInstall': '并存安装', 'runtimes.onlineInstallTitle': '安装未签名 PHP Runtime', 'runtimes.onlineInstallConfirm': '要以 Side-by-side 方式安装 PHP {version}（{size}）吗？\n\nSHA-256：{sha256}\n\n将再次验证此 Unsigned Community 包；不会切换现有全局 PHP、Site 或 Runtime 设置。', 'runtimes.onlineInstalling': '正在重新验证、安装并执行固定 PHP 健康检查…', 'runtimes.onlineInstalled': 'PHP {version} 已并存安装；全局 PHP 与 Sites 均未更改', 'runtimes.onlineInstallFailed': 'Runtime 安装失败', 'runtimes.onlineStatus.queued': '等待下载', 'runtimes.onlineStatus.downloading': '下载中', 'runtimes.onlineStatus.verified': '已验证，可安装', 'runtimes.onlineStatus.installing': '安装与健康检查中', 'runtimes.onlineStatus.completed': '已安装', 'runtimes.onlineStatus.failed': '失败', 'runtimes.onlineStatus.cancelled': '已取消',
   'dashboard.addSiteBeforeStart': '请先新增并启用 Site，再启动服务',
-  'sites.description': '第一阶段使用单独 linked site，不扫描或导入 Herd 设置。', 'sites.addTitle': '新增 Site', 'sites.projectFolder': '项目文件夹', 'sites.choose': '选择', 'sites.domain': '域名', 'sites.webRoot': 'Web Root（留空自动检测）', 'sites.noRuntime': '尚未安装 PHP Runtime', 'sites.globalSuffix': '（全局）', 'sites.add': '添加 Site', 'sites.chooseProject': '选择项目', 'sites.added': '{domain} 已添加到 Site Registry', 'sites.removeConfirm': '确定要从 fabDev 移除 {domain}？\n\n项目：{projectPath}\nWeb Root：{documentRoot}\n\n只会移除 fabDev 设置，不会删除项目文件。', 'sites.removeTitle': '移除 Site', 'sites.remove': '移除', 'sites.cancel': '取消', 'sites.removed': '{domain} 已从 Site Registry 移除；项目文件未更改', 'sites.switched': '{domain} 已切换到 PHP {version}', 'sites.switchedNoPhp': '{domain} 已设置为不使用 PHP', 'sites.switching': '切换中…', 'sites.removing': '移除中…', 'sites.removeLabel': '移除 {domain}', 'sites.open': '打开', 'sites.openLabel': '打开 {domain}', 'sites.httpsEnable': '启用 HTTPS', 'sites.httpsDisable': '停用 HTTPS', 'sites.httpsWorking': '正在更新 HTTPS…', 'sites.httpsEnabled': '{domain} 已启用 HTTPS', 'sites.httpsDisabled': '{domain} 已停用 HTTPS',
+  'sites.description': '第一阶段使用单独 linked site，不扫描或导入 Herd 设置。', 'sites.addTitle': '新增 Site', 'sites.projectFolder': '项目文件夹', 'sites.choose': '选择', 'sites.domain': '域名', 'sites.noRuntime': '尚未安装 PHP Runtime', 'sites.globalSuffix': '（全局）', 'sites.add': '添加 Site', 'sites.chooseProject': '选择项目', 'sites.added': '{domain} 已添加到 Site Registry', 'sites.removeConfirm': '确定要从 fabDev 移除 {domain}？\n\n项目：{projectPath}\n\n只会移除 fabDev 设置，不会删除项目文件。', 'sites.removeTitle': '移除 Site', 'sites.remove': '移除', 'sites.cancel': '取消', 'sites.removed': '{domain} 已从 Site Registry 移除；项目文件未更改', 'sites.switched': '{domain} 已切换到 PHP {version}', 'sites.switchedNoPhp': '{domain} 已设置为不使用 PHP', 'sites.switching': '切换中…', 'sites.removing': '移除中…', 'sites.removeLabel': '移除 {domain}', 'sites.open': '打开', 'sites.openLabel': '打开 {domain}', 'sites.httpsEnable': '启用 HTTPS', 'sites.httpsDisable': '停用 HTTPS', 'sites.httpsWorking': '正在更新 HTTPS…', 'sites.httpsEnabled': '{domain} 已启用 HTTPS', 'sites.httpsDisabled': '{domain} 已停用 HTTPS',
   'runtimes.description': '安装、切换及移除 fabDev 管理的 PHP；每个 Site 仍可指定自己的版本。', 'runtimes.installLocal': '安装本地包', 'runtimes.globalPhp': '全局 PHP', 'runtimes.notSet': '尚未设置', 'runtimes.existingSitesIndependent': '现有 Site 保持各自设置。', 'runtimes.listLabel': 'PHP Runtime 列表', 'runtimes.siteCount': ' · {count} 个 Site 使用中', 'runtimes.noSites': ' · 尚无 Site 使用', 'runtimes.notInstalledDescription': '尚未安装；请选择对应的 fabDev Runtime Package。', 'runtimes.globalVersion': '全局版本', 'runtimes.switching': '切换中…', 'runtimes.setGlobal': '设为全局', 'runtimes.switchGlobalFirst': '请先切换全局 PHP', 'runtimes.usedBySite': '仍有 Site 使用此 PHP 系列', 'runtimes.removeRuntime': '移除 Runtime', 'runtimes.removing': '移除中…', 'runtimes.choosePackage': '选择包…', 'runtimes.showInFinder': '在 Finder 中显示', 'runtimes.showInExplorer': '在文件资源管理器中显示', 'runtimes.erpConfig': 'ERP 参数', 'runtimes.erpConfigLoaded': '已将 ERP 参数填入编辑区；请保存后应用', 'runtimes.close': '关闭', 'runtimes.iniContents': 'php.ini 内容', 'runtimes.applying': '验证并应用中…', 'runtimes.saveApply': '保存并应用', 'runtimes.iniHelp': '保存前会使用对应版本 PHP-FPM 验证；失败时保留原设置。', 'runtimes.footnote': '包列表由 Runtime Catalog 提供；安装时会核对平台、架构、文件大小与 SHA-256。', 'runtimes.chooseRelease': '选择 fabDev Runtime 描述文件', 'runtimes.chooseArtifact': '选择对应的 PHP Runtime 包', 'runtimes.installing': '正在验证并安装 Runtime 包…', 'runtimes.installedCount': 'Runtime 已安装；目前共有 {count} 个 PHP Runtime', 'runtimes.globalChanged': '全局 PHP 已切换为 {version}；Site 指定版本不受影响', 'runtimes.removeConfirm': '确定要移除 PHP {version}？\n\n只会删除 fabDev 管理的 Runtime，不会删除 Site 或项目文件。', 'runtimes.removed': 'PHP {version} 已移除', 'runtimes.iniSaved': 'PHP {version} php.ini 已验证并应用', 'runtimes.revealed': '已在 Finder 中显示 {path}', 'runtimes.revealedInExplorer': '已在文件资源管理器中显示 {path}',
   'settings.title': '设置', 'settings.description': '设置 fabDev App 的显示语言、主题与启动行为。', 'settings.label': 'fabDev 设置', 'settings.languageTitle': '显示语言', 'settings.languageDescription': '选择 fabDev 使用的界面语言。', 'settings.languageHelp': '更改会立即应用，并保留至下次启动。', 'settings.themeTitle': '主题', 'settings.themeDescription': '选择 fabDev App 的界面风格。', 'settings.themeHelp': '更改会立即应用，并保留至下次启动。', 'settings.themeDefault': '默认', 'settings.themeNeoBrutalism': 'Neubrutalism', 'settings.darkMode': '深色配色', 'settings.themeNotion': 'Notion', 'settings.themeGlassmorphism': 'Glassmorphism', 'settings.themeCyberpunk': 'Tron', 'settings.themeCyberpunkCity': 'Cyberpunk',
   'settings.themeGraphite': 'Graphite', 'settings.themeRetroTerminal': 'Retro Terminal', 'settings.themeSolarized': 'Solarized', 'settings.themeBlueprint': 'Blueprint', 'settings.autoStartTitle': 'App 打开时自动启动服务', 'settings.autoStartDescription': '自动启动 DNS、Nginx 与 Sites 需要的 PHP-FPM。', 'settings.autoStartHelp': '关闭此选项不会停止当前正在运行的服务。', 'settings.autoStartEnabled': '已开启；下次启动 fabDev 时会自动启动所有服务。', 'settings.autoStartDisabled': '已关闭；下次启动 fabDev 时只会显示当前状态。', 'settings.saveError': '无法保存设置：{error}',
@@ -620,35 +605,14 @@ const zhTWBuiltInRuntimeCopy = {
   'runtimes.footnote': '套件清單由 Runtime Catalog 提供；安裝時會核對平台、架構、檔案大小與 SHA-256。'
 } satisfies Partial<TranslationTable>
 
-const zhTWLanShareCopy = {
-  'sites.lanShareStart': '局網分享',
-  'sites.lanShareStop': '停止分享',
-  'sites.lanShareWorking': '處理中…',
-  'sites.lanShareActive': '分享中',
-  'sites.lanShareInactive': '未分享',
-  'sites.lanShareUnavailable': '尚未提供 fabDev Connect 連線',
-  'sites.lanShareAddress': 'fabDev Connect：{host}:{port}',
-  'sites.lanShareStarted': '{domain} 已提供 fabDev Connect 連線：{host}:{port}',
-  'sites.lanShareStopped': '{domain} 已停止局網分享'
-} satisfies Partial<TranslationTable>
-
 const zhCNBuiltInRuntimeCopy = {
   'runtimes.description': '安装、切换及移除 Catalog 提供的 PHP；每个 Site 仍可指定自己的版本。',
   'runtimes.installLocal': '安装包',
   'runtimes.footnote': '包列表由 Runtime Catalog 提供；安装时会核对平台、架构、文件大小与 SHA-256。'
 } satisfies Partial<TranslationTable>
 
-const zhCNLanShareCopy = {
+const zhCNSiteFormCopy = {
   'sites.closeAdd': '收起表单',
-  'sites.lanShareStart': '局网共享',
-  'sites.lanShareStop': '停止共享',
-  'sites.lanShareWorking': '处理中…',
-  'sites.lanShareActive': '共享中',
-  'sites.lanShareInactive': '未共享',
-  'sites.lanShareUnavailable': '尚未提供 fabDev Connect 连接',
-  'sites.lanShareAddress': 'fabDev Connect：{host}:{port}',
-  'sites.lanShareStarted': '{domain} 已提供 fabDev Connect 连接：{host}:{port}',
-  'sites.lanShareStopped': '{domain} 已停止局网共享'
 } satisfies Partial<TranslationTable>
 
 const zhCNNodeCopy = {
@@ -848,14 +812,12 @@ const zhCNHomeCopy = {
   'sites.searchLabel': '搜索 Sites',
   'sites.searchPlaceholder': '搜索域名、路径或 PHP 版本…',
   'sites.filterAll': '全部',
-  'sites.filterShared': '共享中',
   'sites.filterHome': 'Site Home',
   'sites.filterLinked': '手动添加',
   'sites.sortLabel': 'Site 排序',
   'sites.sortDomainAsc': '域名 A–Z',
   'sites.sortDomainDesc': '域名 Z–A',
   'sites.sortPhp': 'PHP 版本',
-  'sites.sortShared': '共享状态',
   'sites.resultsCount': '显示 {visible}／{total} 个 Site',
   'sites.noResults': '找不到符合条件的 Site',
   'sites.clearSearch': '清除搜索与筛选',
@@ -1046,7 +1008,6 @@ export const translations: Record<Language, TranslationTable> = {
   'zh-TW': {
     ...zhTW,
     ...zhTWBuiltInRuntimeCopy,
-    ...zhTWLanShareCopy,
     ...zhTWProxyTargetCopy,
     ...zhTWProxyTimeoutCopy,
     ...zhTWSiteTimeoutCopy,
@@ -1060,7 +1021,7 @@ export const translations: Record<Language, TranslationTable> = {
     ...zhCN,
     ...zhCNBuiltInRuntimeCopy,
     ...zhCNHomeCopy,
-    ...zhCNLanShareCopy,
+    ...zhCNSiteFormCopy,
     ...zhCNNodeCopy,
     ...zhCNSiteSelectionCopy,
     ...zhCNProxySearchCopy,

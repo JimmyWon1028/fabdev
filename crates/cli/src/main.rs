@@ -58,16 +58,6 @@ enum Command {
   Unsecure {
     id: Uuid,
   },
-  LanShare,
-  Share {
-    id: Uuid,
-    #[arg(long, default_value_t = 18_080)]
-    port: u16,
-  },
-  Unshare {
-    id: Uuid,
-  },
-  StopShare,
   Runtimes,
   InstallPhpRuntime {
     artifact: PathBuf,
@@ -283,10 +273,6 @@ async fn main() -> Result<()> {
       site_id: id,
       secured: false,
     },
-    Command::LanShare => AgentRequest::GetLanShare,
-    Command::Share { id, port } => AgentRequest::StartLanShare { site_id: id, port },
-    Command::Unshare { id } => AgentRequest::StopLanShareSite { site_id: id },
-    Command::StopShare => AgentRequest::StopLanShare,
     Command::Runtimes => AgentRequest::ListPhpRuntimes,
     Command::InstallPhpRuntime { artifact, release } => AgentRequest::InstallPhpRuntime {
       artifact_path: artifact,
@@ -513,6 +499,16 @@ async fn connect_named_pipe(pipe_name: &str) -> Result<NamedPipeClient> {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn retired_lan_share_commands_are_not_available() {
+    for command in ["share", "unshare", "lan-share", "stop-share"] {
+      let error = Arguments::try_parse_from(["fabdev", command]).unwrap_err();
+      assert_eq!(error.kind(), clap::error::ErrorKind::InvalidSubcommand);
+    }
+    assert!(Arguments::try_parse_from(["fabdev", "sites"]).is_ok());
+    assert!(Arguments::try_parse_from(["fabdev", "status"]).is_ok());
+  }
 
   #[test]
   fn proxy_https_accepts_an_optional_custom_port() {

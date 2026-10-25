@@ -6,13 +6,13 @@
   "packages": [
     {
       "name": "php",
-      "version": "8.5.10",
+      "version": "8.5.12",
       "minimumOsVersion": "13.0",
       "buildProfile": "php-modern-external-imap",
       "source": {
-        "archiveUrl": "https://www.php.net/distributions/php-8.5.10.tar.xz",
-        "archiveSha256": "6a8bebaa4d5a979a38db29a9373e9851f60c6b11f72172c585947e78f3081957",
-        "signatureUrl": "https://www.php.net/distributions/php-8.5.10.tar.xz.asc",
+        "archiveUrl": "https://www.php.net/distributions/php-8.5.12.tar.xz",
+        "archiveSha256": "08bc2eba2a588654ade1357174aa646b761556c862dda0678345ee29ed481209",
+        "signatureUrl": "https://www.php.net/distributions/php-8.5.12.tar.xz.asc",
         "keyUrl": "https://www.php.net/distributions/php-keyring.gpg",
         "verification": {
           "method": "pgp",
@@ -23,18 +23,52 @@
     },
     {
       "name": "php",
-      "version": "8.4.24",
+      "version": "8.4.27",
       "minimumOsVersion": "13.0",
       "buildProfile": "php-modern-external-imap",
       "source": {
-        "archiveUrl": "https://www.php.net/distributions/php-8.4.24.tar.xz",
-        "archiveSha256": "e127be09a8506f4327c5cfa78a614b00d210714484ec215ce0011b4a03c00731",
-        "signatureUrl": "https://www.php.net/distributions/php-8.4.24.tar.xz.asc",
+        "archiveUrl": "https://www.php.net/distributions/php-8.4.27.tar.xz",
+        "archiveSha256": "dcf93923b0e38e0d5252b25b796520b5a47761a08b3488b6d0b5d1115764d3f0",
+        "signatureUrl": "https://www.php.net/distributions/php-8.4.27.tar.xz.asc",
         "keyUrl": "https://www.php.net/distributions/php-keyring.gpg",
         "verification": {
           "method": "pgp",
           "fingerprint": "9D7F99A0CB8F05C8A6958D6256A97AF7600A39A6"
         }
+      },
+      "healthCheckProfile": "php-runtime-v1"
+    },
+    {
+      "name": "php",
+      "version": "8.2.35",
+      "minimumOsVersion": "13.0",
+      "buildProfile": "php-modern",
+      "source": {
+        "archiveSha256": "5737b98601fe5ab1b8c5db0c82ed3158acb9283ed3081ffe2faffb9ac81455e6",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "E60913E4DF209907D8E30D96659A97C9CF2A795A"
+        },
+        "archiveUrl": "https://www.php.net/distributions/php-8.2.35.tar.xz",
+        "signatureUrl": "https://www.php.net/distributions/php-8.2.35.tar.xz.asc",
+        "keyUrl": "https://www.php.net/distributions/php-keyring.gpg"
+      },
+      "healthCheckProfile": "php-runtime-v1"
+    },
+    {
+      "name": "php",
+      "version": "7.4.33",
+      "minimumOsVersion": "13.0",
+      "buildProfile": "php-legacy-modern-clang",
+      "source": {
+        "archiveSha256": "924846abf93bc613815c55dd3f5809377813ac62a9ec4eb3778675b82a27b927",
+        "verification": {
+          "method": "pgp",
+          "fingerprint": "5A52880781F755608BF815FC910DEB46F53EA312"
+        },
+        "archiveUrl": "https://www.php.net/distributions/php-7.4.33.tar.xz",
+        "signatureUrl": "https://www.php.net/distributions/php-7.4.33.tar.xz.asc",
+        "keyUrl": "https://www.php.net/distributions/php-keyring.gpg"
       },
       "healthCheckProfile": "php-runtime-v1"
     },

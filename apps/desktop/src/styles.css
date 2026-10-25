@@ -1129,7 +1129,7 @@ button:disabled {
 .site-row {
   display: grid;
   grid-template-areas: "select identity paths runtime state actions";
-  grid-template-columns: 18px 155px minmax(180px, 1fr) 106px 180px minmax(0, max-content);
+  grid-template-columns: 18px 155px minmax(180px, 1fr) 132px max-content minmax(0, max-content);
   align-items: center;
   gap: 10px;
   width: 100%;
@@ -1145,10 +1145,6 @@ button:disabled {
 
 .site-row:last-of-type {
   border-bottom: 0;
-}
-
-.site-row.is-shared {
-  background: #f7fcf9;
 }
 
 .site-row.selected {
@@ -1226,8 +1222,6 @@ button:disabled {
 
 .site-paths {
   grid-area: paths;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 12px;
 }
 
 .site-paths code {
@@ -1253,17 +1247,6 @@ button:disabled {
   flex-wrap: wrap;
   align-items: center;
   gap: 5px;
-}
-
-.site-share-address {
-  min-height: 17px;
-  color: #126a45 !important;
-  font-weight: 700;
-}
-
-.site-share-address.is-inactive {
-  color: #8a948e !important;
-  font-weight: 500;
 }
 
 .site-runtime-controls {
@@ -1292,7 +1275,8 @@ button:disabled {
 .site-php-select {
   position: relative;
   display: inline-grid;
-  width: 104px;
+  /*2026.10.15 by codex, reserve room for the full PHP series and selector icon. */
+  width: 132px;
 }
 
 .site-php-select select {
@@ -1337,14 +1321,10 @@ button:disabled {
 @container (max-width: 980px) {
   .site-row {
     grid-template-areas: "select identity runtime state actions";
-    grid-template-columns: 18px clamp(155px, 26cqw, 240px) 104px minmax(96px, 1fr) minmax(0, max-content);
+    grid-template-columns: 18px clamp(155px, 26cqw, 240px) 132px minmax(96px, 1fr) minmax(0, max-content);
   }
 
   .site-paths {
-    display: none;
-  }
-
-  .site-share-address {
     display: none;
   }
 }
@@ -1354,7 +1334,7 @@ button:disabled {
     grid-template-areas:
       "select identity runtime state"
       ". actions actions actions";
-    grid-template-columns: 18px 155px 104px minmax(80px, 1fr);
+    grid-template-columns: 18px 155px 132px minmax(80px, 1fr);
     row-gap: 8px;
   }
 
@@ -1906,8 +1886,8 @@ button:disabled {
 
 .proxy-row {
   display: grid;
-  grid-template-areas: "select identity endpoint target state actions";
-  grid-template-columns: 18px clamp(180px, 20cqw, 240px) 130px minmax(0, 1fr) 90px max-content;
+  grid-template-areas: "select identity endpoint state actions";
+  grid-template-columns: 18px clamp(180px, 20cqw, 240px) minmax(240px, 1fr) 90px minmax(0, max-content);
   gap: 14px;
   align-items: center;
   width: 100%;
@@ -1984,15 +1964,16 @@ button:disabled {
 }
 
 .proxy-addresses {
-  display: contents;
-}
-
-.proxy-endpoint {
+  /*2026.10.15 by codex, stack proxy URLs so the target shares the full address column. */
+  display: grid;
   grid-area: endpoint;
+  min-width: 0;
+  gap: 8px;
 }
 
+.proxy-endpoint,
 .proxy-target {
-  grid-area: target;
+  grid-area: auto;
 }
 
 .proxy-state {
@@ -2071,31 +2052,16 @@ button:disabled {
 .proxy-actions {
   grid-area: actions;
   justify-content: flex-end;
-  min-width: max-content;
+  min-width: 0;
+  flex-wrap: wrap;
   gap: 7px;
 }
 
-@container (max-width: 920px) {
+@container (max-width: 1000px) {
   .proxy-row {
     grid-template-areas: "select identity endpoint state actions";
-    grid-template-columns: 18px clamp(160px, 24cqw, 220px) minmax(140px, 1fr) 75px minmax(0, max-content);
+    grid-template-columns: 18px clamp(160px, 20cqw, 220px) minmax(220px, 1fr) 75px minmax(0, max-content);
     gap: 10px;
-  }
-
-  .proxy-addresses {
-    display: grid;
-    grid-area: endpoint;
-    min-width: 0;
-    gap: 6px;
-  }
-
-  .proxy-addresses > div {
-    grid-area: auto;
-  }
-
-  .proxy-actions {
-    min-width: 0;
-    flex-wrap: wrap;
   }
 }
 
@@ -2112,7 +2078,8 @@ button:disabled {
   .proxy-row {
     grid-template-areas:
       "select identity state"
-      ". endpoint actions";
+      ". endpoint endpoint"
+      ". actions actions";
     grid-template-columns: 18px minmax(0, 1fr) max-content;
     row-gap: 12px;
   }

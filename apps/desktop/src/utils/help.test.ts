@@ -31,6 +31,17 @@ describe('operation manual', () => {
     expect(JSON.stringify(macManual)).not.toContain('PHP FastCGI')
   })
 
+  it('does not offer retired LAN sharing in any supported language or platform', () => {
+    for (const language of ['en', 'zh-TW', 'zh-CN'] as const) {
+      for (const windows of [true, false]) {
+        const manual = JSON.stringify(getOperationManual(language, windows))
+        expect(manual).not.toMatch(/fabDev Connect|LAN shar|Share to LAN|局網分享|局域网共享/i)
+        expect(manual).toContain('HTTPS')
+        expect(manual).not.toContain('Web Root')
+      }
+    }
+  })
+
   it('opens only for an unmodified F1 keypress', () => {
     const event = {
       key: 'F1',

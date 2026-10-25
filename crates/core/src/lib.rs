@@ -16,8 +16,8 @@ pub use protocol::{
   MAX_PROXY_UPSTREAM_RESPONSE_TIMEOUT_SECONDS, PROTOCOL_VERSION,
 };
 pub use site::{
-  create_site, default_site_domain, detect_document_root, edit_site, normalize_domain, PhpVersion,
-  Site, SiteEditInput, SiteInput, DEFAULT_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
+  create_site, default_site_domain, edit_site, normalize_domain, PhpVersion, Site, SiteEditInput,
+  SiteInput, DEFAULT_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
   MAX_SITE_UPSTREAM_RESPONSE_TIMEOUT_SECONDS,
 };
 pub use storage::SiteRepository;

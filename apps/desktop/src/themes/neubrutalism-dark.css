@@ -126,7 +126,6 @@ html[data-theme="neo-brutalism"][data-color-mode="dark"] .php-fastcgi-settings {
   border-color: var(--neu-line);
 }
 
-html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-row.is-shared,
 html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-row.selected,
 html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-row.selected,
 html[data-theme="neo-brutalism"][data-color-mode="dark"] .proxy-selection-toolbar,
@@ -363,13 +362,7 @@ html[data-theme="neo-brutalism"][data-color-mode="dark"] .runtime-online-progres
   color: var(--neu-danger);
 }
 
-html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-share-address {
-  color: var(--neu-success) !important;
-}
 
-html[data-theme="neo-brutalism"][data-color-mode="dark"] .site-share-address.is-inactive {
-  color: var(--neu-muted) !important;
-}
 
 html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-contents a:hover,
 html[data-theme="neo-brutalism"][data-color-mode="dark"] .help-contents a:focus-visible {

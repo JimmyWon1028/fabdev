@@ -7,6 +7,13 @@ CARGO_PATH="$(rustup which cargo)"
 RUST_BIN_DIR="${CARGO_PATH%/cargo}"
 
 export PATH="$RUST_BIN_DIR:$PATH"
+if [[ "$(uname -s)" == "Darwin" && "${1:-}" == "dev" ]]; then
+  #2026.10.25 by codex, use the active Apple SDK and matching compilers for native dev builds.
+  export SDKROOT="${SDKROOT:-$(xcrun --sdk macosx --show-sdk-path)}"
+  export CC="${CC:-$(xcrun --sdk macosx --find clang)}"
+  export CXX="${CXX:-$(xcrun --sdk macosx --find clang++)}"
+  export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-13.0}"
+fi
 if [[ "${1:-}" == "build" ]]; then
   export CARGO_PROFILE_RELEASE_STRIP="${CARGO_PROFILE_RELEASE_STRIP:-none}"
 fi

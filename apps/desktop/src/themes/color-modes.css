@@ -352,7 +352,6 @@ html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .php-fast
   border-color: var(--mode-line);
 }
 
-html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-row.is-shared,
 html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-row.selected,
 html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-row.selected,
 html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .proxy-selection-toolbar,
@@ -585,13 +584,7 @@ html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .runtime-
   color: var(--mode-danger);
 }
 
-html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-share-address {
-  color: var(--mode-success) !important;
-}
 
-html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .site-share-address.is-inactive {
-  color: var(--mode-muted) !important;
-}
 
 html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-contents a:hover,
 html[data-theme-variant="alternate"]:not([data-theme="neo-brutalism"]) .help-contents a:focus-visible {

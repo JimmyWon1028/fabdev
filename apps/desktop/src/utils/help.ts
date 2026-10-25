@@ -34,7 +34,7 @@ const manuals: Record<Language, OperationManual> = {
         steps: [
           'Confirm that “Agent connected” appears at the bottom of the sidebar.',
           'Open Sites. Use Site Home to scan first-level folders, or add one linked Site manually.',
-          'Confirm the domain, Web Root, and PHP Runtime. Laravel projects normally use public as the Web Root.',
+          'Confirm the domain and PHP Runtime. The selected project folder is the website root.',
           'Return to Overview and select Start Web Services, then open the Site from the Sites page.'
         ],
         notes: [
@@ -54,20 +54,18 @@ const manuals: Record<Language, OperationManual> = {
       {
         id: 'sites',
         title: 'Sites',
-        summary: 'Manage project folders, .test domains, Web Roots, PHP versions, HTTPS, and temporary LAN sharing.',
+        summary: 'Manage project folders, .test domains, PHP versions, and HTTPS.',
         steps: [
           'Site Home turns each first-level folder or directory symlink into a matching .test Site. Hidden and nested folders are ignored.',
           'Use Add Site for a project outside Site Home. A linked Site takes precedence if its domain conflicts with a scanned Site.',
-          'Use Edit to change the name, project path, domain, or Web Root. Select the PHP Runtime directly on the Site row.',
+          'Use Edit to change the name, project path, or domain. The project path is the website root; select the PHP Runtime directly on the Site row.',
           'Use Diagnose to check the Site, project paths, DNS, Nginx, HTTP, HTTPS, PHP, and MariaDB, then copy a masked report when needed.',
           'Secure adds HTTPS while keeping HTTP available; both serve content without redirects. Trust the fabDev CA when prompted.',
-          'Share to LAN exposes selected Sites through fabDev Connect for short, trusted-network testing.',
           'Import and Export transfer Site configuration. Duplicate entries are skipped.'
         ],
         notes: [
           'Closing an Add or Edit form with unsaved changes asks for confirmation.',
-          'Removing a Site only removes its fabDev registration. It never deletes the project folder.',
-          'LAN sharing has no TLS or user authentication. Do not use it on an untrusted network or as a production server.'
+          'Removing a Site only removes its fabDev registration. It never deletes the project folder.'
         ]
       },
       {
@@ -171,7 +169,7 @@ const manuals: Record<Language, OperationManual> = {
         steps: [
           '先確認左側底部顯示「Agent 已連線」。',
           '進入 Sites。可用 Site Home 掃描第一層資料夾，或手動新增一個 linked Site。',
-          '確認網域、Web Root 與 PHP Runtime；Laravel 專案的 Web Root 通常是 `public`。',
+          '確認網域與 PHP Runtime；選擇的專案資料夾直接作為網站根目錄。',
           '回到總覽按「啟動 Web 服務」，再到 Sites 頁面按「開啟」。'
         ],
         notes: [
@@ -191,20 +189,18 @@ const manuals: Record<Language, OperationManual> = {
       {
         id: 'sites',
         title: 'Sites',
-        summary: '管理專案資料夾、`.test` 網域、Web Root、PHP 版本、HTTPS 與臨時局網分享。',
+        summary: '管理專案資料夾、`.test` 網域、PHP 版本與 HTTPS。',
         steps: [
           'Site Home 會把第一層資料夾或指向資料夾的 symbolic link 建立為同名 `.test` Site；隱藏及更深層資料夾不會加入。',
           '不在 Site Home 內的專案可用「新增 Site」加入；網域衝突時，手動加入的 linked Site 優先。',
-          '按「編輯」可修改名稱、專案路徑、網域與 Web Root；PHP Runtime 可直接在 Site 列上切換。',
+          '按「編輯」可修改名稱、專案路徑與網域；專案路徑直接作為網站根目錄，PHP Runtime 可直接在 Site 列上切換。',
           '按「診斷」可檢查 Site、專案路徑、DNS、Nginx、HTTP、HTTPS、PHP 與 MariaDB，並可複製已遮罩的報告。',
           '按「啟用 HTTPS」後，HTTP 與 HTTPS 都直接回應、不轉址；請依提示信任 fabDev CA。',
-          '按「局網分享」可透過 fabDev Connect 讓受信任區網內的裝置短時間測試。',
           '匯入／匯出可轉移 Site 設定；重複項目會略過。'
         ],
         notes: [
           '新增／編輯表單有未儲存內容時，關閉前會先詢問是否放棄修改。',
-          '移除 Site 只會刪除 fabDev 的登錄資料，不會刪除專案資料夾。',
-          '局網分享沒有 TLS 與使用者登入保護，請勿用於不受信任網路或正式環境。'
+          '移除 Site 只會刪除 fabDev 的登錄資料，不會刪除專案資料夾。'
         ]
       },
       {
@@ -308,7 +304,7 @@ const manuals: Record<Language, OperationManual> = {
         steps: [
           '先确认左侧底部显示“Agent 已连接”。',
           '进入 Sites。可用 Site Home 扫描第一层文件夹，或手动新增一个 linked Site。',
-          '确认域名、Web Root 与 PHP Runtime；Laravel 项目的 Web Root 通常是 `public`。',
+          '确认域名与 PHP Runtime；选择的项目文件夹直接作为网站根目录。',
           '回到总览按“启动 Web 服务”，再到 Sites 页面按“打开”。'
         ],
         notes: [
@@ -328,20 +324,18 @@ const manuals: Record<Language, OperationManual> = {
       {
         id: 'sites',
         title: 'Sites',
-        summary: '管理项目文件夹、`.test` 域名、Web Root、PHP 版本、HTTPS 与临时局域网共享。',
+        summary: '管理项目文件夹、`.test` 域名、PHP 版本与 HTTPS。',
         steps: [
           'Site Home 会把第一层文件夹或指向文件夹的 symbolic link 建立为同名 `.test` Site；隐藏及更深层文件夹不会加入。',
           '不在 Site Home 内的项目可用“新增 Site”加入；域名冲突时，手动加入的 linked Site 优先。',
-          '按“编辑”可修改名称、项目路径、域名与 Web Root；PHP Runtime 可直接在 Site 行上切换。',
+          '按“编辑”可修改名称、项目路径与域名；项目路径直接作为网站根目录，PHP Runtime 可直接在 Site 行上切换。',
           '按“诊断”可检查 Site、项目路径、DNS、Nginx、HTTP、HTTPS、PHP 与 MariaDB，并可复制已遮罩的报告。',
           '按“启用 HTTPS”后，HTTP 与 HTTPS 都直接响应、不跳转；请依提示信任 fabDev CA。',
-          '按“局域网共享”可通过 fabDev Connect 让受信任局域网内的设备短时间测试。',
           '导入／导出可转移 Site 设置；重复项目会跳过。'
         ],
         notes: [
           '新增／编辑表单有未保存内容时，关闭前会先询问是否放弃修改。',
-          '移除 Site 只会删除 fabDev 的登记资料，不会删除项目文件夹。',
-          '局域网共享没有 TLS 与用户登录保护，请勿用于不受信任网络或正式环境。'
+          '移除 Site 只会删除 fabDev 的登记资料，不会删除项目文件夹。'
         ]
       },
       {

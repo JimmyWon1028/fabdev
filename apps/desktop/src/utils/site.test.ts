@@ -72,11 +72,10 @@ describe('filterAndSortSites', () => {
     query: '',
     filter: 'all' as const,
     sort: 'domainAsc' as const,
-    homeSiteIds: new Set(['demo']),
-    sharedSiteIds: new Set(['site-one'])
+    homeSiteIds: new Set(['demo'])
   }
 
-  it('searches domains, project paths, document roots, and PHP versions', () => {
+  it('searches domains, names, project paths, and PHP versions', () => {
     expect(filterAndSortSites(sites, { ...baseOptions, query: 'Site One' }).map((site) => site.id))
       .toEqual(['site-one'])
     expect(filterAndSortSites(sites, { ...baseOptions, query: 'tools' }).map((site) => site.id))
@@ -85,24 +84,20 @@ describe('filterAndSortSites', () => {
       .toEqual(['demo'])
   })
 
-  it('filters shared, Site Home, and linked Sites', () => {
-    expect(filterAndSortSites(sites, { ...baseOptions, filter: 'shared' }).map((site) => site.id))
-      .toEqual(['site-one'])
+  it('filters Site Home and linked Sites', () => {
     expect(filterAndSortSites(sites, { ...baseOptions, filter: 'home' }).map((site) => site.id))
       .toEqual(['demo'])
     expect(filterAndSortSites(sites, { ...baseOptions, filter: 'linked' }).map((site) => site.id))
       .toEqual(['adminer', 'site-one'])
   })
 
-  it('sorts by domain, PHP version, and shared status without mutating the source', () => {
+  it('sorts by domain and PHP version without mutating the source', () => {
     expect(filterAndSortSites(sites, baseOptions).map((site) => site.id))
       .toEqual(['adminer', 'demo', 'site-one'])
     expect(filterAndSortSites(sites, { ...baseOptions, sort: 'domainDesc' }).map((site) => site.id))
       .toEqual(['site-one', 'demo', 'adminer'])
     expect(filterAndSortSites(sites, { ...baseOptions, sort: 'php' }).map((site) => site.id))
       .toEqual(['demo', 'site-one', 'adminer'])
-    expect(filterAndSortSites(sites, { ...baseOptions, sort: 'shared' }).map((site) => site.id))
-      .toEqual(['site-one', 'adminer', 'demo'])
     expect(sites.map((site) => site.id)).toEqual(['site-one', 'demo', 'adminer'])
   })
 })
